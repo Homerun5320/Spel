@@ -54,9 +54,9 @@ function startScene(root: HTMLElement): Stop {
   const overlay = document.createElement('pre');
   overlay.style.cssText =
     'position:absolute;left:8px;top:8px;margin:0;padding:6px 8px;background:rgba(0,0,0,0.7);color:#cfe;' +
-    'font:12px/1.4 ui-monospace,Menlo,Consolas,monospace;white-space:pre;pointer-events:none;';
-  // Hidden by default in test mode; F3 toggles it.
-  overlay.hidden = params.test;
+    'font:12px/1.4 ui-monospace,Menlo,Consolas,monospace;white-space:pre;pointer-events:none;max-width:calc(100vw - 88px);overflow:hidden;';
+  // Hidden by default in test mode and in perf mode (the perf overlay takes its place); F3 toggles it.
+  overlay.hidden = params.test || state.perf;
   wrapper.appendChild(overlay);
   root.appendChild(wrapper);
   stops.push(() => {

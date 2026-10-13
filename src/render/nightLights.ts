@@ -1,7 +1,7 @@
 // Night lights: a 2048x1024 single-channel light texture drawn on the CPU from cities.json (no image assets). Every city
 // gets a soft core whose radius and strength grow with the population, plus a few seeded satellite lights around it
 // (suburbs and towns). Deterministic: the PRNG is seeded from `LIGHTS_SEED` and the city index.
-import type { City } from '../data';
+import { SIM_HEIGHT, SIM_WIDTH, type City } from '../data';
 import { LIGHTS_HEIGHT, LIGHTS_SEED, LIGHTS_WIDTH } from './config';
 
 /** sfc32-free tiny PRNG (mulberry32); the render side has no determinism lint but the texture must be reproducible. */
@@ -44,8 +44,10 @@ export function buildCityLights(cities: readonly City[], width = LIGHTS_WIDTH, h
   const light = new Float32Array(width * height);
   cities.forEach((c, index) => {
     const rnd = mulberry32(Math.imul(LIGHTS_SEED, 2654435761) ^ Math.imul(index + 1, 40503));
-    const cx = ((c.lon + 180) / 360) * width;
-    const cy = ((90 - c.lat) / 180) * height;
+    // The light sits at the centre of the city's sim cell (always a land cell); a city without a valid cell uses lat/lon.
+    const hasCell = Number.isInteger(c.cell) && c.cell >= 0 && c.cell < SIM_WIDTH * SIM_HEIGHT;
+    const cx = hasCell ? (((c.cell % SIM_WIDTH) + 0.5) / SIM_WIDTH) * width : ((c.lon + 180) / 360) * width;
+    const cy = hasCell ? ((Math.floor(c.cell / SIM_WIDTH) + 0.5) / SIM_HEIGHT) * height : ((90 - c.lat) / 180) * height;
     // Population on a log scale: 100 k -> 0, 35 M -> 2.55 decades.
     const decades = Math.max(0, Math.min(2.7, Math.log10(Math.max(c.population, 1e4) / 1e5)));
     const texelScale = width / 1024; // the sizes below are written for a 1024-wide texture (about 39 km per texel)

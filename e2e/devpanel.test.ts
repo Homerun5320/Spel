@@ -144,6 +144,25 @@ describe('Dev panel', () => {
     }
   });
 
+  it('restarting the mode 18 times by hash change releases the GL contexts (no "too many contexts" warning, one canvas)', async () => {
+    const { page, messages } = await open('?test=1');
+    try {
+      for (let i = 0; i < 18; i++) {
+        await page.evaluate((n) => {
+          (window as any).__old = (window as any).__test;
+          location.hash = n % 2 === 0 ? 'perf' : 'perf-0';
+        }, i);
+        await page.waitForFunction(() => (window as any).__test !== undefined && (window as any).__test !== (window as any).__old);
+      }
+      await page.evaluate(() => (window as any).__test.render());
+      expect((await page.evaluate(() => (window as any).__test.info())).drawCalls).toBe(3);
+      expect(await page.locator('canvas').count()).toBe(1);
+      expect(messages).toEqual([]);
+    } finally {
+      await page.close();
+    }
+  });
+
   it('the corner button is visible and tappable in a 390x844 phone viewport, hidden in test mode unless asked for', async () => {
     const { page, messages } = await open('?quality=low', { viewport: { width: 390, height: 844 }, waitTest: false });
     try {

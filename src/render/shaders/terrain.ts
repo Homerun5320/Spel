@@ -145,6 +145,12 @@ vec3 waterAlbedo(float depthM) {
   return mix(c, deep, smoothstep(2500.0, 6500.0, depthM));
 }
 
+float hash12(vec2 p) {
+  vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+  p3 += dot(p3, p3.yzx + 33.33);
+  return fract((p3.x + p3.y) * p3.z);
+}
+
 vec3 toLinear(vec3 c) { return pow(c, vec3(2.2)); }
 vec3 toDisplay(vec3 c) { return pow(clamp(c, 0.0, 1.0), vec3(1.0 / 2.2)); }
 
@@ -212,7 +218,11 @@ void main() {
   // Night lights: emissive on land on the night side, from the CPU-drawn 1024x512 light texture (bilinear).
   float nightF = 1.0 - smoothstep(-0.14, 0.06, sunDot);
   float lightTex = texture(uLights, uv).r;
-  col += uLightsColor.rgb * (uLightsColor.a * lightTex * lightTex * nightF * land);
+  // Street-light speckle (about 5 km cells), faded out when a pixel covers more than about one cell so it never shimmers.
+  float cellsPerPixel = pixelAngle / (2.0 * PI) * 8192.0;
+  float speck = hash12(floor(uv * vec2(8192.0, 4096.0)));
+  float detail = mix(1.0, 0.2 + 1.6 * speck * speck, 1.0 - smoothstep(0.4, 1.6, cellsPerPixel));
+  col += uLightsColor.rgb * (uLightsColor.a * lightTex * lightTex * detail * nightF * land);
 
   // Atmosphere: haze and glow between the camera and this surface point (in linear light).
   vec3 toSurf = vPos - cameraPosition;

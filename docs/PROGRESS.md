@@ -12,7 +12,7 @@ Resume: Läs CLAUDE.md och docs/PROGRESS.md, kör git log -10 och npm run verify
 
 ## Now
 
-### M02 Wow 1: den stiliserade 3D-jorden (GATE) - Checkpoint A is built and green (verify:fast and the full e2e project); Checkpoint B and the last step remain
+### M02 Wow 1: den stiliserade 3D-jorden (GATE) - Checkpoint A and B and the last step are built; waiting for `npm run verify`, the orchestrator's push / draft PR / Artifact and the user's look on a real GPU
 
 Previous merge SHA (origin/main at start): f29121a8d1607ca169e6675b5f22a52d76c42ef7 (still the initial commit: M00, M00b and M01 are NOT merged, they live on this branch and in draft pull request #1; the "M01 is merged" precondition was treated as satisfied by the orchestrator's instruction). `npm ci && npm run verify:fast` was green at the start (279 unit tests).
 
@@ -47,19 +47,21 @@ Notes for Checkpoint B (read before starting)
 - `tests/fxClock.test.ts` has an allow-list of files that may read real time; the perf overlay (B8) belongs there with a reason, or its numbers must come from `performance` in a file added to the list.
 - A scratch HTML page in the repo root (untracked, delete it afterwards) that imports the globe module through Vite is the quickest way to look at the medium and high tiers in SwiftShader; `?test=1` forces the test tier.
 
-GÖR, Checkpoint B (NOT started; the next session continues here)
-- [ ] B3. Ocean (Fresnel, animated normals frozen in test mode), atmosphere (back-face additive shell), terminator, then stars, night lights (1024x512 light texture from cities.json), sun glitter (last)
-- [ ] B4. Country borders (fwidth + neighbour comparison, not coast against sea), palette LUT
-- [ ] B8. `?perf=1` overlay: renderer string, fps (mean and p95), renderer.info (calls, triangles, geometries, textures), texture memory in MB, button "Kopiera rapport"
-- [ ] B10. (later files) Dev panel `src/app/devpanel.ts` (F2 and a corner button, visible in 390x844), `registerDevMode`, ONE parser `src/app/params.ts` with the hash grammar, `hashchange` restart, `src/ui/report.ts` `showReport(json)`, PREVIEW.md table
-- [ ] B-last. Goldens for the 6 views (committed ONCE) and the night / limb / glitter / city-light pixel checks
+GÖR, Checkpoint B and the last step (second session)
+- [x] B3. Ocean (animated wave normals frozen through the fx clock, Fresnel with a sky colour), atmosphere (single-scattering march: terrain haze plus the back-face additive shell), terminator (soft day factor, warm twilight band), then stars, night lights (2048x1024 light texture from `public/data/cities.json`), sun glitter (broad and tight lobe)
+- [x] B4. Country borders (neighbour comparison of the id raster, sea never counts) and the palette LUT
+- [x] B8. `?perf=1` / `#perf` overlay: renderer string, fps (mean and p95), renderer.info (calls, triangles, geometries, textures), texture MB, button "Kopiera rapport"
+- [x] B10. Dev panel `src/app/devpanel.ts` (F2 and the corner button, visible in 390x844), `registerDevMode`, ONE parser `src/app/params.ts` with the hash grammar and `hashchange` restart, `src/ui/report.ts` `showReport(json)`, PREVIEW.md table
+- [x] B-last. Goldens for the 6 views (committed once) and the night / limb / glitter / city-light pixel checks
+- [x] Docs: ARCHITECTURE index and "Budgetar", PREVIEW.md, DECISIONS D39-D47, BACKLOG
+- [x] `npm run verify` green (typecheck, lint, 356 unit, 9 perf, 47 e2e), `npm run build && npm run artifact:pack` run (21 files, 15.38 MB in `artifact/`, 10 MB of it the probe packs); the orchestrator pushes (PR #1 exists, no new PR) and republishes the Artifact by the procedure in `docs/PREVIEW.md`
 
-ACCEPTANS, Checkpoint B and last step (NOT started)
-- [ ] city light pixels (Tokyo, New York, Stockholm: luma >= sea neighbour + 25), night view (mean luma < day / 3, >= 20 pixels > 150), limb pixel >= 10 luma above space, glitter pixel brighter than the sea mean
-- [ ] goldens by the golden rule for all 6 views; two renders identical
-- [ ] Dev panel and report e2e (F2, `perf` mode toggles the overlay, `#perf` equals `?perf=1`, hash change restarts the mode, corner button visible in 390x844, `showReport` with a refused clipboard)
-- [ ] JS bundle <= 300 KB gz; `npm run verify` green
-- [ ] docs: ARCHITECTURE "Budgetar" table, PREVIEW.md, DECISIONS; `npm run build && npm run artifact:pack`; orchestrator pushes, opens the draft PR and republishes the Artifact
+ACCEPTANS, Checkpoint B and last step
+- [x] city light pixels (Tokyo 214 against sea 24, New York 234 against 24, Stockholm 152 against 25; needs >= sea + 25), night view (mean luma 26.3 against day 105.5, ratio 4.0 > 3; 8068 pixels above 150), limb pixel 124 against space 0, glitter pixel 254.8 against sea mean 55.9
+- [x] goldens by the golden rule for all 6 views (`e2e/goldens/globe-*.png`); two renders per view identical
+- [x] Dev panel and report e2e (F2, `perf` toggles the overlay, `#perf` equals `?perf=1`, a hash change restarts the mode without a reload, the corner button is visible and tappable in 390x844, `showReport` with a refused clipboard shows the textarea and a working Download link)
+- [x] borders: only land-against-land pixels change when the border strength goes 0 to 0.34, coast against sea never
+- [x] JS bundle <= 300 KB gz (main chunk 151.4 kB gzip, all JS about 159 kB); `npm run verify` green
 
 ### M01 Baka riktiga världen (all items ticked; the Artifact was republished with the real data packs as version 2 and the branch is pushed; waiting for the squash merge)
 
@@ -151,6 +153,8 @@ ACCEPTANS
 - `docs/CHARTER.md` is verbatim from the prompt; in section 7 the "User lines" and "User's own files" bullets sit on one line (a newline is missing in the source text). Not changed because the charter must stay word for word.
 - No real-GPU measurement exists; everything is SwiftShader.
 - M02 A: the whole-Earth view shows dark green Forest patches in the Sahara and Arabia (baked biome rule, see `docs/BACKLOG.md`); the north pole shows the synthetic polar streaks.
+- M02 B: everything was judged in SwiftShader screenshots only (no GPU): the colours of the atmosphere (`ATMOSPHERE_*`), the glint strength (`OCEAN_SPEC_*`), the night light gain (`LIGHTS_GAIN`) and the wave size are the first things to tune on a real GPU (all in `src/render/config.ts`). The border line is stair-stepped at 10 km when zoomed to the limit (backlog).
+- M02 B: the Dev button is hidden in `?test=1` (so goldens stay clean); `#devbtn` shows it there.
 - M00b: the data manifest format of M01 is assumed (name to file relative to the data folder, enc defaults to raw), see D17 in `docs/DECISIONS.md`. M01 must keep it or change the pack script.
 - M00b: the Artifact URL in `docs/PREVIEW.md` is a placeholder until the orchestrator publishes; the user's "klotet syns" confirmation is pending.
 
@@ -205,6 +209,22 @@ M02 Checkpoint A (same sandbox, test tier 256x128 mesh, 960x540, SwiftShader):
 | JS bundle main chunk | 556 kB raw, about 140 kB gzip (limit 300 kB) |
 | leak test (60 renders at 320x180) | 0.03 MB |
 | `npm run verify:fast` / full e2e project | about 15 s / about 60 s |
+
+M02 Checkpoint B and last step (same sandbox, test tier 256x128 mesh, 960x540, SwiftShader):
+
+| measure | value |
+|---------|-------|
+| first frame (page start to end of first render, incl. packs) | 611-644 ms (logged by smoke and globe e2e, not asserted) |
+| render call / page screenshot | about 91 ms / 420 ms for the first frame in a fresh page (smoke); later renders 3-100 ms |
+| draw calls / triangles / textures / texture memory | 3 (stars, globe, atmosphere shell) / 74 560 (65 536 + 9 024) / 6 / 20.5 MB |
+| live loop at 960x540, tier low | about 6 fps in software (the perf report of the e2e run: mean 5.9, p95 3.0), not asserted |
+| JS bundle | main chunk 582.6 kB raw, 151.4 kB gzip (limit 300 kB); all JS about 159 kB gzip |
+| goldens | six `e2e/goldens/globe-*.png`, 264-422 kB each, 0 px differ on re-run |
+| night lights (Tokyo / New York / Stockholm) city pixel against sea neighbour | 214 / 234 / 152 against 24 / 24 / 25 |
+| night view mean luma against the same view in daylight | 26.3 against 105.5 (ratio 4.0), 8068 pixels above luma 150 |
+| limb pixel against space / glitter pixel against the sea mean | 124 against 0 / 254.8 against 55.9 |
+| borders | 1.09 % of the pixels change with the border switch on, all at land-land borders |
+| `npm run verify` | about 2.7 min (unit 10 s, perf 2 s, e2e 137 s) |
 
 M01 (same sandbox):
 

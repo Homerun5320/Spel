@@ -20,7 +20,7 @@ Den här filen är på svenska och skriven för dig som inte är utvecklare. Cla
 6. Dator: klicka på länken ovan (eller kopiera den till webbläsaren). Du ska vara inloggad på claude.ai med samma konto.
 7. Telefon: öppna länken i Claude-appen (så visades din testsida) eller i telefonens webbläsare där du är inloggad på claude.ai. Fullskärmsläge finns inte på iPhone, spelet fyller sidan i stället.
 8. Efter varje uppdatering: ladda om fliken (dra ned på telefonen, F5 på dator), annars ser du den gamla versionen.
-9. Det första du ska se är ett upplyst klot på svart bakgrund. Nere till höger finns en liten länk "Testsida (probe)". Den visar en tabell över vad miljön klarar. Klistra gärna in den tabellen i chatten.
+9. Det första du ska se är jorden som ett stiliserat 3D-klot på stjärnhimmel: berg med relief, hav, atmosfär, svaga landgränser och nattljus. Uppe till höger finns knappen "Dev". Nere till höger finns en liten länk "Testsida (probe)". Den visar en tabell över vad miljön klarar. Klistra gärna in den tabellen i chatten. Mus: dra för att snurra, scrolla för att zooma (zoomen fäster vid markören), högerdrag eller Ctrl/Skift-drag lutar och vrider, håll markören över marken för land, terräng och höjd.
 
 ## 4. Uppdateringsproceduren (Claude kör den, du behöver inte göra något)
 
@@ -40,18 +40,33 @@ Datacontainer: standard är `.png` (rå gzip-data under filändelsen .png, snabb
 
 ## 5. Tabell: `?x=y` blir `#x-y`
 
-I en Artifact når inte adressparametrar (`?x=y`) sidan, men ett rent ankare (`#...`) gör det. Därför skrivs varje adress med `?` också i ankarform. Grammatiken införs i M02 (då läser spelet ankaret). Tills dess ignorerar spelet ankaret; probe-sidan visar bara vad som kommer fram. Tillåtna tecken i ett ankare: A–Z a–z 0–9 - . _ ~
+I en Artifact når inte adressparametrar (`?x=y`) sidan, men ett rent ankare (`#...`) gör det. Därför skrivs varje adress med `?` också i ankarform. Sedan M02 läser spelet ankaret (en enda parser läser både `?` och `#`).
+
+**Grammatiken** (bara tecknen A–Z a–z 0–9 - . _ ~ får förekomma i ankaret):
+- en token är `nyckel` eller `nyckel-värde`; den delas vid det FÖRSTA bindestrecket, så värdet får innehålla fler bindestreck;
+- flera tokens skiljs med understreck `_`;
+- en `nyckel` utan värde betyder `nyckel=1`;
+- finns samma nyckel både i `?` och i `#` vinner ankaret;
+- appen lyssnar på ankarbyte (`hashchange`) och startar om läget utan att ladda om sidan.
+
+Exempel: `#perf` = `?perf=1`; `#scene-perf` = `?scene=perf`; `#scenario-slice_sam-1` = `?scenario=slice&sam=1`; `#view-alps-valley` = `?view=alps-valley`; `#seed-7` = `?seed=7`.
+
+Lägen som finns registrerade i Dev-panelen (F2 eller hörnknappen) just nu:
 
 | Lokalt (dator) | I en Artifact (länken + ankare) | Anmärkning |
 |----------------|----------------------------------|------------|
-| `?test=1` | `#test-1` | testläge (fast bild, ingen animation) |
-| `?perf=1` | `#perf-1` (om M02 också godtar kortformen `#perf` skrivs det här) | prestandaläge, kommer senare |
+| `?perf=1` | `#perf` | prestandaöverlägg: renderer, fps (medel och p95), anrop, trianglar, texturminne, knappen "Kopiera rapport". Avslås med `#perf-0` eller via Dev-panelen |
+| `?test=1` | `#test` (även `#test-1`) | testläge (fast bild, ingen animation, Dev-knappen dold) |
+| `?scene=spike` | `#scene-spike` | M00-spiken i stället för jorden; `#scene-globe` är jorden |
+| `?quality=low` / `medium` / `high` | `#quality-low` / `#quality-medium` / `#quality-high` | kvalitetsnivå (hög ger cirka 1 miljon trianglar) |
 | `?seed=7` | `#seed-7` | |
-| `?map=class` (debugkartan) | `#map-class` | klassernas karta; även `#map-height` (höjd) och `#map-country` (länder) |
-| flera parametrar | skrivs efter varandra, regeln fastställs i M02 | |
+| `?map=class` (debugkartan) | `#map-class` | klassernas karta på debugsidan; även `#map-height` (höjd) och `#map-country` (länder) |
+| `?test=1&perf=1` | `#test_perf` | flera lägen: tokens skiljs med `_` |
+| `?devbtn=1` | `#devbtn` | visar Dev-knappen också i testläge (där den annars är dold) |
 
-17. Lägen i en Artifact nås alltså med länken + `#läge` (till exempel `https://claude.ai/artifact/H4jqcMBvTMi7udLais5btV#perf`) eller via Dev-panelen: F2 på dator, hörnknappen på telefon. Dev-panelen införs i M02.
+17. Lägen i en Artifact nås alltså med länken + `#läge` (till exempel `https://claude.ai/artifact/H4jqcMBvTMi7udLais5btV#perf`) eller via Dev-panelen: F2 på dator, den runda knappen "Dev" uppe till höger på telefon (den syns också på datorn). Panelen skriver ankaret åt dig och laddar om sidan; den rör aldrig adressparametrarna efter `?`. Länken till datakartan i panelen är relativ (`./debug/data.html`).
 17a. Datakartan (M01): `debug/data.html` ritar den bakade världen. I en Artifact: länken i avsnitt 2 och längst ned till vänster på startsidan raden "Debug: klasskarta / höjdkarta / landkarta" (tre relativa länkar). Lokalt: `http://localhost:5173/debug/data.html?map=class` (eller `?map=height`, `?map=country`) eller ankaret `#map-class`, `#map-height`, `#map-country`. Sidan har också tre knappar (Klasskarta, Höjdkarta, Landkarta). Datapaketen (cirka 4,5 MB) packas som vanligt av `npm run artifact:pack`; i en Artifact blir de `.png`-filer (standard) eller `.b64.txt` med `--container=b64`.
+17b. Rapporter: knappen "Kopiera rapport" öppnar en ruta med rapporten som text. Försök kopiera sker direkt; nekas det (eller är Ladda ner blockerat i en Artifact) markerar du texten i rutan ("Markera allt") och kopierar den för hand.
 
 ## 6. Det som inte fungerar i en Artifact
 

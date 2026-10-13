@@ -160,6 +160,11 @@ export class Globe {
     (this.material.uniforms.uExag as { value: number }).value = x;
   }
 
+  /** Strength of the country border lines (0 = none); a test switch for the border acceptance. */
+  setBorderStrength(x: number): void {
+    (this.material.uniforms.uBorderStrength as { value: number }).value = x;
+  }
+
   setView(v: Partial<ViewState>): void {
     this.rig.setView(v);
   }

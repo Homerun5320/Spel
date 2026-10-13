@@ -35,7 +35,8 @@ vec4 atmosphereScatter(vec3 ro, vec3 rd, float tMax, vec3 sun, int steps) {
     float up = dot(p, sun) / r;
     // Is the sun ray from p blocked by the planet? Distance of that ray to the centre against the unit sphere.
     float perp = r * sqrt(max(1.0 - up * up, 0.0));
-    float lit = up > 0.0 ? 1.0 : smoothstep(0.985, 1.025, perp);
+    // Continuous across up = 0 (a hard step there would draw a line on the sea at dusk).
+    float lit = max(smoothstep(0.985, 1.025, perp), smoothstep(-0.08, 0.06, up));
     float dusk = 1.0 - smoothstep(0.02, 0.5, up);
     vec3 tint = mix(uAtmoColor, uAtmoDusk, dusk * dusk);
     sum += tint * (dens * dt * lit * (0.55 + 0.45 * smoothstep(-0.2, 0.6, up)));

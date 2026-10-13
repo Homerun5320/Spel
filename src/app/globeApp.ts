@@ -50,6 +50,8 @@ export interface GlobeTestHooks {
   readTexels(name: WorldTextureName, points: Array<[number, number]>): number[];
   /** Height exaggeration of shader and picking (0 = flat control). */
   setExaggeration(x: number): void;
+  /** Strength of the country border lines (0 = none). */
+  setBorderStrength(x: number): void;
   view(): ViewState;
   /** Text of the hover tooltip for a pick, as the page shows it. */
   tooltip(x: number, y: number): string | null;
@@ -260,6 +262,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       pick: (x, y) => globe.pick(x, y),
       readTexels: (name, points) => Array.from(globe.readTexels(name, points)),
       setExaggeration: (x) => globe.setExaggeration(x),
+      setBorderStrength: (x) => globe.setBorderStrength(x),
       view: () => globe.rig.view,
       tooltip: tipFor,
     };

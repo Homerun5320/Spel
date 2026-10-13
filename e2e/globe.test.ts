@@ -9,6 +9,7 @@ import { OUT_DIR, analyzeImage, decodePng, launchBrowser, luma, openPage } from 
 import { DIST_MAX_KM, DIST_MIN_KM, TILT_MAX_DEG } from '../src/render/config';
 import { latLonToCell } from '../src/render/geo';
 import { CANONICAL_VIEWS } from '../src/render/views';
+import { readBudgets } from '../tests/helpers/budgets';
 import { worldLoader } from '../tests/helpers/dataFiles';
 
 type Hooks = {
@@ -67,6 +68,9 @@ describe('globe scene: test tier budget', () => {
       expect(info.tier).toBe('test'); // ?test=1 forces the test tier whatever ?quality= says
       expect([info.meshCols, info.meshRows]).toEqual([256, 128]);
       expect(info.triangles).toBeLessThanOrEqual(150_000);
+      const budget = readBudgets()[0]; // docs/ARCHITECTURE.md "Budgetar": the first row is the whole globe scene
+      expect(info.triangles).toBeLessThanOrEqual(budget?.triangles ?? 0);
+      expect(info.drawCalls).toBeLessThanOrEqual(budget?.drawCalls ?? 0);
       // Since checkpoint B the scene is 3 draw calls: stars (points, no triangles), the globe mesh and the 96x48 atmosphere shell.
       expect(info.triangles).toBe(2 * 256 * 128 + 9024); // 9024 = the 96x48 sphere of the shell
       expect(info.drawCalls).toBe(3);

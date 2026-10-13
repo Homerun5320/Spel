@@ -21,16 +21,17 @@ describe('night lights texture (CPU, from cities.json)', () => {
     const b = buildCityLights(cities);
     expect(a.length).toBe(LIGHTS_WIDTH * LIGHTS_HEIGHT);
     expect(Buffer.compare(Buffer.from(a), Buffer.from(b))).toBe(0);
+    const cellOf = (c: { cell: number }): [number, number] => [90 - ((Math.floor(c.cell / 1024) + 0.5) / 512) * 180, ((c.cell % 1024) + 0.5) / 1024 * 360 - 180];
     const at = (lat: number, lon: number): number => a[Math.floor(((90 - lat) / 180) * LIGHTS_HEIGHT) * LIGHTS_WIDTH + Math.floor(((lon + 180) / 360) * LIGHTS_WIDTH)] as number;
     const tokyo = cities.find((c) => c.name === 'Tokyo');
     if (!tokyo) throw new Error('no Tokyo');
-    expect(at(tokyo.lat, tokyo.lon)).toBeGreaterThan(150);
+    expect(at(...cellOf(tokyo))).toBeGreaterThan(150); // the light sits at the centre of the sim cell of the city
     expect(at(0, -30)).toBe(0); // mid Atlantic
     const lit = a.reduce((n, v) => n + (v > 40 ? 1 : 0), 0);
     expect(lit).toBeGreaterThan(500);
     expect(lit).toBeLessThan(LIGHTS_WIDTH * LIGHTS_HEIGHT * 0.05); // dots, not a glow over the world
     // a city at the antimeridian lights both edges of the texture
-    const edge = buildCityLights([{ name: 'E', lat: 0, lon: 179.95, population: 5_000_000, cell: 0, country: 1, capital: false }]);
+    const edge = buildCityLights([{ name: 'E', lat: 0, lon: 179.95, population: 5_000_000, cell: 256 * 1024 + 1023, country: 1, capital: false }]);
     const row = Math.floor(LIGHTS_HEIGHT / 2);
     expect(edge[row * LIGHTS_WIDTH + LIGHTS_WIDTH - 1]).toBeGreaterThan(50);
     expect(edge[row * LIGHTS_WIDTH]).toBeGreaterThan(20);
