@@ -15,6 +15,8 @@ export function registerAppModes(): void {
   registerDevMode({ id: 'lang-en', label: 'Språk: English', params: { lang: 'en' } });
   registerDevMode({ id: 'lang-sv', label: 'Språk: svenska', params: { lang: 'sv' } });
   registerDevMode({ id: 'hud', label: 'HUD i testläge', params: { hud: '1' }, toggle: true });
+  registerDevMode({ id: 'ai-off', label: 'AI och stammar av (tom match)', params: { ai: '0' } });
+  registerDevMode({ id: 'ai-on', label: 'AI och stammar på (standard)', params: { ai: '1' } });
   registerDevMode({ id: 'debug-data', label: 'Datakartan (debug/data.html)', href: './debug/data.html' });
   registerDevMode({ id: 'debug-data-height', label: 'Datakartan: höjd', href: './debug/data.html#map-height' });
   registerDevMode({ id: 'debug-data-country', label: 'Datakartan: länder', href: './debug/data.html#map-country' });

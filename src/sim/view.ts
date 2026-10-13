@@ -8,6 +8,7 @@
 import { ownerCapQt, goldMilliPerTick, ownedStdAreaQ15 } from './economy';
 import { PHASE_PLAY, phaseAt, phaseTicksLeft, type MatchPhase } from './flow';
 import { TICK_HZ } from './rules';
+import { isPlayableClass } from './terrain';
 import { seatToOwner, type GameState } from './state';
 import { landShareQ15 } from './territory';
 
@@ -78,6 +79,49 @@ export interface SimView {
   readonly flow: boolean;
   /** Whether the debug intents are enabled (tests only). */
   readonly debugIntents: boolean;
+  /**
+   * The contact length between two owners in cells: the number of 4-neighbour adjacencies between a playable cell of one and a
+   * playable cell of the other (owner 0 = unowned land; sea, Peak and Ice take part in none, so the coast is no contact). 0 for
+   * the same owner or for owners that do not touch. Cheap on a StateView (the sim's border index); a ViewMirror scans the map
+   * once per ownerVersion.
+   */
+  contactLength(a: number, b: number): number;
+}
+
+/**
+ * Counts the adjacencies between every pair of owners into `out` (slots * slots, the pair (a, b) with a < b at a * slots + b),
+ * the same numbers as the sim's border index (src/sim/borders.ts): east and south neighbours with x wrapping, playable cells only.
+ */
+export function countContacts(width: number, height: number, owner: ReadonlyNumbers, terrain: ReadonlyNumbers, slots: number, out: Int32Array): void {
+  out.fill(0);
+  const playable = new Uint8Array(256);
+  for (let c = 0; c < 256; c++) playable[c] = isPlayableClass(c) ? 1 : 0;
+  for (let y = 0; y < height; y++) {
+    const row = y * width;
+    for (let x = 0; x < width; x++) {
+      const c = row + x;
+      if (playable[terrain[c] as number] === 0) continue;
+      const o = owner[c] as number;
+      const e = x + 1 === width ? row : c + 1;
+      if (e !== c && playable[terrain[e] as number] === 1) {
+        const r = owner[e] as number;
+        if (r !== o) {
+          const i = o < r ? o * slots + r : r * slots + o;
+          out[i] = (out[i] as number) + 1;
+        }
+      }
+      if (y + 1 < height) {
+        const s = c + width;
+        if (playable[terrain[s] as number] === 1) {
+          const r = owner[s] as number;
+          if (r !== o) {
+            const i = o < r ? o * slots + r : r * slots + o;
+            out[i] = (out[i] as number) + 1;
+          }
+        }
+      }
+    }
+  }
 }
 
 /** Packed statistics of a state, written into `out` (statsLength(seats) long). No allocation. */
@@ -191,5 +235,8 @@ export class StateView implements SimView {
   }
   get debugIntents(): boolean {
     return this.state.header.config.debugIntents;
+  }
+  contactLength(a: number, b: number): number {
+    return this.state.borders.contact(a, b);
   }
 }

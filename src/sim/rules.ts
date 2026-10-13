@@ -171,3 +171,37 @@ export const IMMUNITY_TICKS = 50;
 export const MATCH_AI_NATIONS = 5;
 /** Tribes (bots with a weaker economy) of a standard match; they are the seats after the players. */
 export const MATCH_TRIBES = 20;
+
+// ---------------------------------------------------------------------------------------------------------------
+// AI v0 (M05 part C). The AI is a pure function of a SimView (src/ai); these are its tunables. They do not change the sim
+// step (the AI only emits intents), so they need no ENGINE_VERSION bump. src/ai reads them through src/sim/public.ts.
+
+/** Ticks between two thoughts of one seat (1 s). */
+export const AI_THINK_PERIOD_TICKS = 10;
+/** The thought of seat s happens when (tick + s * this) is a multiple of the period: the seats think on different ticks. */
+export const AI_THINK_STAGGER_TICKS = 3;
+/** The 20 tribes Spawn one by one from tick 0, this many ticks apart (a Spawn runs 2 ticks after it was sent, so a seat sees the one before it). */
+export const AI_SPAWN_SPACING_TICKS = 3;
+/** An AI nation's Spawn is tried at a seeded tick in AI_SPAWN_FIRST_TICK .. AI_SPAWN_LAST_TICK (inside the 200 tick spawn phase, after the tribes), at least AI_SPAWN_SPACING_TICKS apart. */
+export const AI_SPAWN_FIRST_TICK = 60;
+export const AI_SPAWN_LAST_TICK = 150;
+/** Ticks to wait for the capital to show up (a Spawn runs 2 ticks after it was sent) before the Spawn is tried at another place. */
+export const AI_SPAWN_RETRY_TICKS = 6;
+/** A nation's capital is at least this many sim cells from every owned cell (about 1100 km at the equator); tribes use the smaller one. */
+export const AI_NATION_CLEARANCE_CELLS = 28;
+export const AI_TRIBE_CLEARANCE_CELLS = 14;
+/** Random places tried for one Spawn; the clearance is halved after every quarter of them, so a crowded map still finds a place. */
+export const AI_SPAWN_TRIES = 400;
+/** An AI seat expands or attacks only with at least this share of its troop cap (percent). */
+export const AI_EXPAND_TROOP_PCT = 50;
+/** Percent of its troops an AI nation commits to an attack on unowned land / on a neighbour. A tribe commits troops / TRIBE_ATTACK_DIV whatever this says. */
+export const AI_EXPAND_COMMIT_PCT = 70;
+export const AI_WAR_COMMIT_PCT = 50;
+/** A nation attacks a neighbour only when its troops are at least this many percent of the neighbour's. */
+export const AI_WAR_MIN_RATIO_PCT = 130;
+/** Ticks before a seat attacks the same target again (a second Attack on a target adds troops to the running one). */
+export const AI_ATTACK_COOLDOWN_TICKS = 40;
+/** The same for a tribe's expansion into unowned land. */
+export const AI_TRIBE_COOLDOWN_TICKS = 100;
+/** A tribe stops expanding at this many cells (three times its capital disc): a tribe is a small, defended prize, not a rival. */
+export const AI_TRIBE_MAX_CELLS = 600;

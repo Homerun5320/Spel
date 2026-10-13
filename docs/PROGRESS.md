@@ -42,9 +42,14 @@ GÖR, Part B (items 4, 7, i18n) - DONE (this session; nothing pushed, no PR, no 
 - [x] 7. Start screen with a Play button and a small Dev button (first thing the user sees in the live page; a language button; test mode bypasses it) (D100)
 - [x] B-last. `docs/PREVIEW.md` (Swedish): how to start, controls, seed addresses in hash form, the HUD, the Dev panel (17d to 17i); ARCHITECTURE, DECISIONS D98 to D101, BACKLOG
 
-GÖR, Part C (item 6) - NOT started
-- [ ] 6. 20 tribes at start; AI v0 in `src/ai` for 5 nations (`think(view, memory, rng) -> Intent[]`), src/sim/public.ts type-only intent re-exports and rules constants, ESLint allow-list + type test, the host calls it at tick boundaries with its own memory and PRNG (intents T+2), `*.perf.test.ts` budget `budgetMs(0.5)` per seat
-- [ ] C-last. `npm run verify` green; `npm run build && npm run artifact:pack`; ARCHITECTURE and DECISIONS final; Så spelar du list for the reply
+GÖR, Part C (item 6 and the finish) - IN PROGRESS (this session; nothing pushed, no PR, no Artifact)
+- [ ] C1. `src/sim/intents.ts` constructors, `SimView.contactLength` (StateView over the border index, ViewMirror by a lazy scan), AI constants in `src/sim/rules.ts` and `docs/BALANCE.md`, `src/sim/public.ts` as the AI's one import (type-only intents, constructors, constants, rng helpers)
+- [ ] C2. `src/ai`: `think(view, memory, rng) -> IntentBody[]` (seeded spawn places, expand at >= 50 % of the cap, weakest neighbour, staggered per seat), tribes (spawn at tick 0 to 19, slow expansion)
+- [ ] C3. ESLint allow-list for `src/ai` plus a lint self-test and a type test (`tests/ai/`)
+- [ ] C4. Host calls the AI at tick boundaries (`TickDriver` option of `MainThreadHost`, `src/host/aiDriver.ts`), own memory and PRNG, intents T + 2; `MatchOptions.ai` / `?ai=0` / `#ai-0` / Dev-panel mode; the two older e2e files open with `ai=0`
+- [ ] C5. Tests: think unit tests, determinism, perf (`budgetMs(0.5)` per seat), mirror contact equals border index, e2e with the AI on (600 ticks, 6000 ticks, no console error, <= 150k triangles)
+- [ ] C6. Calibration of the AI (growth of a nation, tribes), screenshots, a full simulated session at 4x
+- [ ] C-last. Docs (ARCHITECTURE, DECISIONS, PREVIEW in Swedish, BACKLOG, BALANCE), `npm run verify` green, `npm run build && npm run artifact:pack`
 
 ACCEPTANS (all three parts; the part that owns each item is in brackets)
 - [x] [A done, B re-checks with the real HUD] Playwright `?test=1&seed=7` (`#test_seed-7` is the same match): spawn at fixed coordinates, `advance` 600 ticks, the player's land share above the start value (0.150 % to 0.293 %); HUD values equal sim values (`data-testid`, the temporary HUD; part B must keep the test green for its HUD: land share, timer, leaderboard are new); screenshots at tick 0 / 100 / 300 / 600 (`test-results/shots/match-t000.png` and so on)

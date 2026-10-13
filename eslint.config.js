@@ -89,6 +89,19 @@ const DETERMINISM_SYNTAX = [
   ),
 ];
 
+// src/ai may import NOTHING from the sim but src/sim/public.ts (CHARTER section 2, invariant 6): not step, not the state, not a
+// mutator, not rules.ts. Allowed: files of src/ai itself (`./x`) and exactly `../sim/public`. Everything else (any other
+// relative path, a bare package, a dynamic import()) is an error. tests/lint.test.ts proves that the rule fires.
+const AI_IMPORTS = {
+  patterns: [
+    ...BOUNDARY_IMPORTS.patterns,
+    {
+      regex: '^(?!\\./)(?!\\.\\./sim/public$)',
+      message: 'src/ai may import only src/sim/public.ts (which exports SimView) and its own files. Never step, the state, a mutator or rules.ts.',
+    },
+  ],
+};
+
 export default defineConfig([
   globalIgnores(['dist/**', 'node_modules/**', '.cache/**', 'test-results/**', 'artifact/**', 'e2e/goldens/**', 'public/**']),
   js.configs.recommended,
@@ -124,6 +137,19 @@ export default defineConfig([
     rules: {
       'no-restricted-globals': ['error', ...DOM_GLOBALS, ...NONDETERMINISTIC_GLOBALS],
       'no-restricted-syntax': ['error', ...DETERMINISM_SYNTAX],
+    },
+  },
+  {
+    // src/ai: the determinism rules again (this entry replaces the rule options of the one above) plus the import allow-list.
+    files: ['src/ai/**/*.ts'],
+    ignores: TEST_FILES,
+    rules: {
+      'no-restricted-imports': ['error', AI_IMPORTS],
+      'no-restricted-syntax': [
+        'error',
+        ...DETERMINISM_SYNTAX,
+        { selector: 'ImportExpression', message: 'src/ai may not use dynamic import().' },
+      ],
     },
   },
 ]);

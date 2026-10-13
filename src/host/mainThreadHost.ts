@@ -9,7 +9,7 @@ import { MAX_INTENTS_PER_TURN } from '../sim/rules';
 import { deserialize, hashState, serialize } from '../sim/serialize';
 import { step, type StepFn } from '../sim/step';
 import { MAX_SEATS, type GameState } from '../sim/state';
-import { fillSeatStats, statsLength } from '../sim/view';
+import { StateView, fillSeatStats, statsLength, type SimView } from '../sim/view';
 import { scheduledTurn } from '../sim/time';
 import { FixedStepAccumulator } from './accumulator';
 import {
@@ -26,7 +26,18 @@ import {
   type ViewSnapshot,
 } from './protocol';
 
+/**
+ * Code that runs in the sim's own thread at every tick boundary and answers with intents (the AI, src/host/aiDriver.ts). It is
+ * handed a read-only SimView over the live state (statistics refreshed for this tick) and a `submit` that files an intent for
+ * T + 2 exactly like a player's. It never sees the state itself.
+ */
+export interface TickDriver {
+  onTick(view: SimView, submit: (body: IntentBody) => void): void;
+}
+
 export interface MainThreadHostOptions {
+  /** Called before every tick (default: none). */
+  readonly driver?: TickDriver;
   /** Initial speed (default 1). */
   readonly speed?: Speed;
   /** Emit a 'hash' event every this many ticks (0 = never, the default). Hashing a 1024x512 state costs a few ms. */
@@ -52,6 +63,10 @@ export class MainThreadHost implements SimHost {
   private lastRejectTick = -1;
   /** Reused for the statistics of every view (the snapshot gets a copy). */
   private readonly statsScratch: Uint32Array;
+  private readonly driver: TickDriver | null;
+  /** The read-only window the driver reads (null without a driver). */
+  private readonly driverView: StateView | null;
+  private readonly submitBound = (body: IntentBody): void => this.submitIntent(body);
 
   /**
    * Takes over `state`: after this call only the host may use it. `resume` (what `requestSnapshot` hands out, already
@@ -62,6 +77,8 @@ export class MainThreadHost implements SimHost {
     this.ids = new IdAllocator(resume?.idNext);
     if (resume !== undefined) for (const t of resume.pending) this.pending.set(t.turn, t.intents.map(copyIntent));
     this.statsScratch = new Uint32Array(statsLength(state.header.seats));
+    this.driver = options.driver ?? null;
+    this.driverView = this.driver === null ? null : new StateView(state);
     this.stepFn = options.stepFn ?? step;
     this.hashEvery = options.hashEveryTicks !== undefined && options.hashEveryTicks > 0 ? Math.floor(options.hashEveryTicks) : 0;
     if (options.speed !== undefined) this.accumulator.setSpeed(options.speed);
@@ -130,6 +147,11 @@ export class MainThreadHost implements SimHost {
     let overflowed = false;
     for (let n = 0; n < count; n++) {
       const turn = this.state.tick;
+      if (this.driver !== null && this.driverView !== null) {
+        // Tick boundary: the state is exactly the end of the previous tick; whatever the driver sends runs at turn + 2.
+        this.driverView.refresh();
+        this.driver.onTick(this.driverView, this.submitBound);
+      }
       const intents = this.pending.get(turn) ?? [];
       this.pending.delete(turn);
       const result = this.stepFn(this.state, { turn, intents });

@@ -17,8 +17,9 @@ function world() {
   return { width: W, height: H, terrainClass, meanElev: new Int16Array(W * H), cosQ15: Array.from(rowCosFromLut(H)) };
 }
 
-async function session(interpolate = false): Promise<MatchSession> {
-  return MatchSession.create(world(), { seed: 3, debugIntents: false, interpolate });
+/** `ai: false` by default: these tests are about what the human's session does, and nobody else may act in the match. */
+async function session(interpolate = false, ai = false): Promise<MatchSession> {
+  return MatchSession.create(world(), { seed: 3, debugIntents: false, interpolate, ai });
 }
 
 describe('MatchSession', () => {
@@ -161,5 +162,19 @@ describe('MatchSession', () => {
     };
     expect(await play(5)).toBe(await play(5));
     expect(await play(5)).not.toBe(await play(6));
+  });
+
+  it('the AI nations and the tribes act by default and not with ai: false (the 25 other seats stay empty)', async () => {
+    const quiet = await session();
+    quiet.runTicks(300);
+    expect(Array.from(quiet.view.stats.cells as ArrayLike<number>).reduce((a, b) => a + b, 0)).toBe(0);
+    quiet.dispose();
+    const busy = await MatchSession.create(world(), { seed: 3, debugIntents: false, interpolate: false });
+    busy.runTicks(300);
+    let alive = 0;
+    for (let seat = 1; seat < MATCH_SEATS; seat++) alive += busy.view.stats.alive[seat] as number;
+    expect(alive).toBeGreaterThanOrEqual(2); // a 64 x 32 world has room for only a few capitals
+    expect(busy.view.stats.cells[LOCAL_SEAT]).toBe(0);
+    busy.dispose();
   });
 });

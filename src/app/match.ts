@@ -1,6 +1,7 @@
 // The match session: the simulation (a MainThreadHost behind the SimHost interface), the page's read-only mirror of it and the
 // small amount of game-flow state the UI needs (speed, pause, commitment). The UI talks to the sim ONLY through intents
 // (`submit`); it reads ONLY through `view` (a ViewMirror, which implements SimView). Nothing here touches three or the DOM.
+import { AiDriver } from '../host/aiDriver';
 import { MainThreadHost } from '../host/mainThreadHost';
 import type { Speed } from '../host/protocol';
 import { ViewMirror } from '../host/viewMirror';
@@ -23,6 +24,8 @@ export interface MatchOptions {
   readonly debugIntents?: boolean;
   /** Smooth the HUD numbers between ticks (the live page). Test mode turns it off so the HUD shows exactly the sim's values. */
   readonly interpolate?: boolean;
+  /** The AI nations and the tribes act (default true). `?ai=0` / `#ai-0` turns them off: the 25 other seats stay empty, as in the first M05 parts' tests. */
+  readonly ai?: boolean;
 }
 
 export class MatchSession {
@@ -68,7 +71,8 @@ export class MatchSession {
       players: MATCH_PLAYERS,
       config: { debugIntents: options.debugIntents === true, spawnPhase: true },
     });
-    const host = new MainThreadHost(state, { speed: 1 });
+    const driver = options.ai === false ? undefined : new AiDriver(options.seed);
+    const host = new MainThreadHost(state, { speed: 1, driver });
     const { mirror, stop } = await ViewMirror.attach(host);
     return new MatchSession(host, mirror, stop, options.interpolate !== false);
   }

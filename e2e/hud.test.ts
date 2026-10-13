@@ -77,7 +77,7 @@ const overlap = (a: { x: number; y: number; width: number; height: number }, b: 
 
 describe('the HUD shows the sim values (data-testid)', () => {
   it('gold with income, troops with cap, land share, timer and the leaderboard equal the sim at tick 5, 100, 255 and 600', async () => {
-    const { page, messages } = await open('test=1&seed=7&hud=1');
+    const { page, messages } = await open('test=1&seed=7&hud=1&ai=0');
     try {
       await view(page, VIEW);
       // before the spawn: zeros, the empty leaderboard, the prompt with 20 s
@@ -128,7 +128,7 @@ describe('the HUD shows the sim values (data-testid)', () => {
   });
 
   it('the banner counts down the spawn phase and the immunity; a player who never spawned is told so', async () => {
-    const { page, messages } = await open('test=1&seed=7&hud=1');
+    const { page, messages } = await open('test=1&seed=7&hud=1&ai=0');
     try {
       await view(page, VIEW);
       await advance(page, 0, 50);
@@ -145,7 +145,7 @@ describe('the HUD shows the sim values (data-testid)', () => {
   });
 
   it('the immunity banner counts 5 s down for a player who has spawned', async () => {
-    const { page, messages } = await open('test=1&seed=7&hud=1');
+    const { page, messages } = await open('test=1&seed=7&hud=1&ai=0');
     try {
       await view(page, VIEW);
       await clickAt(page, START.lat, START.lon);
@@ -164,7 +164,7 @@ describe('the HUD shows the sim values (data-testid)', () => {
 
 describe('the troop bar and its warning', () => {
   it('the bar follows troops / cap and the warning appears from 80 % of the cap', async () => {
-    const { page, messages } = await open('test=1&seed=7&hud=1');
+    const { page, messages } = await open('test=1&seed=7&hud=1&ai=0');
     try {
       await view(page, VIEW);
       await clickAt(page, START.lat, START.lon);
@@ -245,7 +245,7 @@ describe('the leaderboard: top 5 and you', () => {
     );
 
   it('five nations ahead of you: the top 5 are the nations and your own row follows with rank 6', async () => {
-    const { page, messages } = await open('test=1&seed=7&hud=1');
+    const { page, messages } = await open('test=1&seed=7&hud=1&ai=0');
     try {
       await view(page, VIEW);
       await clickAt(page, START.lat, START.lon);
@@ -267,7 +267,7 @@ describe('the leaderboard: top 5 and you', () => {
   });
 
   it('you among the best: five rows, you in your place, the weakest nation left out', async () => {
-    const { page, messages } = await open('test=1&seed=7&hud=1');
+    const { page, messages } = await open('test=1&seed=7&hud=1&ai=0');
     try {
       await view(page, VIEW);
       await clickAt(page, START.lat, START.lon);
@@ -286,7 +286,7 @@ describe('the leaderboard: top 5 and you', () => {
 
 describe('the controls', () => {
   it('speed buttons, pause and the commitment slider change the game and show their state', async () => {
-    const { page, messages } = await open('test=1&seed=7&hud=1');
+    const { page, messages } = await open('test=1&seed=7&hud=1&ai=0');
     try {
       const pressed = () => page.evaluate(() => Object.fromEntries(['pause', '1', '2', '4'].map((id) => [id, document.querySelector(`[data-testid="speed-${id}"]`)?.getAttribute('aria-pressed')])));
       expect(await pressed()).toEqual({ pause: 'false', '1': 'true', '2': 'false', '4': 'false' });
@@ -326,7 +326,7 @@ describe('the controls', () => {
   });
 
   it('a refusal shows a toast in the language of the page', async () => {
-    const { page, messages } = await open('test=1&seed=7&hud=1');
+    const { page, messages } = await open('test=1&seed=7&hud=1&ai=0');
     try {
       await view(page, { lat: 30, lon: -40, distKm: 6000, heading: 0, tilt: 0 });
       await clickAt(page, 30, -40); // sea
@@ -349,7 +349,7 @@ describe('layout and readability at 960x540 and 1920x1080, by day and by night',
     [1920, 1080],
   ] as const) {
     it(`${w}x${h}: panels do not overlap each other or the Dev button, targets are large, text stays readable on bright and dark ground`, async () => {
-      const { page, messages } = await open(`test=1&seed=7&hud=1&devbtn=1&w=${w}&h=${h}`, { width: w, height: h });
+      const { page, messages } = await open(`test=1&seed=7&hud=1&ai=0&devbtn=1&w=${w}&h=${h}`, { width: w, height: h });
       try {
         await view(page, VIEW);
         await clickAt(page, START.lat, START.lon);
@@ -429,7 +429,7 @@ describe('layout and readability at 960x540 and 1920x1080, by day and by night',
 
 describe('clicks on the HUD never reach the globe', () => {
   it('a click in the middle of the banner, the status panel, the leaderboard and the controls spawns nothing and refuses nothing', async () => {
-    const { page, messages } = await open('test=1&seed=7&hud=1');
+    const { page, messages } = await open('test=1&seed=7&hud=1&ai=0');
     try {
       await view(page, VIEW);
       for (const id of ['phase', 'status', 'leaderboard', 'controls']) {
@@ -450,7 +450,7 @@ describe('clicks on the HUD never reach the globe', () => {
 
 describe('i18n in the browser', () => {
   it('test mode fails on a missing key: text() throws, and every key of both tables resolves in the page', async () => {
-    const { page, messages } = await open('test=1&seed=7');
+    const { page, messages } = await open('test=1&seed=7&ai=0');
     try {
       const err = await page.evaluate(() => {
         try {
@@ -483,8 +483,8 @@ describe('i18n in the browser', () => {
   });
 
   it('#test_lang-en and ?lang=en show English everywhere in the HUD, and the hover tooltip', async () => {
-    const a = await open('test=1&seed=7&hud=1&lang=en');
-    const b = await open('#test_hud_seed-7_lang-en');
+    const a = await open('test=1&seed=7&hud=1&ai=0&lang=en');
+    const b = await open('#test_ai-0_hud_seed-7_lang-en');
     try {
       for (const { page } of [a, b]) {
         expect(await page.evaluate(() => (window as any).__test.language())).toBe('en');
@@ -510,8 +510,8 @@ describe('i18n in the browser', () => {
   });
 
   it('the tooltip says Hav / Sea and Slätt / Plains in the page language', async () => {
-    const sv = await open('test=1&seed=7');
-    const en = await open('test=1&seed=7&lang=en');
+    const sv = await open('test=1&seed=7&ai=0');
+    const en = await open('test=1&seed=7&ai=0&lang=en');
     try {
       for (const { page } of [sv, en]) await view(page, { lat: 30, lon: -40, distKm: 6000, heading: 0, tilt: 0 });
       const at = async (page: Page) => {
@@ -529,7 +529,7 @@ describe('i18n in the browser', () => {
 
 describe('the HUD does no work when nothing changed', () => {
   it('500 refreshes of an unchanged state cause no DOM mutation; the cost per refresh is logged', async () => {
-    const { page, messages } = await open('test=1&seed=7&hud=1');
+    const { page, messages } = await open('test=1&seed=7&hud=1&ai=0');
     try {
       await view(page, VIEW);
       await clickAt(page, START.lat, START.lon);

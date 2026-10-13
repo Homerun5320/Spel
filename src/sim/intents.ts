@@ -80,6 +80,17 @@ export type IntentBody = NoopBody | DebugPaintBody | SpawnBody | AttackBody | Ca
 
 export type Intent = IntentBody & { readonly id: number };
 
+/** Constructors of the intents the AI sends (pure; the host hands out the id). */
+export function spawnBody(seat: number, cell: number): SpawnBody {
+  return { kind: 'Spawn', seat, cell };
+}
+export function attackBody(seat: number, target: number, pct: number): AttackBody {
+  return { kind: 'Attack', seat, target, pct };
+}
+export function cancelAttackBody(seat: number, target: number): CancelAttackBody {
+  return { kind: 'CancelAttack', seat, target };
+}
+
 /** The intents of one turn: all intents that run in the step that starts at tick `turn`. */
 export interface TurnIntents {
   readonly turn: number;

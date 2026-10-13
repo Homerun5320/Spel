@@ -203,7 +203,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     if (session !== null) return;
     const s = await MatchSession.create(
       { width: world.sim.width, height: world.sim.height, terrainClass: world.sim.terrainClass, meanElev: world.sim.meanElev, cosQ15: world.meta.sim.cosQ15 },
-      { seed: params.seed, debugIntents: params.test, interpolate: !params.test },
+      { seed: params.seed, debugIntents: params.test, interpolate: !params.test, ai: ctx.state.raw.ai !== '0' },
     );
     if (!alive) {
       s.dispose();

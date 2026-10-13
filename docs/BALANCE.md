@@ -105,3 +105,26 @@ Below, everything is in English. See `docs/DECISIONS.md` D73 to D80 for how the 
 | `IMMUNITY_TICKS` | 50 | ticks | plan | 5 s after the phase: an Attack on owned land is refused; an Attack on unowned land (target 0) is allowed. |
 | `MATCH_AI_NATIONS` | 5 | nations | plan | Standard match: you + 5 AI nations (AI v0, part C). |
 | `MATCH_TRIBES` | 20 | tribes | plan | Standard match: 20 tribes at the start (part C). |
+
+## AI v0 (M05 part C)
+
+The AI only emits intents (`src/ai`, read through `src/sim/public.ts`); these values do not touch `step`, so they needed no `ENGINE_VERSION` bump (D104).
+
+| Constant | Value | Unit | Source | Note |
+|----------|-------|------|--------|------|
+| `AI_THINK_PERIOD_TICKS` | 10 | ticks | eget val | One thought per seat per second. |
+| `AI_THINK_STAGGER_TICKS` | 3 | ticks per seat | eget val | Seat s thinks when (tick + s * 3) is a multiple of the period, so the seats do not all think on one tick. |
+| `AI_SPAWN_SPACING_TICKS` | 3 | ticks | eget val | The tribes Spawn one by one from tick 0, and the nations at least this far apart: a Spawn runs 2 ticks after it was sent, so each seat sees the capital of the one before it and picks another place. |
+| `AI_SPAWN_FIRST_TICK` | 60 | ticks | eget val | First tick at which an AI nation tries its Spawn (6 s into the 20 s spawn phase: the tribes are down by then, the player has had time to click, and the nations still appear on screen). |
+| `AI_SPAWN_LAST_TICK` | 150 | ticks | eget val | Last tick of the seeded Spawn window; the phase ends at 200. |
+| `AI_SPAWN_RETRY_TICKS` | 6 | ticks | eget val | A Spawn runs 2 ticks after it was sent; if the capital is still missing after this many, another place is tried. |
+| `AI_NATION_CLEARANCE_CELLS` | 28 | sim cells | eget val | A nation's capital is at least this far from every owned cell (about 1100 km at the equator). |
+| `AI_TRIBE_CLEARANCE_CELLS` | 14 | sim cells | eget val | The same for a tribe. |
+| `AI_SPAWN_TRIES` | 400 | places | eget val | Random places tried for one Spawn; the clearance is halved after every quarter of them. |
+| `AI_EXPAND_TROOP_PCT` | 50 | % of the cap | plan | "Expands when troops are at least 50 % of the cap." |
+| `AI_EXPAND_COMMIT_PCT` | 70 | % of troops | eget val | Share of its troops a nation commits to an Attack on unowned land. |
+| `AI_WAR_COMMIT_PCT` | 50 | % of troops | eget val | Share of its troops a nation commits to an Attack on a neighbour. |
+| `AI_WAR_MIN_RATIO_PCT` | 130 | % | eget val | A nation attacks a neighbour only with at least 1.3 times its troops. |
+| `AI_ATTACK_COOLDOWN_TICKS` | 40 | ticks | eget val | A seat does not attack the same target again within 4 s (a second Attack adds troops to the first). |
+| `AI_TRIBE_COOLDOWN_TICKS` | 100 | ticks | eget val | The same for a tribe's expansion (10 s). |
+| `AI_TRIBE_MAX_CELLS` | 600 | sim cells | eget val | A tribe stops expanding at this size (three times its capital disc). |

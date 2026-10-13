@@ -88,7 +88,7 @@ async function playScript(page: Page, shots = false): Promise<{ start: MatchStat
 
 describe('the playable match: spawn, attack, 600 ticks', () => {
   it('?test=1&seed=7: starts in the spawn phase, a click spawns, a click attacks, the land share grows, and the HUD shows the sim values', async () => {
-    const { page, messages } = await open('test=1&seed=7&hud=1');
+    const { page, messages } = await open('test=1&seed=7&hud=1&ai=0');
     try {
       const s0 = await state(page);
       expect(s0.seed).toBe(7);
@@ -135,9 +135,9 @@ describe('the playable match: spawn, attack, 600 ticks', () => {
   });
 
   it('#test_seed-7 is the same match as ?test=1&seed=7 (same state hash after the same script), and another seed is another match', async () => {
-    const a = await open('test=1&seed=7');
-    const b = await open('#test_seed-7');
-    const c = await open('test=1&seed=8');
+    const a = await open('test=1&seed=7&ai=0');
+    const b = await open('#test_ai-0_seed-7');
+    const c = await open('test=1&seed=8&ai=0');
     try {
       const ra = await playScript(a.page);
       const rb = await playScript(b.page);
@@ -161,7 +161,7 @@ describe('refusals are the sim\'s: the state stays as it was and the reject coun
     const peak = find(CLASS_PEAK);
     expect(peak).toBeGreaterThanOrEqual(0);
     expect(find(CLASS_ICE)).toBeGreaterThanOrEqual(0); // the Antarctic click below lands on Ice
-    const { page, messages } = await open('test=1&seed=7');
+    const { page, messages } = await open('test=1&seed=7&ai=0');
     try {
       const sample = async (): Promise<string> => {
         const cells = Array.from({ length: 200 }, (_, i) => (i * 2617 + 91) % (1024 * 512));
@@ -219,7 +219,7 @@ describe('refusals are the sim\'s: the state stays as it was and the reject coun
 
 describe('the ownership texture', () => {
   it('equals the owner array in 200 sampled cells (GPU readback), and uploads at most 10 times per fx second at every sim speed', async () => {
-    const { page, messages } = await open('test=1&seed=7');
+    const { page, messages } = await open('test=1&seed=7&ai=0');
     try {
       await playScript(page);
       // a long conquest so that owners change every tick: plenty of troops, all of them committed
@@ -282,7 +282,7 @@ describe('territory borders', () => {
     const lat = 90 - ((b.y + BH / 2) / 512) * 180;
     const lonMid = ((b.x + BW / 2) / 1024) * 360 - 180;
     const lonBorder = ((b.x + BW / 2) / 1024) * 360 - 180; // the vertical border between the 6th and 7th column
-    const { page, messages } = await open('test=1&seed=7');
+    const { page, messages } = await open('test=1&seed=7&ai=0');
     try {
       await page.evaluate(
         ([x0, y0, w, h]) => {
@@ -333,7 +333,7 @@ describe('territory borders', () => {
 
 describe('input: click against drag, the HUD, the keys', () => {
   it('a drag rotates the globe and spawns nothing; a click on the HUD never reaches the globe; a short click spawns', async () => {
-    const { page, messages } = await open('test=1&seed=7&hud=1');
+    const { page, messages } = await open('test=1&seed=7&hud=1&ai=0');
     try {
       await view(page, VIEW);
       const v0 = await page.evaluate(() => (window as any).__test.view());
@@ -371,7 +371,7 @@ describe('input: click against drag, the HUD, the keys', () => {
   });
 
   it('[ ] change the commitment in steps of 5 between 5 and 100, space pauses, , and . change the speed', async () => {
-    const { page, messages } = await open('test=1&seed=7');
+    const { page, messages } = await open('test=1&seed=7&ai=0');
     try {
       expect((await state(page)).commitPct).toBe(40);
       await page.keyboard.press(']');
@@ -414,7 +414,7 @@ describe('input: click against drag, the HUD, the keys', () => {
 
 describe('__test.give', () => {
   it('changes gold and troops only through a DebugGive intent: nothing happens before the intent is applied (T + 2)', async () => {
-    const { page, messages } = await open('test=1&seed=7');
+    const { page, messages } = await open('test=1&seed=7&ai=0');
     try {
       await view(page, VIEW);
       await clickAt(page, START.lat, START.lon);
@@ -443,7 +443,7 @@ describe('__test.give', () => {
 
 describe('long runs and budgets', () => {
   it('6000 ticks run in the browser without console errors, with the match staying consistent (the test tier stays at <= 150k triangles)', async () => {
-    const { page, messages } = await open('test=1&seed=7');
+    const { page, messages } = await open('test=1&seed=7&ai=0');
     try {
       await playScript(page);
       await page.evaluate(() => (window as any).__test.give(0, { gold: 0, troops: 100000 }));
@@ -465,7 +465,7 @@ describe('long runs and budgets', () => {
   });
 
   it('the live loop is not needed to be exact, but the host advance cost per frame at 4x is measured and logged (frames of 1/60 s, no drawing)', async () => {
-    const { page, messages } = await open('test=1&seed=7');
+    const { page, messages } = await open('test=1&seed=7&ai=0');
     try {
       await playScript(page);
       await page.evaluate(() => (window as any).__test.give(0, { gold: 0, troops: 100000 }));
@@ -489,7 +489,7 @@ describe('long runs and budgets', () => {
 
 describe('the Dev panel', () => {
   it('has a seed field with the id seed and a relative link to debug/sim.html; the field restarts the match with that seed', async () => {
-    const { page, messages } = await open('test=1&seed=7&devbtn=1');
+    const { page, messages } = await open('test=1&seed=7&devbtn=1&ai=0');
     try {
       await page.keyboard.press('F2');
       await page.waitForSelector('[data-dev-panel] input#seed');

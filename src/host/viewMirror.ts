@@ -6,8 +6,9 @@
 //   - a `speed` event updates the speed.
 // Consumers that want to react (the ownership texture, the HUD) register with `onFrame`; they get the diff of the frame and
 // must not keep it. Diffs that arrive before the first answer are queued and the ones older than it dropped.
+import { ownerSlots } from '../sim/state';
 import { PHASE_PLAY, phaseAt, phaseTicksLeft, type MatchPhase } from '../sim/flow';
-import { statsViewOf, type ReadonlyNumbers, type SeatStatsView, type SimView } from '../sim/view';
+import { countContacts, statsViewOf, type ReadonlyNumbers, type SeatStatsView, type SimView } from '../sim/view';
 import type { HostEvent, SimHost, Speed, StateDiff, Unsubscribe, ViewSnapshot } from './protocol';
 
 export type FrameListener = (mirror: ViewMirror, diff: StateDiff) => void;
@@ -34,6 +35,9 @@ export class ViewMirror implements SimView {
   private readonly terrain: Uint8Array;
   private readonly packed: Uint32Array;
   private listeners: FrameListener[] = [];
+  /** Contact lengths per pair of owners (countContacts), rebuilt on demand when the owners changed since. */
+  private contacts: Int32Array | null = null;
+  private contactsVersion = -1;
 
   private constructor(v: ViewSnapshot) {
     if (v.owner === null || v.terrain === null) throw new Error('a mirror needs the full view (requestView)');
@@ -94,6 +98,17 @@ export class ViewMirror implements SimView {
 
   get phaseTicksLeft(): number {
     return this.flow ? phaseTicksLeft(this.tick) : 0;
+  }
+
+  contactLength(a: number, b: number): number {
+    const slots = ownerSlots(this.seats);
+    if (a === b || a < 0 || b < 0 || a >= slots || b >= slots) return 0;
+    if (this.contacts === null || this.contactsVersion !== this.ownerVersion) {
+      this.contacts ??= new Int32Array(slots * slots);
+      countContacts(this.width, this.height, this.ownerArray, this.terrain, slots, this.contacts);
+      this.contactsVersion = this.ownerVersion;
+    }
+    return this.contacts[a < b ? a * slots + b : b * slots + a] as number;
   }
 
   /** Registers a function called after each applied frame; returns its unsubscribe. */
