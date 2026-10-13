@@ -115,10 +115,10 @@ export const CAP_CITY_LEVEL_QT = CAP_CITY_LEVEL_TROOPS * QT_PER_TROOP;
 export const MAX_DECAY_MICRO_QT_PER_TICK = (MAX_DECAY_TROOPS_PER_SEC * MICRO_QT_PER_QT * QT_PER_TROOP) / TICK_HZ;
 
 // ---------------------------------------------------------------------------------------------------------------
-// Conquest (wired in M04 part B; the numbers are the plan's starting values, to be calibrated)
+// Conquest (wired in M04 part B; the numbers are the plan's starting values, calibrated in D88)
 
 /** Capture speed = CAPTURE_K * sqrt(L) * 2F / (F + Td), in std-cells per second; this is CAPTURE_K in thousandths (80 = 0.08). */
-export const CAPTURE_K_MILLI = 80;
+export const CAPTURE_K_MILLI = 103;
 /** Troops to take one std-cell of Plains with the attacker's depth term 0, before the multipliers. */
 export const BASE_COST_TROOPS = 3;
 /** The same per SIM cell in QT: BASE_COST_TROOPS * QT_PER_TROOP / STD_CELL_AREA (3 QT = 0.75 troop). */
@@ -139,3 +139,23 @@ export const UPHILL_STEP_UNITS = 32;
 export const UPHILL_MAX_PCT = 200;
 /** An enclave (land fully surrounded by one seat) flips to the surrounding seat every this many ticks, offset by hash(id). */
 export const ENCLAVE_FLIP_TICKS = 20;
+
+// ---------------------------------------------------------------------------------------------------------------
+// Conquest mechanics (M04 part B, D82 to D90)
+
+/** Micro-cells per cell: the unit of the capture progress an attack carries from tick to tick. */
+export const MICRO_CELLS_PER_CELL = 1000000;
+/** Milli-QT per QT: the unit of the cost of one cell; the part of a QT that is not yet paid is carried in the attack. */
+export const MILLI_QT_PER_QT = 1000;
+/** BASE_COST_QT_PER_SIM_CELL in milli-QT (3000 = 3 QT = 0.75 troop per Plains sim cell). */
+export const BASE_COST_MILLI_QT_PER_SIM_CELL = BASE_COST_QT_PER_SIM_CELL * MILLI_QT_PER_QT;
+/** sqrt(L in std-cells) * 1000 equals isqrt(L in sim cells * this): 10^6 / STD_CELL_SIDE (the contact length is a distance, so it converts with the SIDE). */
+export const CAPTURE_SQRT_SCALE = 1000000 / STD_CELL_SIDE;
+/** The troop ratio 2F / (F + Td) of the capture formula is kept in millionths (2000000 = 2.0, the value against unowned land). */
+export const CAPTURE_RATIO_TWO = 2000000;
+/** An enclave fill gives up (the region is not an enclave) beyond this many sim cells. Own choice: 64 sim cells = 16 std-cells (the work of a failed fill is bounded by it). */
+export const ENCLAVE_MAX_CELLS = 64;
+/** The cells one enclave pass may visit in a tick; candidates beyond it wait for the next pass (20 ticks later). Own choice. */
+export const ENCLAVE_PASS_BUDGET_CELLS = 4096;
+/** A frontier heap is purged of stale and duplicate entries when it reaches this many entries (and then at twice its purged size). Engine limit. */
+export const FRONT_COMPACT_MIN = 256;

@@ -20,6 +20,7 @@
     "bake:check": "tsx tools/bake/check.ts",
     "gen:lut": "tsx tools/gen/lut.ts",
     "sim:run": "tsx tools/sim/run.ts",
+    "sim:scenario": "tsx tools/sim/scenario.ts",
     "verify:fast": "npm run typecheck && npm run lint && vitest run --project unit",
     "verify": "npm run typecheck && npm run lint && vitest run --project unit && vitest run --project perf --passWithNoTests && vitest run --project e2e"
   },

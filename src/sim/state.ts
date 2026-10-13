@@ -2,14 +2,18 @@
 //
 // Seats are 0-based; ownerId = seat + 1 and 0 means unowned. seatToOwner / ownerToSeat below are the ONLY place where
 // the two are converted: intents and seat lists use `seat`, ownership arrays and textures use `ownerId`.
+import { AttackTable } from './attacks';
+import { BorderIndex } from './borders';
+import { EnclaveQueues } from './enclaveQueue';
 import { Grid, rowCosFromLut } from './grid';
 import { foldBytes, foldU16, finishHash, FNV_OFFSET } from './hash';
 import { Outbox } from './outbox';
 import { createRng } from './rng';
 import { WEIGHT_ONE } from './rules';
+import { WorkCounters } from './work';
 
-/** Bumped whenever a rule, a constant in rules.ts or the meaning of a state array changes. Part of the match header. 2: M04 (economy, Spawn, owner arrays). */
-export const ENGINE_VERSION = 2;
+/** Bumped whenever a rule, a constant in rules.ts or the meaning of a state array changes. Part of the match header. 2: M04 (economy, Spawn, owner arrays). 3: M04 conquest (attacks, enclaves, calibrated constants). */
+export const ENGINE_VERSION = 3;
 
 // Structural limits (not tunables): a seat is one byte on the wire (intents), so 255 seats at most; ownerId is a Uint16
 // (room for tribes after the players), a cell index must stay below 2^22.
@@ -81,6 +85,12 @@ export interface Aggregates {
 /** Scratch memory for algorithms that need a per-cell mark; always left all-zero between uses. Not serialised, not hashed. */
 export interface Scratch {
   readonly mark: Uint8Array;
+  /** The four neighbours of a cell (Grid.neighbours writes here). */
+  readonly nb: Int32Array;
+  /** The eight cells around a cell in cycle order (territory.ts). */
+  readonly ring: Int32Array;
+  /** Attack slots already offered a cell by the current owner change. */
+  readonly seen: Int32Array;
 }
 
 export interface GameState {
@@ -111,10 +121,18 @@ export interface GameState {
   readonly gold: Uint32Array;
   /** The capital cell + 1 per ownerId, 0 = has not spawned. */
   readonly capital: Uint32Array;
+  /** The attacks in progress (game state: serialised and hashed; see src/sim/attacks.ts). */
+  readonly attacks: AttackTable;
+  /** Cells waiting for the enclave check (game state: serialised and hashed; see src/sim/enclaveQueue.ts). */
+  readonly enclaves: EnclaveQueues;
   /** Derived (see Grid): neighbours, weights, playable cells. */
   readonly grid: Grid;
   /** Derived (see Aggregates). */
   readonly agg: Aggregates;
+  /** Derived (see BorderIndex): contact lengths between owners, boundary cells. */
+  readonly borders: BorderIndex;
+  /** Diagnostics: cells looked at per tick (see WorkCounters). Not hashed. */
+  readonly work: WorkCounters;
   readonly scratch: Scratch;
   /** Render-only events; NOT part of the state (not hashed, not serialised). */
   readonly outbox: Outbox;
@@ -210,6 +228,8 @@ export interface StateParts {
   readonly troopFrac: Uint32Array;
   readonly gold: Uint32Array;
   readonly capital: Uint32Array;
+  readonly attacks: AttackTable;
+  readonly enclaves: EnclaveQueues;
 }
 
 /**
@@ -219,12 +239,23 @@ export interface StateParts {
  */
 export function assembleState(parts: StateParts): GameState {
   const grid = new Grid(parts.width, parts.height, parts.terrain, parts.rowCos);
-  const state: GameState = { ...parts, grid, agg: { area: new Uint32Array(ownerSlots(parts.header.seats)), warea: new Uint32Array(ownerSlots(parts.header.seats)) }, scratch: { mark: new Uint8Array(grid.cells) }, outbox: new Outbox() };
+  const slots = ownerSlots(parts.header.seats);
+  const state: GameState = {
+    ...parts,
+    grid,
+    agg: { area: new Uint32Array(slots), warea: new Uint32Array(slots) },
+    borders: new BorderIndex(grid.cells, slots),
+    work: new WorkCounters(),
+    scratch: { mark: new Uint8Array(grid.cells), nb: new Int32Array(4), ring: new Int32Array(8), seen: new Int32Array(4) },
+    outbox: new Outbox(),
+  };
+  parts.attacks.reindex();
+  parts.enclaves.reindex();
   rebuildAggregates(state);
   return state;
 }
 
-/** Recomputes the aggregates from the owner array (O(cells); what deserialize does, and what tests compare against). */
+/** Recomputes everything derived from the owner array (aggregates, contact lengths, boundary lists; O(cells); what deserialize does, and what tests compare against). */
 export function rebuildAggregates(state: GameState): void {
   const { area, warea } = state.agg;
   area.fill(0);
@@ -241,6 +272,7 @@ export function rebuildAggregates(state: GameState): void {
       }
     }
   }
+  state.borders.rebuild(state.owner, state.grid);
 }
 
 /** Builds a state at tick 0. Throws RangeError on parameters outside the limits (a programming error, never runtime data). */
@@ -280,6 +312,8 @@ export function createState(p: CreateStateParams): GameState {
     troopFrac: new Uint32Array(ownerSlots(p.seats)),
     gold: new Uint32Array(ownerSlots(p.seats)),
     capital: new Uint32Array(ownerSlots(p.seats)),
+    attacks: new AttackTable(ownerSlots(p.seats)),
+    enclaves: new EnclaveQueues(n),
   });
 }
 

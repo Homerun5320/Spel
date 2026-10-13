@@ -1,8 +1,9 @@
 // The golden scenario: a fixture world plus a scripted stream of intents, shared by the Node test, the CLI, the
 // Chromium debug page (debug/sim.html) and the worker test, so all of them hash the same run.
 //
-// The script is a pure function of (seed, turn). It sends a few valid DebugPaints, some Noops, Spawns (M04) and a share of deliberately
-// invalid intents per turn (bad seat, bad cell) so that the reject path is part of every golden hash. On one turn in
+// The script is a pure function of (seed, turn). It sends a few valid DebugPaints, some Noops, Spawns, Attacks and
+// CancelAttacks (M04) and a share of deliberately invalid intents per turn (bad seat, bad cell, bad target, bad pct) so that
+// the reject path is part of every golden hash. On one turn in
 // eight it also sends two paints of the SAME cell from two seats, the higher seat first (so the canonical order
 // (seat, id) decides who owns the cell), and on another one in eight two paints of one cell from one seat (the later id
 // must stay in `stamp`); a step without the sort lands on another hash. The first
@@ -18,7 +19,7 @@ import { IdAllocator, withId, type Intent, type IntentBody } from './intents';
 import { INTENT_DELAY_TURNS } from './rules';
 import { hash2, buildFixtureWorld } from './fixture';
 import { step, type StepFn } from './step';
-import { createState, type GameState, type MatchConfig } from './state';
+import { createState, ownerSlots, type GameState, type MatchConfig } from './state';
 import { hashState } from './serialize';
 
 export const GOLDEN_SEED = 1;
@@ -80,6 +81,18 @@ export function scenarioBodies(seed: number, turn: number, seats: number, cells:
       out.push({ kind: 'Spawn', seat, cell: hash2(seed, turn, 402) % cells });
     }
   }
+  // Attacks: about one turn in 4 a random seat attacks a random target (0 = unowned land, or any seat's ownerId; most are
+  // refused early on: no land yet, no border), one turn in 40 it cancels one, and a few have a target or pct out of range.
+  if (hash2(seed, turn, 500) % 4 === 0) {
+    const seat = hash2(seed, turn, 501) % seats;
+    const target = hash2(seed, turn, 502) % ownerSlots(seats);
+    const pct = 1 + (hash2(seed, turn, 503) % 100);
+    const roll = hash2(seed, turn, 504) % 32;
+    if (roll === 0) out.push({ kind: 'Attack', seat, target: ownerSlots(seats) + (roll % 3), pct });
+    else if (roll === 1) out.push({ kind: 'Attack', seat, target, pct: 101 + (roll % 5) });
+    else out.push({ kind: 'Attack', seat, target, pct });
+  }
+  if (hash2(seed, turn, 510) % 40 === 0) out.push({ kind: 'CancelAttack', seat: hash2(seed, turn, 511) % seats, target: hash2(seed, turn, 512) % ownerSlots(seats) });
   if (seats >= 2 && cells > 0 && hash2(seed, turn, 200) % 8 === 0) {
     const cell = hash2(seed, turn, 201) % cells;
     const high = 1 + (hash2(seed, turn, 202) % (seats - 1));

@@ -1,30 +1,156 @@
 // Who owns which cell. setOwner is the ONLY function that writes state.owner during play: it keeps the per-owner
-// aggregates (cells, Q15 weight) in step and reports the change to the render-only outbox. Conquest (M04 part B) and
-// the debug paint go through it too.
+// aggregates (cells, Q15 weight), the border index (contact lengths, boundary cells), the frontiers of the attacks that care
+// and the enclave candidates in step, and reports the change to the render-only outbox. Conquest, Spawn, the enclave flip
+// and the debug paint all go through it, so no derived structure can be forgotten.
+import { frontKey, type Attack } from './attacks';
 import { OUTBOX_PAINT } from './outbox';
 import { WEIGHT_ONE } from './rules';
-import { NO_OWNER, type GameState } from './state';
+import type { GameState } from './state';
 
 /**
  * Gives a cell to `owner` (an ownerId, or NO_OWNER to free it), stamps it with the id of the intent or attack that did it
  * and tells the outbox. Does nothing but the stamp when the owner does not change. `owner` must be 0..seats.
  */
 export function setOwner(state: GameState, cell: number, owner: number, stamp: number): void {
+  changeOwner(state, cell, owner, stamp, -1, 0);
+}
+
+/**
+ * setOwner for the conquest: `viaSlot` is the index in the attack table of the attack that takes the cell and `viaDepth`
+ * the depth of the cell in that attack's frontier. The cells that this capture newly exposes to the SAME attack get depth
+ * viaDepth + 1; every other attack that gains a frontier cell from it gets depth 0 (D82).
+ */
+export function changeOwner(state: GameState, cell: number, owner: number, stamp: number, viaSlot: number, viaDepth: number): void {
   const prev = state.owner[cell] as number;
   state.stamp[cell] = stamp;
   if (prev === owner) return;
   const weight = state.grid.weight(cell);
   const { area, warea } = state.agg;
-  if (prev !== NO_OWNER) {
+  if (prev !== 0) {
     area[prev] = (area[prev] as number) - 1;
     warea[prev] = (warea[prev] as number) - weight;
   }
-  if (owner !== NO_OWNER) {
+  if (owner !== 0) {
     area[owner] = (area[owner] as number) + 1;
     warea[owner] = (warea[owner] as number) + weight;
   }
   state.owner[cell] = owner;
   state.outbox.push(OUTBOX_PAINT, state.tick, cell, owner);
+  // A cell nobody can own (sea, Peak, Ice) takes part in no adjacency; only the debug paint can give one an owner.
+  if (state.grid.playable[cell] === 1) afterChange(state, cell, prev, owner, viaSlot, viaDepth);
+}
+
+/**
+ * Updates the derived structures for a playable cell that has just gone from `prev` to `next`. O(1): it reads the eight
+ * cells around it.
+ *
+ * ENCLAVE CANDIDATES (D86). A region of one owner X that this change newly encloses by `next` alone contains a port (a
+ * playable 4-neighbour of the cell, owner X, not `next`) and is found by a fill from that port. Which ports can matter:
+ *  - a port whose owner is NOT `prev`: the cell was a leak of that region (it touched a different owner), the region may be
+ *    closed now;
+ *  - a port whose owner IS `prev`: the cell was part of the port's region, which only changes if taking the cell SPLITS it,
+ *    i.e. when the non-`next` cells around the cell fall into two or more runs that contain a port (the cycle of the eight
+ *    neighbours, runs of non-`next` cells). A straight border never splits anything, so it queues nothing.
+ * A cell that is itself waiting in the queue and changes owner hands its job to its non-`next` ports (the region it stood
+ * for may now be a region next to it). The cell itself is queued only when it has at most one friendly neighbour (a lone
+ * cell or a tip): the one way to make a pocket of `next` is to put its cell down inside somebody else's land.
+ */
+function afterChange(state: GameState, cell: number, prev: number, next: number, viaSlot: number, viaDepth: number): void {
+  const grid = state.grid;
+  const playable = grid.playable;
+  const owner = state.owner;
+  const b = state.borders;
+  const edges = b.edges;
+  const slots = b.slots;
+  const ring = state.scratch.ring;
+  const seen = state.scratch.seen;
+  const table = state.attacks;
+  const attacking = table.list.length > 0;
+  const enclaves = state.enclaves;
+  const seed = state.header.seed;
+  const w = grid.width;
+  const x = cell % w;
+  const row = cell - x;
+  const xe = x + 1 === w ? 0 : x + 1;
+  const xw = x === 0 ? w - 1 : x - 1;
+  const north = row >= w ? row - w : -1;
+  const south = row + w < grid.cells ? row + w : -1;
+  // The ring in cycle order N, NE, E, SE, S, SW, W, NW (ports at even positions).
+  ring[0] = north < 0 ? -1 : north + x;
+  ring[1] = north < 0 ? -1 : north + xe;
+  ring[2] = row + xe;
+  ring[3] = south < 0 ? -1 : south + xe;
+  ring[4] = south < 0 ? -1 : south + x;
+  ring[5] = south < 0 ? -1 : south + xw;
+  ring[6] = row + xw;
+  ring[7] = north < 0 ? -1 : north + xw;
+  // Runs of non-`next` cells that contain a port, to decide whether this capture can split a region.
+  let nonPorts = 0;
+  let links = 0;
+  let nonDiag = 0;
+  for (let i = 0; i < 8; i++) {
+    const n = ring[i] as number;
+    const nonNext = n < 0 || playable[n] === 0 || n === cell || owner[n] !== next ? 1 : 0;
+    nonDiag |= nonNext << i;
+  }
+  for (let i = 0; i < 8; i += 2) {
+    if ((nonDiag >> i) & 1) {
+      nonPorts++;
+      if ((nonDiag >> ((i + 2) & 7)) & 1 && (nonDiag >> (i + 1)) & 1) links++;
+    }
+  }
+  let runs = nonPorts - links;
+  if (nonPorts > 0 && runs === 0) runs = 1;
+  const wasQueued = enclaves.queued[cell] === 1;
+  let seenCount = 0;
+  let diffHere = 0;
+  let friends = 0;
+  for (let i = 0; i < 8; i += 2) {
+    const n = ring[i] as number;
+    if (n < 0 || n === cell || playable[n] === 0) continue;
+    const r = owner[n] as number;
+    if (r !== prev) {
+      const e = prev < r ? prev * slots + r : r * slots + prev;
+      edges[e] = (edges[e] as number) - 1;
+    }
+    if (r !== next) {
+      const e = next < r ? next * slots + r : r * slots + next;
+      edges[e] = (edges[e] as number) + 1;
+      diffHere++;
+      if (r !== prev || runs >= 2 || wasQueued) enclaves.push(n, seed);
+      if (attacking) {
+        // The attack of `next` on `r` gains n, a cell of its target that now touches a new cell of the attacker.
+        const s1 = table.slotOf[next * slots + r] as number;
+        if (s1 >= 0) {
+          (table.list[s1] as Attack).push(n, frontKey(seed, n, s1 === viaSlot ? viaDepth + 1 : 0));
+          state.work.pushed++;
+        }
+        // The attack of `r` on `next` gains the cell itself: it is now land of its target and touches r.
+        const s2 = table.slotOf[r * slots + next] as number;
+        if (s2 >= 0) {
+          let dup = false;
+          for (let j = 0; j < seenCount; j++) if (seen[j] === s2) dup = true;
+          if (!dup) {
+            seen[seenCount++] = s2;
+            (table.list[s2] as Attack).push(cell, frontKey(seed, cell, 0));
+            state.work.pushed++;
+          }
+        }
+      }
+    } else friends++;
+    // The neighbour's count of foreign neighbours: the cell was prev (same owner as n if r === prev) and is next now.
+    if (r === prev) b.adjust(n, r, 1);
+    else if (r === next) b.adjust(n, r, -1);
+  }
+  if ((b.pos[cell] as number) >= 0) b.remove(prev, cell);
+  b.diff[cell] = diffHere;
+  if (diffHere > 0 && next !== 0) b.add(next, cell);
+  if (diffHere >= 3 || (diffHere > 0 && friends === 0)) enclaves.push(cell, seed);
+}
+
+/** The adjacencies between the land of two owners: the contact length of the capture formula. 0 for the same owner. */
+export function contactLength(state: GameState, a: number, b: number): number {
+  return state.borders.contact(a, b);
 }
 
 /** The share of all playable land an owner holds, cos-weighted, as a Q15 fraction (32768 = all of it). 0 when the world has no playable land. */

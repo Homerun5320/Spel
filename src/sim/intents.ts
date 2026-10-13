@@ -6,10 +6,10 @@
 // intents of one seat, so the result never depends on the order in which they arrived.
 import { MAX_SEATS } from './state';
 
-export type IntentKind = 'Noop' | 'DebugPaint' | 'Spawn';
+export type IntentKind = 'Noop' | 'DebugPaint' | 'Spawn' | 'Attack' | 'CancelAttack';
 
 /** The intent kinds in wire order (the index is the kind byte of the codec). Append only: a published code never changes meaning. */
-export const INTENT_KINDS: readonly IntentKind[] = ['Noop', 'DebugPaint', 'Spawn'];
+export const INTENT_KINDS: readonly IntentKind[] = ['Noop', 'DebugPaint', 'Spawn', 'Attack', 'CancelAttack'];
 
 /** Does nothing; valid for any seat. Exists to prove the pipeline (and as the heartbeat of a lockstep client). */
 export interface NoopBody {
@@ -35,8 +35,31 @@ export interface SpawnBody {
   readonly cell: number;
 }
 
+/**
+ * A seat commits `pct` percent of its current troops (a tribe: troops / TRIBE_ATTACK_DIV, whatever pct says) to an attack on
+ * the land of `target`, an ownerId (0 = unowned land). One attack per (attacker, target): a second Attack on the same target
+ * adds its troops to the first; an Attack on a seat that is attacking the sender nets the two forces against each other
+ * (src/sim/conquest.ts). Refused when the seat has not spawned, the target is the seat itself, the two share no border or
+ * the committed amount is zero.
+ */
+export interface AttackBody {
+  readonly kind: 'Attack';
+  readonly seat: number;
+  /** ownerId of the target, 0 for unowned land. */
+  readonly target: number;
+  /** Percent of the seat's troops, 1..100. */
+  readonly pct: number;
+}
+
+/** Ends the attack of `seat` on `target` (an ownerId) and returns its remaining troops to the seat. */
+export interface CancelAttackBody {
+  readonly kind: 'CancelAttack';
+  readonly seat: number;
+  readonly target: number;
+}
+
 /** An intent before it has an id (what the UI submits to a host). */
-export type IntentBody = NoopBody | DebugPaintBody | SpawnBody;
+export type IntentBody = NoopBody | DebugPaintBody | SpawnBody | AttackBody | CancelAttackBody;
 
 export type Intent = IntentBody & { readonly id: number };
 
@@ -61,6 +84,20 @@ export const REJECT_TERRAIN = 8;
 export const REJECT_OWNED = 9;
 /** Spawn by a seat that has spawned before. */
 export const REJECT_SPAWNED = 10;
+/** Attack / CancelAttack whose target is not an ownerId of this match (0..seats). */
+export const REJECT_TARGET = 11;
+/** Attack whose pct is not an integer in 1..100. */
+export const REJECT_PCT = 12;
+/** Attack by a seat without land (it has not spawned, or has lost everything). */
+export const REJECT_NOT_SPAWNED = 13;
+/** Attack on the seat's own land. */
+export const REJECT_SELF = 14;
+/** Attack on a target that does not border the seat. */
+export const REJECT_NO_CONTACT = 15;
+/** Attack that would commit no troops at all. */
+export const REJECT_NO_TROOPS = 16;
+/** CancelAttack of an attack that does not exist. */
+export const REJECT_NO_ATTACK = 17;
 
 export interface ValidateContext {
   readonly seats: number;
@@ -81,7 +118,7 @@ function isIntegerIn(v: unknown, lo: number, hi: number): boolean {
 /** Why an intent is not valid in this match (REJECT_*), or REJECT_NONE. Total: any value whatsoever may be passed in. */
 export function validateIntent(x: unknown, ctx: ValidateContext): number {
   if (typeof x !== 'object' || x === null) return REJECT_SHAPE;
-  const o = x as { kind?: unknown; seat?: unknown; id?: unknown; cell?: unknown };
+  const o = x as { kind?: unknown; seat?: unknown; id?: unknown; cell?: unknown; target?: unknown; pct?: unknown };
   const code = kindCode(o.kind);
   if (code < 0) return REJECT_KIND;
   if (!isIntegerIn(o.seat, 0, MAX_SEATS - 1) || (o.seat as number) >= ctx.seats) return REJECT_SEAT;
@@ -91,6 +128,11 @@ export function validateIntent(x: unknown, ctx: ValidateContext): number {
     if (!isIntegerIn(o.cell, 0, ctx.cells - 1)) return REJECT_CELL;
   } else if (o.kind === 'Spawn') {
     if (!isIntegerIn(o.cell, 0, ctx.cells - 1)) return REJECT_CELL;
+  } else if (o.kind === 'Attack') {
+    if (!isIntegerIn(o.target, 0, ctx.seats)) return REJECT_TARGET;
+    if (!isIntegerIn(o.pct, 1, 100)) return REJECT_PCT;
+  } else if (o.kind === 'CancelAttack') {
+    if (!isIntegerIn(o.target, 0, ctx.seats)) return REJECT_TARGET;
   }
   return REJECT_NONE;
 }
@@ -99,6 +141,8 @@ export function validateIntent(x: unknown, ctx: ValidateContext): number {
 function comparePayload(a: Intent, b: Intent): number {
   if (a.kind === 'DebugPaint' && b.kind === 'DebugPaint') return a.cell - b.cell;
   if (a.kind === 'Spawn' && b.kind === 'Spawn') return a.cell - b.cell;
+  if (a.kind === 'Attack' && b.kind === 'Attack') return a.target !== b.target ? a.target - b.target : a.pct - b.pct;
+  if (a.kind === 'CancelAttack' && b.kind === 'CancelAttack') return a.target - b.target;
   return 0;
 }
 
@@ -122,11 +166,13 @@ export const INVALID_BODY: IntentBody = Object.freeze({ kind: 'Noop', seat: -1 }
  */
 export function copyBody(x: unknown): IntentBody {
   if (typeof x !== 'object' || x === null) return INVALID_BODY;
-  const o = x as { kind?: unknown; seat?: unknown; cell?: unknown };
+  const o = x as { kind?: unknown; seat?: unknown; cell?: unknown; target?: unknown; pct?: unknown };
   const seat = typeof o.seat === 'number' ? o.seat : -1;
   if (o.kind === 'Noop') return { kind: 'Noop', seat };
   if (o.kind === 'DebugPaint') return { kind: 'DebugPaint', seat, cell: typeof o.cell === 'number' ? o.cell : -1 };
   if (o.kind === 'Spawn') return { kind: 'Spawn', seat, cell: typeof o.cell === 'number' ? o.cell : -1 };
+  if (o.kind === 'Attack') return { kind: 'Attack', seat, target: typeof o.target === 'number' ? o.target : -1, pct: typeof o.pct === 'number' ? o.pct : -1 };
+  if (o.kind === 'CancelAttack') return { kind: 'CancelAttack', seat, target: typeof o.target === 'number' ? o.target : -1 };
   return INVALID_BODY;
 }
 
@@ -137,6 +183,10 @@ export function withId(body: IntentBody, id: number): Intent {
       return { kind: 'DebugPaint', seat: body.seat, cell: body.cell, id };
     case 'Spawn':
       return { kind: 'Spawn', seat: body.seat, cell: body.cell, id };
+    case 'Attack':
+      return { kind: 'Attack', seat: body.seat, target: body.target, pct: body.pct, id };
+    case 'CancelAttack':
+      return { kind: 'CancelAttack', seat: body.seat, target: body.target, id };
     default:
       return { kind: 'Noop', seat: body.seat, id };
   }

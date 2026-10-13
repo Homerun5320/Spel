@@ -1,7 +1,8 @@
 // Compact binary codec of intents and turns. Unsigned LEB128 varints in their shortest form only (a longer encoding of
 // the same number is an error), so every accepted byte string has exactly one meaning and re-encodes to itself.
 //
-//   intent  = kind:u8  seat:u8  id:varint  [cell:varint]        (cell for DebugPaint and Spawn)
+//   intent  = kind:u8  seat:u8  id:varint  [payload]
+//     payload: DebugPaint and Spawn: cell:varint;  Attack: target:varint pct:varint;  CancelAttack: target:varint;  Noop: none
 //   turn    = turn:varint  count:varint  intent*count
 //
 // Decoding is total: any bytes give either a value or an error result; nothing throws. The decoder checks only what the
@@ -41,9 +42,20 @@ function isU8(v: unknown): v is number {
   return typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= 255;
 }
 
-/** Kinds with a cell on the wire: DebugPaint and Spawn. A new kind with a payload adds its case to intentSize, putIntent, assertEncodable and Reader.intent. */
+/** A new kind with a payload adds its case to intentSize, putIntent, assertEncodable and Reader.intent. */
 function intentSize(i: Intent): number {
-  return 2 + varintSize(i.id) + (i.kind === 'DebugPaint' || i.kind === 'Spawn' ? varintSize(i.cell) : 0);
+  const head = 2 + varintSize(i.id);
+  switch (i.kind) {
+    case 'DebugPaint':
+    case 'Spawn':
+      return head + varintSize(i.cell);
+    case 'Attack':
+      return head + varintSize(i.target) + varintSize(i.pct);
+    case 'CancelAttack':
+      return head + varintSize(i.target);
+    default:
+      return head;
+  }
 }
 
 function putIntent(out: Uint8Array, at: number, i: Intent): number {
@@ -51,12 +63,30 @@ function putIntent(out: Uint8Array, at: number, i: Intent): number {
   out[at + 1] = i.seat;
   let p = putVarint(out, at + 2, i.id);
   if (i.kind === 'DebugPaint' || i.kind === 'Spawn') p = putVarint(out, p, i.cell);
+  else if (i.kind === 'Attack') {
+    p = putVarint(out, p, i.target);
+    p = putVarint(out, p, i.pct);
+  } else if (i.kind === 'CancelAttack') p = putVarint(out, p, i.target);
   return p;
 }
 
+function payloadEncodable(i: Intent): boolean {
+  switch (i.kind) {
+    case 'DebugPaint':
+    case 'Spawn':
+      return isU32(i.cell);
+    case 'Attack':
+      return isU32(i.target) && isU32(i.pct);
+    case 'CancelAttack':
+      return isU32(i.target);
+    default:
+      return true;
+  }
+}
+
 function assertEncodable(i: Intent): void {
-  if (kindCode(i.kind) < 0 || !isU8(i.seat) || !isU32(i.id) || ((i.kind === 'DebugPaint' || i.kind === 'Spawn') && !isU32(i.cell))) {
-    throw new RangeError('intent is not representable on the wire (kind, seat 0..255, id and cell 0..2^32-1)');
+  if (kindCode(i.kind) < 0 || !isU8(i.seat) || !isU32(i.id) || !payloadEncodable(i)) {
+    throw new RangeError('intent is not representable on the wire (kind, seat 0..255, id, cell, target and pct 0..2^32-1)');
   }
 }
 
@@ -134,6 +164,15 @@ class Reader {
     if (kind === 'DebugPaint' || kind === 'Spawn') {
       const cell = this.varint();
       return this.error === null ? { kind, seat, id, cell } : null;
+    }
+    if (kind === 'Attack') {
+      const target = this.varint();
+      const pct = this.varint();
+      return this.error === null ? { kind, seat, id, target, pct } : null;
+    }
+    if (kind === 'CancelAttack') {
+      const target = this.varint();
+      return this.error === null ? { kind, seat, id, target } : null;
     }
     return this.error === null ? { kind, seat, id } : null;
   }

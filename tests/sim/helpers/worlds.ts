@@ -9,12 +9,20 @@ export interface WorldOptions {
   readonly debug?: boolean;
   /** Overrides the terrain class of single cells. */
   readonly classAt?: (x: number, y: number) => number;
+  /** Mean elevation in metres of single cells (default 0). */
+  readonly elevationAt?: (x: number, y: number) => number;
 }
 
 /** A width x height world that is Plains everywhere unless `classAt` says otherwise. */
 export function landState(width: number, height: number, o: WorldOptions = {}): GameState {
   const terrain = new Uint8Array(width * height);
-  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) terrain[y * width + x] = o.classAt ? o.classAt(x, y) : CLASS_PLAINS;
+  const elevation = new Uint16Array(width * height);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      terrain[y * width + x] = o.classAt ? o.classAt(x, y) : CLASS_PLAINS;
+      elevation[y * width + x] = o.elevationAt ? o.elevationAt(x, y) : 0;
+    }
+  }
   return createState({
     width,
     height,
@@ -23,7 +31,7 @@ export function landState(width: number, height: number, o: WorldOptions = {}): 
     players: o.players,
     config: { debugIntents: o.debug === true },
     terrain,
-    elevation: new Uint16Array(width * height),
+    elevation,
   });
 }
 

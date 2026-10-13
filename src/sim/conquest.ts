@@ -1,0 +1,334 @@
+// Conquest: attacks, their speed and their price. Everything here is integer maths; the units are in src/sim/rules.ts.
+//
+// An Attack (attacks.ts) takes the cells of its target that touch the attacker, cheapest depth first. Each tick every attack
+// gains `captureRateMicroPerTick` micro-cells of progress and takes as many whole cells from the top of its frontier heap
+// as the progress allows, paying `captureCostMilliQt` for each out of the troops committed to it. It ends when its
+// frontier is empty, the border is gone, or the committed troops cannot pay for the next cell; what is left goes back to
+// the attacker.
+//
+// SPEED (std-cell formula of the plan, converted once):  v = K * sqrt(L) * 2F / (F + Td)  std-cells per second, with
+//   L  the contact length: the adjacencies between the attacker's land and the target's, in sim cells; L / STD_CELL_SIDE
+//      is the length in std-cells, so sqrt(L std) = isqrt(L * CAPTURE_SQRT_SCALE) / 1000;
+//   F  the troops committed to this attack and Td the target's troops (0 for unowned land); F + Td == 0 gives speed 0.
+// The cell RATE converts with STD_CELL_AREA (x4), per tick with / TICK_HZ.
+//
+// PRICE per sim cell (milli-QT):  BASE * terrain% * uphill * (1 + d / DEPTH_DIV), where
+//   d   is the depth of the cell in the attack's frontier: how many captures of this attack separate it from land that
+//       touched the attacker before; 0 at the border, clamped to D_MAX_CELLS (D82);
+//   dh  is the rise from the highest attacker cell next to the cell to the cell, in HEIGHT_UNIT_M units; uphill
+//       = 1 + 0.25 * dh / 32 capped at x2, downhill and flat cost nothing extra (D83);
+//   the defender pays no terrain term.
+import { Attack, frontKey } from './attacks';
+import { addTroops, deductTroops, isTribe } from './economy';
+import { isqrt } from './detmath';
+import { hash2 } from './fixture';
+import {
+  BASE_COST_MILLI_QT_PER_SIM_CELL,
+  CAPTURE_K_MILLI,
+  CAPTURE_RATIO_TWO,
+  CAPTURE_SQRT_SCALE,
+  D_MAX_CELLS,
+  DEPTH_COST_DIV_CELLS,
+  FRONT_COMPACT_MIN,
+  HEIGHT_UNIT_M,
+  MICRO_CELLS_PER_CELL,
+  MILLI_QT_PER_QT,
+  STD_CELL_AREA,
+  TERRAIN_COST_PCT,
+  TICK_HZ,
+  TRIBE_ATTACK_DIV,
+  UPHILL_MAX_PCT,
+  UPHILL_PER_STEP_MILLI,
+  UPHILL_STEP_UNITS,
+} from './rules';
+import {
+  REJECT_NONE,
+  REJECT_NO_ATTACK,
+  REJECT_NO_CONTACT,
+  REJECT_NO_TROOPS,
+  REJECT_NOT_SPAWNED,
+  REJECT_SELF,
+} from './intents';
+import { seatToOwner, type GameState } from './state';
+import { changeOwner } from './territory';
+
+/** Salt of the per-tick order in which the attacks run. */
+const ORDER_SALT = 0x2d4b;
+/** Cell indices are below 2^22 (MAX_CELLS); a frontier entry packs (key, cell) into one safe integer for sorting. */
+const CELL_RANGE = 4194304;
+/** Attack counts stay below this (seats * seats <= 65025), which lets the run order pack (hash, index) into one safe integer. */
+const INDEX_RANGE = 65536;
+
+/**
+ * Micro-cells gained per tick by an attack: contact length `contact` (sim cells), `troopsQt` committed, `defenderQt` the
+ * target's troops. 0 when there is no contact or nobody has troops. K is in thousandths, sqrt(L std) in thousandths, the troop
+ * ratio in millionths and the result in millionths of a cell per tick: K * sqrt * ratio * AREA / (10^6 * TICK_HZ). Products
+ * stay below 2^53 for contact < 2^20, troops below 2^32 and K <= 1000 (1000 * 1024000 * 2000000 * 4 < 2^53).
+ */
+export function captureRateMicroPerTick(contact: number, troopsQt: number, defenderQt: number): number {
+  if (contact <= 0 || troopsQt <= 0) return 0;
+  const sum = troopsQt + defenderQt;
+  if (sum <= 0) return 0;
+  const sqrtMilli = isqrt(contact * CAPTURE_SQRT_SCALE);
+  const ratio = Math.floor((CAPTURE_RATIO_TWO * troopsQt) / sum);
+  return Math.floor((CAPTURE_K_MILLI * sqrtMilli * ratio * STD_CELL_AREA) / (1000000 * TICK_HZ));
+}
+
+/** The uphill factor in thousandths for a rise of `dhUnits` height units: 1000 for flat or downhill, at most UPHILL_MAX_PCT * 10. */
+export function uphillMilli(dhUnits: number): number {
+  if (dhUnits <= 0) return 1000;
+  const f = 1000 + Math.floor((UPHILL_PER_STEP_MILLI * dhUnits) / UPHILL_STEP_UNITS);
+  const cap = UPHILL_MAX_PCT * 10;
+  return f > cap ? cap : f;
+}
+
+/** The depth that counts for the price: 0 .. D_MAX_CELLS. */
+export function clampDepth(d: number): number {
+  return d < 0 ? 0 : d > D_MAX_CELLS ? D_MAX_CELLS : d;
+}
+
+/**
+ * Price in milli-QT of taking one sim cell of terrain class `cls` that lies `dhUnits` above the attacker's cell (negative
+ * or 0 = level or downhill) at depth `depth`. 0 for a class nobody can own (never asked for in play).
+ */
+export function captureCostMilliQt(cls: number, dhUnits: number, depth: number): number {
+  const pct = (TERRAIN_COST_PCT[cls] ?? 0) as number;
+  if (pct <= 0) return 0;
+  const d = clampDepth(depth);
+  // BASE * pct/100 * up/1000 * (DIV + d)/DIV, multiplied out and divided once so that nothing is rounded early (< 2^53).
+  return Math.floor((BASE_COST_MILLI_QT_PER_SIM_CELL * pct * uphillMilli(dhUnits) * (DEPTH_COST_DIV_CELLS + d)) / (100 * 1000 * DEPTH_COST_DIV_CELLS));
+}
+
+/** The rise in height units from the attacker's source cell to the target (metres of mean elevation, floor; 0 or less = no rise). */
+export function riseUnits(targetElevationM: number, sourceElevationM: number): number {
+  const rise = targetElevationM - sourceElevationM;
+  return rise <= 0 ? 0 : Math.floor(rise / HEIGHT_UNIT_M);
+}
+
+/** Builds the frontier of a new attack from the boundary cells of its attacker: the target cells that touch them. */
+function buildFrontier(state: GameState, a: Attack): void {
+  const b = state.borders;
+  const list = b.lists[a.attacker] as Int32Array;
+  const count = b.counts[a.attacker] as number;
+  const mark = state.scratch.mark;
+  const nb = state.scratch.nb;
+  const grid = state.grid;
+  const owner = state.owner;
+  const found: number[] = [];
+  const seed = state.header.seed;
+  for (let i = 0; i < count; i++) {
+    const c = list[i] as number;
+    state.work.launchScanned++;
+    const cnt = grid.neighbours(c, nb);
+    for (let k = 0; k < cnt; k++) {
+      const n = nb[k] as number;
+      if (mark[n] === 0 && n !== c && grid.playable[n] === 1 && owner[n] === a.target) {
+        mark[n] = 1;
+        found.push(frontKey(seed, n, 0) * CELL_RANGE + n);
+      }
+    }
+  }
+  for (let i = 0; i < found.length; i++) mark[(found[i] as number) % CELL_RANGE] = 0;
+  // Sorted by (key, cell) the array is a heap, and it does not depend on the order of the boundary list (which depends on history).
+  found.sort((x, y) => x - y);
+  a.size = 0;
+  a.reserve(found.length);
+  for (let i = 0; i < found.length; i++) {
+    const v = found[i] as number;
+    const cell = v % CELL_RANGE;
+    a.cells[i] = cell;
+    a.keys[i] = (v - cell) / CELL_RANGE;
+  }
+  a.size = found.length;
+  a.compactAt = Math.max(FRONT_COMPACT_MIN, 2 * found.length);
+  state.work.pushed += found.length;
+}
+
+/** Is `cell` a cell the attack can take right now: its target's, playable, and touching a playable cell of the attacker? (A cell nobody can own, painted by the debug intent, is no border.) */
+function qualifies(state: GameState, a: Attack, cell: number): boolean {
+  const grid = state.grid;
+  if (state.owner[cell] !== a.target || grid.playable[cell] === 0) return false;
+  const nb = state.scratch.nb;
+  const cnt = grid.neighbours(cell, nb);
+  for (let k = 0; k < cnt; k++) {
+    const n = nb[k] as number;
+    if (n !== cell && state.owner[n] === a.attacker && grid.playable[n] === 1) return true;
+  }
+  return false;
+}
+
+/** Drops the entries that no longer qualify from an attack's heap and restores the heap order. */
+export function compactFront(state: GameState, a: Attack): void {
+  let kept = 0;
+  const cells = a.cells;
+  const keys = a.keys;
+  for (let i = 0; i < a.size; i++) {
+    const c = cells[i] as number;
+    state.work.purged++;
+    if (qualifies(state, a, c)) {
+      cells[kept] = c;
+      keys[kept] = keys[i] as number;
+      kept++;
+    }
+  }
+  a.size = kept;
+  a.heapify();
+  a.compactAt = Math.max(FRONT_COMPACT_MIN, 2 * kept);
+}
+
+/**
+ * Takes up to `n` cells for the attack at index `slot` of the table, in frontier order. Returns how many it took. Sets
+ * `a.dead` when the attack is over (no frontier left, or the troops cannot pay for the next cell). This is the whole cost
+ * of an attack in a tick: O(n log front) plus the stale entries it pops on the way.
+ */
+export function advanceAttack(state: GameState, a: Attack, slot: number, n: number): number {
+  const owner = state.owner;
+  const grid = state.grid;
+  const playable = grid.playable;
+  const nb = state.scratch.nb;
+  const elevation = state.elevation;
+  const terrain = state.terrain;
+  const work = state.work;
+  let taken = 0;
+  while (taken < n) {
+    if (a.size === 0) {
+      a.dead = true;
+      break;
+    }
+    const cell = a.cells[0] as number;
+    const key = a.keys[0] as number;
+    work.popped++;
+    if (owner[cell] !== a.target || playable[cell] === 0) {
+      a.pop();
+      continue;
+    }
+    // Does the cell still touch the attacker, and from which attacker cell is it cheapest to come (the highest)?
+    const cnt = grid.neighbours(cell, nb);
+    let source = -1;
+    for (let k = 0; k < cnt; k++) {
+      const m = nb[k] as number;
+      if (m !== cell && owner[m] === a.attacker && playable[m] === 1) {
+        const e = elevation[m] as number;
+        if (e > source) source = e;
+      }
+    }
+    if (source < 0) {
+      a.pop();
+      continue;
+    }
+    const depth = key >>> 24;
+    const cost = captureCostMilliQt(terrain[cell] as number, riseUnits(elevation[cell] as number, source), depth);
+    const owed = a.costFrac + cost;
+    const whole = Math.floor(owed / MILLI_QT_PER_QT);
+    if (a.troops < whole) {
+      a.dead = true;
+      break;
+    }
+    a.pop();
+    a.troops -= whole;
+    a.costFrac = owed - whole * MILLI_QT_PER_QT;
+    changeOwner(state, cell, a.attacker, a.id, slot, depth);
+    taken++;
+    work.captured++;
+  }
+  return taken;
+}
+
+/** Ends an attack at once: its remaining troops go back to the attacker. For use between phases (intents). */
+function endNow(state: GameState, a: Attack): void {
+  addTroops(state, a.attacker, a.troops);
+  a.troops = 0;
+  a.dead = true;
+  state.attacks.removeDead();
+}
+
+/**
+ * Starts (or reinforces) the attack of `attacker` on `target` with `commitQt` troops that have already been taken from the
+ * attacker. Mutual attacks cancel: if the target is attacking the attacker, the two forces are set against each other, both
+ * lose the smaller of the two, the one left with nothing ends, and the other goes on with what remains (D85).
+ */
+export function launchAttack(state: GameState, attacker: number, target: number, commitQt: number): void {
+  const table = state.attacks;
+  let commit = commitQt;
+  if (target !== 0) {
+    const counter = table.find(target, attacker);
+    if (counter !== null) {
+      const clash = commit < counter.troops ? commit : counter.troops;
+      commit -= clash;
+      counter.troops -= clash;
+      if (counter.troops === 0) endNow(state, counter);
+      if (commit === 0) return;
+    }
+  }
+  const existing = table.find(attacker, target);
+  if (existing !== null) {
+    const sum = existing.troops + commit;
+    existing.troops = sum > 4294967295 ? 4294967295 : sum;
+    return;
+  }
+  const a = table.create(attacker, target, commit);
+  buildFrontier(state, a);
+}
+
+/** Applies an Attack intent. Returns REJECT_NONE or the reason it was refused (nothing changed then). */
+export function applyAttack(state: GameState, seat: number, target: number, pct: number): number {
+  const owner = seatToOwner(seat);
+  if ((state.agg.area[owner] as number) === 0) return REJECT_NOT_SPAWNED;
+  if (target === owner) return REJECT_SELF;
+  if (state.borders.contact(owner, target) === 0) return REJECT_NO_CONTACT;
+  const have = state.troops[owner] as number;
+  const commit = isTribe(state, owner) ? Math.floor(have / TRIBE_ATTACK_DIV) : Math.floor((have * pct) / 100);
+  if (commit <= 0) return REJECT_NO_TROOPS;
+  launchAttack(state, owner, target, deductTroops(state, owner, commit));
+  return REJECT_NONE;
+}
+
+/** Applies a CancelAttack intent. */
+export function applyCancelAttack(state: GameState, seat: number, target: number): number {
+  const a = state.attacks.find(seatToOwner(seat), target);
+  if (a === null) return REJECT_NO_ATTACK;
+  endNow(state, a);
+  return REJECT_NONE;
+}
+
+/**
+ * The conquest phase of a tick: every attack, in an order that is a hash of (seed, tick, attack id), gains progress and takes
+ * its cells; finished attacks hand their troops back and leave the table. Resets the work counters.
+ */
+export function conquestPhase(state: GameState): void {
+  state.work.reset();
+  const table = state.attacks;
+  const attacks = table.list;
+  const count = attacks.length;
+  state.work.attacks = count;
+  if (count === 0) return;
+  const order: number[] = [];
+  for (let i = 0; i < count; i++) order.push(hash2(state.header.seed, state.tick, (attacks[i] as Attack).id ^ ORDER_SALT) * INDEX_RANGE + i);
+  if (count > 1) order.sort((x, y) => x - y);
+  for (let o = 0; o < count; o++) {
+    const slot = (order[o] as number) % INDEX_RANGE;
+    const a = attacks[slot] as Attack;
+    if (a.dead) continue;
+    const contact = state.borders.contact(a.attacker, a.target);
+    if (a.troops === 0 || contact === 0 || (state.agg.area[a.attacker] as number) === 0) {
+      a.dead = true;
+      continue;
+    }
+    const defender = a.target === 0 ? 0 : (state.troops[a.target] as number);
+    const progress = a.progress + captureRateMicroPerTick(contact, a.troops, defender);
+    const whole = Math.floor(progress / MICRO_CELLS_PER_CELL);
+    a.progress = progress - whole * MICRO_CELLS_PER_CELL;
+    if (whole > 0) advanceAttack(state, a, slot, whole);
+    if (!a.dead && a.size >= a.compactAt) compactFront(state, a);
+  }
+  let anyDead = false;
+  for (let i = 0; i < count; i++) {
+    const a = attacks[i] as Attack;
+    if (a.dead) {
+      addTroops(state, a.attacker, a.troops);
+      a.troops = 0;
+      anyDead = true;
+    }
+  }
+  if (anyDead) table.removeDead();
+}

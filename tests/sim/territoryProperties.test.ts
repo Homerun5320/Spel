@@ -25,6 +25,8 @@ const intent = fc.oneof(
   { weight: 5, arbitrary: fc.record({ kind: fc.constant('Spawn' as const), seat: fc.integer({ min: 0, max: SEATS }), id: fc.integer({ min: 0, max: 20 }), cell: fc.integer({ min: 0, max: W * H }) }) },
   { weight: 2, arbitrary: fc.record({ kind: fc.constant('DebugPaint' as const), seat: fc.integer({ min: 0, max: SEATS - 1 }), id: fc.integer({ min: 0, max: 20 }), cell: fc.integer({ min: 0, max: W * H - 1 }) }) },
   { weight: 1, arbitrary: fc.record({ kind: fc.constant('Noop' as const), seat: fc.integer({ min: 0, max: SEATS - 1 }), id: fc.integer({ min: 0, max: 20 }) }) },
+  { weight: 4, arbitrary: fc.record({ kind: fc.constant('Attack' as const), seat: fc.integer({ min: 0, max: SEATS - 1 }), id: fc.integer({ min: 0, max: 20 }), target: fc.integer({ min: 0, max: SEATS }), pct: fc.integer({ min: 1, max: 100 }) }) },
+  { weight: 1, arbitrary: fc.record({ kind: fc.constant('CancelAttack' as const), seat: fc.integer({ min: 0, max: SEATS - 1 }), id: fc.integer({ min: 0, max: 20 }), target: fc.integer({ min: 0, max: SEATS }) }) },
 );
 
 const matchArb = fc.record({
@@ -79,7 +81,7 @@ describe('territory properties', () => {
       fc.property(matchArb, fc.infiniteStream(fc.nat()), ({ seed, turns, debug }, rnd) => {
         const it = rnd[Symbol.iterator]();
         const shuffled = turns.map((list) => {
-          const out = [...list];
+          const out: Intent[] = [...list];
           for (let i = out.length - 1; i > 0; i--) {
             const j = (it.next().value as number) % (i + 1);
             [out[i], out[j]] = [out[j] as Intent, out[i] as Intent];

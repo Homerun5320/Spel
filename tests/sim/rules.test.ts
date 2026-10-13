@@ -88,8 +88,10 @@ describe('rules.ts: the plan values', () => {
     expect(r.TERRAIN_COST_PCT.length).toBe(t.CLASS_COUNT);
   });
 
-  it('conquest constants are the plan values (wired in part B)', () => {
-    expect([r.CAPTURE_K_MILLI, r.BASE_COST_TROOPS, r.D_MAX_STD, r.DEPTH_COST_DIV_STD]).toEqual([80, 3, 40, 20]);
+  it('conquest constants are the plan values, except CAPTURE_K_MILLI which the solo calibration moved from the plan\'s 80 to 103 (D88; it stays inside the plan\'s 0.06 to 0.15)', () => {
+    expect([r.BASE_COST_TROOPS, r.D_MAX_STD, r.DEPTH_COST_DIV_STD]).toEqual([3, 40, 20]);
+    expect(r.CAPTURE_K_MILLI).toBeGreaterThanOrEqual(60);
+    expect(r.CAPTURE_K_MILLI).toBeLessThanOrEqual(150);
     expect([r.UPHILL_PER_STEP_MILLI, r.UPHILL_STEP_UNITS, r.UPHILL_MAX_PCT, r.ENCLAVE_FLIP_TICKS]).toEqual([250, 32, 200, 20]);
     expect(r.HEIGHT_UNIT_M).toBeGreaterThan(0);
   });

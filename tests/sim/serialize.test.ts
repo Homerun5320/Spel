@@ -10,6 +10,7 @@ import {
   hashState,
   serialize,
   serializedLength,
+  serializedLengthOf,
   type DeserializeError,
 } from '../../src/sim/serialize';
 import { ENGINE_VERSION, STATE_ARRAY_NAMES, createEmptyState, createState, stateArray, type GameState } from '../../src/sim/state';
@@ -40,12 +41,15 @@ describe('serialize / deserialize', () => {
     expect(t.outbox.length).toBe(0);
   });
 
-  it('the layout is the documented one (little-endian, 64 byte header, 9 bytes per cell, 2 per row, 16 per ownerId, 4 byte checksum)', () => {
+  it('the layout is the documented one (little-endian, 64 byte header, 9 bytes per cell, 2 per row, 16 per ownerId, the attack table, the enclave queue, 4 byte checksum)', () => {
     const s = sample(5);
     const b = serialize(s);
     const v = new DataView(b.buffer);
-    expect(b.length).toBe(serializedLength(128, 64, 4));
-    expect(b.length).toBe(HEADER_BYTES + 128 * 64 * 9 + 64 * 2 + 5 * 16 + 4);
+    expect(b.length).toBe(serializedLengthOf(s));
+    // fixed part + attack table (8 byte head, 32 bytes and 8 per frontier entry per attack) + 20 bucket counts and the queued cells (4 each) + checksum
+    const attacks = s.attacks.list.reduce((n, a) => n + 32 + 8 * a.size, 0);
+    expect(b.length).toBe(HEADER_BYTES + 128 * 64 * 9 + 64 * 2 + 5 * 16 + 8 + attacks + 20 * 4 + 4 * s.enclaves.length + 4);
+    expect(serializedLength(128, 64, 4)).toBe(HEADER_BYTES + 128 * 64 * 9 + 64 * 2 + 5 * 16 + 8 + 20 * 4 + 4);
     expect(HEADER_BYTES).toBe(64);
     expect(Array.from(b.subarray(0, 4))).toEqual([0x53, 0x50, 0x45, 0x4c]); // 'SPEL'
     expect(v.getUint32(0, true)).toBe(MAGIC);
@@ -351,6 +355,6 @@ describe('deserialize: errors are results, never throws', () => {
 
 describe('golden params', () => {
   it('serialized size of the golden world', () => {
-    expect(serialize(createScenarioState(GOLDEN_PARAMS)).length).toBe(64 + 8192 * 9 + 64 * 2 + 5 * 16 + 4);
+    expect(serialize(createScenarioState(GOLDEN_PARAMS)).length).toBe(64 + 8192 * 9 + 64 * 2 + 5 * 16 + 8 + 20 * 4 + 4);
   });
 });

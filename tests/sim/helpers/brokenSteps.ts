@@ -1,14 +1,14 @@
 // Deliberately broken copies of step() for mutation-style tests: each keeps everything of the real step except one rule.
 // The golden tests demand that every one of them lands on other hashes than the committed ones.
+import { conquestPhase } from '../../../src/sim/conquest';
 import { economyTick } from '../../../src/sim/economy';
+import { enclavePhase } from '../../../src/sim/enclaves';
 import { compareIntents, REJECT_DUPLICATE, REJECT_NONE, validateIntent, type Intent } from '../../../src/sim/intents';
 import { OUTBOX_REJECT } from '../../../src/sim/outbox';
 import { nextU32 } from '../../../src/sim/rng';
 import { MAX_INTENTS_PER_TURN } from '../../../src/sim/rules';
-import { applySpawn } from '../../../src/sim/spawn';
-import { seatToOwner } from '../../../src/sim/state';
 import type { StepFn } from '../../../src/sim/step';
-import { setOwner } from '../../../src/sim/territory';
+import { applyIntent } from '../../../src/sim/step';
 
 function makeStep(opts: { sort: boolean; dedupe: boolean }): StepFn {
   return (state, turn) => {
@@ -35,18 +35,16 @@ function makeStep(opts: { sort: boolean; dedupe: boolean }): StepFn {
         state.outbox.push(OUTBOX_REJECT, state.tick, REJECT_DUPLICATE, 0);
         continue;
       }
-      if (intent.kind === 'DebugPaint') {
-        setOwner(state, intent.cell, seatToOwner(intent.seat), intent.id);
-      } else if (intent.kind === 'Spawn') {
-        const why = applySpawn(state, intent.seat, intent.cell, intent.id);
-        if (why !== REJECT_NONE) {
-          rejected++;
-          state.outbox.push(OUTBOX_REJECT, state.tick, why, 0);
-          continue;
-        }
+      const why = applyIntent(state, intent);
+      if (why !== REJECT_NONE) {
+        rejected++;
+        state.outbox.push(OUTBOX_REJECT, state.tick, why, 0);
+        continue;
       }
       applied++;
     }
+    conquestPhase(state);
+    enclavePhase(state);
     economyTick(state);
     if (rejected > 0) state.rejects = (state.rejects + rejected) >>> 0;
     nextU32(state.rng);

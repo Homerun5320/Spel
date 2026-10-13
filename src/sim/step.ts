@@ -1,13 +1,15 @@
 // The one function that changes a game state: step(state, turn).
 //
 // A step runs the turn whose index equals state.tick: it validates the turn's intents, puts the valid ones in the
-// canonical order (seat, id, kind, payload), applies them, runs the economy, draws once from the state's generator and
-// increments the tick.
+// canonical order (seat, id, kind, payload), applies them, runs the conquest (every attack takes its cells) and the enclave
+// check, runs the economy, draws once from the state's generator and increments the tick.
 // An intent that is invalid in this match becomes a no-op and raises state.rejects. step() never throws for bad data: a
 // turn that cannot be run at all (wrong index, not a list, too long) is reported as an error result and leaves the state
 // untouched.
+import { applyAttack, applyCancelAttack, conquestPhase } from './conquest';
 import { compareIntents, REJECT_DUPLICATE, REJECT_NONE, validateIntent, type Intent, type TurnIntents } from './intents';
 import { economyTick } from './economy';
+import { enclavePhase } from './enclaves';
 import { MAX_INTENTS_PER_TURN } from './rules';
 import { OUTBOX_REJECT } from './outbox';
 import { nextU32 } from './rng';
@@ -25,6 +27,26 @@ const NOTHING_TO_DO: StepResult = Object.freeze({ ok: true, applied: 0, rejected
 
 /** The function type hosts and the golden runner take, so a test can substitute a broken copy of step. */
 export type StepFn = (state: GameState, turn: TurnIntents) => StepResult;
+
+/**
+ * Applies one VALID intent (see validateIntent) to the state. Returns REJECT_NONE, or the reason the state refuses it
+ * (nothing changed then). Shared by step() and the broken copies of it that the tests use.
+ */
+export function applyIntent(state: GameState, intent: Intent): number {
+  switch (intent.kind) {
+    case 'DebugPaint':
+      setOwner(state, intent.cell, seatToOwner(intent.seat), intent.id);
+      return REJECT_NONE;
+    case 'Spawn':
+      return applySpawn(state, intent.seat, intent.cell, intent.id);
+    case 'Attack':
+      return applyAttack(state, intent.seat, intent.target, intent.pct);
+    case 'CancelAttack':
+      return applyCancelAttack(state, intent.seat, intent.target);
+    default:
+      return REJECT_NONE;
+  }
+}
 
 export function step(state: GameState, turn: TurnIntents): StepResult {
   if (typeof turn !== 'object' || turn === null) return { ok: false, error: 'bad-turn' };
@@ -57,20 +79,18 @@ export function step(state: GameState, turn: TurnIntents): StepResult {
         state.outbox.push(OUTBOX_REJECT, state.tick, REJECT_DUPLICATE, 0);
         continue;
       }
-      if (intent.kind === 'DebugPaint') {
-        setOwner(state, intent.cell, seatToOwner(intent.seat), intent.id);
-      } else if (intent.kind === 'Spawn') {
-        const why = applySpawn(state, intent.seat, intent.cell, intent.id);
-        if (why !== REJECT_NONE) {
-          rejected++;
-          state.outbox.push(OUTBOX_REJECT, state.tick, why, 0);
-          continue;
-        }
+      const why = applyIntent(state, intent);
+      if (why !== REJECT_NONE) {
+        rejected++;
+        state.outbox.push(OUTBOX_REJECT, state.tick, why, 0);
+        continue;
       }
       applied++;
     }
   }
-  // Phases of a tick: 1 intents (above), 2 conquest (M04 part B inserts it here), 3 economy, 4 the generator, 5 the tick.
+  // Phases of a tick: 1 intents (above), 2 conquest, 3 enclaves, 4 economy, 5 the generator, 6 the tick.
+  conquestPhase(state);
+  enclavePhase(state);
   economyTick(state);
   if (rejected > 0) state.rejects = (state.rejects + rejected) >>> 0;
   nextU32(state.rng);

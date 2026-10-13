@@ -8,11 +8,16 @@
 //   64 terrain u8 x n        elevation u16 x n        owner u16 x n           stamp u32 x n
 //      rowCos u16 x height   troops u32 x (seats+1)   troopFrac u32 x (seats+1)
 //      gold u32 x (seats+1)  capital u32 x (seats+1)
+//      attacks: seq u32, count u32, then per attack id attacker target troops costFrac progress compactAt size (u32 each)
+//               followed by size x (cell u32, key u32)                         (the frontier heap exactly as it is)
+//      enclave queue: ENCLAVE_FLIP_TICKS x (count u32, count x cell u32)
 //   end: checksum u32 = hashState(state)                                      (n = width * height)
 // The outbox and the derived parts (grid, aggregates, scratch) are not part of the format. deserialize() never throws:
 // any byte string gives a state or an error result.
+import { Attack, AttackTable, keyDepth } from './attacks';
+import { EnclaveQueues, enclaveBucket } from './enclaveQueue';
 import { FNV_OFFSET, finishHash, foldBytes, foldU16, foldU32, foldWord } from './hash';
-import { MICRO_QT_PER_QT } from './rules';
+import { D_MAX_CELLS, ENCLAVE_FLIP_TICKS, MICRO_CELLS_PER_CELL, MICRO_QT_PER_QT, MILLI_QT_PER_QT } from './rules';
 import {
   ENGINE_VERSION,
   MAX_SEATS,
@@ -26,8 +31,8 @@ import {
   type MatchHeader,
 } from './state';
 
-/** Bumped when the byte layout above changes. 2: owner u16 (D71). 3: players, rowCos and the per-owner economy arrays (M04). */
-export const FORMAT_VERSION = 3;
+/** Bumped when the byte layout above changes. 2: owner u16 (D71). 3: players, rowCos and the per-owner economy arrays (M04). 4: attacks and the enclave queue (M04 conquest). */
+export const FORMAT_VERSION = 4;
 /** 'SPEL' as a little-endian u32. */
 export const MAGIC = 0x4c455053;
 export const HEADER_BYTES = 64;
@@ -38,6 +43,12 @@ const BYTES_PER_CELL = 9;
 const BYTES_PER_ROW = 2;
 /** troops, troopFrac, gold, capital: 4 u32 per ownerId (0..seats). */
 const BYTES_PER_OWNER = 16;
+/** Attack table header (seq, count) and the counts of the enclave buckets: what a state without attacks and candidates adds. */
+const EMPTY_TABLES_BYTES = 8 + ENCLAVE_FLIP_TICKS * 4;
+/** One attack record without its frontier: eight u32. */
+const BYTES_PER_ATTACK = 32;
+/** One frontier entry: cell and key. */
+const BYTES_PER_ENTRY = 8;
 
 export type DeserializeError =
   | 'not-bytes'
@@ -49,15 +60,24 @@ export type DeserializeError =
   | 'size'
   | 'owner-range'
   | 'economy-range'
+  | 'attack-range'
+  | 'enclave-range'
   | 'checksum';
 
 export type DeserializeResult =
   | { readonly ok: true; readonly state: GameState }
   | { readonly ok: false; readonly error: DeserializeError };
 
-/** Number of bytes serialize() produces for a size. */
+/** Number of bytes serialize() produces for a size when no attack is running and no enclave candidate is queued. */
 export function serializedLength(width: number, height: number, seats: number): number {
-  return HEADER_BYTES + width * height * BYTES_PER_CELL + height * BYTES_PER_ROW + ownerSlots(seats) * BYTES_PER_OWNER + CHECKSUM_BYTES;
+  return HEADER_BYTES + width * height * BYTES_PER_CELL + height * BYTES_PER_ROW + ownerSlots(seats) * BYTES_PER_OWNER + EMPTY_TABLES_BYTES + CHECKSUM_BYTES;
+}
+
+/** Number of bytes serialize() produces for this state. */
+export function serializedLengthOf(state: GameState): number {
+  let n = serializedLength(state.width, state.height, state.header.seats);
+  for (const a of state.attacks.list) n += BYTES_PER_ATTACK + a.size * BYTES_PER_ENTRY;
+  return n + state.enclaves.length * 4;
 }
 
 /** The hash of a state: header words, scalars, the generator, then every array in fixed order. Not the outbox, not the derived parts. */
@@ -84,6 +104,28 @@ export function hashState(state: GameState): number {
   x = foldU32(x, state.troopFrac);
   x = foldU32(x, state.gold);
   x = foldU32(x, state.capital);
+  x = foldWord(x, state.attacks.seq);
+  x = foldWord(x, state.attacks.list.length);
+  for (const a of state.attacks.list) {
+    x = foldWord(x, a.id);
+    x = foldWord(x, a.attacker);
+    x = foldWord(x, a.target);
+    x = foldWord(x, a.troops);
+    x = foldWord(x, a.costFrac);
+    x = foldWord(x, a.progress);
+    x = foldWord(x, a.compactAt);
+    x = foldWord(x, a.size);
+    for (let i = 0; i < a.size; i++) {
+      x = foldWord(x, a.cells[i] as number);
+      x = foldWord(x, a.keys[i] as number);
+    }
+  }
+  for (let b = 0; b < ENCLAVE_FLIP_TICKS; b++) {
+    const n = state.enclaves.counts[b] as number;
+    const list = state.enclaves.buckets[b] as Int32Array;
+    x = foldWord(x, n);
+    for (let i = 0; i < n; i++) x = foldWord(x, list[i] as number);
+  }
   return finishHash(x);
 }
 
@@ -109,7 +151,7 @@ function getU32s(v: DataView, at: number, a: Uint32Array): number {
 
 /** The state as bytes (a fresh array that shares nothing with the state). */
 export function serialize(state: GameState): Uint8Array {
-  const out = new Uint8Array(serializedLength(state.width, state.height, state.header.seats));
+  const out = new Uint8Array(serializedLengthOf(state));
   const v = new DataView(out.buffer);
   const h = state.header;
   v.setUint32(0, MAGIC, true);
@@ -136,6 +178,35 @@ export function serialize(state: GameState): Uint8Array {
   p = putU32s(v, p, state.troopFrac);
   p = putU32s(v, p, state.gold);
   p = putU32s(v, p, state.capital);
+  v.setUint32(p, state.attacks.seq, true);
+  v.setUint32(p + 4, state.attacks.list.length, true);
+  p += 8;
+  for (const a of state.attacks.list) {
+    v.setUint32(p, a.id, true);
+    v.setUint32(p + 4, a.attacker, true);
+    v.setUint32(p + 8, a.target, true);
+    v.setUint32(p + 12, a.troops, true);
+    v.setUint32(p + 16, a.costFrac, true);
+    v.setUint32(p + 20, a.progress, true);
+    v.setUint32(p + 24, a.compactAt, true);
+    v.setUint32(p + 28, a.size, true);
+    p += BYTES_PER_ATTACK;
+    for (let i = 0; i < a.size; i++) {
+      v.setUint32(p, a.cells[i] as number, true);
+      v.setUint32(p + 4, a.keys[i] as number, true);
+      p += BYTES_PER_ENTRY;
+    }
+  }
+  for (let b = 0; b < ENCLAVE_FLIP_TICKS; b++) {
+    const n = state.enclaves.counts[b] as number;
+    const list = state.enclaves.buckets[b] as Int32Array;
+    v.setUint32(p, n, true);
+    p += 4;
+    for (let i = 0; i < n; i++) {
+      v.setUint32(p, list[i] as number, true);
+      p += 4;
+    }
+  }
   v.setUint32(p, hashState(state), true);
   return out;
 }
@@ -167,7 +238,7 @@ export function deserialize(bytes: Uint8Array): DeserializeResult {
   const config = flagsToConfig(flags);
   if (config === null || seats < 1 || seats > MAX_SEATS || players < 1 || players > seats || !validDimensions(width, height)) return fail('header');
   const n = width * height;
-  if (bytes.length !== serializedLength(width, height, seats)) return fail('size');
+  if (bytes.length < serializedLength(width, height, seats)) return fail('size');
 
   const rng = new Uint32Array(4);
   for (let i = 0; i < 4; i++) rng[i] = v.getUint32(44 + i * 4, true);
@@ -199,10 +270,70 @@ export function deserialize(bytes: Uint8Array): DeserializeResult {
     if ((troopFrac[o] as number) >= MICRO_QT_PER_QT || (capital[o] as number) > n) return fail('economy-range');
   }
 
+  // The attack table and the enclave queue are variable in length: every count is checked against the bytes that are left
+  // before anything is allocated, so a hostile count cannot make this function allocate or throw.
+  const end = bytes.length - CHECKSUM_BYTES;
+  const slots = ownerSlots(seats);
+  const attacks = new AttackTable(slots);
+  const enclaves = new EnclaveQueues(n);
+  if (p + 8 > end) return fail('size');
+  attacks.seq = v.getUint32(p, true);
+  const attackCount = v.getUint32(p + 4, true);
+  p += 8;
+  if (attackCount > seats * slots || p + attackCount * BYTES_PER_ATTACK > end) return fail('attack-range');
+  let lastId = 0;
+  for (let k = 0; k < attackCount; k++) {
+    if (p + BYTES_PER_ATTACK > end) return fail('attack-range');
+    const id = v.getUint32(p, true);
+    const attacker = v.getUint32(p + 4, true);
+    const target = v.getUint32(p + 8, true);
+    const a = new Attack(id, attacker, target, v.getUint32(p + 12, true));
+    a.costFrac = v.getUint32(p + 16, true);
+    a.progress = v.getUint32(p + 20, true);
+    a.compactAt = v.getUint32(p + 24, true);
+    const size = v.getUint32(p + 28, true);
+    p += BYTES_PER_ATTACK;
+    if (id <= lastId || id > attacks.seq || attacker < 1 || attacker > seats || target > seats || target === attacker) return fail('attack-range');
+    if (attacks.slotOf[attacker * slots + target] !== -1) return fail('attack-range');
+    if (a.costFrac >= MILLI_QT_PER_QT || a.progress >= MICRO_CELLS_PER_CELL || a.compactAt < 1) return fail('attack-range');
+    if (size > (end - p) / BYTES_PER_ENTRY) return fail('attack-range');
+    a.reserve(size);
+    a.size = size;
+    for (let i = 0; i < size; i++) {
+      const cell = v.getUint32(p, true);
+      const key = v.getUint32(p + 4, true);
+      p += BYTES_PER_ENTRY;
+      if (cell >= n || keyDepth(key) > D_MAX_CELLS) return fail('attack-range');
+      a.cells[i] = cell;
+      a.keys[i] = key;
+    }
+    if (!a.isHeap()) return fail('attack-range');
+    lastId = id;
+    attacks.slotOf[attacker * slots + target] = k;
+    attacks.list.push(a);
+  }
+  for (let b = 0; b < ENCLAVE_FLIP_TICKS; b++) {
+    if (p + 4 > end) return fail('enclave-range');
+    const count = v.getUint32(p, true);
+    p += 4;
+    if (count > (end - p) / 4) return fail('enclave-range');
+    const list = new Int32Array(count);
+    for (let i = 0; i < count; i++) {
+      const cell = v.getUint32(p, true);
+      p += 4;
+      if (cell >= n || enclaves.queued[cell] === 1 || enclaveBucket(seed, cell) !== b) return fail('enclave-range');
+      enclaves.queued[cell] = 1;
+      list[i] = cell;
+    }
+    enclaves.buckets[b] = list;
+    enclaves.counts[b] = count;
+  }
+  if (p !== end) return fail('size');
+
   const header: MatchHeader = Object.freeze({ engineVersion, mapHash, seed, config: Object.freeze(config), seats, players });
   let state: GameState;
   try {
-    state = assembleState({ header, width, height, tick: v.getUint32(36, true), rejects: v.getUint32(40, true), rng, terrain, elevation, owner, stamp, rowCos, troops, troopFrac, gold, capital });
+    state = assembleState({ header, width, height, tick: v.getUint32(36, true), rejects: v.getUint32(40, true), rng, terrain, elevation, owner, stamp, rowCos, troops, troopFrac, gold, capital, attacks, enclaves });
   } catch {
     return fail('header');
   }

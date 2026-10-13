@@ -8,7 +8,7 @@ Below, everything is in English. See `docs/DECISIONS.md` D73 to D80 for how the 
 
 - **Value** is the exact value exported by `src/sim/rules.ts` (integers only; fractions are integers with a named scale such as `_MILLI` = thousandths or `_PCT` = hundredths).
 - **Source** is `plan` (the number comes from the milestone prompt, possibly converted to sim units or to an integer scale) or `eget val` (our own choice; the plan gave no number or only a hint). A constant marked "Derived" is a pure function of others in the table.
-- A constant of part B (conquest) is already in the file so that the table is complete; it has no effect on the game until the conquest is wired in.
+- The conquest constants (M04 part B) are wired in `src/sim/conquest.ts`, `src/sim/enclaves.ts` and `src/sim/territory.ts`; how they combine is in `docs/DECISIONS.md` D82 to D90.
 - Constants named `_STD` are in std-cell units, the others in sim units.
 
 
@@ -72,11 +72,11 @@ Below, everything is in English. See `docs/DECISIONS.md` D73 to D80 for how the 
 | `CAP_CITY_LEVEL_QT` | 3200 | QT per city level | plan | Derived. |
 | `MAX_DECAY_MICRO_QT_PER_TICK` | 16000000 | micro-QT per tick | eget val | Derived: MAX_DECAY_TROOPS_PER_SEC * MICRO_QT_PER_QT * QT_PER_TROOP / TICK_HZ (= 16 QT = 4 troops per tick). |
 
-## Conquest (wired in M04 part B; the plan's starting values, to be calibrated)
+## Conquest (M04 part B; the plan's starting values, calibrated where marked)
 
 | Constant | Value | Unit | Source | Note |
 |----------|-------|------|--------|------|
-| `CAPTURE_K_MILLI` | 80 | thousandths | plan | Capture speed = K * sqrt(L) * 2F / (F + Td) in std-cells per second; K = 0.08 (0.06 to 0.15 expected). |
+| `CAPTURE_K_MILLI` | 103 | thousandths | plan | Capture speed = K * sqrt(L) * 2F / (F + Td) in std-cells per second. The plan's start value was 80 (0.08); the solo calibration (D88) moved it to 103 (0.103, inside the plan's 0.06 to 0.15). |
 | `BASE_COST_TROOPS` | 3 | troops per std-cell | plan | Before terrain, height and depth multipliers. |
 | `BASE_COST_QT_PER_SIM_CELL` | 3 | QT per sim cell | plan | Derived: BASE_COST_TROOPS * QT_PER_TROOP / STD_CELL_AREA. |
 | `D_MAX_STD` | 40 | std-cells | plan | Depth limit of the defender term (the plan says: proposal 40). |
@@ -87,4 +87,12 @@ Below, everything is in English. See `docs/DECISIONS.md` D73 to D80 for how the 
 | `UPHILL_PER_STEP_MILLI` | 250 | thousandths | plan | Uphill factor 1 + 0.25 * dh / 32. |
 | `UPHILL_STEP_UNITS` | 32 | height units | plan |  |
 | `UPHILL_MAX_PCT` | 200 | % | plan | Uphill factor capped at x2; downhill is 1. |
-| `ENCLAVE_FLIP_TICKS` | 20 | ticks | plan | Enclave flip every 20th tick, offset by hash(id). |
+| `ENCLAVE_FLIP_TICKS` | 20 | ticks | plan | Enclave flip every 20th tick, offset by hash(id): the enclave candidates are spread over 20 buckets by a hash of the cell and a tick checks the bucket `tick % 20` (D86). |
+| `MICRO_CELLS_PER_CELL` | 1000000 | micro-cells per cell | eget val | Unit of the capture progress an attack carries from tick to tick. |
+| `MILLI_QT_PER_QT` | 1000 | milli-QT per QT | eget val | Unit of the price of one cell; the unpaid part of a QT is carried in the attack. |
+| `BASE_COST_MILLI_QT_PER_SIM_CELL` | 3000 | milli-QT per sim cell | plan | Derived: BASE_COST_QT_PER_SIM_CELL * MILLI_QT_PER_QT. |
+| `CAPTURE_SQRT_SCALE` | 500000 | scale | eget val | Derived: 10^6 / STD_CELL_SIDE; sqrt(L in std-cells) * 1000 = isqrt(L in sim cells * this). |
+| `CAPTURE_RATIO_TWO` | 2000000 | millionths | plan | The troop ratio 2F / (F + Td) is kept in millionths (2.0 is the value against unowned land). |
+| `ENCLAVE_MAX_CELLS` | 64 | sim cells | eget val | A region larger than this is never treated as an enclave (16 std-cells; bounds the work of a failed fill). |
+| `ENCLAVE_PASS_BUDGET_CELLS` | 4096 | cells per tick | eget val | Cells one enclave pass may visit; the rest of its batch waits for the next pass of its bucket. |
+| `FRONT_COMPACT_MIN` | 256 | heap entries | eget val | An attack's frontier heap is purged of stale entries when it reaches this size (then at twice its purged size). |
