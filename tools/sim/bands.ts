@@ -12,5 +12,9 @@ export interface SoloBand {
   readonly minute10: readonly [number, number];
 }
 
-/** The provisional band of the prompt: about 1 500 to 2 500 cells after 5 minutes and 5 000 to 8 000 after 10 (met after two tuning rounds, D88). */
+/**
+ * The provisional band of the prompt: about 1 500 to 2 500 cells after 5 minutes and 5 000 to 8 000 after 10 (met after two tuning rounds, D88).
+ * It is the band of the REFERENCE BOT (the expander of tools/sim/bots.ts: attacks free land with 100 % and starts a new attack only when the
+ * old one has ended); a player who cancels and relaunches does not leave it, because the depth term of the price survives a relaunch (D91).
+ */
 export const SOLO_BAND: SoloBand = { country: 'RUS', seed: 1, minute5: [1500, 2500], minute10: [5000, 8000] };

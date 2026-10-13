@@ -25,6 +25,8 @@ import {
   TICK_HZ,
   WEIGHT_ONE,
 } from '../../src/sim/rules';
+import { withId } from '../../src/sim/intents';
+import { step } from '../../src/sim/step';
 import { setOwner } from '../../src/sim/territory';
 import { landState } from './helpers/worlds';
 
@@ -292,5 +294,49 @@ describe('the per-tick update', () => {
     expect(s.troops[2]).toBe(ownerCapQt(s, 2));
     expect(s.troops[2]).toBeLessThan(START_TROOPS_QT);
     expect(s.gold[2]).toBe(START_GOLD_MILLI);
+  });
+});
+
+describe('economyTick integrated over thousands of ticks (the carry of the sub-QT remainder between ticks)', () => {
+  /** A spawned seat on a 64x64 plain: 197 cells, a constant cap, and the first tick (the spawn) run. */
+  function spawned(): { s: ReturnType<typeof landState>; cap: number } {
+    const s = landState(64, 64, { seats: 2 });
+    step(s, { turn: 0, intents: [withId({ kind: 'Spawn', seat: 0, cell: 32 * 64 + 32 }, 0)] });
+    return { s, cap: ownerCapQt(s, 1) };
+  }
+
+  it('the troops follow the closed-form regeneration law (dT/dt = (8 + 0.35 sqrt(T)) (1 - T/Tmax), integrated by RK4 in doubles) within 0.1 % at 1200, 2400, ... 6000 ticks; a dropped remainder would be 4 to 6 % off', () => {
+    const { s, cap } = spawned();
+    let t = (s.troops[1] as number) / QT_PER_TROOP; // troops, as a float
+    const tmax = cap / QT_PER_TROOP;
+    const rate = (x: number): number => Math.max((8 + 0.35 * Math.sqrt(x)) * (1 - x / tmax), -40);
+    const h = 1 / TICK_HZ;
+    let worst = 0;
+    for (let k = 1; k <= 6000; k++) {
+      step(s, { turn: s.tick, intents: [] });
+      const k1 = rate(t);
+      const k2 = rate(t + (h * k1) / 2);
+      const k3 = rate(t + (h * k2) / 2);
+      const k4 = rate(t + h * k3);
+      t += (h / 6) * (k1 + 2 * k2 + 2 * k3 + k4);
+      expect(s.troopFrac[1], `tick ${k}`).toBeLessThan(MICRO_QT_PER_QT);
+      if (k % 1200 === 0) {
+        const sim = (s.troops[1] as number) / QT_PER_TROOP;
+        worst = Math.max(worst, Math.abs(sim / t - 1));
+        expect(sim / t - 1, `tick ${k}: sim ${sim}, law ${t}`).toBeGreaterThan(-0.001);
+        expect(sim / t - 1, `tick ${k}: sim ${sim}, law ${t}`).toBeLessThan(0.001);
+      }
+    }
+    console.log(`[economy] 6000 ticks against the closed-form law: worst relative difference ${(worst * 100).toFixed(4)} %`);
+  });
+
+  it('a seat reaches its cap (within 0.1 %, never above it) and the remainder stays below one QT on the way', () => {
+    const { s, cap } = spawned();
+    for (let k = 0; k < 16000; k++) {
+      step(s, { turn: s.tick, intents: [] });
+      expect(s.troopFrac[1]).toBeLessThan(MICRO_QT_PER_QT);
+      expect(s.troops[1] as number).toBeLessThanOrEqual(cap);
+    }
+    expect(s.troops[1] as number).toBeGreaterThanOrEqual(cap * 0.999);
   });
 });

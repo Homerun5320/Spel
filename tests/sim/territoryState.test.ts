@@ -102,6 +102,30 @@ describe('setOwner keeps the aggregates, the stamp and the outbox in step', () =
     expect(landShareQ15(sea, 1)).toBe(0);
   });
 
+  it('the land share is cos-weighted: the equatorial band holds fewer cells than the polar bands and a bigger share (a plain cell count would say the opposite)', () => {
+    const s = landState(16, 16, { seats: 2 });
+    const polar = (y: number): boolean => y < 3 || y >= 13;
+    for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) if (polar(y)) setOwner(s, y * 16 + x, 2, 0);
+    for (let y = 6; y < 10; y++) for (let x = 0; x < 16; x++) setOwner(s, y * 16 + x, 1, 0);
+    expect(s.agg.area[1]).toBe(64); // 4 rows
+    expect(s.agg.area[2]).toBe(96); // 6 rows
+    // hand computed from the row weights: share = floor(weight of the owner's rows * 32768 / weight of all rows)
+    let total = 0;
+    let eq = 0;
+    let po = 0;
+    for (let y = 0; y < 16; y++) {
+      const w = (s.rowCos[y] as number) * 16;
+      total += w;
+      if (y >= 6 && y < 10) eq += w;
+      if (polar(y)) po += w;
+    }
+    expect(landShareQ15(s, 1)).toBe(Math.floor((eq * WEIGHT_ONE) / total));
+    expect(landShareQ15(s, 2)).toBe(Math.floor((po * WEIGHT_ONE) / total));
+    expect(landShareQ15(s, 1)).toBeGreaterThan(landShareQ15(s, 2));
+    expect(landShareQ15(s, 1)).toBeGreaterThan(Math.floor((64 * WEIGHT_ONE) / 256) + 4000); // far above its plain cell share of 25 %
+    expect(landShareQ15(s, 2)).toBeLessThan(Math.floor((96 * WEIGHT_ONE) / 256) - 4000); // far below its plain cell share of 37.5 %
+  });
+
   it('survives a serialize / deserialize: aggregates and grid are rebuilt, not stored', () => {
     const s = landState(16, 16, { seats: 3 });
     for (let c = 0; c < 100; c++) setOwner(s, c, 1 + (c % 3), c);

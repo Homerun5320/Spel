@@ -15,6 +15,23 @@ Resume: Läs CLAUDE.md och docs/PROGRESS.md, kör git log -10 och npm run verify
 
 ## Now
 
+### M04 fix pass after the independent audit (no visible change; the Artifact is NOT republished; details in D91 of `docs/DECISIONS.md`)
+
+GÖR (every audit finding at blocker or major level, re-reproduced first)
+- [x] 1. Depth term that cancel + relaunch cannot reset (three findings): per-cell `state.exposure` (`attacker << 8 | depth`), serialised and hashed, `ENGINE_VERSION` 4, `FORMAT_VERSION` 5; a cancel pays the owed part of a cell rounded up; `tests/sim/relaunch.test.ts`; the solo band is the reference bot's (D88, `tools/sim/bands.ts`, `docs/BALANCE.md`)
+- [x] 2. Enclave candidate rule: the merged region of the new owner's own land (blocker), the region that loses the cell (found while verifying); clause tests, a per-tick persistence property on tiny worlds, `tests/sim/enclaveMatch.test.ts` (32 fighters on the real world); D86 corrected
+- [x] 3. Work gate: idle 1024x512 tick and size independence of a tick in `tests/conquest.perf.test.ts`, p50 of the 12 + 20 match; the over-budget enclave pass in `tests/sim/work.test.ts`
+- [x] 4. Missing tests: economy carry over 6000 ticks against the closed-form law, cos-weighted land share, attack order fairness, phase order, pick and bucket hash inputs (10 mutants killed)
+- [x] 5. M12a heads-up (BACKLOG, D91) and the pinned behaviour of beachhead-sized regions; the exemption itself is left to M12a (no data to read yet)
+- [x] 6. Goldens re-pinned once at the end (reason in D91); `npm run verify:fast` and `npm run verify` green; two local commits (nothing pushed, no PR, no Artifact)
+
+ACCEPTANS
+- [x] every new test fails when the change it guards is taken out (mutation checked, see D91)
+- [x] the calibration check after the changes: the reference curve 540 958 1423 1913 2423 2961 3483 4028 4591 5171 (band 1500-2500 at 5 minutes, 5000-8000 at 10), K unchanged
+- [x] new golden hashes (seed 1, 128x64, 4 seats, debugIntents; ENGINE_VERSION 4, FORMAT_VERSION 5): tick 1 `427f1a65`, 10 `35101a85`, 100 `6c3b3693`, 1000 `4835eb22`, 6000 `007d6577`; seed 2 ticks 10 / 100 / 1000 `fb3f7b0e` / `3288c0ed` / `bd0c0059`; `npm run sim:run -- --seed 1 --ticks 6000`
+
+Result (this sandbox): `npm run verify:fast` green; `npm run verify` green: typecheck, lint, 902 unit (74 files), 16 perf (5 files), 59 e2e (158 s). Measured by the tests: tick of the 12 + 20 match p50 105 us, p95 249 us (budget p95 3.6 ms); idle 1024x512 tick 1.0 us; a 64 row front costs 5.5 us on 256x128 and 5.4 us on 1024x512; 100 000 cells in one tick median 33.5 ms (budget 56.7 ms); cells scanned per changed cell 81 (bound 110). Nothing is pushed, no pull request opened, no Artifact published.
+
 ### M04 Territorie-sim: trupper, guld, terrängmedveten erövring (no visible change; the Artifact is NOT republished) - split over two sessions: Part A (items 1-3, Spawn, owner widening) and Part B (items 4-7)
 
 Previous merge SHA (origin/main at start): f29121a8d1607ca169e6675b5f22a52d76c42ef7 (`git ls-remote origin refs/heads/main` re-checked: still the initial commit; NOTHING of M00 to M03 is merged, it all lives on this branch and in draft pull request #1; the "M01 and M03 are merged" precondition was treated as satisfied by the orchestrator's instruction). `npm ci && npm run verify:fast` was green at the start (629 unit tests). The orchestrator owns pushing, the pull request and the Artifact; no push, no PR, no publication from the building sessions.
