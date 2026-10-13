@@ -95,4 +95,4 @@ Below, everything is in English. See `docs/DECISIONS.md` D73 to D80 for how the 
 | `CAPTURE_RATIO_TWO` | 2000000 | millionths | plan | The troop ratio 2F / (F + Td) is kept in millionths (2.0 is the value against unowned land). |
 | `ENCLAVE_MAX_CELLS` | 64 | sim cells | eget val | A region larger than this is never treated as an enclave (16 std-cells; bounds the work of a failed fill). |
 | `ENCLAVE_PASS_BUDGET_CELLS` | 4096 | cells per tick | eget val | Cells one enclave pass may visit; the rest of its batch waits for the next pass of its bucket. |
-| `FRONT_COMPACT_MIN` | 256 | heap entries | eget val | An attack's frontier heap is purged of stale entries when it reaches this size (then at twice its purged size). |
+| `FRONT_COMPACT_MIN` | 256 | heap entries | eget val | An attack's frontier (and an owner's boundary list) is purged of stale entries when it reaches this size (then at twice its purged size). |

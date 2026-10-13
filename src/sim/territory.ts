@@ -125,7 +125,7 @@ function afterChange(state: GameState, cell: number, prev: number, next: number,
         // The attack of `next` on `r` gains n, a cell of its target that now touches a new cell of the attacker.
         const s1 = table.slotOf[next * slots + r] as number;
         if (s1 >= 0 && !touchesOther(grid, owner, n, cell, next)) {
-          // (n already touching another cell of the attacker means it is in the heap already: no duplicate)
+          // (n already touching another cell of the attacker means it is in the frontier already: no duplicate)
           (table.list[s1] as Attack).push(n, s1 === viaSlot ? viaDepth + 1 : 0);
           state.work.pushed++;
         }

@@ -4,15 +4,15 @@
 // not serialised, reset at the start of every conquest phase.
 
 export class WorkCounters {
-  /** Frontier entries taken from a heap (stale ones included). */
+  /** Frontier entries picked (stale ones included). */
   popped = 0;
-  /** Frontier entries put into a heap. */
+  /** Frontier entries put into a frontier. */
   pushed = 0;
   /** Cells that changed owner in the conquest phase of this tick (captures). */
   captured = 0;
   /** Boundary cells read to build the frontier of a new attack (once per Attack intent, not per tick). */
   launchScanned = 0;
-  /** Entries examined by a heap purge. */
+  /** Entries examined by a purge. */
   purged = 0;
   /** Enclave candidates taken from the bucket of this tick. */
   candidates = 0;

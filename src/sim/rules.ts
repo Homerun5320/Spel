@@ -157,5 +157,5 @@ export const CAPTURE_RATIO_TWO = 2000000;
 export const ENCLAVE_MAX_CELLS = 64;
 /** The cells one enclave pass may visit in a tick; candidates beyond it wait for the next pass (20 ticks later). Own choice. */
 export const ENCLAVE_PASS_BUDGET_CELLS = 4096;
-/** A frontier heap is purged of stale and duplicate entries when it reaches this many entries (and then at twice its purged size). Engine limit. */
+/** A frontier (or a boundary list) is purged of stale entries when it reaches this many entries (and then at twice its purged size). Engine limit. */
 export const FRONT_COMPACT_MIN = 256;

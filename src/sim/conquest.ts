@@ -1,7 +1,7 @@
 // Conquest: attacks, their speed and their price. Everything here is integer maths; the units are in src/sim/rules.ts.
 //
 // An Attack (attacks.ts) takes the cells of its target that touch the attacker, cheapest depth first. Each tick every attack
-// gains `captureRateMicroPerTick` micro-cells of progress and takes as many whole cells from the top of its frontier heap
+// gains `captureRateMicroPerTick` micro-cells of progress and takes as many whole cells from its frontier bags
 // as the progress allows, paying `captureCostMilliQt` for each out of the troops committed to it. It ends when its
 // frontier is empty, the border is gone, or the committed troops cannot pay for the next cell; what is left goes back to
 // the attacker.
