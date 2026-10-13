@@ -8,8 +8,31 @@ Resume: Läs CLAUDE.md och docs/PROGRESS.md, kör git log -10 och npm run verify
 |----|-----------|------|
 | M00 | (set after the squash merge) | Harness: verify, lint rules, WebGL2 spike, shot.mjs, perfguard, CI file, hook, docs. Previous merge SHA (origin/main at start): f29121a8d1607ca169e6675b5f22a52d76c42ef7 |
 | M00b | (set after the squash merge) | Preview path: portable build, `siteUrl`, Artifact pack script, probe page, Artifact e2e, `docs/PREVIEW.md`. Previous merge SHA (origin/main at start): f29121a8d1607ca169e6675b5f22a52d76c42ef7 (M00 was not merged yet) |
+| M01 | (set after the squash merge) | Bake world: terrain, countries, cities, ports as committed binary packs, loader, debug map page. Previous merge SHA (origin/main at start): f29121a8d1607ca169e6675b5f22a52d76c42ef7 (M00 and M00b were NOT merged yet; they live on this branch, so the M00b precondition was treated as satisfied by the orchestrator's instruction) |
 
 ## Now
+
+### M01 Baka riktiga världen (in progress)
+
+GÖR
+- [ ] 1. `tools/bake` fetch (Terrarium z4 + Natural Earth at a pinned SHA, gitignored cache), polygon rasteriser, synthetic fallback for pipeline tests only
+- [ ] 2. Deterministic bake (no timestamps, sorted order, gzip 9 mtime 0), `public/data/checksums.json` (sha256 + fnv1a of payload, sha256 of .gz informational)
+- [ ] 3. Render packs 4096x2048 (height, country id) + bathymetry 2048x1024, spike clamp + 3x3 median
+- [ ] 4. Sim pack 1024x512 + nav grid 256x128 + cos(lat) Q15 rows, all thresholds in `tools/bake/classify.ts`
+- [ ] 5. `public/data`: manifest, meta, cities, ports, overrides, checksums
+- [ ] 6. `src/data` loader with typed views (injected readBytes, raw and b64, gzip magic, fnv1a, corrupt byte rejected)
+- [ ] 7. `npm run bake:check`, `CREDITS.md`, `docs/ASSETS.md`
+- [ ] 8. `debug/data.html` (class / height / country maps, `?map=` and `#map-`), link row in index.html
+- [ ] 9. Docs: DECISIONS (all thresholds and codes), ARCHITECTURE index, PREVIEW update, BACKLOG
+
+ACCEPTANS
+- [ ] bake twice: identical payload sha256 and identical .gz; `bake:check` passes offline
+- [ ] data tests (Sweden area, Russia largest, no land < 1 m, no sea > -1 m, box maxima, NL mean elevation, mountain boxes, Peak and Mountain shares)
+- [ ] countries with >= 8 cells logged, each has a capital cell with land mask 1 and matching country id
+- [ ] `npm run build && npm run artifact:pack` on the real packs; `e2e/artifact.test.ts` loads debug/data.html and validates checksums (raw and b64)
+- [ ] total data <= 6 MB gz; corrupt byte rejected; load + parse logged in Node and Chromium (median of 5 <= budgetMs(1500))
+- [ ] screenshot of the debug page: not blank, non-water share in [30, 40] %, non-Ice land in [20, 28] %, golden committed
+- [ ] `npm run verify` green
 
 ### M00 Grundverktyg, arbetsavtal och WebGL-bevis (all items ticked; waiting for the squash merge)
 

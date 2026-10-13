@@ -238,6 +238,8 @@ describe('npm run artifact:pack against a real build', () => {
     const withPack = (): string => {
       const d = copyDir(dist, 'spel-pack-data');
       tmps.push(d);
+      // Since M01 the build carries the real packs from public/data; these tests plant their own small ones.
+      fs.rmSync(path.join(d, 'data'), { recursive: true, force: true });
       fs.mkdirSync(path.join(d, 'data'), { recursive: true });
       fs.writeFileSync(path.join(d, 'data', 'world.bin.gz'), payload);
       fs.writeFileSync(path.join(d, 'data', 'manifest.json'), JSON.stringify({ world: { file: 'world.bin.gz', enc: 'raw' } }));

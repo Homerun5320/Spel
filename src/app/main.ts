@@ -56,6 +56,20 @@ function boot(): void {
     probeLink.hidden = params.test;
   }
 
+  // Link row to the data maps (M01); the Dev panel (M02) takes over later. Hidden in test mode like the probe link.
+  const debugLinks = document.getElementById('debug-links');
+  if (debugLinks instanceof HTMLElement) {
+    debugLinks.style.cssText =
+      'position:fixed;left:8px;bottom:8px;z-index:10;padding:4px 8px;border-radius:4px;' +
+      'background:rgba(0,0,0,0.6);color:#cde;font:12px/1.4 system-ui,sans-serif;';
+    for (const a of Array.from(debugLinks.querySelectorAll('a'))) {
+      const hash = a.getAttribute('href')?.split('#')[1] ?? '';
+      a.href = siteUrl(`debug/data.html${hash ? `#${hash}` : ''}`);
+      a.style.color = '#9cf';
+    }
+    debugLinks.hidden = params.test;
+  }
+
   const dpr = params.test ? 1 : Math.min(window.devicePixelRatio || 1, 2);
   const width = params.test ? params.width : window.innerWidth;
   const height = params.test ? params.height : window.innerHeight;

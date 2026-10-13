@@ -1,0 +1,150 @@
+{
+ "merged": [
+  {
+   "a3": "BRN",
+   "into": "MYS"
+  },
+  {
+   "a3": "GMB",
+   "into": "SEN"
+  },
+  {
+   "a3": "HKG",
+   "into": "CHN"
+  },
+  {
+   "a3": "KAS",
+   "into": "CHN"
+  },
+  {
+   "a3": "LBN",
+   "into": "SYR"
+  },
+  {
+   "a3": "LUX",
+   "into": "FRA"
+  },
+  {
+   "a3": "PSX",
+   "into": "ISR"
+  }
+ ],
+ "minPlayableCells": 8,
+ "neutralNames": {
+  "ATA": {
+   "en": "Antarctica",
+   "sv": "Antarktis"
+  },
+  "CYN": {
+   "en": "Northern Cyprus",
+   "sv": "Norra Cypern"
+  },
+  "FLK": {
+   "en": "Falkland Islands",
+   "sv": "Falklandsöarna"
+  },
+  "IOT": {
+   "en": "Chagos Archipelago",
+   "sv": "Chagosöarna"
+  },
+  "ISR": {
+   "en": "Israel",
+   "sv": "Israel"
+  },
+  "KAS": {
+   "en": "Siachen Glacier",
+   "sv": "Siachenglaciären"
+  },
+  "KOS": {
+   "en": "Kosovo",
+   "sv": "Kosovo"
+  },
+  "PSX": {
+   "en": "Palestine",
+   "sv": "Palestina"
+  },
+  "SAH": {
+   "en": "Western Sahara",
+   "sv": "Västsahara"
+  },
+  "SOL": {
+   "en": "Somaliland",
+   "sv": "Somaliland"
+  }
+ },
+ "note": "Borders follow the Natural Earth de facto lines. Country ids in the packs are never changed; later milestones apply these lists.",
+ "unplayable": [
+  "ABW",
+  "AIA",
+  "ALD",
+  "AND",
+  "ASM",
+  "ATC",
+  "ATF",
+  "ATG",
+  "BHR",
+  "BHS",
+  "BLM",
+  "BMU",
+  "BRB",
+  "COK",
+  "COM",
+  "CPV",
+  "CUW",
+  "CYM",
+  "CYN",
+  "CYP",
+  "DMA",
+  "FRO",
+  "FSM",
+  "GGY",
+  "GRD",
+  "GUM",
+  "HMD",
+  "IMN",
+  "IOA",
+  "IOT",
+  "JAM",
+  "JEY",
+  "KIR",
+  "KNA",
+  "LCA",
+  "LIE",
+  "MAC",
+  "MAF",
+  "MCO",
+  "MDV",
+  "MHL",
+  "MLT",
+  "MNP",
+  "MSR",
+  "MUS",
+  "NFK",
+  "NIU",
+  "NRU",
+  "PCN",
+  "PLW",
+  "PRI",
+  "PYF",
+  "SGP",
+  "SGS",
+  "SHN",
+  "SMR",
+  "SPM",
+  "STP",
+  "SXM",
+  "SYC",
+  "TCA",
+  "TON",
+  "TTO",
+  "TUV",
+  "VAT",
+  "VCT",
+  "VGB",
+  "VIR",
+  "VUT",
+  "WLF",
+  "WSM"
+ ],
+ "version": 1
+}

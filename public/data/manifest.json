@@ -1,0 +1,10 @@
+{
+ "render": {
+  "enc": "raw",
+  "file": "render.bin.gz"
+ },
+ "sim": {
+  "enc": "raw",
+  "file": "sim.bin.gz"
+ }
+}

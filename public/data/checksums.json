@@ -1,0 +1,119 @@
+{
+ "files": {
+  "cities.json": {
+   "bytes": 71983,
+   "fnv1a": "f736d8cf",
+   "sha256": "bf647b114985a7676ecb975eaaaa0bb00e4d15c0110505e5cac1828c548c756d"
+  },
+  "meta.json": {
+   "bytes": 87416,
+   "fnv1a": "963b4c26",
+   "sha256": "d742a76cb66b8b0763d4a9b3205e4c88cbdedff92f5e8e8cdeaf242219c168de"
+  },
+  "overrides.json": {
+   "bytes": 1810,
+   "fnv1a": "586715ed",
+   "sha256": "3f5aec5485383fb27188893d5827410d1943b8f491169214433234b2c7d3a29a"
+  },
+  "ports.json": {
+   "bytes": 82805,
+   "fnv1a": "714a711d",
+   "sha256": "a169d048bb0f3b64abc57da9a7e789e7c8ed84632965715ac510102ad64d500d"
+  }
+ },
+ "packs": {
+  "render": {
+   "bytes": 18874368,
+   "file": "render.bin.gz",
+   "fnv1a": "6fda3803",
+   "gzBytes": 2604661,
+   "gzSha256": "e871ceeba5d1d5ce3bac898cbea15aaf072f52e029035c764814d764d43ac65f",
+   "layers": {
+    "bathy": {
+     "bytes": 2097152,
+     "fnv1a": "733adc4a",
+     "offset": 8388608,
+     "sha256": "9dc8cf30643f069b29e88435a3be371eaa8c493f4959af9b51cb9c67999621fb"
+    },
+    "country": {
+     "bytes": 8388608,
+     "fnv1a": "7c0bd7f6",
+     "offset": 10485760,
+     "sha256": "0506d8cb481f7729356dc0b9dc2df09d4b699d88774352c799b0e3e8d620f40a"
+    },
+    "height": {
+     "bytes": 8388608,
+     "fnv1a": "ce09d81f",
+     "offset": 0,
+     "sha256": "92f97275f164a3404843e2ef93c535bf455f8903e8ecb1d1eb7af48cd126ca97"
+    }
+   },
+   "sha256": "139206e4940dae8f2376341d5f5d2dbe6ec82757cedbed4a5137cee736032bae"
+  },
+  "sim": {
+   "bytes": 4816896,
+   "file": "sim.bin.gz",
+   "fnv1a": "eb1a4718",
+   "gzBytes": 1924350,
+   "gzSha256": "2ef0d073b17249cd65b3c7e3a07d99f7104b73fdccf5df93b58c633505bfe87d",
+   "layers": {
+    "class": {
+     "bytes": 524288,
+     "fnv1a": "ba3e2b7e",
+     "offset": 2686976,
+     "sha256": "6c77cd24a80845eb5ff530225b7e9961561a78825a1f9c86c107e6117eee4670"
+    },
+    "coast": {
+     "bytes": 524288,
+     "fnv1a": "a9ec38c2",
+     "offset": 3735552,
+     "sha256": "ff06adb91ed77fb2e2c0e909ff9ac375370e1ebbd3b9419ba503bfe5406051fa"
+    },
+    "country": {
+     "bytes": 524288,
+     "fnv1a": "1cc58cae",
+     "offset": 3211264,
+     "sha256": "2cac31a03466178c346198d11c9226ae09f05aee69bd5d8bfc15929ec736f7af"
+    },
+    "land": {
+     "bytes": 524288,
+     "fnv1a": "52c685ec",
+     "offset": 2162688,
+     "sha256": "b3caf4d6418ae4147070ad51d224f5f98e99ee00106e0d474116033b3450632c"
+    },
+    "maxElev": {
+     "bytes": 1048576,
+     "fnv1a": "fca7ee7d",
+     "offset": 1048576,
+     "sha256": "ce1751038f69864302b3d997554a91876fd8260d51c1292e6cb7a84eea0e91b9"
+    },
+    "meanElev": {
+     "bytes": 1048576,
+     "fnv1a": "70a55a37",
+     "offset": 0,
+     "sha256": "035aa7875e108f4160672a34e3a8a6dfe16ecc09ad07af2f1e10acd1473fc19b"
+    },
+    "navFlags": {
+     "bytes": 32768,
+     "fnv1a": "fae78dda",
+     "offset": 4784128,
+     "sha256": "4aaf2134ba41c94145deb6e86a257ea7c9c8ece4fba1d71718475658cabe2c2b"
+    },
+    "navMaxElev": {
+     "bytes": 65536,
+     "fnv1a": "adb7b94f",
+     "offset": 2097152,
+     "sha256": "eb14686f3dcafd8f7b90d18381aa19a16b51074340de46beb5fbd9ade8af92bb"
+    },
+    "ruggedness": {
+     "bytes": 524288,
+     "fnv1a": "48d7f2ad",
+     "offset": 4259840,
+     "sha256": "6d4547e21bf6376b88a0066623211510faee0ad7249c2a5414cde8618312b478"
+    }
+   },
+   "sha256": "199e9e19235f3c88ee810afbae373a54f2f717569dfeeaeb0368bd014b399845"
+  }
+ },
+ "version": 1
+}
