@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "engineVersion": 1,
+  "formatVersion": 1,
+  "seed": 1,
+  "width": 128,
+  "height": 64,
+  "seats": 4,
+  "debugIntents": true,
+  "mapHash": "ffa491cd",
+  "ticks": [
+    1,
+    10,
+    100,
+    1000,
+    6000
+  ],
+  "hashes": {
+    "1": "0640c052",
+    "10": "f3789153",
+    "100": "0635c7ae",
+    "1000": "1add1633",
+    "6000": "0020e860"
+  },
+  "canary": {
+    "values": 100000,
+    "hash": "50a514cc"
+  }
+}
