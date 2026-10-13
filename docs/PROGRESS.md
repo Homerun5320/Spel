@@ -12,7 +12,7 @@ Resume: Läs CLAUDE.md och docs/PROGRESS.md, kör git log -10 och npm run verify
 
 ## Now
 
-### M01 Baka riktiga världen (all items ticked; the Artifact publication and the draft PR are done by the orchestrator; waiting for the squash merge)
+### M01 Baka riktiga världen (all items ticked; the Artifact republication and the push are done by the orchestrator after the build; waiting for the squash merge)
 
 Previous merge SHA (origin/main at start): f29121a8d1607ca169e6675b5f22a52d76c42ef7. M00 and M00b were not merged yet (they live on this branch), so the M00b precondition was treated as satisfied by the orchestrator's instruction.
 

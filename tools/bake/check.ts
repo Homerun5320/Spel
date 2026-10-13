@@ -91,8 +91,12 @@ export function checkData(dir: string): CheckReport {
   }
   const metaBytes = read('meta.json');
   if (metaBytes) {
-    const meta = JSON.parse(new TextDecoder().decode(metaBytes)) as { source?: { naturalEarth?: { sha?: string } } };
-    if (!/^[0-9a-f]{40}$/.test(meta.source?.naturalEarth?.sha ?? '')) problems.push('meta.json has no valid Natural Earth commit SHA (synthetic data?)');
+    try {
+      const meta = JSON.parse(new TextDecoder().decode(metaBytes)) as { source?: { naturalEarth?: { sha?: string } } };
+      if (!/^[0-9a-f]{40}$/.test(meta.source?.naturalEarth?.sha ?? '')) problems.push('meta.json has no valid Natural Earth commit SHA (synthetic data?)');
+    } catch {
+      problems.push('meta.json is unreadable (not valid JSON)');
+    }
   }
   return { problems, notes, totalBytes };
 }
