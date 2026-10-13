@@ -14,6 +14,34 @@ Resume: Läs CLAUDE.md och docs/PROGRESS.md, kör git log -10 och npm run verify
 
 ## Now
 
+### M04 Territorie-sim: trupper, guld, terrängmedveten erövring (no visible change; the Artifact is NOT republished) - split over two sessions: Part A (items 1-3, Spawn, owner widening) and Part B (items 4-7)
+
+Previous merge SHA (origin/main at start): f29121a8d1607ca169e6675b5f22a52d76c42ef7 (`git ls-remote origin refs/heads/main` re-checked: still the initial commit; NOTHING of M00 to M03 is merged, it all lives on this branch and in draft pull request #1; the "M01 and M03 are merged" precondition was treated as satisfied by the orchestrator's instruction). `npm ci && npm run verify:fast` was green at the start (629 unit tests). The orchestrator owns pushing, the pull request and the Artifact; no push, no PR, no publication from the building sessions.
+
+Units (decided in Part A, details in D71-D80 of `docs/DECISIONS.md`): a std-cell is 2x2 sim cells (distance x2, area x4, linear speed x2); troops are stored in quarter troops (QT, 4 QT = 1 troop; a Plains sim cell costs 3 QT = 0.75 troop); gold is stored in milli-gold; fractions are carried in integer remainders, never in floats.
+
+GÖR, Part A (this session)
+- [x] A0. Preflight (merge SHA recorded, verify:fast green), this checklist
+- [ ] A1. Owner widening (own commit): `GameState.owner`, `StateDiff.owners` / `fullOwner`, `serialize` / `hashState` and the goldens go from Uint8 to Uint16; reason in D71; `FORMAT_VERSION` 2
+- [ ] A2. ESLint boundary for `src/host` (heads-up 4 of the M03 audit) with a lint self-test
+- [ ] 1. `SimWorld` (`src/sim/world.ts`, built from plain arrays, sim does not import `src/data`), `src/sim/grid.ts` (x-wrap, 4-neighbours, `cellKm`, cos-lat weights from the committed Q15 row table, DeepSea / Shallows / Ice / Peak unplayable), Node loader for the real 1024x512 world (`tools/sim/realWorld.ts`)
+- [ ] 2. `src/sim/rules.ts` as the one balance file with the std-cell constants and every number of the prompt (also the conquest ones, wired in Part B); `docs/BALANCE.md` (Swedish summary at the top, one table row per constant; a test keeps rules.ts and the table in step); CLAUDE.md "Where things are"
+- [ ] 3. Economy (`src/sim/economy.ts`): troop cap `2000 + 120*N^0.75 + 800*cityLevels` (N^0.75 = sqrt(N)*sqrt(sqrt(N)) in Q15), regeneration `max((8 + 0.35*sqrt(T))*(1 - T/Tmax), -MAX_DECAY)` with a micro-QT remainder, gold from weighted land, start 1200 troops / 500 gold, capital disc radius 8 / `START_DISC_CELLS` 197, tribes (cap/3, regeneration x0.5), T >= 0 clamp after every deduction, land share per seat
+- [ ] 4a. `Spawn{seat, cell}` end to end: validation (`REJECT_*`), codec (kind 2), canonical order, `copyBody` / `withId`, step, `src/sim/spawn.ts` (K nearest contiguous unowned land cells, distance order, hash tie-break, a smaller landmass gives all its cells), state arrays `troops` / `troopFrac` / `gold` / `capital` / `rowCos`, header `players`, serialisation, hash, host, goldens re-pinned (scenario now spawns), `ENGINE_VERSION` 2
+- [ ] A9. Tests for all of the above (units, ratios, property tests with fast-check, real world), docs: DECISIONS D71-D80, ARCHITECTURE index, BACKLOG; `npm run verify:fast` green; Chromium golden test (`e2e/sim.test.ts`) run alone and green; committed locally
+
+ACCEPTANS, Part A
+- [ ] golden hashes identical in Node and Chromium (`e2e/sim.test.ts` alone), snapshot == straight run with Spawn and the economy active
+- [ ] economy unit tests: no negative troops after any deduction, no division by zero (T = 0, Tmax minimum), cap monotone in N, N^0.75 close to the real power, regeneration positive below the cap / zero at the cap / negative above it and never below `-MAX_DECAY`, tribes get a third of the cap
+- [ ] Spawn: exactly K cells on open land, contiguous, nearest first; a small island gives all its cells; a second Spawn of the seat, a Spawn on water / Ice / Peak / an owned cell are refused; two seats spawning on the same cell in one turn: the lower (seat, id) wins
+- [ ] `npm run verify:fast` green
+
+GÖR, Part B (NEXT session; do not start before Part A is committed)
+- [ ] 4. Conquest: `Attack` objects with incremental frontier lists (hash tie-break, no full scan per tick), capture speed `CAPTURE_K*sqrt(L)*2F/(F+Td)`, costs per cell in QT, mutual attacks cancel, enclave flip every 20th tick offset by hash(id), tribes attack with T/20, intents `Attack{target, pct}` and `CancelAttack` (kinds 3 and 4 appended to `INTENT_KINDS`; edits in `copyBody`, `withId`, `comparePayload`, codec `intentSize` / `putIntent` / `assertEncodable` / `Reader.intent`), `step` phase "conquest" between intents and economy, `ENGINE_VERSION` bump
+- [ ] 5. `npm run sim:scenario -- --seed N --minutes 10 --players 12 --tribes 20` (territory curve per minute) and a solo scenario; bots live in `tools/`, never in `src/sim`
+- [ ] 6. Calibration of `CAPTURE_K_MILLI` and `BASE_COST_TROOPS` (at most 3 rounds; solo band ca 1 500-2 500 land cells after 5 min and 5 000-8 000 after 10 min, else the measured band +-30 % with the curve in DECISIONS)
+- [ ] 7. Tests: ratio tests (4:1 troops >= 1.4x, 1:4 <= 0.6x, Mountain >= 2.2x Plains, uphill dearer than downhill, no division by zero, d <= D_MAX), frontier property test (front == brute force after 1000 random steps; an enclosed enclave flips within 20 ticks), work counters (scanned cells per tick proportional to front length + changed cells), perf (`*.perf.test.ts`: tick p95 <= `budgetMs(4)` with 12 players + 20 tribes on the real world, 100 000 cells conquered in one tick median <= `budgetMs(50)`), goldens re-pinned with the reason, `npm run verify` green, DRAFT PR text (the orchestrator opens it)
+
 ### M03 Sim-grund: determinism, intents, host-söm (no visible change; the Artifact is NOT republished) - built locally, `npm run verify` green; the orchestrator pushes and opens/updates the pull request
 
 Previous merge SHA (origin/main at start): f29121a8d1607ca169e6675b5f22a52d76c42ef7 (still the initial commit: nothing of M00 to M02 is merged, it all lives on this branch and in draft pull request #1; the "M00 is merged" precondition was treated as satisfied by the orchestrator's instruction). `npm ci && npm run verify:fast` was green at the start (376 unit tests). The orchestrator owns pushing, the pull request and the Artifact.
