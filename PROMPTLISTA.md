@@ -2,7 +2,9 @@
 
 Det här är en lista med färdiga prompter som tar dig från ett tomt repo till ett eget 3D-krigsspel i webbläsaren. Spelet är en glob där berg faktiskt spelar roll: de bromsar arméer, skymmer radar och bestämmer var en helikopter kan flyga lågt genom en dal och släppa av trupper bakom fiendens linjer. Du spelar som ett riktigt land eller som ett eget påhittat land med egen flagga, bygger stad, fabrik, hamn, missilsilo och luftvärn (SAM), och möter AI-motståndare i fyra svårighetsgrader.
 
-**Kort svar:** ungefär 112 timmars Claude-arbete för ett färdigt enspelarspel (36 prompts) och ungefär 21 fullt använda 5-timmarsfönster på Max 20x (rimligt spann 14–50), cirka 4 veckor med ett fönster per vardag. Tre valfria onlineprompts lägger på cirka 10 timmar. Detaljer och osäkerhet: se "Hur lång tid tar det". **Börja här:** hoppa till M00 längre ned (rubriken "Del 1") och klistra in prompten i en ny session.
+**Kort svar:** ungefär 112 timmars Claude-arbete för ett färdigt enspelarspel (36 prompts) och ungefär 21 fullt använda 5-timmarsfönster på Max 20x (rimligt spann 14–50), cirka 4 veckor med ett fönster per vardag. Tre valfria onlineprompts lägger på cirka 10 timmar. Detaljer och osäkerhet: se "Hur lång tid tar det". **Börja här:** M00 och M00b är redan byggda (se Status nedan); fortsätt med M01 (rubriken "Del 1") i en ny session.
+
+**Status (2026-10-13):** M00 (grundverktyg) och M00b (Artifact-förhandsvisning) är redan byggda av Claude och ligger i PR #1 tillsammans med den här listan. Allt är testat och granskat av en oberoende granskare (219 enhetstester, 8 prestandatester och 14 webbläsartester är gröna). Det ger dig tre saker att göra nu: (1) öppna Artifacten https://claude.ai/artifact/H4jqcMBvTMi7udLais5btV och svara "klotet syns" (eller beskriv vad du ser); (2) merga PR #1 enligt stegen under "Så använder du listan"; (3) kör M01 i en ny session. Kör inte M00 och M00b igen. Första mätpunkterna: M00 och M00b tog ungefär 15–20 minuters körtid och cirka 0,3 miljoner tokens var, mot uppskattade 2,1 h och 1,2 h. Två mätpunkter räcker inte för att ändra uppskattningen, men siffrorna är sannolikt försiktiga.
 
 Listan har **39 prompts**: 36 för enspelarspelet (M00 till och med M25b) och 3 valfria för onlinespel (M26a, M26b, M27). De hör till 28 milestones (M00–M27); en milestone med bokstav, till exempel M07a och M07b, är delad i två prompts som körs i ordning. Varje prompt klistrar du in i en ny Claude Code-session i molnet. Efter de flesta steg har du något körbart att titta på. Några steg (M03, M04, M09, M11a, M12a, M12b, M14) är regler och mätningar som Claude bara visar som utdrag i sitt svar; M11b ger en debugsida.
 
@@ -146,6 +148,7 @@ Så här är siffrorna framtagna: tre oberoende genomgångar räknade på listan
 ### Så ska du läsa siffrorna (ärligt)
 
 - **Fönstersiffran är den osäkraste.** Anthropic publicerar inga exakta kvoter per plan. De tre metodernas troliga värden var 7, 21 och 42 fönster på Max 20x, så spridningen är en faktor sex (tabellens optimistiska 14 är medianen av de tre optimistiska värdena). Medianen 21 är en bra planeringssiffra, men räkna med att verkligheten kan hamna var som helst mellan 14 och 50.
+- **Första mätpunkter (M00 och M00b är byggda):** körtid ca 15–20 minuter och cirka 0,3 miljoner tokens per milestone, mot uppskattade 2,1 h och 1,2 h. Två mätpunkter räcker inte för att ändra siffrorna, men tyder på att Claude-timmarna är försiktiga. Räkna om efter M01 och M02.
 - **Du kalibrerar själv redan efter M00–M01.** Efter de första prompterna har Claude arbetat cirka 7 timmar (enligt kalkylen cirka 1,3 fönster). Skriv in din användningsprocent (se "Så använder du listan") och jämför: ligger du under planen tar resten färre fönster, ligger du över bör du räkna om och kapa tidigare.
 - **Veckogränsen kan bita före 5-timmarsgränsen.** Planerar du många fönster per vecka är det den som troligast sätter takten (därför ~3 / ~4 / ~10 veckor i tabellen).
 - **Max 5x och Pro:** på Max 5x räknar du med cirka 2–4 gånger så många fönster som på Max 20x (tabellens ~50 är en grov gissning), och på Pro är det i praktiken inte genomförbart att nå hela vägen. Välj då tidigare stopp (se "Naturliga stopp").
@@ -169,7 +172,7 @@ Kapa **aldrig** M11a–M13b (helikopter-mekaniken, spelets signatur), M18 (spele
 
 ## Börja här
 
-Gå till **M00** (efter referensavsnitten nedan) och klistra in prompten i en ny session. Efter M00 kommer M00b, sedan M01 och så vidare i ordning. Referensavsnitten Beslut, Ingår inte och Mallar behöver du först senare.
+M00 och M00b är redan byggda (se Status överst). Gå till **M01** (efter referensavsnitten nedan) och klistra in prompten i en ny session, sedan M02 och så vidare i ordning. Referensavsnitten Beslut, Ingår inte och Mallar behöver du först senare.
 
 ## Referens: beslut som redan är tagna
 
@@ -306,6 +309,8 @@ Här lägger Claude grunden: verktyg och arbetsregler, en förhandsvisning du ka
 | **Modell / effort** | Sonnet 5.5, medium |
 | **Din gate** | Nej |
 | **Du ser efteråt** | Ett repo där `npm run verify` bevisar ett upplyst, roterande skuggat klot (Claude rapporterar mått från en headless skärmdump), en grön CI-körning efter att du markerat PR:en som redo, och de skriftliga arbetsreglerna. Själva klotet öppnar du i webbläsaren först efter M00b. |
+
+**Status: KLAR.** Byggd av Claude i PR #1 och granskad. Kör inte om. Prompten är kvar för referens (alla ändringar under bygget står i docs/DECISIONS.md).
 
 **Klistra in i en ny session:** Den här prompten är medvetet mycket längre än de andra (ca 33 000 tecken, mest charterns text). Klistra in allt via kopieringsknappen på kodblocket; appen kan visa det som en bilaga, och det är normalt.
 
@@ -460,6 +465,8 @@ Enligt CLAUDE.md: uppdatera PROGRESS.md, DECISIONS.md och ARCHITECTURE.md och ö
 | **Modell / effort** | Sonnet 5.5, medium |
 | **Din gate** | Ja — öppna länken (eller följ stegen) som Claude skriver i svaret och svara "klotet syns" i samma session innan du mergar; docs/PREVIEW.md hamnar i main först efter mergen (syns inget: mallen "Feedback efter en gate" i en ny session) |
 | **Du ser efteråt** | Ett roterande klot i en privat Artifact (eller en guide för att köra det på din egen dator) och en svensk guide, docs/PREVIEW.md, som förklarar hur du öppnar och uppdaterar förhandsvisningen efter varje milestone. |
+
+**Status: KLAR, väntar på din bekräftelse.** Byggd i PR #1 och publicerad som Artifact: https://claude.ai/artifact/H4jqcMBvTMi7udLais5btV. Svara "klotet syns" i en session eller beskriv vad du ser. Kör inte om.
 
 **Klistra in i en ny session:**
 
