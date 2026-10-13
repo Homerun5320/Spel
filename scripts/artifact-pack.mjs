@@ -6,9 +6,11 @@
 //   index.html   the page as a FRAGMENT (no doctype/html/head/body tags); published as `file_path`
 //   <files>      every dist/ file with a served extension (data packs re-encoded, data/manifest.json rewritten)
 //   files.json   a LIST of batches {"<published path>": "artifact/<path>"}; index.html is never in it
+//   checksums.txt  sha256 of every published file (sha256sum format); never published itself
 //   probe/       (--probe) deterministic ~3 MB test packs; kept between runs, never in public/ or dist/
 // Anything that cannot be served (unknown or missing extension, .gz, .bin, .glb that is not a data pack in
 // data/manifest.json) makes the script exit with an error that lists the paths. Nothing is skipped silently.
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
@@ -402,7 +404,7 @@ export function pack(argv = [], { cwd = process.cwd(), log = console.log } = {})
   const published = [];
   const outRelDir = toPosix(path.relative(cwd, outDir)) || '.';
   for (const rel of listFiles(outDir)) {
-    if (rel === 'index.html' || rel === 'files.json') continue;
+    if (rel === 'index.html' || rel === 'files.json' || rel === 'checksums.txt') continue;
     const ext = path.extname(rel).toLowerCase();
     if (!ALLOWED_EXT.has(ext)) {
       errors.push(`internal error: ${rel} has no served extension`);
@@ -421,6 +423,11 @@ export function pack(argv = [], { cwd = process.cwd(), log = console.log } = {})
   const batches = makeBatches(published, removed);
   fs.writeFileSync(path.join(outDir, 'files.json'), JSON.stringify(batches, null, 2) + '\n');
 
+  const sums = ['index.html', ...published.map((f) => f.path)].map(
+    (rel) => `${crypto.createHash('sha256').update(fs.readFileSync(path.join(outDir, rel))).digest('hex')}  ${rel}`,
+  );
+  fs.writeFileSync(path.join(outDir, 'checksums.txt'), sums.join('\n') + '\n');
+
   const fileCount = published.length + 1;
   const totalBytes = published.reduce((n, f) => n + f.size, 0) + fs.statSync(path.join(outDir, 'index.html')).size;
   if (fileCount > LIMITS.artifactFiles) errors.push(`${fileCount} files exceed the Artifact limit of ${LIMITS.artifactFiles}`);
@@ -433,7 +440,7 @@ export function pack(argv = [], { cwd = process.cwd(), log = console.log } = {})
   for (const c of converted) log(`  pack ${c}`);
   if (dotFiles.length > 0) log(`  not published (dot-named): ${dotFiles.join(', ')}`);
   if (removed.length > 0) log(`  removed since last publish (null): ${removed.join(', ')}`);
-  log(`  ${fileCount} files, ${batches.length} batch(es), ${(totalBytes / 1_000_000).toFixed(2)} MB -> ${outRelDir}/ (see ${outRelDir}/files.json)`);
+  log(`  ${fileCount} files, ${batches.length} batch(es), ${(totalBytes / 1_000_000).toFixed(2)} MB -> ${outRelDir}/ (see ${outRelDir}/files.json and checksums.txt)`);
   return { code: errors.length > 0 ? 1 : 0, errors, files: fileCount, batches: batches.length, bytes: totalBytes, removed, converted };
 }
 

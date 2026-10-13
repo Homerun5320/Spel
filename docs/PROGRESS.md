@@ -7,6 +7,7 @@ Resume: Läs CLAUDE.md och docs/PROGRESS.md, kör git log -10 och npm run verify
 | id | merge SHA | note |
 |----|-----------|------|
 | M00 | (set after the squash merge) | Harness: verify, lint rules, WebGL2 spike, shot.mjs, perfguard, CI file, hook, docs. Previous merge SHA (origin/main at start): f29121a8d1607ca169e6675b5f22a52d76c42ef7 |
+| M00b | (set after the squash merge) | Preview path: portable build, `siteUrl`, Artifact pack script, probe page, Artifact e2e, `docs/PREVIEW.md`. Previous merge SHA (origin/main at start): f29121a8d1607ca169e6675b5f22a52d76c42ef7 (M00 was not merged yet) |
 
 ## Now
 
@@ -41,7 +42,7 @@ The SessionStart hook first runs for real in the NEXT session (it is only loaded
 
 CI workflow: `.github/workflows/ci.yml` was committed normally on the branch. Whether the push of `.github/workflows/*` is accepted is decided when the orchestrator pushes; if it is refused, the file moves to `docs/ci/ci.yml.txt` (the unit test accepts both locations) and the user adds it on GitHub by hand (see CLAUDE.md, CI rule and workflow fallback). Case that occurred (2026-10-13): the push of `.github/workflows/ci.yml` was ACCEPTED (the session token may add workflow files), so no `docs/ci/` fallback is needed. CI itself has not run yet: it starts when a pull request is marked ready for review.
 
-### M00b Förhandsvisning (in progress)
+### M00b Förhandsvisning (all items ticked except the Artifact publication done by the orchestrator; waiting for the squash merge)
 
 Previous merge SHA (origin/main at start): f29121a8d1607ca169e6675b5f22a52d76c42ef7. Note: M00 was NOT yet squash-merged when M00b started (origin/main is still the initial commit; M00 lives on its branch and in pull request #1), so this SHA is the state before M00. The M00 precondition was treated as satisfied by the orchestrator's instruction.
 
@@ -51,15 +52,15 @@ GÖR
 - [x] 3. `probe.html` + `src/probe.ts` + `src/probe.worker.ts`, linked from index.html
 - [x] 4. `e2e/artifact.test.ts`
 - [ ] 5. Publish the spike as an Artifact (done by the orchestrator, URL goes into docs/PREVIEW.md)
-- [ ] 6. Update procedure (documented in docs/PREVIEW.md)
-- [ ] 7. Other routes (Netlify, local) probed and recorded
-- [ ] 8. docs/PREVIEW.md (Swedish), results in docs/DECISIONS.md
+- [x] 6. Update procedure (documented in docs/PREVIEW.md, steps 10-16)
+- [x] 7. Other routes (Netlify, local) probed and recorded (Netlify EJ MÖJLIG)
+- [x] 8. docs/PREVIEW.md (Swedish), results in docs/DECISIONS.md (D15-D20)
 
 ACCEPTANS
-- [ ] docs/PREVIEW.md exists, in Swedish, names the chosen route and why, the Artifact URL, the update procedure and a result per tried route
-- [ ] absolute-address test passes; `npm run verify` green
-- [ ] `npm run artifact:pack` green; fragment unit test (incl. `<header>`); planted `.glb` / extension-less file gives exit code != 0; `--prev` writes `null`; no batch holds index.html, .bin, .gz or .zip; link check passes
-- [ ] `e2e/artifact.test.ts` green (globe drawn, zero console errors, no 404)
+- [x] docs/PREVIEW.md exists, in Swedish, names the chosen route and why, the Artifact URL, the update procedure and a result per tried route
+- [x] absolute-address test passes; `npm run verify` green
+- [x] `npm run artifact:pack` green; fragment unit test (incl. `<header>`); planted `.glb` / extension-less file gives exit code != 0; `--prev` writes `null`; no batch holds index.html, .bin, .gz or .zip; link check passes
+- [x] `e2e/artifact.test.ts` green (globe drawn, zero console errors, no 404)
 - [ ] The spike is published as an Artifact (or the local-run guide is complete); the reply ends with the question: syns klotet?
 
 ## Next
@@ -71,6 +72,8 @@ ACCEPTANS
 
 - `docs/CHARTER.md` is verbatim from the prompt; in section 7 the "User lines" and "User's own files" bullets sit on one line (a newline is missing in the source text). Not changed because the charter must stay word for word.
 - No real-GPU measurement exists; everything is SwiftShader.
+- M00b: the data manifest format of M01 is assumed (name to file relative to the data folder, enc defaults to raw), see D17 in `docs/DECISIONS.md`. M01 must keep it or change the pack script.
+- M00b: the Artifact URL in `docs/PREVIEW.md` is a placeholder until the orchestrator publishes; the user's "klotet syns" confirmation is pending.
 
 ## Skipped
 

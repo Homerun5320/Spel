@@ -94,5 +94,5 @@ When compacting the conversation keep: the current milestone id and branch, the 
 - The SessionStart hook (`.claude/session-start.sh`) prints one health line and runs `npm ci` when needed; errors go to `.claude/hook.log`.
 
 ## Where things are
-- `docs/CHARTER.md` constitution; `docs/ARCHITECTURE.md` module and API index; `docs/PROGRESS.md` state (Done / Now / Next / Known issues / Skipped, Environment, usage); `docs/DECISIONS.md`; `docs/BACKLOG.md`; `docs/ASSETS.md`; `docs/PROMPT_TEMPLATE.md`; `docs/PREVIEW.md` (stub until M00b).
+- `docs/CHARTER.md` constitution; `docs/ARCHITECTURE.md` module and API index; `docs/PROGRESS.md` state (Done / Now / Next / Known issues / Skipped, Environment, usage); `docs/DECISIONS.md`; `docs/BACKLOG.md`; `docs/ASSETS.md`; `docs/PROMPT_TEMPLATE.md`; `docs/PREVIEW.md` (Swedish preview guide and Artifact update procedure, M00b).
 - Later: `docs/SERVER.md`, `docs/BALANCE.md`, `docs/ART.md`, `CREDITS.md` (all "(later)").

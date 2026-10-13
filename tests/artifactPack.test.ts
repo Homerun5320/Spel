@@ -140,6 +140,14 @@ describe('npm run artifact:pack against a real build', () => {
     expect(Array.isArray(batches)).toBe(true);
     const published = batches.flatMap((b) => Object.keys(b));
     expect(published).not.toContain('index.html');
+    expect(published).not.toContain('files.json');
+    expect(published).not.toContain('checksums.txt');
+    const sums = fs.readFileSync(path.join(out, 'checksums.txt'), 'utf8').trim().split('\n');
+    expect(sums.length).toBe(published.length + 1);
+    for (const line of sums) {
+      const [hash, rel] = line.split('  ') as [string, string];
+      expect(crypto.createHash('sha256').update(fs.readFileSync(path.join(out, rel))).digest('hex')).toBe(hash);
+    }
     expect(published.filter((p) => FORBIDDEN_BATCH_EXT.test(p))).toEqual([]);
     expect(published).toContain('probe.html');
     expect(published.some((p) => p.startsWith('assets/') && p.endsWith('.js'))).toBe(true);

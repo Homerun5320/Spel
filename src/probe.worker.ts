@@ -10,8 +10,8 @@ self.addEventListener('message', (event: MessageEvent<ProbeRequest>) => {
   void (async () => {
     try {
       const res = await fetch(siteUrl('probe/expected.json'));
-      const expected: unknown = res.ok ? await res.json() : null;
-      self.postMessage({ ok: true, pong: event.data.ping, rootUrl: ROOT_URL, status: res.status, expected });
+      // Only the address resolution matters here: the file may legitimately be missing (dev server, no probe packs).
+      self.postMessage({ ok: true, pong: event.data.ping, rootUrl: ROOT_URL, status: res.status });
     } catch (err) {
       self.postMessage({ ok: false, error: String(err) });
     }
