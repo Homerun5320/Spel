@@ -2,6 +2,7 @@
 // app is registered here with `registerDevMode`, so that nobody has to edit the address bar. A mode is written to the
 // HASH (`#perf`, grammar in params.ts) and the page reloads; the app also listens to `hashchange` and restarts the mode
 // without a reload. The panel never touches `location.search`.
+import { DEV_PANEL_EVENT, type DevPanelEventDetail } from '../ui/events';
 import { parseHash, toHash, type RawParams } from './params';
 import { siteUrl } from './paths';
 
@@ -147,12 +148,21 @@ export function mountDevPanel(opts: DevPanelOptions): DevPanel {
     panel.appendChild(clear);
   };
 
+  // Other overlays (the perf overlay) listen to this and step aside when the open panel would cover them.
+  const announce = (open: boolean): void => {
+    const rect = open ? panel.getBoundingClientRect() : null;
+    const detail: DevPanelEventDetail = { open, rect: rect ? { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom } : null };
+    window.dispatchEvent(new CustomEvent(DEV_PANEL_EVENT, { detail }));
+  };
   const open = (): void => {
     refresh();
     panel.hidden = false;
+    announce(true);
   };
   const close = (): void => {
+    const wasOpen = !panel.hidden;
     panel.hidden = true;
+    if (wasOpen) announce(false);
   };
   const toggle = (): void => (panel.hidden ? open() : close());
   button.addEventListener('click', toggle);
@@ -181,6 +191,7 @@ export function mountDevPanel(opts: DevPanelOptions): DevPanel {
     },
     dispose(): void {
       window.removeEventListener('keydown', onKey);
+      close();
       button.remove();
       panel.remove();
     },

@@ -1,9 +1,10 @@
 // M02 item 10 in headless Chromium: the Dev panel (F2 and the corner button, also in a 390x844 phone viewport), the perf
 // overlay through `?perf=1` and `#perf`, the hash restart without a page reload, and showReport with a refused clipboard.
 import fs from 'node:fs';
+import path from 'node:path';
 import type { Browser, Page } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
-import { HANG_GUARD_MS, guard, launchBrowser } from '../scripts/shot.mjs';
+import { HANG_GUARD_MS, OUT_DIR, guard, launchBrowser } from '../scripts/shot.mjs';
 
 let browser: Browser;
 const baseUrl = inject('baseUrl');
@@ -193,6 +194,81 @@ describe('Dev panel', () => {
     } finally {
       await t.page.close();
       await t2.page.close();
+    }
+  });
+});
+
+describe('Dev panel and perf overlay do not cover each other', () => {
+  type Box = { x: number; y: number; width: number; height: number };
+  const overlaps = (a: Box, b: Box): boolean => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+  const boxOf = async (page: Page, selector: string): Promise<Box> => {
+    const b = await page.locator(selector).boundingBox();
+    if (!b) throw new Error(`${selector} has no bounding box (not visible)`);
+    return b;
+  };
+
+  it('390x844 phone with #perf: the overlay leaves a gap to the Dev button, and the open panel never covers the overlay or its Kopiera rapport button (the overlay steps aside)', async () => {
+    const { page, messages } = await open('?quality=low#perf', { viewport: { width: 390, height: 844 }, waitTest: false });
+    try {
+      const shots = path.join(OUT_DIR, 'shots');
+      fs.mkdirSync(shots, { recursive: true });
+      await page.locator('[data-perf]').waitFor({ state: 'visible' });
+      const btn = await boxOf(page, '[data-dev-button]');
+      const overlay = await boxOf(page, '[data-perf]');
+      const copy = await boxOf(page, '[data-perf-copy]');
+      console.log(`[phone] dev button ${JSON.stringify(btn)}, overlay ${JSON.stringify(overlay)}, copy ${JSON.stringify(copy)}`);
+      // closed panel: everything inside the viewport, the overlay clear of the button by at least 8 px (it used to sit flush: gap 0)
+      for (const b of [btn, overlay, copy]) {
+        expect(b.x).toBeGreaterThanOrEqual(0);
+        expect(b.x + b.width).toBeLessThanOrEqual(390);
+        expect(b.y + b.height).toBeLessThanOrEqual(844);
+      }
+      expect(overlaps(overlay, btn)).toBe(false);
+      expect(overlaps(copy, btn)).toBe(false);
+      expect(btn.x - (overlay.x + overlay.width)).toBeGreaterThanOrEqual(8);
+      fs.writeFileSync(path.join(shots, 'phone-perf-closed.png'), await page.screenshot({ type: 'png' }));
+
+      // open panel: it is clear of the Dev button, and the overlay (with the Kopiera rapport button) is not shown under it
+      await page.locator('[data-dev-button]').click();
+      await page.locator('[data-dev-panel]').waitFor({ state: 'visible' });
+      const panel = await boxOf(page, '[data-dev-panel]');
+      expect(overlaps(panel, btn)).toBe(false);
+      expect(panel.x).toBeGreaterThanOrEqual(0);
+      expect(panel.x + panel.width).toBeLessThanOrEqual(390);
+      expect(overlaps(panel, overlay)).toBe(true); // the premise: on a phone the panel WOULD cover the overlay ...
+      expect(await page.locator('[data-perf]').isVisible()).toBe(false); // ... so the overlay is hidden, never half covered
+      expect(await page.locator('[data-perf-copy]').isVisible()).toBe(false);
+      fs.writeFileSync(path.join(shots, 'phone-perf-open.png'), await page.screenshot({ type: 'png' }));
+
+      // closing the panel brings the overlay back, still clear of the button
+      await page.keyboard.press('Escape');
+      await page.locator('[data-perf]').waitFor({ state: 'visible' });
+      const back = await boxOf(page, '[data-perf]');
+      expect(overlaps(back, btn)).toBe(false);
+      expect(overlaps(await boxOf(page, '[data-perf-copy]'), btn)).toBe(false);
+      expect(messages).toEqual([]);
+    } finally {
+      await page.close();
+    }
+  });
+
+  it('960x540 desktop with #perf: the panel opens at the right and the overlay stays visible at the left, no overlap', async () => {
+    const { page, messages } = await open('?quality=low#perf', { waitTest: false });
+    try {
+      await page.locator('[data-perf]').waitFor({ state: 'visible' });
+      await page.keyboard.press('F2');
+      await page.locator('[data-dev-panel]').waitFor({ state: 'visible' });
+      expect(await page.locator('[data-perf]').isVisible()).toBe(true);
+      const overlay = await boxOf(page, '[data-perf]');
+      const panel = await boxOf(page, '[data-dev-panel]');
+      const btn = await boxOf(page, '[data-dev-button]');
+      expect(overlaps(overlay, panel)).toBe(false);
+      expect(overlaps(overlay, btn)).toBe(false);
+      expect(overlaps(panel, btn)).toBe(false);
+      expect(await page.locator('[data-perf-copy]').isVisible()).toBe(true);
+      expect(messages).toEqual([]);
+    } finally {
+      await page.close();
     }
   });
 });

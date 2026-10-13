@@ -2,7 +2,7 @@
 // must agree with the vertex shader: the displaced surface radius at a position, and ray picking against it.
 import { LAND_MAX_M, RENDER_HEIGHT, RENDER_WIDTH } from '../data/format';
 import { EARTH_RADIUS_KM } from './config';
-import { DEG, add, dot, length, normalize, scale, vecToLatLon, type Vec3 } from './geo';
+import { DEG, POLE_HEIGHT_U, add, dot, length, normalize, scale, vecToLatLon, type Vec3 } from './geo';
 
 export interface HeightFieldOptions {
   /** u8 sqrt-coded land heights, row 0 = north, 0 = sea. */
@@ -49,8 +49,9 @@ export class HeightField {
 
   /** Terrain height in metres at a position: the texture is filtered LINEARLY on the code (as the vertex shader does), then decoded. */
   heightM(latDeg: number, lonDeg: number): number {
-    const u = (lonDeg + 180) / 360;
     const v = (90 - latDeg) / 180;
+    // The pole rows of the globe grid read one common longitude (see heightLookupUv), so the exact pole has one height.
+    const u = v <= 0 || v >= 1 ? POLE_HEIGHT_U : (lonDeg + 180) / 360;
     const tx = u * this.width - 0.5;
     const ty = v * this.height - 0.5;
     const x0 = Math.floor(tx);

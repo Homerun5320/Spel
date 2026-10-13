@@ -3,10 +3,17 @@
 // never gives a wrong coast line; M07 replaces the mesh with an LOD). Item 3 and 4 pieces come from their own modules:
 // ocean (waves, Fresnel, glitter), atmosphere (haze and limb glow), borders (id raster neighbour comparison). Night lights
 // are an emissive term of the day/night terminator.
+import { POLE_HEIGHT_U } from '../geo';
 import { GLSL_ATMOSPHERE } from './atmosphere';
 import { GLSL_BORDERS } from './borders';
 import { GLSL_GEO, GLSL_TEXELS } from './common';
 import { GLSL_OCEAN } from './ocean';
+
+/** A number as a GLSL float literal (always with a decimal point). */
+function glslFloat(x: number): string {
+  const t = String(x);
+  return /[.e]/.test(t) ? t : `${t}.0`;
+}
 
 export const terrainVertexShader = /* glsl */ `
 uniform sampler2D uHeight;
@@ -19,7 +26,10 @@ varying vec3 vPos;
 
 void main() {
   vec3 dir = normalize(position);
-  float code = textureLod(uHeight, uv, 0.0).r; // R8, normalised: code / 255
+  // The pole rows (v = 0 or 1) collapse to one point: they all read the height at one common longitude, so the pole has
+  // ONE radius (otherwise it tears into slivers). Same rule as heightLookupUv in geo.ts.
+  vec2 hUv = (uv.y <= 0.0 || uv.y >= 1.0) ? vec2(${glslFloat(POLE_HEIGHT_U)}, uv.y) : uv;
+  float code = textureLod(uHeight, hUv, 0.0).r; // R8, normalised: code / 255
   float hM = uHeightMaxM * code * code;
   float r = 1.0 + uExag * hM / (uKmPerUnit * 1000.0);
   vec3 p = dir * r;
@@ -50,6 +60,7 @@ uniform vec3 uAmbientNight;
 uniform vec3 uAmbientDay;
 uniform vec3 uClassAlbedo[8];
 uniform float uFacet;
+uniform vec3 uPolarCap; // x, y: |latitude| (degrees) where the polar-cap fade starts and ends; z: sea depth in metres inside the cap
 
 varying vec3 vDir;
 varying vec3 vPos;
@@ -171,8 +182,10 @@ void main() {
   vec3 north = cross(dir, east);
   float pixelAngle = length(fwidth(dir));
   float st = max(1.5 * 2.0 * PI / float(uHeightSize.x), 1.5 * pixelAngle);
-  float gE = (exagHeight(normalize(dir + east * st)) - exagHeight(normalize(dir - east * st))) / (2.0 * st);
-  float gN = (exagHeight(normalize(dir + north * st)) - exagHeight(normalize(dir - north * st))) / (2.0 * st);
+  // Poleward of the last real elevation row the rasters are radial streaks: their slope is dropped there (capKeep -> 0).
+  float capKeep = 1.0 - smoothstep(uPolarCap.x, uPolarCap.y, abs(latDeg));
+  float gE = capKeep * (exagHeight(normalize(dir + east * st)) - exagHeight(normalize(dir - east * st))) / (2.0 * st);
+  float gN = capKeep * (exagHeight(normalize(dir + north * st)) - exagHeight(normalize(dir - north * st))) / (2.0 * st);
   vec3 detailN = normalize(dir - gE * east - gN * north);
   vec3 flatN = normalize(cross(dFdx(vPos), dFdy(vPos)));
   if (dot(flatN, dir) < 0.0) flatN = -flatN;
@@ -188,7 +201,7 @@ void main() {
   float snow = smoothstep(snowLine - 350.0, snowLine + 350.0, heightM) * (1.0 - smoothstep(0.25, 0.6, slope) * 0.5);
   albedoLand = mix(albedoLand, vec3(0.94, 0.96, 1.0), snow);
 
-  float depthM = sampleDepth(uv);
+  float depthM = mix(uPolarCap.z, sampleDepth(uv), capKeep);
   vec3 albedoWater = waterAlbedo(depthM);
 
   // Country: faint palette tint and a weak border line (between two different land ids; coast against sea is no border).

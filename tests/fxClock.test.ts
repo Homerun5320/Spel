@@ -8,7 +8,27 @@ import { describe, expect, it } from 'vitest';
 
 const SRC = path.resolve(__dirname, '../src');
 
-const CLOCK_TOKENS = [/\bDate\.now\b/, /\bnew Date\b/, /\bperformance\.now\b/, /\brequestAnimationFrame\b/, /\bsetInterval\b/, /\bsetTimeout\b/, /\bgetTime\(\)/];
+/** Every way to read real time, schedule a callback or let the browser animate by its own clock. */
+const CLOCK_TOKENS = [
+  /\bDate\.now\b/,
+  /\bnew Date\b/,
+  /\bDate\(/, // Date called without `new` returns the current time as a string
+  /\bperformance\.now\b/,
+  /performance\.timeOrigin/,
+  /\.timeStamp\b/, // Event.timeStamp
+  /\brequestAnimationFrame\b/,
+  /requestIdleCallback/,
+  /\bsetInterval\b/,
+  /\bsetTimeout\b/,
+  /setImmediate/,
+  /\bgetTime\(\)/,
+  // The browser's own animation clocks: CSS transitions and animations (injected style strings, `el.style.transition = ...`,
+  // `@keyframes`) and the Web Animations API. Cosmetic motion is driven from the fx clock in JS, never by CSS.
+  /\b(?:transition|animation)(?:-[a-z-]+)?\s*:/,
+  /\.style\.(?:transition|animation)\b/,
+  /@keyframes/,
+  /\.animate\(/,
+];
 
 /** file (relative to src) -> why it may read real time */
 const ALLOWED: Record<string, string> = {
@@ -31,6 +51,23 @@ function listTs(dir: string): string[] {
 }
 
 describe('fx clock: no other clocks', () => {
+  it('every token matches the clock it names and ignores harmless text', () => {
+    const bad = [
+      'Date.now()', 'new Date()', 'Date()', 'String(Date())', 'performance.now()', 'performance.timeOrigin', 'e.timeStamp',
+      'requestAnimationFrame(f)', 'requestIdleCallback(f)', 'setInterval(f, 10)', 'setTimeout(f, 10)', 'setImmediate(f)', 't.getTime()',
+      'el.style.cssText = "transition: opacity 1s"', "const css = `.a { animation: spin 1s; }`", 'a { transition-duration: 1s }',
+      'el.style.transition = "none"', 'el.style.animation = "x"', '@keyframes spin {}', 'el.animate([], 100)',
+    ];
+    for (const text of bad) expect(CLOCK_TOKENS.some((re) => re.test(text)), text).toBe(true);
+    const fine = [
+      'updateDate(x)', 'const timeStampLabel = 1', 'the animation time is the fx clock', 'zoom animation is still moving',
+      'no transition here', 'fxNow()', 'advanceFx(dt)', 'performance', 'mutate(x)',
+    ];
+    for (const text of fine) expect(CLOCK_TOKENS.some((re) => re.test(text)), text).toBe(false);
+    // each token is exercised by at least one bad sample (a typo in a regex cannot hide behind the others)
+    for (const re of CLOCK_TOKENS) expect(bad.some((text) => re.test(text)), String(re)).toBe(true);
+  });
+
   it('only the allow-listed files read real time or schedule frames', () => {
     const offenders: string[] = [];
     for (const file of listTs(SRC)) {

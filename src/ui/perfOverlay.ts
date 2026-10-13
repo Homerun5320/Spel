@@ -1,5 +1,6 @@
 // The `?perf=1` overlay (Artifact: `#perf`): renderer string, fps (mean and p95), renderer.info counters, texture memory
 // and the button "Kopiera rapport". The numbers are pushed in by the frame driver; this module reads no clock.
+import { DEV_PANEL_EVENT, rectsOverlap, type DevPanelEventDetail } from './events';
 import type { FrameStats } from './frameStats';
 import { showReport } from './report';
 
@@ -89,7 +90,10 @@ export function createPerfOverlay(parent: HTMLElement, ctx: PerfContext): PerfOv
   const box = document.createElement('div');
   box.dataset.perf = '1';
   box.style.cssText =
-    'position:absolute;left:8px;top:8px;z-index:20;max-width:calc(100vw - 80px);padding:6px 8px;border-radius:4px;background:rgba(0,0,0,0.72);' +
+    // Top left, at most 520 px wide, and narrow enough to leave a 16 px gap to the 48 px Dev button in the top right corner
+    // (8 + 48 + 8 + 16 = 80). On a desktop the open Dev panel (300 px at the right) then stays clear of it; on a phone the panel
+    // would cover it, so the overlay steps aside while the panel is open (DEV_PANEL_EVENT).
+    'position:absolute;left:8px;top:8px;z-index:20;box-sizing:border-box;max-width:min(calc(100vw - 80px),520px);padding:6px 8px;border-radius:4px;background:rgba(0,0,0,0.72);' +
     'color:#cfe;font:12px/1.4 ui-monospace,Menlo,Consolas,monospace;';
   const pre = document.createElement('pre');
   pre.style.cssText = 'margin:0 0 6px 0;white-space:pre-wrap;word-break:break-word;font:inherit;';
@@ -104,9 +108,23 @@ export function createPerfOverlay(parent: HTMLElement, ctx: PerfContext): PerfOv
   });
   box.append(pre, button);
   parent.appendChild(box);
+  // The open Dev panel covers this overlay on a phone: step aside (hidden) while the panel would overlap it, show it again after.
+  const onDevPanel = (e: Event): void => {
+    const d = (e as CustomEvent<DevPanelEventDetail>).detail;
+    box.hidden = false; // measure it visible
+    if (d?.open && d.rect) box.hidden = rectsOverlap(box.getBoundingClientRect(), d.rect);
+  };
+  window.addEventListener(DEV_PANEL_EVENT, onDevPanel);
   const update = (): void => {
     pre.textContent = perfLines(buildPerfReport(ctx)).join('\n');
   };
   update();
-  return { element: box, update, dispose: () => box.remove() };
+  return {
+    element: box,
+    update,
+    dispose: () => {
+      window.removeEventListener(DEV_PANEL_EVENT, onDevPanel);
+      box.remove();
+    },
+  };
 }

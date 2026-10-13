@@ -1,6 +1,7 @@
 // Hover tooltip text: country, terrain class and height in metres. Pure (unit-tested). Swedish for now; the
 // i18n tables (`t(key)`) arrive in M05 and take over these strings.
 import type { WorldMeta } from '../data';
+import { landClassForHeight, waterClassForDepth } from '../render/describe';
 
 export const CLASS_LABEL_SV: readonly string[] = ['Djuphav', 'Grunt hav', 'Slätt', 'Skog', 'Kullar', 'Berg', 'Bergstopp', 'Is'];
 
@@ -23,8 +24,16 @@ export function countryNameMap(meta: WorldMeta): Map<number, string> {
   return m;
 }
 
+/**
+ * "Where · class · height". The height decides between land and sea: a position with a height above 0 is never "Hav" and a
+ * position at or below 0 always is. `describeAt` already hands over a matching class; should a caller pass a class of the
+ * other kind (sim cell and render raster disagree at a coast), the class is derived from the height instead.
+ */
 export function tooltipText(pick: TooltipPick, names: Map<number, string>): string {
-  const cls = CLASS_LABEL_SV[pick.classId] ?? '?';
-  const where = pick.classId <= 1 ? 'Hav' : (names.get(pick.countryId) ?? 'Okänt land');
-  return `${where} · ${cls} · ${formatMetres(pick.elevationM)}`;
+  const land = pick.elevationM > 0;
+  let classId = pick.classId;
+  if (land && classId <= 1) classId = landClassForHeight(pick.elevationM);
+  if (!land && classId >= 2) classId = waterClassForDepth(-pick.elevationM);
+  const where = land ? (names.get(pick.countryId) ?? 'Okänt land') : 'Hav';
+  return `${where} · ${CLASS_LABEL_SV[classId] ?? '?'} · ${formatMetres(pick.elevationM)}`;
 }

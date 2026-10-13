@@ -70,6 +70,17 @@ export const LIGHTS_SEED = 7771;
 export const LIGHTS_COLOR: readonly [number, number, number] = [1.0, 0.72, 0.36];
 export const LIGHTS_GAIN = 1.5;
 
+// --- Polar caps ------------------------------------------------------------------------------------------------
+/**
+ * The elevation source stops at 85.05 degrees (Web Mercator), so in the baked rasters every row poleward of it repeats the last
+ * real row: heights and depths there are radial streaks that get steeper the closer to the pole. The shading terms derived
+ * from them (the detail slope normal, the water depth colour) fade out between these two |latitudes|; the water settles to
+ * `POLAR_DEPTH_M`. A real fix belongs in the bake (docs/BACKLOG.md).
+ */
+export const POLAR_FADE_START_DEG = 84.5;
+export const POLAR_FADE_END_DEG = 86.5;
+export const POLAR_DEPTH_M = 2500;
+
 // --- Country borders and palette ----------------------------------------------------------------------------------
 /** Share of the border line colour mixed into the land colour (weak lines). */
 export const BORDER_STRENGTH = 0.34;

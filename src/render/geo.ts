@@ -68,6 +68,18 @@ export function latLonToCell(latDeg: number, lonDeg: number): { x: number; y: nu
   return { x, y, index: y * SIM_WIDTH + x };
 }
 
+/**
+ * Longitude (uv.x) at which the vertices of a POLE row of the globe grid sample the height texture. A pole row collapses
+ * to one point, so its vertices must all read the same height or the pole tears into several radii; 0.5 is longitude 0,
+ * which is also what a CPU pick of the exact pole resolves to (atan2(0, 0) = 0).
+ */
+export const POLE_HEIGHT_U = 0.5;
+
+/** The uv at which a grid vertex reads the height texture: its own uv, except the pole rows (v = 0 or 1) use `POLE_HEIGHT_U`. */
+export function heightLookupUv(u: number, v: number): [number, number] {
+  return v <= 0 || v >= 1 ? [POLE_HEIGHT_U, v] : [u, v];
+}
+
 /** Longitude of the sub-solar point at fx time `t` (seconds). The sun moves west. */
 export function subsolarLonAt(t: number): number {
   return wrapLon(SUN_LON_AT_T0_DEG - (360 * t) / SUN_DAY_SECONDS);

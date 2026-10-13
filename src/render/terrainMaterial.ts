@@ -66,6 +66,7 @@ export function createTerrainMaterial(
       uAmbientNight: { value: v3(C.AMBIENT_NIGHT) },
       uAmbientDay: { value: v3(C.AMBIENT_DAY) },
       uFacet: { value: C.FACET_WEIGHT },
+      uPolarCap: { value: new Vector3(C.POLAR_FADE_START_DEG, C.POLAR_FADE_END_DEG, C.POLAR_DEPTH_M) },
       uClassAlbedo: { value: C.CLASS_ALBEDO.map((c) => new Vector3(c[0], c[1], c[2])) },
       uBorderStrength: { value: C.BORDER_STRENGTH },
       uCountryTint: { value: C.COUNTRY_TINT },

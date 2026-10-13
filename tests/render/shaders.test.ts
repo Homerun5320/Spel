@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { RenderPack, SimGrid, WorldMeta } from '../../src/data';
+import { POLE_HEIGHT_U } from '../../src/render/geo';
 import { terrainFragmentShader, terrainVertexShader } from '../../src/render/shaders/terrain';
 import { createTerrainMaterial } from '../../src/render/terrainMaterial';
 import { createWorldTextures } from '../../src/render/textures';
@@ -26,6 +27,12 @@ describe('shader modules (GLSL ES 3.00 through ShaderMaterial)', () => {
     expect(terrainFragmentShader).toMatch(/dFdx/);
     expect(terrainFragmentShader).toMatch(/dFdy/);
     expect(terrainVertexShader).toMatch(/textureLod/);
+  });
+
+  it('the vertex shader reads the pole rows (uv.y 0 or 1) at the common longitude of heightLookupUv', () => {
+    expect(POLE_HEIGHT_U).toBe(0.5);
+    expect(terrainVertexShader).toContain('(uv.y <= 0.0 || uv.y >= 1.0) ? vec2(0.5, uv.y) : uv');
+    expect(terrainVertexShader).toMatch(/textureLod\(uHeight, hUv, 0\.0\)/);
   });
 
   it('every declared uniform is supplied by the material and every supplied uniform is declared', async () => {

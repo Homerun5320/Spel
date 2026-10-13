@@ -1,11 +1,12 @@
 // The stylised Earth: renderer, scene, globe mesh with the terrain ShaderMaterial, camera rig, picking and projection.
 // This is the only module (besides the M00 spike and textureProbe) that talks to WebGL.
 import { BufferAttribute, BufferGeometry, Color, Mesh, PerspectiveCamera, Points, Scene, type ShaderMaterial, SphereGeometry, type Vector3, WebGLRenderer } from 'three';
-import { type City, decodeDepth, decodeLandHeight, type RenderPack, type SimGrid, type WorldMeta } from '../data';
+import { type City, type RenderPack, type SimGrid, type WorldMeta } from '../data';
 import { CameraRig, type ViewState } from './camera';
 import { ATMOSPHERE_TOP, HEIGHT_EXAGGERATION, OCEAN_WAVE_SPEED } from './config';
 import { fxNow } from './clock';
-import { latLonToCell, sunDirectionAt, type Vec3 } from './geo';
+import { describeAt, type GlobePick } from './describe';
+import { sunDirectionAt, type Vec3 } from './geo';
 import { buildGlobeGeometry } from './globeMesh';
 import { HeightField } from './heightField';
 import { meshTriangles, type QualitySettings } from './quality';
@@ -59,19 +60,7 @@ export interface GlobeInfo {
   meshRows: number;
 }
 
-export interface GlobePick {
-  lat: number;
-  lon: number;
-  /** Terrain height in metres at the hit (0 at sea). */
-  heightM: number;
-  /** Land height in metres, or minus the sea depth. */
-  elevationM: number;
-  cell: { x: number; y: number; index: number };
-  /** TerrainClass value of the sim cell. */
-  classId: number;
-  /** Country id of the sim cell (0 = none). */
-  countryId: number;
-}
+export type { GlobePick } from './describe';
 
 export interface ScreenHit {
   x: number;
@@ -208,33 +197,9 @@ export class Globe {
     return this.describe(hit.lat, hit.lon, hit.heightM);
   }
 
-  /** Cell, class, country and elevation of a position. */
+  /** Cell, class, country and elevation of a position (the rules are in describe.ts). */
   describe(lat: number, lon: number, heightM: number = this.field.heightM(lat, lon)): GlobePick {
-    const cell = latLonToCell(lat, lon);
-    const { sim, render } = this.world;
-    let elevationM: number;
-    if (heightM <= 0) {
-      // Sea: depth from the half resolution bathymetry raster.
-      const bx = Math.min(render.bathyWidth - 1, Math.max(0, Math.floor(((lon + 180) / 360) * render.bathyWidth)));
-      const by = Math.min(render.bathyHeight - 1, Math.max(0, Math.floor(((90 - lat) / 180) * render.bathyHeight)));
-      const code = render.bathy8[by * render.bathyWidth + bx] as number;
-      elevationM = code === 0 ? 0 : -decodeDepth(code);
-    } else {
-      // Use the nearest raster pixel (not the filtered value) for what the tooltip shows.
-      const px = Math.min(render.width - 1, Math.max(0, Math.floor(((lon + 180) / 360) * render.width)));
-      const py = Math.min(render.height - 1, Math.max(0, Math.floor(((90 - lat) / 180) * render.height)));
-      const code = render.height8[py * render.width + px] as number;
-      elevationM = code === 0 ? heightM : decodeLandHeight(code);
-    }
-    return {
-      lat,
-      lon,
-      heightM,
-      elevationM,
-      cell,
-      classId: sim.terrainClass[cell.index] as number,
-      countryId: sim.country[cell.index] as number,
-    };
+    return describeAt(this.world, lat, lon, heightM);
   }
 
   /** Screen position (canvas pixels) of the displaced surface point above a position. */

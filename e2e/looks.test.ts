@@ -291,6 +291,45 @@ describe('country borders', () => {
 });
 
 // The goldens come last: the six canonical views, committed ONCE with UPDATE_GOLDENS=1 after everything above is final.
+// The pole rows of the mesh read one common height (no tear), and the polar caps (radial streaks in the baked rasters beyond
+// 85.05 degrees) fade out of the shading. Measured on rings around the pole: the pixel luma minus its 25-sample moving
+// average. Before the fix the south pole had a dark streak along the 180 degree meridian (down to -13 luma) and the north
+// pole radial depth spokes (about +5 luma); with the fix every ring is flat to within about 3.
+describe('poles: no tear and no radial streaks (setView on the pole, distKm 2500, tilt 0)', () => {
+  const ringHighPass = (img: Img, r: number): { min: number; max: number } => {
+    const n = 720;
+    const v: number[] = [];
+    for (let k = 0; k < n; k++) {
+      const a = (2 * Math.PI * k) / n;
+      v.push(lumaAt(img, img.width / 2 + r * Math.cos(a), img.height / 2 + r * Math.sin(a)));
+    }
+    const w = 25;
+    const hp = v.map((x, k) => {
+      let m = 0;
+      for (let d = -12; d <= 12; d++) m += v[(k + d + n) % n] as number;
+      return x - m / w;
+    });
+    return { min: Math.min(...hp), max: Math.max(...hp) };
+  };
+  for (const [name, lat] of [['south', -90], ['north', 90]] as const) {
+    it(name, async () => {
+      const { page, messages } = await openGlobe();
+      try {
+        const { img } = await shoot(page, { lat, lon: 0, distKm: 2500, heading: 0, tilt: 0, time: 0 }, `pole-${name}`);
+        const stats = [30, 60, 100, 150].map((r) => ({ r, ...ringHighPass(img, r) }));
+        console.log(`[pole ${name}] ring high-pass (luma): ${stats.map((x) => `r${x.r} ${x.min.toFixed(1)}..${x.max.toFixed(1)}`).join(', ')}`);
+        for (const x of stats) {
+          expect(x.min, `${name} ring ${x.r}`).toBeGreaterThan(-4);
+          expect(x.max, `${name} ring ${x.r}`).toBeLessThan(4);
+        }
+        expect(messages).toEqual([]);
+      } finally {
+        await page.close();
+      }
+    });
+  }
+});
+
 describe('goldens of the six canonical views', () => {
   it('two renders in one browser start are byte-identical, and each view matches its golden (pixelmatch 0.1, <= 0.2 %)', async () => {
     const { page, messages } = await openGlobe();
