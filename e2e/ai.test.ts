@@ -181,4 +181,24 @@ describe('the match with the AI (?test=1&seed=7, AI on by default)', () => {
       await page.close();
     }
   });
+
+  it('ownership uploads stay at 10 per second of fx time or less at every speed while 25 AI seats conquer', async () => {
+    const { page, messages } = await open('test=1&seed=7');
+    try {
+      await page.evaluate((c) => (window as any).__test.submit({ kind: 'Spawn', seat: 0, cell: c }), cellOf(START.lat, START.lon));
+      await advance(page, 300); // the spawn phase and the immunity are over, the AI is expanding
+      for (const speed of [1, 2, 4]) {
+        await page.evaluate((sp) => (window as any).__test.setSpeed(sp), speed);
+        const seconds = 20;
+        const r = await page.evaluate((sec) => (window as any).__test.run(sec, 60), seconds);
+        console.log(`[ai] speed ${speed}x: ${r.ticks} ticks and ${r.uploads} ownership uploads in ${seconds} fx seconds (${(r.uploads / seconds).toFixed(1)} per second)`);
+        expect(r.ticks).toBeGreaterThanOrEqual(seconds * 10 * speed - 8);
+        expect(r.uploads).toBeLessThanOrEqual(seconds * 10 + 1);
+        expect(r.uploads).toBeGreaterThan(0);
+      }
+      expect(messages).toEqual([]);
+    } finally {
+      await page.close();
+    }
+  });
 });
