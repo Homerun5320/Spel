@@ -1,22 +1,34 @@
 // The stylised Earth: renderer, scene, globe mesh with the terrain ShaderMaterial, camera rig, picking and projection.
 // This is the only module (besides the M00 spike and textureProbe) that talks to WebGL.
-import { Color, Mesh, PerspectiveCamera, Scene, type ShaderMaterial, type Vector3, WebGLRenderer } from 'three';
-import { decodeDepth, decodeLandHeight, type RenderPack, type SimGrid, type WorldMeta } from '../data';
+import { BufferAttribute, BufferGeometry, Color, Mesh, PerspectiveCamera, Points, Scene, type ShaderMaterial, SphereGeometry, type Vector3, WebGLRenderer } from 'three';
+import { type City, decodeDepth, decodeLandHeight, type RenderPack, type SimGrid, type WorldMeta } from '../data';
 import { CameraRig, type ViewState } from './camera';
-import { HEIGHT_EXAGGERATION } from './config';
+import { ATMOSPHERE_TOP, HEIGHT_EXAGGERATION, OCEAN_WAVE_SPEED } from './config';
 import { fxNow } from './clock';
 import { latLonToCell, sunDirectionAt, type Vec3 } from './geo';
 import { buildGlobeGeometry } from './globeMesh';
 import { HeightField } from './heightField';
 import { meshTriangles, type QualitySettings } from './quality';
+import { buildStars } from './stars';
 import { createTerrainMaterial } from './terrainMaterial';
 import { readTexels } from './textureProbe';
-import { createWorldTextures, disposeWorldTextures, textureBytes, type WorldTextureName, type WorldTextures } from './textures';
+import {
+  allTextureBytes,
+  createLookTextures,
+  createWorldTextures,
+  disposeLookTextures,
+  disposeWorldTextures,
+  type LookTextures,
+  type WorldTextureName,
+  type WorldTextures,
+} from './textures';
 
 export interface WorldData {
   render: RenderPack;
   sim: SimGrid;
   meta: WorldMeta;
+  /** City list for the night lights (optional: without it the night side has no lights). */
+  cities?: readonly City[];
 }
 
 export interface GlobeOptions {
@@ -77,7 +89,11 @@ export class Globe {
   private readonly camera: PerspectiveCamera;
   private readonly material: ShaderMaterial;
   private readonly mesh: Mesh;
+  private readonly shell: Mesh;
+  private readonly stars: Points;
+  private readonly starsMaterial: ShaderMaterial;
   private readonly textures: WorldTextures;
+  private readonly look: LookTextures;
   private readonly sun: Vector3;
   private width: number;
   private height: number;
@@ -111,12 +127,27 @@ export class Globe {
     });
 
     this.textures = createWorldTextures(o.world.render, o.world.sim);
-    const tm = createTerrainMaterial(this.textures, o.world.render, o.world.sim, o.world.meta);
+    this.look = createLookTextures(o.world.cities ?? []);
+    const tm = createTerrainMaterial(this.textures, o.world.render, o.world.sim, o.world.meta, this.look);
     this.material = tm.material;
     this.sun = tm.sun;
     this.mesh = new Mesh(buildGlobeGeometry(o.quality.meshCols, o.quality.meshRows), this.material);
     this.mesh.frustumCulled = false;
-    this.scene.add(this.mesh);
+    // Back-face additive atmosphere shell (drawn after the opaque globe) and the star points (drawn first).
+    this.shell = new Mesh(new SphereGeometry(ATMOSPHERE_TOP, 96, 48), tm.atmosphere);
+    this.shell.frustumCulled = false;
+    this.shell.renderOrder = 10;
+    const field = buildStars();
+    const sg = new BufferGeometry();
+    sg.setAttribute('position', new BufferAttribute(field.positions, 3));
+    sg.setAttribute('aSize', new BufferAttribute(field.sizes, 1));
+    sg.setAttribute('aColor', new BufferAttribute(field.colors, 3));
+    this.starsMaterial = tm.stars;
+    this.starsMaterial.uniforms.uPixelRatio = { value: o.dpr };
+    this.stars = new Points(sg, this.starsMaterial);
+    this.stars.frustumCulled = false;
+    this.stars.renderOrder = -10;
+    this.scene.add(this.stars, this.mesh, this.shell);
   }
 
   get exaggeration(): number {
@@ -140,6 +171,7 @@ export class Globe {
     this.renderer.setPixelRatio(dpr);
     this.renderer.setSize(width, height, false);
     this.rig.setViewport(width, height);
+    (this.starsMaterial.uniforms.uPixelRatio as { value: number }).value = dpr;
   }
 
   /** Renders one frame at the current fx time (camera inertia and the sun follow the fx clock). */
@@ -148,6 +180,7 @@ export class Globe {
     this.rig.update(now);
     const sun = sunDirectionAt(now);
     this.sun.set(sun[0], sun[1], sun[2]);
+    (this.material.uniforms.uTime as { value: number }).value = now * OCEAN_WAVE_SPEED;
     const p = this.rig.pose();
     const c = this.camera;
     c.position.set(p.position[0], p.position[1], p.position[2]);
@@ -214,8 +247,7 @@ export class Globe {
     const gl = this.renderer.getContext();
     const ext = gl.getExtension('WEBGL_debug_renderer_info');
     const info = this.renderer.info;
-    const t = this.textures;
-    const bytes = textureBytes(t.height) + textureBytes(t.bathy) + textureBytes(t.country) + textureBytes(t.terrainClass);
+    const bytes = allTextureBytes(this.textures, this.look);
     return {
       renderer: (ext ? String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)) : '') || String(gl.getParameter(gl.RENDERER)),
       vendor: (ext ? String(gl.getParameter(ext.UNMASKED_VENDOR_WEBGL)) : '') || String(gl.getParameter(gl.VENDOR)),
@@ -243,7 +275,13 @@ export class Globe {
   dispose(): void {
     this.mesh.geometry.dispose();
     this.material.dispose();
+    this.shell.geometry.dispose();
+    (this.shell.material as ShaderMaterial).dispose();
+    this.stars.geometry.dispose();
+    this.starsMaterial.dispose();
     disposeWorldTextures(this.textures);
+    disposeLookTextures(this.look);
     this.renderer.dispose();
+    this.renderer.forceContextLoss(); // free the GL context: the app restarts the scene on hashchange
   }
 }

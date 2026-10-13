@@ -1,8 +1,11 @@
-// Client entry (M00 spike). Builds the DOM from JS (index.html stays a bare fragment with no
-// attributes on <html>/<body>), starts the spike renderer and exposes the test hooks.
+// Client entry. Builds the DOM from JS (index.html stays a bare fragment with no attributes on <html>/<body>), starts the
+// scene chosen by the address (query and hash through the one parser in params.ts), mounts the Dev panel and restarts the
+// scene when the hash changes (no page reload needed).
 import { createSpike, TEST_SUN_LAT_DEG, TEST_SUN_LON_DEG, type Spike, type SpikeInfo } from '../render/spike';
+import { mountDevPanel } from './devpanel';
 import { bootGlobe, type GlobeTestHooks } from './globeApp';
-import { parseParams, parseSceneParams } from './params';
+import { registerAppModes } from './modes';
+import { parseAppState, parseRaw } from './params';
 import { siteUrl } from './paths';
 
 export interface TestHooks {
@@ -26,10 +29,19 @@ declare global {
   }
 }
 
-function boot(): void {
-  const params = parseParams(window.location.search);
-  const root = document.getElementById('root');
-  if (!root) throw new Error('missing #root');
+/** Stops the running scene and removes its DOM. */
+type Stop = () => void;
+
+function startScene(root: HTMLElement): Stop {
+  const state = parseAppState(window.location.search, window.location.hash);
+  const { params, scene } = state;
+  const stops: Stop[] = [];
+  let stopped = false;
+  const stop: Stop = () => {
+    if (stopped) return;
+    stopped = true;
+    for (const fn of stops.reverse()) fn();
+  };
 
   // Classes and language go on our own wrapper, never on <html> or <body>.
   const wrapper = document.createElement('div');
@@ -47,6 +59,10 @@ function boot(): void {
   overlay.hidden = params.test;
   wrapper.appendChild(overlay);
   root.appendChild(wrapper);
+  stops.push(() => {
+    delete window.__test;
+    wrapper.remove();
+  });
 
   // Link to the preview probe page (declared in index.html). Hidden in test mode so the golden is unaffected.
   const probeLink = document.getElementById('probe-link');
@@ -58,7 +74,7 @@ function boot(): void {
     probeLink.hidden = params.test;
   }
 
-  // Link row to the data maps (M01); the Dev panel (M02) takes over later. Hidden in test mode like the probe link.
+  // Link row to the data maps (M01); the Dev panel (M02) lists the same page. Hidden in test mode like the probe link.
   const debugLinks = document.getElementById('debug-links');
   if (debugLinks instanceof HTMLElement) {
     debugLinks.style.cssText =
@@ -72,17 +88,21 @@ function boot(): void {
     debugLinks.hidden = params.test;
   }
 
-  // M02: the stylised Earth is the default scene; `?scene=spike` keeps the M00 spike (its golden and seed test).
-  const scene = parseSceneParams(window.location.search);
+  // M02: the stylised Earth is the default scene; `?scene=spike` / `#scene-spike` keeps the M00 spike (its golden and seed test).
   if (scene.scene !== 'spike') {
-    bootGlobe({ wrapper, canvas, overlay, params, scene }).catch((err: unknown) => {
-      console.error(err);
-      const msg = document.createElement('div');
-      msg.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#f99;font:14px system-ui,sans-serif;';
-      msg.textContent = `Kunde inte starta: ${err instanceof Error ? err.message : String(err)}`;
-      wrapper.appendChild(msg);
-    });
-    return;
+    bootGlobe({ wrapper, canvas, overlay, params, scene, state, isActive: () => !stopped })
+      .then((stopGlobe) => {
+        if (stopped) stopGlobe();
+        else stops.push(stopGlobe);
+      })
+      .catch((err: unknown) => {
+        console.error(err);
+        const msg = document.createElement('div');
+        msg.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#f99;font:14px system-ui,sans-serif;';
+        msg.textContent = `Kunde inte starta: ${err instanceof Error ? err.message : String(err)}`;
+        wrapper.appendChild(msg);
+      });
+    return stop;
   }
 
   const dpr = params.test ? 1 : Math.min(window.devicePixelRatio || 1, 2);
@@ -106,6 +126,7 @@ function boot(): void {
     seed: params.seed,
     blank: params.blank,
   });
+  stops.push(() => spike.dispose());
 
   let firstFrameMs: number | null = null;
   let frames = 0;
@@ -127,13 +148,15 @@ function boot(): void {
     ].join('\n');
   };
 
-  window.addEventListener('keydown', (e: KeyboardEvent) => {
+  const onKey = (e: KeyboardEvent): void => {
     if (e.key === 'F3') {
       e.preventDefault();
       overlay.hidden = !overlay.hidden;
       if (!overlay.hidden) refreshOverlay();
     }
-  });
+  };
+  window.addEventListener('keydown', onKey);
+  stops.push(() => window.removeEventListener('keydown', onKey));
 
   if (params.test) {
     window.__test = {
@@ -145,23 +168,47 @@ function boot(): void {
         return { ...spike.info(), firstFrameMs, frames, testMode: true };
       },
     };
-    return; // deterministic mode: no requestAnimationFrame loop
+    return stop; // deterministic mode: no requestAnimationFrame loop
   }
 
-  window.addEventListener('resize', () => {
-    spike.resize(window.innerWidth, window.innerHeight, Math.min(window.devicePixelRatio || 1, 2));
-  });
+  const onResize = (): void => spike.resize(window.innerWidth, window.innerHeight, Math.min(window.devicePixelRatio || 1, 2));
+  window.addEventListener('resize', onResize);
+  stops.push(() => window.removeEventListener('resize', onResize));
   let last = performance.now();
+  let raf = 0;
   const loop = (now: number): void => {
+    if (stopped) return;
     const dt = now - last;
     last = now;
     if (dt > 0) fps = fps * 0.9 + (1000 / dt) * 0.1;
     // The sun drifts 12 degrees of longitude per second.
     renderFrame(TEST_SUN_LON_DEG + (now / 1000) * 12, TEST_SUN_LAT_DEG);
     if (!overlay.hidden) refreshOverlay();
-    requestAnimationFrame(loop);
+    raf = requestAnimationFrame(loop);
   };
-  requestAnimationFrame(loop);
+  raf = requestAnimationFrame(loop);
+  stops.push(() => cancelAnimationFrame(raf));
+  return stop;
+}
+
+function boot(): void {
+  const root = document.getElementById('root');
+  if (!root) throw new Error('missing #root');
+  registerAppModes();
+  const panel = mountDevPanel({ parent: root, getRaw: () => parseRaw(window.location.search, window.location.hash) });
+
+  let stop: Stop | null = null;
+  const restart = (): void => {
+    stop?.();
+    stop = startScene(root);
+    const state = parseAppState(window.location.search, window.location.hash);
+    // The corner button is visible everywhere (phones have no F2), except in test mode where screenshots must stay clean.
+    panel.setButtonVisible(!state.params.test || state.devButton);
+    panel.refresh();
+  };
+  restart();
+  // A changed hash starts the mode again without a page reload.
+  window.addEventListener('hashchange', restart);
 }
 
 boot();

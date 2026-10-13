@@ -32,7 +32,7 @@ describe('smoke: headless WebGL2 screenshot of the lit globe', () => {
     expect(shot.info.width).toBe(960);
     expect(shot.info.height).toBe(540);
     expect(shot.info.dpr).toBe(1);
-    expect(shot.info.drawCalls).toBe(1);
+    expect(shot.info.drawCalls).toBe(3); // M02 B: stars + globe + atmosphere shell (it was 1 while the globe was alone)
     expect(shot.info.triangles).toBeLessThanOrEqual(150_000);
     expect(shot.consoleMessages).toEqual([]);
     assertShotOk(shot);

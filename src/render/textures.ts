@@ -10,7 +10,10 @@ import {
   RepeatWrapping,
   UnsignedByteType,
 } from 'three';
-import type { RenderPack, SimGrid } from '../data';
+import type { City, RenderPack, SimGrid } from '../data';
+import { LIGHTS_HEIGHT, LIGHTS_WIDTH } from './config';
+import { buildCityLights } from './nightLights';
+import { createPaletteTexture } from './palette';
 
 export type TextureFilter = 'linear' | 'nearest';
 
@@ -63,4 +66,26 @@ export function disposeWorldTextures(t: WorldTextures): void {
   t.bathy.dispose();
   t.country.dispose();
   t.terrainClass.dispose();
+}
+
+/** Textures drawn on the CPU (not baked packs): the night lights from cities.json and the country palette LUT. */
+export interface LookTextures {
+  /** Night lights 2048x1024, linear, R8. */
+  lights: DataTexture;
+  /** Country colour palette LUT 256x1 RGBA8, nearest (index = country id). */
+  palette: DataTexture;
+}
+
+export function createLookTextures(cities: readonly City[]): LookTextures {
+  return { lights: makeR8Texture(buildCityLights(cities), LIGHTS_WIDTH, LIGHTS_HEIGHT, 'linear'), palette: createPaletteTexture() };
+}
+
+export function disposeLookTextures(t: LookTextures): void {
+  t.lights.dispose();
+  t.palette.dispose();
+}
+
+/** Bytes of the world and look textures on the GPU (R8 data, RGBA8 palette). */
+export function allTextureBytes(w: WorldTextures, l: LookTextures): number {
+  return textureBytes(w.height) + textureBytes(w.bathy) + textureBytes(w.country) + textureBytes(w.terrainClass) + textureBytes(l.lights) + textureBytes(l.palette) * 4;
 }

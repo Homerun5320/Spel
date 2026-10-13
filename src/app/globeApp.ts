@@ -3,11 +3,13 @@
 import { createWorldLoader } from '../data';
 import { advanceFx, fxNow, setFxTime } from '../render/clock';
 import type { ViewState } from '../render/camera';
-import { Globe, type GlobeInfo, type GlobePick, type ScreenHit } from '../render/globe';
+import { Globe, type GlobeInfo, type GlobePick, type ScreenHit, type WorldData } from '../render/globe';
 import type { WorldTextureName } from '../render/textures';
 import { DEFAULT_START_TIME, DEFAULT_START_VIEW } from '../render/views';
 import { resolveQuality } from '../render/quality';
-import type { AppParams, SceneParams } from './params';
+import { FrameStats } from '../ui/frameStats';
+import { createPerfOverlay, type PerfOverlay } from '../ui/perfOverlay';
+import type { AppParams, AppState, SceneParams } from './params';
 import { siteUrl } from './paths';
 import { countryNameMap, tooltipText } from './tooltip';
 
@@ -17,6 +19,10 @@ export interface GlobeAppContext {
   overlay: HTMLPreElement;
   params: AppParams;
   scene: SceneParams;
+  /** The parsed address (perf flag and the raw key/values for the perf report). */
+  state: AppState;
+  /** False once the scene was stopped (a hash change restarted the mode) while the packs were still loading. */
+  isActive?: () => boolean;
 }
 
 export interface GlobeTestInfo extends GlobeInfo {
@@ -55,16 +61,31 @@ async function readBytes(url: string): Promise<Uint8Array> {
   return new Uint8Array(await res.arrayBuffer());
 }
 
-export async function bootGlobe(ctx: GlobeAppContext): Promise<void> {
+// The packs are loaded once per page: a restart of the mode (hashchange) reuses them.
+let worldCache: Promise<WorldData> | null = null;
+function loadWorld(): Promise<WorldData> {
+  if (!worldCache) {
+    const loader = createWorldLoader({ manifestUrl: siteUrl('data/manifest.json'), readBytes });
+    worldCache = Promise.all([loader.loadRender(), loader.loadSim(), loader.loadMeta(), loader.loadCities()]).then(([render, sim, meta, cities]) => ({ render, sim, meta, cities }));
+    worldCache.catch(() => {
+      worldCache = null;
+    });
+  }
+  return worldCache;
+}
+
+/** Boots the globe scene; the promise resolves to a function that stops it (listeners, frame loop, GL resources, DOM). */
+export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   const { wrapper, canvas, overlay, params } = ctx;
   const status = document.createElement('div');
   status.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#9bd;font:14px system-ui,sans-serif;pointer-events:none;';
   status.textContent = 'Laddar världen...';
   if (!params.test) wrapper.appendChild(status);
 
-  const loader = createWorldLoader({ manifestUrl: siteUrl('data/manifest.json'), readBytes });
-  const [render, sim, meta] = await Promise.all([loader.loadRender(), loader.loadSim(), loader.loadMeta()]);
+  const world = await loadWorld();
+  const { meta } = world;
   status.remove();
+  if (ctx.isActive && !ctx.isActive()) return () => undefined; // stopped while loading: build nothing
 
   const quality = resolveQuality({ test: params.test, quality: ctx.scene.quality });
   const dpr = params.test ? 1 : Math.min(window.devicePixelRatio || 1, quality.maxDpr);
@@ -79,11 +100,14 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<void> {
   }
   canvas.style.touchAction = 'none';
 
-  const globe = new Globe({ canvas, width, height, dpr, quality, world: { render, sim, meta }, preserveDrawingBuffer: params.test });
+  const globe = new Globe({ canvas, width, height, dpr, quality, world, preserveDrawingBuffer: params.test });
   globe.setView(DEFAULT_START_VIEW);
   if (params.blank) canvas.style.visibility = 'hidden'; // debug: the negative e2e test needs an empty picture
   setFxTime(DEFAULT_START_TIME); // the sun starts 67 degrees west of the default view so that the terminator is visible at once
 
+  const abort = new AbortController();
+  const { signal } = abort;
+  let alive = true;
   const names = countryNameMap(meta);
   const tip = document.createElement('div');
   tip.style.cssText =
@@ -111,13 +135,37 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<void> {
       `${i.width}x${i.height} @${i.dpr}x  tier ${i.tier} (${i.meshCols}x${i.meshRows})`,
     ].join('\n');
   };
-  window.addEventListener('keydown', (e: KeyboardEvent) => {
-    if (e.key === 'F3') {
-      e.preventDefault();
-      overlay.hidden = !overlay.hidden;
-      if (!overlay.hidden) refreshOverlay();
-    }
-  });
+  window.addEventListener(
+    'keydown',
+    (e: KeyboardEvent) => {
+      if (e.key === 'F3') {
+        e.preventDefault();
+        overlay.hidden = !overlay.hidden;
+        if (!overlay.hidden) refreshOverlay();
+      }
+    },
+    { signal },
+  );
+
+  // --- Performance overlay (?perf=1 / #perf) ------------------------------------------------------------------------
+  const stats = new FrameStats();
+  let perf: PerfOverlay | null = null;
+  if (ctx.state.perf) {
+    perf = createPerfOverlay(wrapper, {
+      snapshot: () => globe.info(),
+      stats,
+      mode: { test: params.test ? '1' : '0', quality: quality.tier, scene: ctx.scene.scene },
+    });
+  }
+  const disposeAll = (): void => {
+    if (!alive) return;
+    alive = false;
+    abort.abort();
+    perf?.dispose();
+    tip.remove();
+    status.remove();
+    globe.dispose();
+  };
 
   // --- Mouse ------------------------------------------------------------------------------------------------------
   const tipFor = (x: number, y: number): string | null => {
@@ -195,6 +243,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<void> {
         advanceFx(dt);
         renderFrame();
         if (!overlay.hidden) refreshOverlay();
+        perf?.update();
       },
       info(): GlobeTestInfo {
         return { ...globe.info(), firstFrameMs, frames, testMode: true, fx: fxNow() };
@@ -215,23 +264,29 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<void> {
       tooltip: tipFor,
     };
     window.__test = hooks;
-    return; // deterministic mode: no requestAnimationFrame loop
+    return disposeAll; // deterministic mode: no requestAnimationFrame loop
   }
 
-  window.addEventListener('resize', () => {
-    globe.resize(window.innerWidth, window.innerHeight, Math.min(window.devicePixelRatio || 1, quality.maxDpr));
-  });
+  window.addEventListener('resize', () => globe.resize(window.innerWidth, window.innerHeight, Math.min(window.devicePixelRatio || 1, quality.maxDpr)), { signal });
   let last = performance.now();
+  let sinceOverlay = 0;
   const loop = (now: number): void => {
+    if (!alive) return;
     const dt = (now - last) / 1000;
     last = now;
     if (dt > 0) {
       fps = fps * 0.9 + (1 / dt) * 0.1;
+      stats.push(dt * 1000);
       advanceFx(Math.min(dt, 0.1));
     }
     renderFrame();
     if (!overlay.hidden) refreshOverlay();
+    if (perf && ++sinceOverlay >= 15) {
+      sinceOverlay = 0;
+      perf.update();
+    }
     requestAnimationFrame(loop);
   };
   requestAnimationFrame(loop);
+  return disposeAll;
 }

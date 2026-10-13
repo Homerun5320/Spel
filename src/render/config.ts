@@ -20,6 +20,61 @@ export const AMBIENT_NIGHT: readonly [number, number, number] = [0.018, 0.026, 0
 export const AMBIENT_DAY: readonly [number, number, number] = [0.06, 0.08, 0.12];
 /** Weight of the mesh facet normal (stylised flat shading) added to the height-field slope normal. */
 export const FACET_WEIGHT = 0.5;
+/** Sun colour near the horizon (twilight band of the terminator) and the width of that band in sin(elevation). */
+export const SUN_COLOR_LOW: readonly [number, number, number] = [1.0, 0.52, 0.26];
+export const TWILIGHT_WIDTH = 0.16;
+/** Strength of the warm twilight light that spills over the terminator (0 = none). */
+export const TWILIGHT_STRENGTH = 0.22;
+
+// --- Ocean ------------------------------------------------------------------------------------------------------
+/** Slope of the largest wave octave (smaller octaves fall off by 0.8 each); faded out by screen size. */
+export const OCEAN_WAVE_SLOPE = 0.065;
+/** Wave speed multiplier on the fx clock (the clock is frozen in test mode, so the normals are frozen too). */
+export const OCEAN_WAVE_SPEED = 1.0;
+/** Fresnel reflectance at normal incidence (water). */
+export const OCEAN_F0 = 0.02;
+/** Sun glint: broad lobe (stylised sun-glitter patch) and tight lobe (sparkles on the wave facets): strength and exponent. */
+export const OCEAN_SPEC_BROAD = 0.6;
+export const OCEAN_SPEC_BROAD_EXP = 45;
+export const OCEAN_SPEC_TIGHT = 1.8;
+export const OCEAN_SPEC_TIGHT_EXP = 900;
+/** Sky colours the water reflects (linear): horizon and zenith, and the night sky. */
+export const SKY_HORIZON: readonly [number, number, number] = [0.42, 0.62, 0.9];
+export const SKY_ZENITH: readonly [number, number, number] = [0.07, 0.2, 0.55];
+export const SKY_NIGHT: readonly [number, number, number] = [0.004, 0.007, 0.02];
+
+// --- Atmosphere -------------------------------------------------------------------------------------------------
+/** Outer radius of the atmosphere shell (Earth radii; far above the real 1.016 so the glow reads at globe scale). */
+export const ATMOSPHERE_TOP = 1.07;
+/** Density scale height in Earth radii (stylised, about 70 km). */
+export const ATMOSPHERE_SCALE_HEIGHT = 0.011;
+/** In-scatter strength and the extinction per unit of optical depth. */
+export const ATMOSPHERE_STRENGTH = 2.2;
+export const ATMOSPHERE_EXTINCTION = 5.0;
+/** Scatter colours (linear): blue by day, orange-red near the terminator. */
+export const ATMOSPHERE_COLOR: readonly [number, number, number] = [0.16, 0.42, 1.0];
+export const ATMOSPHERE_DUSK: readonly [number, number, number] = [0.9, 0.3, 0.1];
+
+// --- Stars -------------------------------------------------------------------------------------------------------
+export const STAR_COUNT = 2600;
+export const STAR_SEED = 20240611;
+/** Point size range in pixels and the brightness exponent (larger = fewer bright stars). */
+export const STAR_SIZE_MIN = 1.0;
+export const STAR_SIZE_MAX = 2.6;
+
+// --- Night lights (drawn on the CPU from cities.json into a 2048x1024 texture) ---------------------------------------
+export const LIGHTS_WIDTH = 2048;
+export const LIGHTS_HEIGHT = 1024;
+export const LIGHTS_SEED = 7771;
+/** Light colour (linear) and gain; the texture value is multiplied by both and by the night factor. */
+export const LIGHTS_COLOR: readonly [number, number, number] = [1.0, 0.72, 0.36];
+export const LIGHTS_GAIN = 1.5;
+
+// --- Country borders and palette ----------------------------------------------------------------------------------
+/** Share of the border line colour mixed into the land colour (weak lines). */
+export const BORDER_STRENGTH = 0.34;
+/** Share of the country palette colour mixed into the land albedo (a faint political tint). */
+export const COUNTRY_TINT = 0.06;
 
 // --- Camera ----------------------------------------------------------------------------------------------------
 /** Vertical field of view in degrees. */

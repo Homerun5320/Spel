@@ -67,7 +67,9 @@ describe('globe scene: test tier budget', () => {
       expect(info.tier).toBe('test'); // ?test=1 forces the test tier whatever ?quality= says
       expect([info.meshCols, info.meshRows]).toEqual([256, 128]);
       expect(info.triangles).toBeLessThanOrEqual(150_000);
-      expect(info.triangles).toBe(2 * 256 * 128);
+      // Since checkpoint B the scene is 3 draw calls: stars (points, no triangles), the globe mesh and the 96x48 atmosphere shell.
+      expect(info.triangles).toBe(2 * 256 * 128 + 9024); // 9024 = the 96x48 sphere of the shell
+      expect(info.drawCalls).toBe(3);
       expect(info.drawCalls).toBeLessThanOrEqual(30);
       expect([info.width, info.height, info.dpr]).toEqual([960, 540, 1]);
       expect(messages).toEqual([]);

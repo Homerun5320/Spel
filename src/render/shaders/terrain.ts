@@ -1,7 +1,12 @@
 // The globe shader: displaced lat/lon grid, derivative flat shading, hypsometric colours with snow, biome tone from the
 // sim class layer, coast colour from bathymetry and a coast line shaded from the land mask per fragment (so a coarse mesh
-// never gives a wrong coast line; M07 replaces the mesh with an LOD).
+// never gives a wrong coast line; M07 replaces the mesh with an LOD). Item 3 and 4 pieces come from their own modules:
+// ocean (waves, Fresnel, glitter), atmosphere (haze and limb glow), borders (id raster neighbour comparison). Night lights
+// are an emissive term of the day/night terminator.
+import { GLSL_ATMOSPHERE } from './atmosphere';
+import { GLSL_BORDERS } from './borders';
 import { GLSL_GEO, GLSL_TEXELS } from './common';
+import { GLSL_OCEAN } from './ocean';
 
 export const terrainVertexShader = /* glsl */ `
 uniform sampler2D uHeight;
@@ -37,6 +42,10 @@ uniform float uExag;
 uniform float uKmPerUnit;
 uniform vec3 uSun;
 uniform vec3 uSunColor;
+uniform vec3 uSunColorLow;
+uniform vec2 uTwilight; // x width (sin elevation), y strength
+uniform sampler2D uLights;
+uniform vec4 uLightsColor; // rgb colour (linear), a gain
 uniform vec3 uAmbientNight;
 uniform vec3 uAmbientDay;
 uniform vec3 uClassAlbedo[8];
@@ -47,6 +56,9 @@ varying vec3 vPos;
 
 ${GLSL_GEO}
 ${GLSL_TEXELS}
+${GLSL_ATMOSPHERE}
+${GLSL_OCEAN}
+${GLSL_BORDERS}
 
 // Land fraction (bilinear over the binary mask) and the land-only mean height in metres at a position.
 void sampleLand(vec2 uv, out float mask, out float heightM) {
@@ -173,17 +185,41 @@ void main() {
   float depthM = sampleDepth(uv);
   vec3 albedoWater = waterAlbedo(depthM);
 
+  // Country: faint palette tint and a weak border line (between two different land ids; coast against sea is no border).
+  int cid = countryAt(dir);
+  vec3 pal = paletteColor(cid);
+  albedoLand = mix(albedoLand, pal, uCountryTint * step(0.5, float(cid)));
+  float border = borderMask(dir, cid);
+  vec3 borderCol = mix(vec3(0.06, 0.05, 0.04), pal * 0.45, 0.35);
+  albedoLand = mix(albedoLand, borderCol, border * uBorderStrength * (1.0 - snow * 0.5));
+
   // Lighting (linear space): day factor from the sphere normal, diffuse from the flat normal on land.
   vec3 sun = normalize(uSun);
   float sunDot = dot(dir, sun);
   float day = smoothstep(-0.10, 0.20, sunDot);
+  vec3 sunCol = mix(uSunColorLow, uSunColor, smoothstep(0.0, 0.5, sunDot));
+  float twilight = exp(-pow(sunDot / uTwilight.x, 2.0)) * uTwilight.y;
   float diffLand = clamp(dot(shadeN, sun), 0.0, 1.0);
   float diffWater = clamp(sunDot, 0.0, 1.0);
-  vec3 ambient = mix(uAmbientNight, uAmbientDay, day);
+  vec3 ambient = mix(uAmbientNight, uAmbientDay, day) + uSunColorLow * twilight * 0.35;
 
-  vec3 litLand = toLinear(albedoLand) * (ambient + uSunColor * day * (0.12 + 0.95 * diffLand));
-  vec3 litWater = toLinear(albedoWater) * (ambient + uSunColor * day * (0.10 + 0.9 * diffWater));
+  vec3 viewDir = normalize(cameraPosition - vPos);
+  vec3 litLand = toLinear(albedoLand) * (ambient + sunCol * day * (0.12 + 0.95 * diffLand));
+  vec3 bodyWater = toLinear(albedoWater) * (ambient + sunCol * day * (0.10 + 0.9 * diffWater));
+  vec3 litWater = oceanColor(bodyWater, dir, viewDir, pixelAngle, sun, day, sunCol);
   vec3 col = mix(litWater, litLand, land);
+
+  // Night lights: emissive on land on the night side, from the CPU-drawn 1024x512 light texture (bilinear).
+  float nightF = 1.0 - smoothstep(-0.14, 0.06, sunDot);
+  float lightTex = texture(uLights, uv).r;
+  col += uLightsColor.rgb * (uLightsColor.a * lightTex * lightTex * nightF * land);
+
+  // Atmosphere: haze and glow between the camera and this surface point (in linear light).
+  vec3 toSurf = vPos - cameraPosition;
+  float distSurf = length(toSurf);
+  vec4 sc = atmosphereScatter(cameraPosition, toSurf / distSurf, distSurf, sun, 6);
+  col = col * sc.a + sc.rgb;
+
   gl_FragColor = vec4(toDisplay(col), 1.0);
 }
 `;
