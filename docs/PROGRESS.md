@@ -12,7 +12,7 @@ Resume: Läs CLAUDE.md och docs/PROGRESS.md, kör git log -10 och npm run verify
 
 ## Now
 
-### M02 Wow 1: den stiliserade 3D-jorden (GATE) - Checkpoint A and B and the last step are built; waiting for `npm run verify`, the orchestrator's push / draft PR / Artifact and the user's look on a real GPU
+### M02 Wow 1: den stiliserade 3D-jorden (GATE) - built, audited and fixed; pushed to PR #1 and published in the Artifact as version 3 (`npm run verify` green: 376 unit, 9 perf, 52 e2e); waiting for the user's look on a real GPU (the gate)
 
 Previous merge SHA (origin/main at start): f29121a8d1607ca169e6675b5f22a52d76c42ef7 (still the initial commit: M00, M00b and M01 are NOT merged, they live on this branch and in draft pull request #1; the "M01 is merged" precondition was treated as satisfied by the orchestrator's instruction). `npm ci && npm run verify:fast` was green at the start (279 unit tests).
 
