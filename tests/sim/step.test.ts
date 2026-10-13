@@ -158,6 +158,20 @@ describe('step: invalid intents become no-ops and raise the reject counter', () 
     expect(s.rejects).toBe(0);
   });
 
+  it('the tick counter is a full 32-bit counter: it passes 2^16 and wraps at 2^32', () => {
+    for (const [from, to] of [
+      [65535, 65536],
+      [65536, 65537],
+      [4294967294, 4294967295],
+      [4294967295, 0],
+    ] as const) {
+      const s = fresh();
+      s.tick = from;
+      expect(step(s, { turn: from, intents: [] })).toEqual({ ok: true, applied: 0, rejected: 0 });
+      expect(s.tick).toBe(to);
+    }
+  });
+
   it('valid and invalid intents mix: the valid ones still run', () => {
     const s = fresh();
     expect(step(s, { turn: 0, intents: [paint(0, 1, 0), paint(99, 2, 1), paint(0, 3, 2), null as never] })).toEqual({ ok: true, applied: 2, rejected: 2 });
