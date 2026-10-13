@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Install Chromium
+        run: npx playwright-core install --with-deps chromium
+      - name: Point shot.mjs at the full Chromium binary
+        run: echo "CHROMIUM_PATH=$(node -e "import('playwright-core').then(m=>console.log(m.chromium.executablePath()))")" >> "$GITHUB_ENV"
+      - name: Log Chromium version
+        run: |
+          echo "CHROMIUM_PATH=$CHROMIUM_PATH"
+          "$CHROMIUM_PATH" --version
+      - name: Log renderer string
+        continue-on-error: true
+        run: npm run shots
+      - name: Verify
+        # Goldens are authoritative in the cloud session's verify; CI only warns about golden differences.
+        env:
+          GOLDEN_COMPARE: warn
+        run: npm run verify
+      - name: Upload screenshots and diff images
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: test-results/
+          if-no-files-found: ignore
