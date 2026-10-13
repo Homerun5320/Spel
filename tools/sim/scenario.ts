@@ -2,7 +2,8 @@
 //
 //   npm run sim:scenario -- --seed N --minutes 10 --players 12 --tribes 20      (the match: territory curves per minute)
 //   npm run sim:scenario -- --solo [--minutes 10] [--country RUS]               (the calibration scenario: one expander)
-//   flags: --json (machine readable), --fighters (players also attack neighbours), --ticks-log (per-tick work counters)
+//   flags: --json (machine readable), --no-fighters (the players only expand into unowned land; by default they also attack the
+//   weakest neighbour they are stronger than; tribes only ever expand)
 //
 // Seats are placed on the capitals of the largest countries, the order shuffled by the seed (a hash, no Math.random).
 // Bots are in tools/sim/bots.ts. The runner steps the state directly: an intent sent at tick T runs at tick T (no host).
@@ -71,7 +72,7 @@ export function parseArgs(argv: readonly string[]): ScenarioArgs {
   let tribes = 20;
   let solo = false;
   let country: string | null = null;
-  let fighters = false;
+  let fighters = true;
   let json = false;
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i] as string;
@@ -93,6 +94,7 @@ export function parseArgs(argv: readonly string[]): ScenarioArgs {
       country = next;
       i++;
     } else if (a === '--solo') solo = true;
+    else if (a === '--no-fighters') fighters = false;
     else if (a === '--fighters') fighters = true;
     else if (a === '--json') json = true;
     else throw new Error(`unknown argument ${a}`);
@@ -203,7 +205,7 @@ export async function runScenario(args: ScenarioArgs, onTick?: (state: GameState
 export function format(report: ScenarioReport): string {
   const a = report.args;
   const lines: string[] = [];
-  lines.push(`sim:scenario seed=${a.seed} minutes=${a.minutes} players=${a.players} tribes=${a.tribes}${a.solo ? ' (solo calibration)' : ''}${a.fighters ? ' fighters' : ''} playable cells=${report.playableCells}`);
+  lines.push(`sim:scenario seed=${a.seed} minutes=${a.minutes} players=${a.players} tribes=${a.tribes}${a.solo ? ' (solo calibration)' : ''}${a.fighters ? '' : ' no-fighters'} playable cells=${report.playableCells}`);
   lines.push(`seats: ${report.countries.map((c, i) => `${i < a.players ? 'P' : 'T'}${i}=${c.a3}`).join(' ')}`);
   for (const r of report.rows) {
     const players = r.cells.slice(0, a.players);

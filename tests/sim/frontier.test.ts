@@ -88,8 +88,9 @@ function checkDerived(s: GameState, label: string): void {
     expect(s.attacks.indexOf(a.attacker, a.target)).toBe(i);
     expect(a.entries().length, `${label}: size of attack ${a.id}`).toBe(a.size);
     for (let d = 0; d < a.low; d++) expect(a.counts[d], `${label}: bags below low are empty`).toBe(0);
-    expect(a.troops).toBeLessThan(2 ** 31);
+    expect(a.troops).toBeLessThan(2 ** 31); // no wrap below zero
   }
+  for (let o = 0; o <= s.header.seats; o++) expect(s.troops[o] as number, `${label}: troops of ${o} (no negative amount, no wrap)`).toBeLessThan(2 ** 31);
   let queued = 0;
   for (let b = 0; b < ENCLAVE_FLIP_TICKS; b++) {
     for (let i = 0; i < (s.enclaves.counts[b] as number); i++) {

@@ -10,7 +10,7 @@ import { MAX_INTENTS_PER_TURN } from '../../../src/sim/rules';
 import type { StepFn } from '../../../src/sim/step';
 import { applyIntent } from '../../../src/sim/step';
 
-function makeStep(opts: { sort: boolean; dedupe: boolean }): StepFn {
+function makeStep(opts: { sort: boolean; dedupe: boolean; conquest?: boolean; enclaves?: boolean; economy?: boolean }): StepFn {
   return (state, turn) => {
     if (turn.turn !== state.tick) return { ok: false, error: 'turn-mismatch' };
     if (turn.intents.length > MAX_INTENTS_PER_TURN) return { ok: false, error: 'too-many' };
@@ -44,9 +44,9 @@ function makeStep(opts: { sort: boolean; dedupe: boolean }): StepFn {
       }
       applied++;
     }
-    conquestPhase(state);
-    enclavePhase(state);
-    economyTick(state);
+    if (opts.conquest !== false) conquestPhase(state);
+    if (opts.enclaves !== false) enclavePhase(state);
+    if (opts.economy !== false) economyTick(state);
     if (rejected > 0) state.rejects = (state.rejects + rejected) >>> 0;
     nextU32(state.rng);
     state.tick = (state.tick + 1) >>> 0;
@@ -58,5 +58,9 @@ function makeStep(opts: { sort: boolean; dedupe: boolean }): StepFn {
 export const stepWithoutSort: StepFn = makeStep({ sort: false, dedupe: true });
 /** The real rules, but a repeated (seat, id) is applied again instead of refused. */
 export const stepWithoutDedupe: StepFn = makeStep({ sort: true, dedupe: false });
+/** The real rules, but the attacks never advance (intents still start them). */
+export const stepWithoutConquest: StepFn = makeStep({ sort: true, dedupe: true, conquest: false });
+/** The real rules, but enclaves never flip. */
+export const stepWithoutEnclaves: StepFn = makeStep({ sort: true, dedupe: true, enclaves: false });
 /** The faithful copy: proves the copies above differ from the real step only by the one rule they drop. */
 export const stepCopyIntact: StepFn = makeStep({ sort: true, dedupe: true });

@@ -1,8 +1,8 @@
 # Balans (BALANCE)
 
-**Sammanfattning (svenska).** Alla spelsiffror ligger i en enda fil, `src/sim/rules.ts`, och varje konstant har en rad i tabellen nedan (ett test kontrollerar att filen och tabellen stämmer överens). Siffrorna är otestade startvärden: de flesta kommer från planen ("plan"), några är egna val ("eget val") och märkta som sådana. Planens regler är skrivna för ett 512x256-rutnät; spelet kör 1024x512, så en std-cell är 2x2 simceller (avstånd x2, areor x4, hastigheter x2). Trupper räknas i kvartstruppar (4 = 1 trupp) och guld i tusendels guld, så att inga flyttal behövs. Förändrar du ett värde: räkna upp `ENGINE_VERSION`, uppdatera raden här och kör testerna.
+**Sammanfattning (svenska).** Alla spelsiffror ligger i en enda fil, `src/sim/rules.ts`, och varje konstant har en rad i tabellen nedan (ett test kontrollerar att filen och tabellen stämmer överens). Siffrorna är otestade startvärden: de flesta kommer från planen ("plan"), några är egna val ("eget val") och märkta som sådana. Planens regler är skrivna för ett 512x256-rutnät; spelet kör 1024x512, så en std-cell är 2x2 simceller (avstånd x2, areor x4, hastigheter x2). Trupper räknas i kvartstruppar (4 = 1 trupp) och guld i tusendels guld, så att inga flyttal behövs. Erövringen (M04 del B) använder samma tabell: fångsthastigheten `CAPTURE_K_MILLI` är kalibrerad mot en ensam expanderare på riktiga världen (80 i planen, 103 efter två justeringsvarv: ca 2 440 celler efter 5 minuter och ca 5 200 efter 10, bandet står i `tools/sim/bands.ts`), kostnaden per cell är terrängens procent gånger uppförsbacke gånger (1 + djup/40), och enklaver upp till 64 celler byter ägare gratis. Förändrar du ett värde: räkna upp `ENGINE_VERSION`, uppdatera raden här och kör testerna (golden-hasharna ändras).
 
-Below, everything is in English. See `docs/DECISIONS.md` D73 to D80 for how the units were chosen.
+Below, everything is in English. See `docs/DECISIONS.md` D73 to D80 for how the units were chosen and D82 to D88 for the conquest (what d and dh mean, the calibration rounds).
 
 ## How to read the table
 

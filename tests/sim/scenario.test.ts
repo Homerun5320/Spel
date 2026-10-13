@@ -7,9 +7,10 @@ import { format, parseArgs, runScenario } from '../../tools/sim/scenario';
 import { startRealMatch } from '../helpers/realMatch';
 
 describe('sim:scenario arguments', () => {
-  it('defaults: seed 1, 10 minutes, 12 players, 20 tribes', () => {
+  it('defaults: seed 1, 10 minutes, 12 players, 20 tribes, the players fight; --no-fighters keeps them to unowned land', () => {
     const a = parseArgs([]);
-    expect([a.seed, a.minutes, a.players, a.tribes, a.solo, a.fighters]).toEqual([1, 10, 12, 20, false, false]);
+    expect([a.seed, a.minutes, a.players, a.tribes, a.solo, a.fighters]).toEqual([1, 10, 12, 20, false, true]);
+    expect(parseArgs(['--no-fighters']).fighters).toBe(false);
   });
   it('--solo means one player and no tribes; numbers are checked', () => {
     const a = parseArgs(['--solo', '--minutes', '3', '--country', 'SWE']);

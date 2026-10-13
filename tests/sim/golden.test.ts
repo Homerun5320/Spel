@@ -8,7 +8,7 @@ import { hashState } from '../../src/sim/serialize';
 import { step } from '../../src/sim/step';
 import { computeGolden, readGolden, writeGolden } from '../helpers/simGolden';
 import { withHostileGlobals } from './helpers/hostile';
-import { stepCopyIntact, stepWithoutDedupe, stepWithoutSort } from './helpers/brokenSteps';
+import { stepCopyIntact, stepWithoutConquest, stepWithoutDedupe, stepWithoutEnclaves, stepWithoutSort } from './helpers/brokenSteps';
 import { stepWithMathRandom } from './helpers/nondeterministicStep';
 
 if (process.env.UPDATE_GOLDENS === '1') {
@@ -153,6 +153,18 @@ describe('mutation: a step with one rule removed FAILS the golden', () => {
     expect(c.hashes['6000']).not.toBe(golden.hashes['6000']);
     expect(c.alt.hashes['1000']).not.toBe(golden.alt.hashes['1000']);
     expect(c.adversarial.hashes['6000']).not.toBe(golden.adversarial.hashes['6000']);
+  });
+
+  it('no conquest phase (attacks start but never take a cell): every hash from tick 100 on differs, the golden covers the conquest', () => {
+    const c = computeGolden(stepWithoutConquest);
+    for (const t of [100, 1000, 6000]) expect(c.hashes[String(t)], `tick ${t}`).not.toBe(golden.hashes[String(t)]);
+    expect(c.alt.hashes['1000']).not.toBe(golden.alt.hashes['1000']);
+  });
+
+  it('no enclave phase (closed-in land never flips): the later hashes differ, the golden covers the enclave rule', () => {
+    const c = computeGolden(stepWithoutEnclaves);
+    expect(c.hashes['6000']).not.toBe(golden.hashes['6000']);
+    expect(c.hashes['1000']).not.toBe(golden.hashes['1000']);
   });
 
   it('no duplicate check: the adversarial hashes differ (a plain host run cannot repeat a (seat, id), so only they can)', () => {
