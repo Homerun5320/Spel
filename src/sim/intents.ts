@@ -8,7 +8,7 @@ import { MAX_SEATS } from './state';
 
 export type IntentKind = 'Noop' | 'DebugPaint';
 
-/** The intent kinds in wire order (the index is the kind byte of the codec). */
+/** The intent kinds in wire order (the index is the kind byte of the codec). Append only: a published code never changes meaning. */
 export const INTENT_KINDS: readonly IntentKind[] = ['Noop', 'DebugPaint'];
 
 /** Does nothing; valid for any seat. Exists to prove the pipeline (and as the heartbeat of a lockstep client). */
@@ -76,9 +76,10 @@ export function validateIntent(x: unknown, ctx: ValidateContext): number {
   return REJECT_NONE;
 }
 
-/** The payload of an intent as one number (the cell for DebugPaint, 0 otherwise). Only for validated intents. */
-export function payloadOf(i: Intent): number {
-  return i.kind === 'DebugPaint' ? i.cell : 0;
+/** Orders the payloads of two valid intents of the SAME kind. A new kind adds its case here (all fields, most significant first). */
+function comparePayload(a: Intent, b: Intent): number {
+  if (a.kind === 'DebugPaint' && b.kind === 'DebugPaint') return a.cell - b.cell;
+  return 0;
 }
 
 /** Canonical order of VALID intents: seat, then id, then kind, then payload. A total order on valid intents. */
@@ -88,7 +89,7 @@ export function compareIntents(a: Intent, b: Intent): number {
   const ka = kindCode(a.kind);
   const kb = kindCode(b.kind);
   if (ka !== kb) return ka - kb;
-  return payloadOf(a) - payloadOf(b);
+  return comparePayload(a, b);
 }
 
 /** An intent that step() always refuses (seat -1); what a host stores for input that is not an intent at all. */

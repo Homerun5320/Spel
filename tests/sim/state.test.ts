@@ -113,6 +113,10 @@ describe('fixture world', () => {
     }
   });
 
+  it('the integer division by 15 of the noise sum is exact for every possible sum', () => {
+    for (let sum = 0; sum <= 255 * 15; sum++) expect((sum * 4370) >> 16).toBe(Math.floor(sum / 15));
+  });
+
   it('hash2 spreads: 4096 neighbouring lattice points give 4096 different values', () => {
     const seen = new Set<number>();
     for (let y = 0; y < 64; y++) for (let x = 0; x < 64; x++) seen.add(hash2(1, x, y));

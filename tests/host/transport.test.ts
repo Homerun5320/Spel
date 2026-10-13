@@ -98,3 +98,20 @@ describe('LocalTransport', () => {
     expect(t.copies).toBe(3);
   });
 });
+
+describe('LocalTransport robustness', () => {
+  it('a handler that throws does not lose the other messages of the batch or the other handlers', async () => {
+    const t = createLocalTransport<Msg, Msg>();
+    const quiet = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const got: number[] = [];
+    t.host.onMessage((m) => {
+      if (m.n === 2) throw new Error('boom');
+    });
+    t.host.onMessage((m) => got.push(m.n));
+    for (const n of [1, 2, 3]) t.client.post({ n });
+    await t.idle();
+    expect(got).toEqual([1, 2, 3]);
+    expect(quiet).toHaveBeenCalledTimes(1);
+    quiet.mockRestore();
+  });
+});

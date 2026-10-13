@@ -53,7 +53,14 @@ class LocalPort<Send, Receive> implements Port<Send, Receive> {
       this.inbox = [];
       for (const m of batch) {
         this.stats.inFlight--;
-        for (const h of this.handlers) h(m);
+        for (const h of this.handlers) {
+          try {
+            h(m);
+          } catch (err) {
+            // One broken handler must not lose the rest of the batch (a real port reports it and carries on too).
+            console.error('[local transport] handler threw', err);
+          }
+        }
       }
       this.schedule();
     });

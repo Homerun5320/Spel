@@ -27,3 +27,10 @@ Ideas that are NOT built in the current milestone. Add one line each.
 - Night lights read as large saturated blobs and their brightness varies with zoom: tune `LIGHTS_GAIN` (`src/render/config.ts`) and the blob footprint and speckle fade in `src/render/nightLights.ts` / the terrain shader on a real GPU.
 - Camera: at `DIST_MIN_KM` 220 with `TILT_MAX_DEG` 72 the camera is below the exaggerated peaks over Everest and the picture is featureless; raise `DIST_MIN_KM` or scale the tilt limit with the distance (M08 replaces the camera anyway).
 - The test-tier mesh (256x128) shows a coarse diagonal facet at 500 km zoom; the M07 LOD replaces it.
+- M03: the state hash is 32 bits. For lockstep desync detection (M26) add a second lane (another seed of the same fold) or a 64-bit pair; only the hash function and the files that print it change.
+- M03: no replay protection across turns: a seat's intent ids are only unique inside a turn. A per-seat "highest id seen" array in the state (hashed) would let the server refuse resent intents; decide in M26.
+- M03: replays and lockstep need the host to take TURNS from outside (`scheduleTurn(turn, intents)` next to `submitIntent`, plus an option to stall the accumulator until the turn is there) and to record executed turns with `encodeTurn`; the pending map and the codec are ready for it.
+- M03: M05 will want a light snapshot (ownership array only) next to the full serialised one; `Snapshot.bytes` needs a full `deserialize` today (about 6 ms and 4 MB of copies at 1024x512).
+- M03: `TICKS_PER_TURN` (a turn of several ticks, 200-300 ms of network turns) is not modelled; `Turn` and `Tick` are the same number. Add the constant to `src/sim/rules.ts` and let `step` run the intents on the first tick of a turn when lockstep needs it.
+- M03: the cross-engine claim of the canary rests on V8 in Node and in Chromium; run it in Firefox and Safari when a machine with them is available.
+- M03: the first two turns of a match are always empty (input delay); a UI that wants instant feedback must predict locally, not by waiting for the sim.

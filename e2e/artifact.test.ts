@@ -9,6 +9,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ALLOWED_EXT, pack } from '../scripts/artifact-pack.mjs';
 import { analyzeImage, checkShot, decodePng, launchBrowser, takeShot } from '../scripts/shot.mjs';
 import { REPO, buildDistTo, makeTmp } from '../tests/helpers/buildDist';
+import { readGolden } from '../tests/helpers/simGolden';
 
 const PREFIX = '/x/y/';
 
@@ -235,6 +236,29 @@ describe('artifact build served from /x/y/', () => {
     expect(servedB64.notFound).toEqual([]);
     const manifest = JSON.parse(fs.readFileSync(path.join(outB64, 'data', 'manifest.json'), 'utf8')) as Record<string, { file: string; enc: string }>;
     expect(manifest).toEqual({ render: { file: 'render.bin.b64.txt', enc: 'b64' }, sim: { file: 'sim.bin.b64.txt', enc: 'b64' } });
+  });
+
+  it('M03: debug/sim.html runs from the sub-folder like an Artifact (relative script address) and reaches the committed golden hashes, no 404', async () => {
+    served.notFound.length = 0;
+    const page = await browser.newPage({ viewport: { width: 800, height: 400 }, deviceScaleFactor: 1 });
+    const messages: string[] = [];
+    page.on('console', (m) => {
+      if (m.type() === 'error' || m.type() === 'warning') messages.push(`${m.type()}: ${m.text()}`);
+    });
+    page.on('pageerror', (e) => messages.push(`pageerror: ${e.message}`));
+    try {
+      await page.goto(`${served.url}/debug/sim.html`, { waitUntil: 'load' });
+      await page.waitForSelector('body[data-ready="1"]', { timeout: 30_000 });
+      const hooks = await page.evaluate(() => (window as unknown as { __debugSim: { hashes: Record<string, string>; hostHashes: Record<string, string>; canary: { hash: string } } }).__debugSim);
+      const golden = readGolden();
+      expect(hooks.hashes).toEqual(golden.hashes);
+      expect(hooks.hostHashes).toEqual(golden.hashes);
+      expect(hooks.canary.hash).toBe(golden.canary.hash);
+      expect(messages).toEqual([]);
+      expect(served.notFound).toEqual([]);
+    } finally {
+      await page.close();
+    }
   });
 
   it('real packs: every file in files.json is under 15 MB and the sum under 64 MB (both containers)', () => {

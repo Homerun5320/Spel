@@ -45,7 +45,7 @@ export function buildFixtureWorld(seed: number, width: number, height: number): 
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const sum = octave(seed, x, y, 5) * 8 + octave(seed + 1, x, y, 4) * 4 + octave(seed + 2, x, y, 3) * 2 + octave(seed + 3, x, y, 2);
-      const n = Math.floor(sum / 15);
+      const n = (sum * 4370) >> 16; // floor(sum / 15) for 0 <= sum <= 3825, in integers (checked by tests/sim/state.test.ts)
       const i = y * width + x;
       const metres = n > SEA_LEVEL ? (n - SEA_LEVEL) * METRES_PER_STEP : 0;
       elevation[i] = metres;

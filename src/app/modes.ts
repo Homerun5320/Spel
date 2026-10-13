@@ -14,4 +14,5 @@ export function registerAppModes(): void {
   registerDevMode({ id: 'debug-data', label: 'Datakartan (debug/data.html)', href: './debug/data.html' });
   registerDevMode({ id: 'debug-data-height', label: 'Datakartan: höjd', href: './debug/data.html#map-height' });
   registerDevMode({ id: 'debug-data-country', label: 'Datakartan: länder', href: './debug/data.html#map-country' });
+  registerDevMode({ id: 'debug-sim', label: 'Simuleringens hashar (debug/sim.html)', href: './debug/sim.html' });
 }

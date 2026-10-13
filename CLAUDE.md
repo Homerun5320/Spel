@@ -26,6 +26,7 @@ Project rules for every session. Keep this file under 200 lines. Constitution: `
 - `npm test` = unit project, `npm run shots` = smoke screenshot into `test-results/shots/`, `npm run dev|build|preview` = Vite.
 - `npm run artifact:pack` (after `npm run build`) = packs `dist` into the gitignored artifact folder for the Claude Artifact preview; options `-- --container=png|wasm|b64 --prev=<file> --probe`. Procedure in `docs/PREVIEW.md`.
 - `npm run bake` (M01) re-bakes `public/data/` from the cached sources in `.cache/bake` (network only for a cold cache: S3 and raw.githubusercontent.com); `npm run bake:check` verifies the committed packs against `public/data/checksums.json` without network. Never commit synthetic bake output.
+- `npm run sim:run -- --seed N --ticks T` (M03) prints the sim hashes at ticks 1/10/100/1000/6000 and the last tick (compare with `e2e/goldens/sim-hashes.json`; rewrite it only with `UPDATE_GOLDENS=1` through `tests/sim/golden.test.ts`, exact, never warn mode); `npm run gen:lut` rewrites `src/sim/sinLut.ts`.
 - Runtime data and page addresses go through `siteUrl()` in `src/app/paths.ts`, never a hand-written relative or absolute data path and never `BASE_URL`.
 - Commands that may exceed 2 minutes run with `run_in_background` and a log file.
 
