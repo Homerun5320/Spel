@@ -12,6 +12,46 @@ Resume: Läs CLAUDE.md och docs/PROGRESS.md, kör git log -10 och npm run verify
 
 ## Now
 
+### M02 Wow 1: den stiliserade 3D-jorden (GATE) - Checkpoint A in progress; Checkpoint B and the last step remain
+
+Previous merge SHA (origin/main at start): f29121a8d1607ca169e6675b5f22a52d76c42ef7 (still the initial commit: M00, M00b and M01 are NOT merged, they live on this branch and in draft pull request #1; the "M01 is merged" precondition was treated as satisfied by the orchestrator's instruction). `npm ci && npm run verify:fast` was green at the start (279 unit tests).
+
+The work is split over sessions. Checkpoint A (this session): items 1, 2 without night lights, 5, 6, 7, the quality tiers of item 8, the test tier and `?test=1` hooks of item 9 with the fx clock, WITHOUT goldens. Checkpoint B (next session): item 3 (ocean, atmosphere, terminator), item 4, the rest of item 8 (`?perf=1` overlay), item 10, then last: stars, night lights, sun glitter, and only then the 6 goldens (committed ONCE) and the night / limb / glitter pixel checks. The orchestrator owns pushing, the draft PR and the Artifact publication.
+
+GÖR, Checkpoint A
+- [ ] A0. Preflight (merge SHA recorded, verify:fast green), this checklist
+- [ ] A1. Textures (item 1): height R8 4096x2048, bathy R8 2048x1024, country (nearest, NoColorSpace, flipY false, unpackAlignment 1), sim class layer, all `DataTexture`s from the raw bytes; texel-readback helper (small render-to-target pass)
+- [ ] A2. Globe (item 2, no night lights): lat/lon grid, vertex displacement from the height texture (x12, sqrt decode from meta.json), derivative flat shading, hypsometric colours with snow, biome tone from the class layer, coast colour from bathymetry, coast shaded from the mask in the fragment shader
+- [ ] A5. Shader modules under `src/render/shaders/` (terrain now; ocean and atmosphere modules belong to B), GLSL ES 3.00 via ShaderMaterial, `gl_FragColor`, no own `out vec4`
+- [ ] A6. Camera (item 6): orbit with inertia, zoom anchored at the cursor, tilt limit, pole-safe up vector, zoom limits, mouse and wheel
+- [ ] A7. Picking (item 7): ray vs sphere refined against the displaced heights (CPU copy), lat/lon to sim cell, hover tooltip (country, terrain class, height in metres)
+- [ ] A8. Quality tiers test / low / medium / high in `src/render/quality.ts`; `?quality=` selects, `?test=1` forces test
+- [ ] A9. Test hooks `setView`, `render`, `project`, `advance`; fx clock `src/render/clock.ts` (`fxNow`, `advanceFx`, `setFxTime`) and the "no other clocks" unit test; six canonical views defined (no goldens in A)
+- [ ] A10. Constants in ONE config file in `src/render` (exaggeration, sun)
+- [ ] A11. Screenshots per shader function looked at; docs: ARCHITECTURE index, DECISIONS, this list kept current
+- [ ] A12. Checkpoint A: `npm run verify:fast` green, new unit and e2e tests green, committed locally
+
+ACCEPTANS, Checkpoint A (the tests that exist after this session)
+- [ ] test tier: triangles <= 150k and draw calls <= 30 in the globe scene; zero console errors
+- [ ] 6 canonical views: not blank, pairwise different; Himalaya luma variance above a flat control (exaggeration 0)
+- [ ] picking: camera at 59.3N 18.1E gives Sweden at the screen centre; a ray at Everest (27.99N 86.93E) hits the right cell within 1 cell
+- [ ] data textures: texel readback equals the source bytes; camera matrices: no NaN, stable at the poles, zoom limits held
+- [ ] fx clock: frozen in test mode, stepped only by `render` / `advance` / `setView`; unit test that no other clock is created in `src`
+
+GÖR, Checkpoint B (NOT started; the next session continues here)
+- [ ] B3. Ocean (Fresnel, animated normals frozen in test mode), atmosphere (back-face additive shell), terminator, then stars, night lights (1024x512 light texture from cities.json), sun glitter (last)
+- [ ] B4. Country borders (fwidth + neighbour comparison, not coast against sea), palette LUT
+- [ ] B8. `?perf=1` overlay: renderer string, fps (mean and p95), renderer.info (calls, triangles, geometries, textures), texture memory in MB, button "Kopiera rapport"
+- [ ] B10. Dev panel `src/app/devpanel.ts` (F2 and a corner button, visible in 390x844), `registerDevMode`, ONE parser `src/app/params.ts` with the hash grammar, `hashchange` restart, `src/ui/report.ts` `showReport(json)`, PREVIEW.md table
+- [ ] B-last. Goldens for the 6 views (committed ONCE) and the night / limb / glitter / city-light pixel checks
+
+ACCEPTANS, Checkpoint B and last step (NOT started)
+- [ ] city light pixels (Tokyo, New York, Stockholm: luma >= sea neighbour + 25), night view (mean luma < day / 3, >= 20 pixels > 150), limb pixel >= 10 luma above space, glitter pixel brighter than the sea mean
+- [ ] goldens by the golden rule for all 6 views; two renders identical
+- [ ] Dev panel and report e2e (F2, `perf` mode toggles the overlay, `#perf` equals `?perf=1`, hash change restarts the mode, corner button visible in 390x844, `showReport` with a refused clipboard)
+- [ ] JS bundle <= 300 KB gz; `npm run verify` green
+- [ ] docs: ARCHITECTURE "Budgetar" table, PREVIEW.md, DECISIONS; `npm run build && npm run artifact:pack`; orchestrator pushes, opens the draft PR and republishes the Artifact
+
 ### M01 Baka riktiga världen (all items ticked; the Artifact was republished with the real data packs as version 2 and the branch is pushed; waiting for the squash merge)
 
 Previous merge SHA (origin/main at start): f29121a8d1607ca169e6675b5f22a52d76c42ef7. M00 and M00b were not merged yet (they live on this branch), so the M00b precondition was treated as satisfied by the orchestrator's instruction.
