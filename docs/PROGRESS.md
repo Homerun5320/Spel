@@ -12,37 +12,46 @@ Resume: Läs CLAUDE.md och docs/PROGRESS.md, kör git log -10 och npm run verify
 
 ## Now
 
-### M02 Wow 1: den stiliserade 3D-jorden (GATE) - Checkpoint A in progress; Checkpoint B and the last step remain
+### M02 Wow 1: den stiliserade 3D-jorden (GATE) - Checkpoint A is built and green (verify:fast and the full e2e project); Checkpoint B and the last step remain
 
 Previous merge SHA (origin/main at start): f29121a8d1607ca169e6675b5f22a52d76c42ef7 (still the initial commit: M00, M00b and M01 are NOT merged, they live on this branch and in draft pull request #1; the "M01 is merged" precondition was treated as satisfied by the orchestrator's instruction). `npm ci && npm run verify:fast` was green at the start (279 unit tests).
 
 The work is split over sessions. Checkpoint A (this session): items 1, 2 without night lights, 5, 6, 7, the quality tiers of item 8, the test tier and `?test=1` hooks of item 9 with the fx clock, WITHOUT goldens. Checkpoint B (next session): item 3 (ocean, atmosphere, terminator), item 4, the rest of item 8 (`?perf=1` overlay), item 10, then last: stars, night lights, sun glitter, and only then the 6 goldens (committed ONCE) and the night / limb / glitter pixel checks. The orchestrator owns pushing, the draft PR and the Artifact publication.
 
 GÖR, Checkpoint A
-- [ ] A0. Preflight (merge SHA recorded, verify:fast green), this checklist
-- [ ] A1. Textures (item 1): height R8 4096x2048, bathy R8 2048x1024, country (nearest, NoColorSpace, flipY false, unpackAlignment 1), sim class layer, all `DataTexture`s from the raw bytes; texel-readback helper (small render-to-target pass)
-- [ ] A2. Globe (item 2, no night lights): lat/lon grid, vertex displacement from the height texture (x12, sqrt decode from meta.json), derivative flat shading, hypsometric colours with snow, biome tone from the class layer, coast colour from bathymetry, coast shaded from the mask in the fragment shader
-- [ ] A5. Shader modules under `src/render/shaders/` (terrain now; ocean and atmosphere modules belong to B), GLSL ES 3.00 via ShaderMaterial, `gl_FragColor`, no own `out vec4`
-- [ ] A6. Camera (item 6): orbit with inertia, zoom anchored at the cursor, tilt limit, pole-safe up vector, zoom limits, mouse and wheel
-- [ ] A7. Picking (item 7): ray vs sphere refined against the displaced heights (CPU copy), lat/lon to sim cell, hover tooltip (country, terrain class, height in metres)
-- [ ] A8. Quality tiers test / low / medium / high in `src/render/quality.ts`; `?quality=` selects, `?test=1` forces test
-- [ ] A9. Test hooks `setView`, `render`, `project`, `advance`; fx clock `src/render/clock.ts` (`fxNow`, `advanceFx`, `setFxTime`) and the "no other clocks" unit test; six canonical views defined (no goldens in A)
-- [ ] A10. Constants in ONE config file in `src/render` (exaggeration, sun)
-- [ ] A11. Screenshots per shader function looked at; docs: ARCHITECTURE index, DECISIONS, this list kept current
-- [ ] A12. Checkpoint A: `npm run verify:fast` green, new unit and e2e tests green, committed locally
+- [x] A0. Preflight (merge SHA recorded, verify:fast green), this checklist
+- [x] A1. Textures (item 1): height R8 4096x2048, bathy R8 2048x1024, country (nearest, NoColorSpace, flipY false, unpackAlignment 1), sim class layer, all `DataTexture`s from the raw bytes; texel-readback helper (small render-to-target pass)
+- [x] A2. Globe (item 2, no night lights): lat/lon grid, vertex displacement from the height texture (x12, sqrt decode from meta.json), derivative flat shading, hypsometric colours with snow, biome tone from the class layer, coast colour from bathymetry, coast shaded from the mask in the fragment shader
+- [x] A5. Shader modules under `src/render/shaders/` (terrain now; ocean and atmosphere modules belong to B), GLSL ES 3.00 via ShaderMaterial, `gl_FragColor`, no own `out vec4`
+- [x] A6. Camera (item 6): orbit with inertia, zoom anchored at the cursor, tilt limit, pole-safe up vector, zoom limits, mouse and wheel
+- [x] A7. Picking (item 7): ray vs sphere refined against the displaced heights (CPU copy), lat/lon to sim cell, hover tooltip (country, terrain class, height in metres)
+- [x] A8. Quality tiers test / low / medium / high in `src/render/quality.ts`; `?quality=` selects, `?test=1` forces test
+- [x] A9. Test hooks `setView`, `render`, `project`, `advance`; fx clock `src/render/clock.ts` (`fxNow`, `advanceFx`, `setFxTime`) and the "no other clocks" unit test; six canonical views defined (no goldens in A)
+- [x] A10. Constants in ONE config file in `src/render` (exaggeration, sun)
+- [x] A11. Screenshots per shader function looked at; docs: ARCHITECTURE index, DECISIONS, this list kept current
+- [x] A12. Checkpoint A: `npm run verify:fast` green, new unit and e2e tests green, committed locally
 
 ACCEPTANS, Checkpoint A (the tests that exist after this session)
-- [ ] test tier: triangles <= 150k and draw calls <= 30 in the globe scene; zero console errors
-- [ ] 6 canonical views: not blank, pairwise different; Himalaya luma variance above a flat control (exaggeration 0)
-- [ ] picking: camera at 59.3N 18.1E gives Sweden at the screen centre; a ray at Everest (27.99N 86.93E) hits the right cell within 1 cell
-- [ ] data textures: texel readback equals the source bytes; camera matrices: no NaN, stable at the poles, zoom limits held
-- [ ] fx clock: frozen in test mode, stepped only by `render` / `advance` / `setView`; unit test that no other clock is created in `src`
+- [x] test tier: triangles <= 150k and draw calls <= 30 in the globe scene; zero console errors
+- [x] 6 canonical views: not blank, pairwise different; Himalaya luma variance above a flat control (exaggeration 0)
+- [x] picking: camera at 59.3N 18.1E gives Sweden at the screen centre; a ray at Everest (27.99N 86.93E) hits the right cell within 1 cell
+- [x] data textures: texel readback equals the source bytes; camera matrices: no NaN, stable at the poles, zoom limits held
+- [x] fx clock: frozen in test mode, stepped only by `render` / `advance` / `setView`; unit test that no other clock is created in `src`
+
+Notes for Checkpoint B (read before starting)
+- Look at `src/render/config.ts` (all tunables), `src/render/shaders/terrain.ts` (the one shader), `src/render/globe.ts` (renderer, scene, uniforms are in `src/render/terrainMaterial.ts`), `src/app/globeApp.ts` (boot, mouse, hooks) and `docs/DECISIONS.md` D31-D38.
+- Ocean, atmosphere, stars, night lights and glitter are NOT started. The terrain shader paints water itself from bathymetry (no Fresnel, flat sphere normal); B3 (later files) should add the ocean and atmosphere shader modules (`src/render/shaders/ocean.ts`, `src/render/shaders/atmosphere.ts`) and either compose the ocean functions into the terrain shader or draw water in a second pass; keep the test-tier budget (<= 150k triangles, <= 30 draw calls) and update the smoke e2e `drawCalls` expectation of `e2e/smoke.test.ts` (it says exactly 1, which is true only while the globe is the only draw call; justify the change in DECISIONS).
+- The default `?test=1` sun (`DEFAULT_START_TIME`, 67 degrees west of the view) is what keeps the M00 smoke threshold (left/right luma ratio 1.255 against 1.15) true; a softer terminator or an atmosphere may push it below 1.15: move the sun further west rather than loosening `THRESHOLDS`.
+- The six canonical views exist in `src/render/views.ts` (`CANONICAL_VIEWS`) and are rendered and checked (non-blank, pairwise different, Himalaya relief) in `e2e/globe.test.ts`, with PNGs in `test-results/shots/view-*.png`. No goldens yet: commit them ONCE, last.
+- `__test.tooltip`, `__test.readTexels` (the country texture is only uploaded when read back; B4 makes the shader sample it), `__test.setExaggeration` exist for tests. `parseSceneParams` is a stop-gap: B10 replaces it by the unified hash parser and must keep `scene` and `quality` working.
+- `tests/fxClock.test.ts` has an allow-list of files that may read real time; the perf overlay (B8) belongs there with a reason, or its numbers must come from `performance` in a file added to the list.
+- A scratch HTML page in the repo root (untracked, delete it afterwards) that imports the globe module through Vite is the quickest way to look at the medium and high tiers in SwiftShader; `?test=1` forces the test tier.
 
 GÖR, Checkpoint B (NOT started; the next session continues here)
 - [ ] B3. Ocean (Fresnel, animated normals frozen in test mode), atmosphere (back-face additive shell), terminator, then stars, night lights (1024x512 light texture from cities.json), sun glitter (last)
 - [ ] B4. Country borders (fwidth + neighbour comparison, not coast against sea), palette LUT
 - [ ] B8. `?perf=1` overlay: renderer string, fps (mean and p95), renderer.info (calls, triangles, geometries, textures), texture memory in MB, button "Kopiera rapport"
-- [ ] B10. Dev panel `src/app/devpanel.ts` (F2 and a corner button, visible in 390x844), `registerDevMode`, ONE parser `src/app/params.ts` with the hash grammar, `hashchange` restart, `src/ui/report.ts` `showReport(json)`, PREVIEW.md table
+- [ ] B10. (later files) Dev panel `src/app/devpanel.ts` (F2 and a corner button, visible in 390x844), `registerDevMode`, ONE parser `src/app/params.ts` with the hash grammar, `hashchange` restart, `src/ui/report.ts` `showReport(json)`, PREVIEW.md table
 - [ ] B-last. Goldens for the 6 views (committed ONCE) and the night / limb / glitter / city-light pixel checks
 
 ACCEPTANS, Checkpoint B and last step (NOT started)
@@ -130,7 +139,8 @@ ACCEPTANS
 
 ## Next
 
-- M02 Stylised Earth, Dev panel (GATE): renders the packs; registers the debug map modes and the hash grammar in the Dev panel (see `docs/BACKLOG.md`).
+- M02 Checkpoint B and the last step (see Now): ocean, atmosphere, terminator, stars, night lights, glitter, country borders, perf overlay, Dev panel and hash grammar, goldens, budgets table, preview.
+- M03 Sim foundation.
 
 ## Known issues
 
@@ -140,6 +150,7 @@ ACCEPTANS
 - M01: the Forest/Plains rule is by latitude and a hash only, so the Sahara shows a few forest cells; cosmetic (backlog).
 - `docs/CHARTER.md` is verbatim from the prompt; in section 7 the "User lines" and "User's own files" bullets sit on one line (a newline is missing in the source text). Not changed because the charter must stay word for word.
 - No real-GPU measurement exists; everything is SwiftShader.
+- M02 A: the whole-Earth view shows dark green Forest patches in the Sahara and Arabia (baked biome rule, see `docs/BACKLOG.md`); the north pole shows the synthetic polar streaks.
 - M00b: the data manifest format of M01 is assumed (name to file relative to the data folder, enc defaults to raw), see D17 in `docs/DECISIONS.md`. M01 must keep it or change the pack script.
 - M00b: the Artifact URL in `docs/PREVIEW.md` is a placeholder until the orchestrator publishes; the user's "klotet syns" confirmation is pending.
 
@@ -182,6 +193,18 @@ Cloud sandbox, SwiftShader, 960x540, DPR 1:
 | `npm run verify:fast` | about 6 s |
 | `npm run verify` | about 15 s |
 | perfguard factor | about 0.9 (reference 5.5 ms for 5 M imul writes) |
+
+M02 Checkpoint A (same sandbox, test tier 256x128 mesh, 960x540, SwiftShader):
+
+| measure | value |
+|---------|-------|
+| first frame (page start to end of first render, incl. loading and inflating the packs) | about 510 ms warm (1.1 s on a cold Vite start) |
+| render call / page screenshot | about 40-65 ms / 120-250 ms |
+| draw calls / triangles / textures / texture memory | 1 / 65 536 / 3 (4 once the country texture is read back) / 18.5 MB |
+| medium tier (512x256) / high tier (1024x512) at 960x540 in the live loop | 262 144 / 1 048 576 triangles, about 9 fps / 0.5 fps in software (not asserted) |
+| JS bundle main chunk | 556 kB raw, about 140 kB gzip (limit 300 kB) |
+| leak test (60 renders at 320x180) | 0.03 MB |
+| `npm run verify:fast` / full e2e project | about 15 s / about 60 s |
 
 M01 (same sandbox):
 

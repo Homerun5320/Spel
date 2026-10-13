@@ -1,7 +1,8 @@
 // Client entry (M00 spike). Builds the DOM from JS (index.html stays a bare fragment with no
 // attributes on <html>/<body>), starts the spike renderer and exposes the test hooks.
 import { createSpike, TEST_SUN_LAT_DEG, TEST_SUN_LON_DEG, type Spike, type SpikeInfo } from '../render/spike';
-import { parseParams } from './params';
+import { bootGlobe, type GlobeTestHooks } from './globeApp';
+import { parseParams, parseSceneParams } from './params';
 import { siteUrl } from './paths';
 
 export interface TestHooks {
@@ -20,7 +21,8 @@ export interface TestInfo extends SpikeInfo {
 
 declare global {
   interface Window {
-    __test?: TestHooks;
+    /** The spike scene defines render/info; the globe scene (the default since M02) adds the rest (see globeApp.ts). */
+    __test?: TestHooks & Partial<Omit<GlobeTestHooks, 'render' | 'info'>>;
   }
 }
 
@@ -68,6 +70,19 @@ function boot(): void {
       a.style.color = '#9cf';
     }
     debugLinks.hidden = params.test;
+  }
+
+  // M02: the stylised Earth is the default scene; `?scene=spike` keeps the M00 spike (its golden and seed test).
+  const scene = parseSceneParams(window.location.search);
+  if (scene.scene !== 'spike') {
+    bootGlobe({ wrapper, canvas, overlay, params, scene }).catch((err: unknown) => {
+      console.error(err);
+      const msg = document.createElement('div');
+      msg.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#f99;font:14px system-ui,sans-serif;';
+      msg.textContent = `Kunde inte starta: ${err instanceof Error ? err.message : String(err)}`;
+      wrapper.appendChild(msg);
+    });
+    return;
   }
 
   const dpr = params.test ? 1 : Math.min(window.devicePixelRatio || 1, 2);
