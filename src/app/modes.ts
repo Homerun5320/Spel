@@ -11,6 +11,8 @@ export function registerAppModes(): void {
   registerDevMode({ id: 'quality-medium', label: 'Kvalitet: medel', params: { quality: 'medium' } });
   registerDevMode({ id: 'quality-high', label: 'Kvalitet: hög', params: { quality: 'high' } });
   registerDevMode({ id: 'seed-7', label: 'Seed 7', params: { seed: '7' } });
+  registerDevMode({ id: 'seed', label: 'Seed', field: { param: 'seed', placeholder: '1', pattern: /^-?\d{1,10}$/ } });
+  registerDevMode({ id: 'hud', label: 'HUD i testläge', params: { hud: '1' }, toggle: true });
   registerDevMode({ id: 'debug-data', label: 'Datakartan (debug/data.html)', href: './debug/data.html' });
   registerDevMode({ id: 'debug-data-height', label: 'Datakartan: höjd', href: './debug/data.html#map-height' });
   registerDevMode({ id: 'debug-data-country', label: 'Datakartan: länder', href: './debug/data.html#map-country' });

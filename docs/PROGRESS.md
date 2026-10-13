@@ -15,6 +15,48 @@ Resume: Läs CLAUDE.md och docs/PROGRESS.md, kör git log -10 och npm run verify
 
 ## Now
 
+### M05 Wow 2: första spelbara erövringen på globen (GATE, i18n) - built over THREE sessions: Part A (items 1, 2, 3, 5), Part B (items 4, 7, i18n), Part C (item 6, AI v0). The orchestrator owns pushing, the pull request and the Artifact.
+
+Previous merge SHA (origin/main at start): f29121a8d1607ca169e6675b5f22a52d76c42ef7 (`git ls-remote origin refs/heads/main` re-checked: still the initial commit; NOTHING of M00 to M04 is merged, it all lives on this branch and in draft pull request #1; the "M02 and M04 are merged" precondition was treated as satisfied by the orchestrator's instruction). `npm ci && npm run verify:fast` was green at the start. The staging rule of the prompt (draft PR with "AI v0 återstår") does not apply: the orchestrator runs the parts in order, so no push, no PR and no Artifact from the building sessions.
+
+Decisions of Part A (details in D92 onwards of `docs/DECISIONS.md`): the spawn phase and the immunity are SIM rules behind a match-config flag (`spawnPhase`, golden-neutral while it is off); the owner mirror of the renderer is built from the host's diff events (zero allocation per frame), the per-seat statistics come as a small `view` event; the match is 6 players (you + 5 AI) + 20 tribes = 26 seats; the default seed is 1.
+
+GÖR, Part A (items 1, 2, 3, 5)
+- [ ] A0. Preflight (merge SHA recorded, verify:fast green), this checklist
+- [ ] A1. Sim rules: `SPAWN_PHASE_TICKS` 200, `IMMUNITY_TICKS` 50, match composition in `src/sim/rules.ts` and `docs/BALANCE.md`; config flag `spawnPhase`; `REJECT_PHASE` (Attack in the phase, Spawn after it) and `REJECT_IMMUNE` (Attack on owned land in the immunity); tests
+- [ ] A2. `DebugGive{seat, gold, troops}` intent (wire kind 5), valid only under `debugIntents`; the five places of D74; tests (also: refused without debugIntents)
+- [ ] 1a. src/sim/view.ts: `SimView` (read-only, snapshot-bound), `SeatStats` (troops, cap, gold, gold/s, cells, weighted land share, alive), `fillSeatStats(state, out)`; src/sim/public.ts barrel (`seatToOwner`, `ownerToSeat`)
+- [ ] 1b. Host: `view` event (stats, tick, speed, rejects, last reject reason) after each diff, `requestView()` (stats + full owner copy); `ViewMirror` (src/host/viewMirror.ts) applies diffs in place and implements `SimView`; snapshot growth documented in `docs/ARCHITECTURE.md`
+- [ ] 1c. Render adapter loop in `src/app` (60 Hz frames, `host.advance(dt)`, HUD value interpolation, speeds pause / 1x / 2x / 4x), advance cost per frame measured and logged in the browser
+- [ ] 2a. Ownership texture RGBA8 1024x512 (owner u16 in R+G, flags in B, reserve in A), FULL re-upload at most 10 Hz by `fxNow()`, upload counter
+- [ ] 2b. Owner palette LUT (ownerId to colour; own colour vs every other dE76 >= 25, unit test)
+- [ ] 2c. Terrain shader: territory tint, sharp organic borders (`fwidth`, integer-hash domain warp, no sin), ownership drawn only on land, coast bleed; screenshots looked at (flat, mountain, coast)
+- [ ] 3a. Spawn phase (20 s), click to spawn, 5 s immunity, click to attack (target = owner under the cursor), commitment 5-100 % (step 5, default 40), keys `[` `]` space `,` `.`; click vs drag threshold; HUD clicks never reach the globe
+- [ ] 3b. Temporary UI behind small functions that Part B replaces (src/ui/matchHud.ts, src/ui/startScreen.ts)
+- [ ] 5. Debug hooks: `?seed=` / `#seed-7` / `?test=1` / `#test`, `__test.advance(dt, ticks)`, `__test.state()`, `__test.give(seat, {gold, troops})`, `__test.submit(body)`, ownership upload counter, the Dev-panel seed field (id `seed`) and `./debug/sim.html` link
+- [ ] A9. Tests: unit (rules, intents, view, mirror, texture packing, palette), e2e for Part A (run alone); `npm run verify:fast` green; docs (ARCHITECTURE, DECISIONS); committed locally
+
+GÖR, Part B (items 4, 7, i18n) - NOT started
+- [ ] 4. DOM HUD with `data-testid`: gold with +/s, troops with a cap bar and a warning at 80 % of the cap, land share in %, timer, top-5 leaderboard + you
+- [ ] 4b. i18n: src/ui/i18n.ts (`t(key, params?)`, tables `sv` and `en`), parity unit test, test mode fails on a missing key, the i18n rule in CLAUDE.md; every string of the temporary Part A UI moves into the tables
+- [ ] 7. Start screen with a Play button and a small Dev button (first thing the user sees; test mode bypasses it)
+- [ ] B-last. `docs/PREVIEW.md` (Swedish): how to start, controls, seed addresses in hash form, the Dev panel
+
+GÖR, Part C (item 6) - NOT started
+- [ ] 6. 20 tribes at start; AI v0 in `src/ai` for 5 nations (`think(view, memory, rng) -> Intent[]`), src/sim/public.ts type-only intent re-exports and rules constants, ESLint allow-list + type test, the host calls it at tick boundaries with its own memory and PRNG (intents T+2), `*.perf.test.ts` budget `budgetMs(0.5)` per seat
+- [ ] C-last. `npm run verify` green; `npm run build && npm run artifact:pack`; ARCHITECTURE and DECISIONS final; Så spelar du list for the reply
+
+ACCEPTANS (all three parts; the part that owns each item is in brackets)
+- [ ] [A+B] Playwright `?test=1&seed=7` (`#test_seed-7` is the same match): spawn at fixed coordinates, `advance` 600 ticks, the player's land share above the start value; HUD values equal sim values (`data-testid`); screenshots at tick 0 / 100 / 300 / 600
+- [ ] [A] Negative e2e: spawn on sea, Peak or Ice is refused (state unchanged, reject counter +1); attack on own land and spawn after the phase are refused; pct 0 is refused
+- [ ] [A] Ownership readback equals the owner array in 200 sampled cells; upload counter <= 10 per second (fx clock) whatever the sim speed
+- [ ] [A] Borders: at a border cell on a Mountain cell the border pixel differs from both the own and the neighbour colour by CIE76 dE >= 15; palette has dE >= 25 between the own colour and every other palette colour (unit test)
+- [ ] [B] i18n: `sv` and `en` have the same keys (parity test); a missing key fails in test mode
+- [ ] [C] 6000-tick run in the browser without console errors; test tier <= 150k triangles; AI v0 `think` median over 200 calls after 20 warm-ups <= `budgetMs(0.5)` per seat (logged); type test and lint forbid `src/ai` from importing step or state
+- [ ] [A] `__test.give` changes gold / troops only through an intent (negative test without debugIntents); golden sim hashes equal in Node and Chromium; [C] `npm run verify` green
+
+Result of Part A: (filled in at the end of the session)
+
 ### M04 fix pass after the independent audit (no visible change; the Artifact is NOT republished; details in D91 of `docs/DECISIONS.md`)
 
 GÖR (every audit finding at blocker or major level, re-reproduced first)

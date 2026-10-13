@@ -8,6 +8,7 @@ import { GLSL_ATMOSPHERE } from './atmosphere';
 import { GLSL_BORDERS } from './borders';
 import { GLSL_GEO, GLSL_TEXELS } from './common';
 import { GLSL_OCEAN } from './ocean';
+import { GLSL_TERRITORY } from './territory';
 
 /** A number as a GLSL float literal (always with a decimal point). */
 function glslFloat(x: number): string {
@@ -70,6 +71,7 @@ ${GLSL_TEXELS}
 ${GLSL_ATMOSPHERE}
 ${GLSL_OCEAN}
 ${GLSL_BORDERS}
+${GLSL_TERRITORY}
 
 // Land fraction (bilinear over the binary mask) and the land-only mean height in metres at a position.
 void sampleLand(vec2 uv, out float mask, out float heightM) {
@@ -211,6 +213,8 @@ void main() {
   float border = borderMask(dir, cid);
   vec3 borderCol = mix(vec3(0.06, 0.05, 0.04), pal * 0.45, 0.35);
   albedoLand = mix(albedoLand, borderCol, border * uBorderStrength * (1.0 - snow * 0.5));
+  // Territory of the match: tint, inner glow and a sharp organic border line (src/render/shaders/territory.ts).
+  albedoLand = applyTerritory(albedoLand, uv);
 
   // Lighting (linear space): day factor from the sphere normal, diffuse from the flat normal on land.
   vec3 sun = normalize(uSun);

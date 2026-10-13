@@ -43,22 +43,30 @@ export function ownerToSeat(ownerId: number): number {
 
 /** Match options that change what is legal. Serialised as flag bits (CONFIG_FLAG_*). */
 export interface MatchConfig {
-  /** Allows the debug intents (DebugPaint). Always false in a real match. */
+  /** Allows the debug intents (DebugPaint, DebugGive). Always false in a real match. */
   readonly debugIntents: boolean;
+  /**
+   * The match flow of M05 (D92): during the first SPAWN_PHASE_TICKS no Attack is legal and a Spawn is legal only then; for the
+   * IMMUNITY_TICKS after it an Attack on owned land is refused. Absent / false = the rules of M04 (unlimited Spawn, no immunity).
+   */
+  readonly spawnPhase?: boolean;
 }
 
 export const CONFIG_FLAG_DEBUG_INTENTS = 1;
+/** Bit 2 is left unused on purpose (tests/sim/serialize.test.ts pins it as an unknown bit). */
+export const CONFIG_FLAG_SPAWN_PHASE = 4;
 /** All flag bits this engine knows; a snapshot with other bits is refused. */
-export const CONFIG_FLAGS_KNOWN = CONFIG_FLAG_DEBUG_INTENTS;
+export const CONFIG_FLAGS_KNOWN = CONFIG_FLAG_DEBUG_INTENTS | CONFIG_FLAG_SPAWN_PHASE;
 
 export function configToFlags(config: MatchConfig): number {
-  return config.debugIntents ? CONFIG_FLAG_DEBUG_INTENTS : 0;
+  return (config.debugIntents ? CONFIG_FLAG_DEBUG_INTENTS : 0) | (config.spawnPhase === true ? CONFIG_FLAG_SPAWN_PHASE : 0);
 }
 
-/** The config of a flag word, or null when it has unknown bits. */
+/** The config of a flag word, or null when it has unknown bits. A false `spawnPhase` is left out so that M04 configs compare equal. */
 export function flagsToConfig(flags: number): MatchConfig | null {
   if ((flags & ~CONFIG_FLAGS_KNOWN) !== 0) return null;
-  return { debugIntents: (flags & CONFIG_FLAG_DEBUG_INTENTS) !== 0 };
+  const debugIntents = (flags & CONFIG_FLAG_DEBUG_INTENTS) !== 0;
+  return (flags & CONFIG_FLAG_SPAWN_PHASE) !== 0 ? { debugIntents, spawnPhase: true } : { debugIntents };
 }
 
 /** The match header: who and what this state belongs to. Part of the serialised form and of the hash. */
@@ -301,7 +309,7 @@ export function createState(p: CreateStateParams): GameState {
     engineVersion: ENGINE_VERSION,
     mapHash: (p.mapHash ?? hashWorld(terrain, elevation)) >>> 0,
     seed,
-    config: Object.freeze({ debugIntents: p.config?.debugIntents === true }),
+    config: Object.freeze(p.config?.spawnPhase === true ? { debugIntents: p.config?.debugIntents === true, spawnPhase: true } : { debugIntents: p.config?.debugIntents === true }),
     seats: p.seats,
     players,
   });

@@ -6,10 +6,10 @@
 // intents of one seat, so the result never depends on the order in which they arrived.
 import { MAX_SEATS } from './state';
 
-export type IntentKind = 'Noop' | 'DebugPaint' | 'Spawn' | 'Attack' | 'CancelAttack';
+export type IntentKind = 'Noop' | 'DebugPaint' | 'Spawn' | 'Attack' | 'CancelAttack' | 'DebugGive';
 
 /** The intent kinds in wire order (the index is the kind byte of the codec). Append only: a published code never changes meaning. */
-export const INTENT_KINDS: readonly IntentKind[] = ['Noop', 'DebugPaint', 'Spawn', 'Attack', 'CancelAttack'];
+export const INTENT_KINDS: readonly IntentKind[] = ['Noop', 'DebugPaint', 'Spawn', 'Attack', 'CancelAttack', 'DebugGive'];
 
 /** Does nothing; valid for any seat. Exists to prove the pipeline (and as the heartbeat of a lockstep client). */
 export interface NoopBody {
@@ -58,8 +58,25 @@ export interface CancelAttackBody {
   readonly target: number;
 }
 
+/** The most gold or troops one DebugGive may add (a structural bound of the wire value, not a tunable). */
+export const DEBUG_GIVE_MAX = 1000000;
+
+/**
+ * TEST ONLY (valid only when the match config has debugIntents): adds `gold` gold and `troops` troops (whole units, 0..DEBUG_GIVE_MAX)
+ * to a seat that has land. It is how the test hook `__test.give` changes a seat's purse: through an intent, never by writing
+ * the state. M09 extends it with buildings.
+ */
+export interface DebugGiveBody {
+  readonly kind: 'DebugGive';
+  readonly seat: number;
+  /** Gold in whole gold. */
+  readonly gold: number;
+  /** Troops in whole troops. */
+  readonly troops: number;
+}
+
 /** An intent before it has an id (what the UI submits to a host). */
-export type IntentBody = NoopBody | DebugPaintBody | SpawnBody | AttackBody | CancelAttackBody;
+export type IntentBody = NoopBody | DebugPaintBody | SpawnBody | AttackBody | CancelAttackBody | DebugGiveBody;
 
 export type Intent = IntentBody & { readonly id: number };
 
@@ -98,6 +115,12 @@ export const REJECT_NO_CONTACT = 15;
 export const REJECT_NO_TROOPS = 16;
 /** CancelAttack of an attack that does not exist. */
 export const REJECT_NO_ATTACK = 17;
+/** Match flow (config.spawnPhase): an Attack during the spawn phase, or a Spawn after it. */
+export const REJECT_PHASE = 18;
+/** Match flow (config.spawnPhase): an Attack on owned land during the immunity that follows the spawn phase. */
+export const REJECT_IMMUNE = 19;
+/** DebugGive with a gold or troops amount that is not an integer in 0..DEBUG_GIVE_MAX. */
+export const REJECT_AMOUNT = 20;
 
 export interface ValidateContext {
   readonly seats: number;
@@ -118,7 +141,7 @@ function isIntegerIn(v: unknown, lo: number, hi: number): boolean {
 /** Why an intent is not valid in this match (REJECT_*), or REJECT_NONE. Total: any value whatsoever may be passed in. */
 export function validateIntent(x: unknown, ctx: ValidateContext): number {
   if (typeof x !== 'object' || x === null) return REJECT_SHAPE;
-  const o = x as { kind?: unknown; seat?: unknown; id?: unknown; cell?: unknown; target?: unknown; pct?: unknown };
+  const o = x as { kind?: unknown; seat?: unknown; id?: unknown; cell?: unknown; target?: unknown; pct?: unknown; gold?: unknown; troops?: unknown };
   const code = kindCode(o.kind);
   if (code < 0) return REJECT_KIND;
   if (!isIntegerIn(o.seat, 0, MAX_SEATS - 1) || (o.seat as number) >= ctx.seats) return REJECT_SEAT;
@@ -133,6 +156,9 @@ export function validateIntent(x: unknown, ctx: ValidateContext): number {
     if (!isIntegerIn(o.pct, 1, 100)) return REJECT_PCT;
   } else if (o.kind === 'CancelAttack') {
     if (!isIntegerIn(o.target, 0, ctx.seats)) return REJECT_TARGET;
+  } else if (o.kind === 'DebugGive') {
+    if (!ctx.debugIntents) return REJECT_DISABLED;
+    if (!isIntegerIn(o.gold, 0, DEBUG_GIVE_MAX) || !isIntegerIn(o.troops, 0, DEBUG_GIVE_MAX)) return REJECT_AMOUNT;
   }
   return REJECT_NONE;
 }
@@ -143,6 +169,7 @@ function comparePayload(a: Intent, b: Intent): number {
   if (a.kind === 'Spawn' && b.kind === 'Spawn') return a.cell - b.cell;
   if (a.kind === 'Attack' && b.kind === 'Attack') return a.target !== b.target ? a.target - b.target : a.pct - b.pct;
   if (a.kind === 'CancelAttack' && b.kind === 'CancelAttack') return a.target - b.target;
+  if (a.kind === 'DebugGive' && b.kind === 'DebugGive') return a.gold !== b.gold ? a.gold - b.gold : a.troops - b.troops;
   return 0;
 }
 
@@ -166,13 +193,14 @@ export const INVALID_BODY: IntentBody = Object.freeze({ kind: 'Noop', seat: -1 }
  */
 export function copyBody(x: unknown): IntentBody {
   if (typeof x !== 'object' || x === null) return INVALID_BODY;
-  const o = x as { kind?: unknown; seat?: unknown; cell?: unknown; target?: unknown; pct?: unknown };
+  const o = x as { kind?: unknown; seat?: unknown; cell?: unknown; target?: unknown; pct?: unknown; gold?: unknown; troops?: unknown };
   const seat = typeof o.seat === 'number' ? o.seat : -1;
   if (o.kind === 'Noop') return { kind: 'Noop', seat };
   if (o.kind === 'DebugPaint') return { kind: 'DebugPaint', seat, cell: typeof o.cell === 'number' ? o.cell : -1 };
   if (o.kind === 'Spawn') return { kind: 'Spawn', seat, cell: typeof o.cell === 'number' ? o.cell : -1 };
   if (o.kind === 'Attack') return { kind: 'Attack', seat, target: typeof o.target === 'number' ? o.target : -1, pct: typeof o.pct === 'number' ? o.pct : -1 };
   if (o.kind === 'CancelAttack') return { kind: 'CancelAttack', seat, target: typeof o.target === 'number' ? o.target : -1 };
+  if (o.kind === 'DebugGive') return { kind: 'DebugGive', seat, gold: typeof o.gold === 'number' ? o.gold : -1, troops: typeof o.troops === 'number' ? o.troops : -1 };
   return INVALID_BODY;
 }
 
@@ -187,6 +215,8 @@ export function withId(body: IntentBody, id: number): Intent {
       return { kind: 'Attack', seat: body.seat, target: body.target, pct: body.pct, id };
     case 'CancelAttack':
       return { kind: 'CancelAttack', seat: body.seat, target: body.target, id };
+    case 'DebugGive':
+      return { kind: 'DebugGive', seat: body.seat, gold: body.gold, troops: body.troops, id };
     default:
       return { kind: 'Noop', seat: body.seat, id };
   }

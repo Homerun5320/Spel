@@ -159,3 +159,15 @@ export const ENCLAVE_MAX_CELLS = 64;
 export const ENCLAVE_PASS_BUDGET_CELLS = 4096;
 /** A frontier (or a boundary list) is purged of stale entries when it reaches this many entries (and then at twice its purged size). Engine limit. */
 export const FRONT_COMPACT_MIN = 256;
+
+// ---------------------------------------------------------------------------------------------------------------
+// Match flow (M05). The spawn phase and the immunity are rules of the SIM, switched on by the match config (`spawnPhase`).
+
+/** Length of the spawn phase in ticks (20 s). While it runs a seat may Spawn and nobody may Attack; a Spawn after it is refused. */
+export const SPAWN_PHASE_TICKS = 200;
+/** Immunity after the spawn phase in ticks (5 s): nobody may Attack a seat's land (target not 0) while it runs. */
+export const IMMUNITY_TICKS = 50;
+/** AI nations of a standard match besides the human (seats 1..5). */
+export const MATCH_AI_NATIONS = 5;
+/** Tribes (bots with a weaker economy) of a standard match; they are the seats after the players. */
+export const MATCH_TRIBES = 20;

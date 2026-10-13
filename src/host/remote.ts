@@ -14,6 +14,7 @@ import {
   type Snapshot,
   type Speed,
   type Unsubscribe,
+  type ViewSnapshot,
 } from './protocol';
 import type { IntentBody } from '../sim/intents';
 
@@ -21,6 +22,14 @@ function transferablesOf(event: HostEvent): ArrayBuffer[] {
   if (event.type !== 'diff') return [];
   const list = [event.diff.cells.buffer as ArrayBuffer, event.diff.owners.buffer as ArrayBuffer];
   if (event.diff.fullOwner !== null) list.push(event.diff.fullOwner.buffer as ArrayBuffer);
+  list.push(...viewBuffers(event.diff.view));
+  return list;
+}
+
+function viewBuffers(v: ViewSnapshot): ArrayBuffer[] {
+  const list = [v.stats.buffer as ArrayBuffer];
+  if (v.owner !== null) list.push(v.owner.buffer as ArrayBuffer);
+  if (v.terrain !== null) list.push(v.terrain.buffer as ArrayBuffer);
   return list;
 }
 
@@ -48,6 +57,15 @@ export function serveHost(host: SimHost, port: Port<HostMessage, ClientMessage>)
         );
         break;
       }
+      case 'view': {
+        const requestId = m.requestId;
+        if (typeof requestId !== 'number') break;
+        host.requestView().then(
+          (view) => port.post({ type: 'view', requestId, view }, viewBuffers(view)),
+          (err: unknown) => port.post({ type: 'error', message: String(err) }),
+        );
+        break;
+      }
       case 'dispose':
         host.dispose();
         break;
@@ -65,6 +83,7 @@ export function serveHost(host: SimHost, port: Port<HostMessage, ClientMessage>)
 export class RemoteHost implements SimHost {
   private listeners: HostListener[] = [];
   private readonly requests = new Map<number, { resolve: (s: Snapshot) => void; reject: (e: Error) => void }>();
+  private readonly viewRequests = new Map<number, { resolve: (v: ViewSnapshot) => void; reject: (e: Error) => void }>();
   private nextRequest = 1;
   private readonly stop: Unsubscribe;
   /** The last error message the host sent, if any. */
@@ -85,6 +104,12 @@ export class RemoteHost implements SimHost {
         if (r !== undefined) {
           this.requests.delete(m.requestId);
           r.resolve(m.snapshot);
+        }
+      } else if (m.type === 'view') {
+        const r = this.viewRequests.get(m.requestId);
+        if (r !== undefined) {
+          this.viewRequests.delete(m.requestId);
+          r.resolve(m.view);
         }
       } else if (m.type === 'error') {
         this.lastError = m.message;
@@ -119,11 +144,21 @@ export class RemoteHost implements SimHost {
     });
   }
 
+  requestView(): Promise<ViewSnapshot> {
+    const requestId = this.nextRequest++;
+    return new Promise<ViewSnapshot>((resolve, reject) => {
+      this.viewRequests.set(requestId, { resolve, reject });
+      this.port.post({ type: 'view', requestId });
+    });
+  }
+
   dispose(): void {
     this.port.post({ type: 'dispose' });
     this.stop();
     this.listeners = [];
     for (const r of this.requests.values()) r.reject(new Error('host disposed'));
+    for (const r of this.viewRequests.values()) r.reject(new Error('host disposed'));
     this.requests.clear();
+    this.viewRequests.clear();
   }
 }

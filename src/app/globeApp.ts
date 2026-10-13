@@ -9,6 +9,16 @@ import { DEFAULT_START_TIME, DEFAULT_START_VIEW } from '../render/views';
 import { resolveQuality } from '../render/quality';
 import { FrameStats } from '../ui/frameStats';
 import { createPerfOverlay, type PerfOverlay } from '../ui/perfOverlay';
+import { ClickTracker } from '../ui/clickTracker';
+import { createMatchHud, NOT_CONQUERABLE_TEXT, rejectText, type MatchHud } from '../ui/matchHud';
+import { mountStartScreen, type StartScreen } from '../ui/startScreen';
+import { PHASE_IMMUNITY, PHASE_SPAWN } from '../sim/flow';
+import { REJECT_NOT_SPAWNED } from '../sim/intents';
+import { isPlayableClass } from '../sim/terrain';
+import type { IntentBody } from '../sim/intents';
+import { resolveClickCell } from './clickTarget';
+import { LOCAL_SEAT, MatchSession } from './match';
+import { matchKeyAction } from './matchKeys';
 import type { AppParams, AppState, SceneParams } from './params';
 import { siteUrl } from './paths';
 import { countryNameMap, tooltipText } from './tooltip';
@@ -34,6 +44,24 @@ export interface GlobeTestInfo extends GlobeInfo {
   fx: number;
 }
 
+/** What `__test.state()` reports of the match (plain data, copies). */
+export interface MatchStateInfo {
+  tick: number;
+  phase: 'spawn' | 'immunity' | 'play';
+  speed: number;
+  paused: boolean;
+  seed: number;
+  rejects: number;
+  lastRejectReason: number;
+  commitPct: number;
+  /** The local player (seat 0). */
+  local: { spawned: boolean; cells: number; troops: number; troopsQt: number; capQt: number; gold: number; goldMilli: number; goldPerSecMilli: number; landShareQ15: number; landSharePct: number; alive: boolean };
+  /** Per seat, same fields as the sim statistics. */
+  seats: Array<{ seat: number; cells: number; troopsQt: number; goldMilli: number; landShareQ15: number; alive: boolean }>;
+  ownership: { uploads: number; gpuUploads: number; dirty: boolean };
+  hostAdvance: { frames: number; meanMs: number; p95Ms: number; maxMs: number };
+}
+
 export interface GlobeTestHooks {
   /** Renders one frame; `dt` (default 0) first steps the fx clock, which also moves camera inertia and the sun. */
   render(dt?: number): void;
@@ -42,8 +70,24 @@ export interface GlobeTestHooks {
   setView(v: Partial<ViewState> & { time?: number }): void;
   /** Screen position of a position on the displaced surface. */
   project(lat: number, lon: number): ScreenHit;
-  /** Steps ONLY the fx clock (M05 adds sim ticks). */
-  advance(dt: number): void;
+  /** Steps the fx clock by `dt` seconds and then runs exactly `ticks` sim ticks (default 0), whatever the speed. With ticks the ownership texture is flushed (the throttle is bypassed) so the next render shows them. */
+  advance(dt: number, ticks?: number): void;
+  /** The match as plain data; null before the match started (it starts at once in test mode). */
+  state(): MatchStateInfo | null;
+  /** Sends a raw intent body of any seat through the host (what a UI would; used to try illegal ones). Effective T + 2 ticks later. */
+  submit(body: IntentBody): void;
+  /** Test-only gift: sends a DebugGive intent (valid only when the match config has debugIntents, which test mode sets). Effective T + 2 ticks later. */
+  give(seat: number, gift: { gold?: number; troops?: number }): void;
+  /** The sim state hash (through a snapshot request). */
+  hash(): Promise<number>;
+  /** Runs `seconds` of wall time in frames of 1/fps without drawing: fx clock, host.advance and the throttled ownership flush, as the live loop does. Returns the ownership uploads and ticks it caused. */
+  run(seconds: number, fps?: number): { uploads: number; ticks: number };
+  /** Owners (ownerId) of sim cells as the GPU texture holds them. */
+  readOwnership(cells: number[]): number[];
+  /** The mirror's owner of a cell (what the renderer was told). */
+  ownerOf(cell: number): number;
+  /** Sets the speed: 0 pause, 1, 2 or 4. */
+  setSpeed(speed: 0 | 1 | 2 | 4): void;
   /** Surface pick under a canvas pixel. */
   pick(x: number, y: number): GlobePick | null;
   /** Texels of a data texture as the GPU holds them. */
@@ -125,6 +169,76 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     if (firstFrameMs === null) firstFrameMs = performance.now();
   };
 
+  // --- The match (M05) ----------------------------------------------------------------------------------------------------
+  // A session is the sim behind its host plus the page's read-only mirror of it. Test mode starts one at once (no start screen);
+  // the normal page starts it when Play is pressed. The UI below only sends intents (`session.submit`) and reads `session.view`.
+  let session = null as MatchSession | null;
+  let hud = null as MatchHud | null;
+  let startScreen = null as StartScreen | null;
+  const hostAdvance = new FrameStats(240); // ms per frame that ran ticks: the cost of the sim stepping in the browser
+  const startMatch = async (): Promise<void> => {
+    if (session !== null) return;
+    const s = await MatchSession.create(
+      { width: world.sim.width, height: world.sim.height, terrainClass: world.sim.terrainClass, meanElev: world.sim.meanElev, cosQ15: world.meta.sim.cosQ15 },
+      { seed: params.seed, debugIntents: params.test, interpolate: !params.test },
+    );
+    if (!alive) {
+      s.dispose();
+      return;
+    }
+    session = s;
+    globe.ownership.setFromOwners(s.view.owner);
+    s.view.onFrame((m, d) => {
+      if (d.fullOwner !== null) globe.ownership.setFromOwners(m.owner);
+      else globe.ownership.applyCells(d.cells, d.owners);
+    });
+    hud = createMatchHud(wrapper, { setCommit: (p) => s.setCommit(p), setSpeed: (sp) => s.setSpeed(sp), togglePause: () => s.togglePause() });
+    hud.setVisible(!params.test || ctx.state.raw.hud === '1'); // test mode hides it (the globe goldens), `#hud` / `?hud=1` shows it
+  };
+  const refreshHud = (): void => {
+    if (session === null || hud === null) return;
+    const alpha = session.alpha();
+    hud.update(
+      {
+        view: session.view,
+        localSeat: LOCAL_SEAT,
+        commitPct: session.commitPct,
+        speed: session.speed,
+        troops: session.stats.value('troopsQt', LOCAL_SEAT, alpha) / 4,
+        gold: session.stats.value('goldMilli', LOCAL_SEAT, alpha) / 1000,
+      },
+      fxNow(),
+    );
+    const refused = session.takeNewReject();
+    if (refused !== 0) hud.toast(rejectText(refused), fxNow());
+  };
+  /** One click on the globe: spawn in the spawn phase, otherwise attack the land under the cursor. */
+  const onGlobeClick = (x: number, y: number): void => {
+    const sess = session;
+    if (sess === null) return;
+    const pick = globe.pick(x, y);
+    if (pick === null) return;
+    const v = sess.view;
+    const cell = resolveClickCell(pick, v.terrainClass, v.width, v.height);
+    const cls = v.terrainClass[cell] as number;
+    const spawned = (v.stats.capital[LOCAL_SEAT] as number) !== 0;
+    if (v.phase === PHASE_SPAWN) {
+      if (!spawned) sess.spawnAt(cell); // anything else is the sim's to refuse (sea, Peak, Ice, owned) and the toast says why
+      return;
+    }
+    if (!spawned) {
+      hud?.toast(rejectText(REJECT_NOT_SPAWNED), fxNow());
+      return;
+    }
+    if (!isPlayableClass(cls)) {
+      hud?.toast(NOT_CONQUERABLE_TEXT, fxNow());
+      return;
+    }
+    const target = v.owner[cell] as number;
+    if (target === sess.localOwner) return; // your own land: nothing to attack
+    sess.attack(target);
+  };
+
   // --- Overlay (F3) -----------------------------------------------------------------------------------------------
   let fps = 0;
   const refreshOverlay = (): void => {
@@ -144,7 +258,18 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
         e.preventDefault();
         overlay.hidden = !overlay.hidden;
         if (!overlay.hidden) refreshOverlay();
+        return;
       }
+      if (session === null) return;
+      const t = e.target instanceof HTMLElement ? e.target : null;
+      const action = matchKeyAction({ key: e.key, code: e.code, ctrlKey: e.ctrlKey, altKey: e.altKey, metaKey: e.metaKey, repeat: e.repeat, targetTag: t?.tagName, targetType: t instanceof HTMLInputElement ? t.type : undefined });
+      if (action === null) return;
+      e.preventDefault();
+      if (action === 'commit-down') session.adjustCommit(-1);
+      else if (action === 'commit-up') session.adjustCommit(1);
+      else if (action === 'pause') session.togglePause();
+      else if (action === 'slower') session.slower();
+      else session.faster();
     },
     { signal },
   );
@@ -157,6 +282,16 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       snapshot: () => globe.info(),
       stats,
       mode: { test: params.test ? '1' : '0', quality: quality.tier, scene: ctx.scene.scene },
+      match: () =>
+        session === null
+          ? null
+          : {
+              tick: session.view.tick,
+              speed: session.speed,
+              hostAdvanceMs: { mean: hostAdvance.meanMs(), p95: hostAdvance.p95Ms(), max: hostAdvance.maxMs(), frames: hostAdvance.frames },
+              ownershipUploads: globe.ownership.uploads,
+              ownershipGpuUploads: globe.ownership.gpuUploads,
+            },
     });
   }
   const disposeAll = (): void => {
@@ -164,6 +299,9 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     alive = false;
     abort.abort();
     perf?.dispose();
+    hud?.dispose();
+    startScreen?.dispose();
+    session?.dispose();
     tip.remove();
     status.remove();
     globe.dispose();
@@ -184,6 +322,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     tip.style.display = 'block';
     tip.style.transform = `translate(${Math.min(x + 14, width - 220)}px, ${Math.min(y + 16, height - 30)}px)`;
   };
+  const clicks = new ClickTracker();
   let mode: 'none' | 'drag' | 'rotate' = 'none';
   let lastX = 0;
   let lastY = 0;
@@ -202,12 +341,14 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       mode = 'rotate';
     } else if (e.button === 0) {
       mode = 'drag';
+      clicks.down(p.x, p.y);
       globe.rig.dragStart(p.x, p.y, fxNow());
     }
   });
   canvas.addEventListener('pointermove', (e: PointerEvent) => {
     const p = local(e);
     if (mode === 'drag') {
+      clicks.move(p.x, p.y);
       globe.rig.dragMove(p.x, p.y, fxNow());
     } else if (mode === 'rotate') {
       globe.rig.rotateBy(p.x - lastX, p.y - lastY);
@@ -218,7 +359,13 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     lastY = p.y;
   });
   const release = (e: PointerEvent): void => {
-    if (mode === 'drag') globe.rig.dragEnd(fxNow());
+    if (mode === 'drag') {
+      const p = local(e);
+      const wasClick = e.type === 'pointerup' && clicks.up(p.x, p.y);
+      if (!wasClick) clicks.cancel();
+      globe.rig.dragEnd(fxNow());
+      if (wasClick) onGlobeClick(p.x, p.y);
+    }
     mode = 'none';
     if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
   };
@@ -239,10 +386,50 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   );
 
   // --- Test hooks or the frame loop ---------------------------------------------------------------------------------
+  const matchState = (): MatchStateInfo | null => {
+    const sess = session;
+    if (sess === null) return null;
+    const v = sess.view;
+    const st = v.stats;
+    const L = LOCAL_SEAT;
+    const seats: MatchStateInfo['seats'] = [];
+    for (let seat = 0; seat < v.seats; seat++) {
+      seats.push({ seat, cells: st.cells[seat] as number, troopsQt: st.troopsQt[seat] as number, goldMilli: st.goldMilli[seat] as number, landShareQ15: st.landShareQ15[seat] as number, alive: st.alive[seat] === 1 });
+    }
+    return {
+      tick: v.tick,
+      phase: v.phase === PHASE_SPAWN ? 'spawn' : v.phase === PHASE_IMMUNITY ? 'immunity' : 'play',
+      speed: sess.speed,
+      paused: sess.isPaused,
+      seed: params.seed,
+      rejects: v.rejects,
+      lastRejectReason: v.lastRejectReason,
+      commitPct: sess.commitPct,
+      local: {
+        spawned: (st.capital[L] as number) !== 0,
+        cells: st.cells[L] as number,
+        troops: Math.floor((st.troopsQt[L] as number) / 4),
+        troopsQt: st.troopsQt[L] as number,
+        capQt: st.capQt[L] as number,
+        gold: Math.floor((st.goldMilli[L] as number) / 1000),
+        goldMilli: st.goldMilli[L] as number,
+        goldPerSecMilli: st.goldPerSecMilli[L] as number,
+        landShareQ15: st.landShareQ15[L] as number,
+        landSharePct: ((st.landShareQ15[L] as number) / 32768) * 100,
+        alive: st.alive[L] === 1,
+      },
+      seats,
+      ownership: { uploads: globe.ownership.uploads, gpuUploads: globe.ownership.gpuUploads, dirty: globe.ownership.isDirty },
+      hostAdvance: { frames: hostAdvance.frames, meanMs: hostAdvance.meanMs(), p95Ms: hostAdvance.p95Ms(), maxMs: hostAdvance.maxMs() },
+    };
+  };
   if (params.test) {
+    await startMatch(); // test mode has no start screen: the match exists from the first line of the test
+    refreshHud();
     const hooks: GlobeTestHooks = {
       render(dt = 0): void {
         advanceFx(dt);
+        refreshHud();
         renderFrame();
         if (!overlay.hidden) refreshOverlay();
         perf?.update();
@@ -256,8 +443,45 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
         globe.setView(view);
       },
       project: (lat, lon) => globe.project(lat, lon),
-      advance(dt): void {
+      advance(dt, ticks = 0): void {
         advanceFx(dt);
+        if (ticks > 0 && session !== null) {
+          session.runTicks(ticks);
+          globe.ownership.flush(fxNow(), true);
+        }
+        refreshHud();
+      },
+      state: matchState,
+      submit(body): void {
+        session?.submit(body);
+      },
+      give(seat, gift): void {
+        session?.submit({ kind: 'DebugGive', seat, gold: gift.gold ?? 0, troops: gift.troops ?? 0 });
+      },
+      hash: () => (session === null ? Promise.resolve(0) : session.hash()),
+      run(seconds, fps = 60): { uploads: number; ticks: number } {
+        const sess = session;
+        if (sess === null) return { uploads: 0, ticks: 0 };
+        const u0 = globe.ownership.uploads;
+        const t0 = sess.view.tick;
+        const n = Math.round(seconds * fps);
+        for (let i = 0; i < n; i++) {
+          advanceFx(1 / fps);
+          sess.frame(1000 / fps);
+          globe.ownership.flush(fxNow());
+        }
+        refreshHud();
+        return { uploads: globe.ownership.uploads - u0, ticks: sess.view.tick - t0 };
+      },
+      readOwnership: (cells) => Array.from(globe.readOwnership(cells)),
+      ownerOf: (cell) => (session === null ? 0 : (session.view.owner[cell] as number)),
+      setSpeed(speed): void {
+        if (session === null) return;
+        if (speed === 0) session.setPaused(true);
+        else {
+          session.setPaused(false);
+          session.setSpeed(speed);
+        }
       },
       pick: (x, y) => globe.pick(x, y),
       readTexels: (name, points) => Array.from(globe.readTexels(name, points)),
@@ -271,6 +495,12 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   }
 
   window.addEventListener('resize', () => globe.resize(window.innerWidth, window.innerHeight, Math.min(window.devicePixelRatio || 1, quality.maxDpr)), { signal });
+  // The normal page opens with the start screen; the match begins when Play is pressed.
+  startScreen = mountStartScreen(wrapper, () => {
+    startScreen?.dispose();
+    startScreen = null;
+    void startMatch();
+  });
   let last = performance.now();
   let sinceOverlay = 0;
   const loop = (now: number): void => {
@@ -281,6 +511,13 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       fps = fps * 0.9 + (1 / dt) * 0.1;
       stats.push(dt * 1000);
       advanceFx(Math.min(dt, 0.1));
+      if (session !== null) {
+        const before = session.view.tick;
+        const t0 = performance.now();
+        session.frame(Math.min(dt * 1000, 250));
+        if (session.view.tick !== before) hostAdvance.push(performance.now() - t0);
+        refreshHud();
+      }
     }
     renderFrame();
     if (!overlay.hidden) refreshOverlay();

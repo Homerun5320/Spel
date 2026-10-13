@@ -107,6 +107,7 @@ describe('RemoteHost over LocalTransport', () => {
       advance() {},
       subscribe: () => () => {},
       requestSnapshot: () => Promise.reject(new Error('no state')),
+      requestView: () => Promise.reject(new Error('no state')), // M05: the interface gained requestView, nothing else changed here
       dispose() {},
     };
     serveHost(broken, transport.host);

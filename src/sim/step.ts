@@ -10,6 +10,7 @@ import { applyAttack, applyCancelAttack, conquestPhase } from './conquest';
 import { compareIntents, REJECT_DUPLICATE, REJECT_NONE, validateIntent, type Intent, type TurnIntents } from './intents';
 import { economyTick } from './economy';
 import { enclavePhase } from './enclaves';
+import { applyDebugGive } from './debugGive';
 import { MAX_INTENTS_PER_TURN } from './rules';
 import { OUTBOX_REJECT } from './outbox';
 import { nextU32 } from './rng';
@@ -43,6 +44,8 @@ export function applyIntent(state: GameState, intent: Intent): number {
       return applyAttack(state, intent.seat, intent.target, intent.pct);
     case 'CancelAttack':
       return applyCancelAttack(state, intent.seat, intent.target);
+    case 'DebugGive':
+      return applyDebugGive(state, intent.seat, intent.gold, intent.troops);
     default:
       return REJECT_NONE;
   }

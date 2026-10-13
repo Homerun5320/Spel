@@ -4,11 +4,12 @@
 // listener, snapshots are serialised bytes, and intents are copied on the way in. Swapping this class for a Worker behind a
 // message port (M24a) must not change a single caller.
 import { IdAllocator, copyBody, withId, type Intent, type IntentBody } from '../sim/intents';
-import { OUTBOX_PAINT } from '../sim/outbox';
+import { OUTBOX_PAINT, OUTBOX_REJECT } from '../sim/outbox';
 import { MAX_INTENTS_PER_TURN } from '../sim/rules';
 import { deserialize, hashState, serialize } from '../sim/serialize';
 import { step, type StepFn } from '../sim/step';
 import { MAX_SEATS, type GameState } from '../sim/state';
+import { fillSeatStats, statsLength } from '../sim/view';
 import { scheduledTurn } from '../sim/time';
 import { FixedStepAccumulator } from './accumulator';
 import {
@@ -22,6 +23,7 @@ import {
   type Speed,
   type StateDiff,
   type Unsubscribe,
+  type ViewSnapshot,
 } from './protocol';
 
 export interface MainThreadHostOptions {
@@ -45,6 +47,11 @@ export class MainThreadHost implements SimHost {
   private disposed = false;
   /** Intents dropped because their turn already held MAX_INTENTS_PER_TURN of them. */
   droppedIntents = 0;
+  /** The most recent refusal seen in the outbox (REJECT_* code and the tick of the step), for the view snapshots. */
+  private lastRejectReason = 0;
+  private lastRejectTick = -1;
+  /** Reused for the statistics of every view (the snapshot gets a copy). */
+  private readonly statsScratch: Uint32Array;
 
   /**
    * Takes over `state`: after this call only the host may use it. `resume` (what `requestSnapshot` hands out, already
@@ -54,6 +61,7 @@ export class MainThreadHost implements SimHost {
     this.state = state;
     this.ids = new IdAllocator(resume?.idNext);
     if (resume !== undefined) for (const t of resume.pending) this.pending.set(t.turn, t.intents.map(copyIntent));
+    this.statsScratch = new Uint32Array(statsLength(state.header.seats));
     this.stepFn = options.stepFn ?? step;
     this.hashEvery = options.hashEveryTicks !== undefined && options.hashEveryTicks > 0 ? Math.floor(options.hashEveryTicks) : 0;
     if (options.speed !== undefined) this.accumulator.setSpeed(options.speed);
@@ -135,6 +143,9 @@ export class MainThreadHost implements SimHost {
         if (ev.kind === OUTBOX_PAINT) {
           cells.push(ev.a);
           owners.push(ev.b);
+        } else if (ev.kind === OUTBOX_REJECT) {
+          this.lastRejectReason = ev.a;
+          this.lastRejectTick = ev.tick;
         }
       }
       if (this.hashEvery > 0 && this.state.tick % this.hashEvery === 0) {
@@ -148,10 +159,36 @@ export class MainThreadHost implements SimHost {
       owners: overflowed ? new Uint16Array(0) : Uint16Array.from(owners),
       fullOwner: overflowed ? this.state.owner.slice() : null,
       rejects: this.state.rejects,
+      view: this.buildView(false),
     };
     if (diff.toTick === fromTick) return;
     this.emit({ type: 'diff', diff });
     for (const h of hashes) this.emit(h);
+  }
+
+  /** The light view of the state; `full` adds copies of the owner array and the terrain layer. */
+  private buildView(full: boolean): ViewSnapshot {
+    const s = this.state;
+    fillSeatStats(s, this.statsScratch);
+    return {
+      tick: s.tick,
+      rejects: s.rejects,
+      lastRejectReason: this.lastRejectReason,
+      lastRejectTick: this.lastRejectTick,
+      width: s.width,
+      height: s.height,
+      seats: s.header.seats,
+      players: s.header.players,
+      flow: s.header.config.spawnPhase === true,
+      debugIntents: s.header.config.debugIntents,
+      stats: this.statsScratch.slice(),
+      owner: full ? s.owner.slice() : null,
+      terrain: full ? s.terrain.slice() : null,
+    };
+  }
+
+  requestView(): Promise<ViewSnapshot> {
+    return Promise.resolve(this.buildView(true));
   }
 
   subscribe(listener: HostListener): Unsubscribe {

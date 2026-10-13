@@ -37,6 +37,13 @@ export class FrameStats {
     return s / this.count;
   }
 
+  /** The longest duration in the window; 0 without frames. */
+  maxMs(): number {
+    let m = 0;
+    for (let i = 0; i < this.count; i++) m = Math.max(m, this.ring[i] as number);
+    return m;
+  }
+
   /** Mean fps over the window (1000 / mean frame time); 0 without frames. */
   meanFps(): number {
     const m = this.meanMs();

@@ -29,6 +29,8 @@ export interface StateDiff {
   readonly fullOwner: Uint16Array | null;
   /** The reject counter of the state after the frame. */
   readonly rejects: number;
+  /** The light view of the state after the frame (statistics, refusals; `owner` and `terrain` are null here): one event per frame carries both. */
+  readonly view: ViewSnapshot;
 }
 
 /**
@@ -54,6 +56,32 @@ export interface Snapshot {
   readonly resume: HostResume;
 }
 
+/**
+ * What the page needs besides the changed cells, once per frame that ran ticks (`StateDiff.view`) and in full on request
+ * (`SimHost.requestView`): the tick, the reject count and the LAST refusal (reason and tick, for a toast), the per-seat
+ * statistics packed as in src/sim/view.ts (`stats`, STAT_COUNT blocks of `seats` values) and the match facts a mirror needs once.
+ * `owner` and `terrain` are full copies and only present in the answer to `requestView` (a few hundred KB each); the diff
+ * leaves them null, because the diff events keep a mirror's owner array current. A Worker host transfers these buffers.
+ */
+export interface ViewSnapshot {
+  readonly tick: number;
+  readonly rejects: number;
+  /** REJECT_* code of the most recent refused intent, 0 when none has been refused. */
+  readonly lastRejectReason: number;
+  /** The tick of the step that refused it, -1 when none has been refused. */
+  readonly lastRejectTick: number;
+  readonly width: number;
+  readonly height: number;
+  readonly seats: number;
+  readonly players: number;
+  /** The match config's `spawnPhase` flag. */
+  readonly flow: boolean;
+  readonly debugIntents: boolean;
+  readonly stats: Uint32Array;
+  readonly owner: Uint16Array | null;
+  readonly terrain: Uint8Array | null;
+}
+
 export type HostEvent =
   | { readonly type: 'diff'; readonly diff: StateDiff }
   | { readonly type: 'hash'; readonly tick: number; readonly hash: number }
@@ -65,10 +93,15 @@ export function cloneEvent(e: HostEvent): HostEvent {
     const d = e.diff;
     return {
       type: 'diff',
-      diff: { fromTick: d.fromTick, toTick: d.toTick, cells: d.cells.slice(), owners: d.owners.slice(), fullOwner: d.fullOwner === null ? null : d.fullOwner.slice(), rejects: d.rejects },
+      diff: { fromTick: d.fromTick, toTick: d.toTick, cells: d.cells.slice(), owners: d.owners.slice(), fullOwner: d.fullOwner === null ? null : d.fullOwner.slice(), rejects: d.rejects, view: cloneView(d.view) },
     };
   }
   return e.type === 'hash' ? { type: 'hash', tick: e.tick, hash: e.hash } : { type: 'speed', speed: e.speed };
+}
+
+/** A deep copy of a view snapshot. */
+export function cloneView(v: ViewSnapshot): ViewSnapshot {
+  return { ...v, stats: v.stats.slice(), owner: v.owner === null ? null : v.owner.slice(), terrain: v.terrain === null ? null : v.terrain.slice() };
 }
 
 export type HostListener = (event: HostEvent) => void;
@@ -89,6 +122,8 @@ export interface SimHost {
   subscribe(listener: HostListener): Unsubscribe;
   /** A complete copy of the current state. */
   requestSnapshot(): Promise<Snapshot>;
+  /** The light view of the current state: statistics plus FULL copies of the owner array and the terrain layer. A page asks once at start; the events keep it current. */
+  requestView(): Promise<ViewSnapshot>;
   dispose(): void;
 }
 
@@ -97,11 +132,13 @@ export type ClientMessage =
   | { readonly type: 'speed'; readonly speed: Speed }
   | { readonly type: 'advance'; readonly dtMs: number }
   | { readonly type: 'snapshot'; readonly requestId: number }
+  | { readonly type: 'view'; readonly requestId: number }
   | { readonly type: 'dispose' };
 
 export type HostMessage =
   | { readonly type: 'event'; readonly event: HostEvent }
   | { readonly type: 'snapshot'; readonly requestId: number; readonly snapshot: Snapshot }
+  | { readonly type: 'view'; readonly requestId: number; readonly view: ViewSnapshot }
   | { readonly type: 'error'; readonly message: string };
 
 /** One end of a message channel: post sends a copy, handlers receive copies. `transfer` lists buffers to move, not copy. */

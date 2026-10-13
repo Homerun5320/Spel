@@ -9,6 +9,7 @@ import { describeAt, type GlobePick } from './describe';
 import { sunDirectionAt, type Vec3 } from './geo';
 import { buildGlobeGeometry } from './globeMesh';
 import { HeightField } from './heightField';
+import { OwnershipTexture } from './ownership';
 import { meshTriangles, type QualitySettings } from './quality';
 import { buildStars } from './stars';
 import { createTerrainMaterial } from './terrainMaterial';
@@ -72,6 +73,8 @@ export interface ScreenHit {
 export class Globe {
   readonly rig: CameraRig;
   readonly field: HeightField;
+  /** Who owns each sim cell (RGBA8 texture, throttled full upload); the match writes into it. */
+  readonly ownership: OwnershipTexture;
   readonly quality: QualitySettings;
   private readonly renderer: WebGLRenderer;
   private readonly scene = new Scene();
@@ -117,7 +120,8 @@ export class Globe {
 
     this.textures = createWorldTextures(o.world.render, o.world.sim);
     this.look = createLookTextures(o.world.cities ?? []);
-    const tm = createTerrainMaterial(this.textures, o.world.render, o.world.sim, o.world.meta, this.look);
+    this.ownership = new OwnershipTexture(o.world.sim.width, o.world.sim.height, o.world.sim.terrainClass);
+    const tm = createTerrainMaterial(this.textures, o.world.render, o.world.sim, o.world.meta, this.look, this.ownership);
     this.material = tm.material;
     this.sun = tm.sun;
     this.mesh = new Mesh(buildGlobeGeometry(o.quality.meshCols, o.quality.meshRows), this.material);
@@ -171,6 +175,7 @@ export class Globe {
   /** Renders one frame at the current fx time (camera inertia and the sun follow the fx clock). */
   render(): void {
     const now = fxNow();
+    this.ownership.flush(now); // the one place that schedules the (throttled) full upload
     this.rig.update(now);
     const sun = sunDirectionAt(now);
     this.sun.set(sun[0], sun[1], sun[2]);
@@ -213,6 +218,16 @@ export class Globe {
     return readTexels(this.renderer, this.textures[name], points);
   }
 
+  /** The owners the GPU holds for a list of sim cells (R + 256 * G of the ownership texture), after forcing the pending upload. */
+  readOwnership(cells: ReadonlyArray<number>): Uint16Array {
+    this.ownership.flush(fxNow(), true);
+    const w = this.ownership.width;
+    const pts = cells.map((c) => [c % w, Math.floor(c / w)] as const);
+    const lo = readTexels(this.renderer, this.ownership.texture, pts, 0);
+    const hi = readTexels(this.renderer, this.ownership.texture, pts, 1);
+    return Uint16Array.from(cells, (_, i) => (lo[i] as number) | ((hi[i] as number) << 8));
+  }
+
   info(): GlobeInfo {
     const gl = this.renderer.getContext();
     const ext = gl.getExtension('WEBGL_debug_renderer_info');
@@ -251,6 +266,8 @@ export class Globe {
     this.starsMaterial.dispose();
     disposeWorldTextures(this.textures);
     disposeLookTextures(this.look);
+    this.ownership.dispose();
+    (this.material.uniforms.uOwnerPalette as { value: { dispose(): void } }).value.dispose();
     this.renderer.dispose();
     this.renderer.forceContextLoss(); // free the GL context: the app restarts the scene on hashchange
   }

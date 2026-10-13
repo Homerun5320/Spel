@@ -2,7 +2,7 @@
 // the same number is an error), so every accepted byte string has exactly one meaning and re-encodes to itself.
 //
 //   intent  = kind:u8  seat:u8  id:varint  [payload]
-//     payload: DebugPaint and Spawn: cell:varint;  Attack: target:varint pct:varint;  CancelAttack: target:varint;  Noop: none
+//     payload: DebugPaint and Spawn: cell:varint;  Attack: target:varint pct:varint;  CancelAttack: target:varint;  DebugGive: gold:varint troops:varint;  Noop: none
 //   turn    = turn:varint  count:varint  intent*count
 //
 // Decoding is total: any bytes give either a value or an error result; nothing throws. The decoder checks only what the
@@ -53,6 +53,8 @@ function intentSize(i: Intent): number {
       return head + varintSize(i.target) + varintSize(i.pct);
     case 'CancelAttack':
       return head + varintSize(i.target);
+    case 'DebugGive':
+      return head + varintSize(i.gold) + varintSize(i.troops);
     default:
       return head;
   }
@@ -67,6 +69,10 @@ function putIntent(out: Uint8Array, at: number, i: Intent): number {
     p = putVarint(out, p, i.target);
     p = putVarint(out, p, i.pct);
   } else if (i.kind === 'CancelAttack') p = putVarint(out, p, i.target);
+  else if (i.kind === 'DebugGive') {
+    p = putVarint(out, p, i.gold);
+    p = putVarint(out, p, i.troops);
+  }
   return p;
 }
 
@@ -79,6 +85,8 @@ function payloadEncodable(i: Intent): boolean {
       return isU32(i.target) && isU32(i.pct);
     case 'CancelAttack':
       return isU32(i.target);
+    case 'DebugGive':
+      return isU32(i.gold) && isU32(i.troops);
     default:
       return true;
   }
@@ -173,6 +181,11 @@ class Reader {
     if (kind === 'CancelAttack') {
       const target = this.varint();
       return this.error === null ? { kind, seat, id, target } : null;
+    }
+    if (kind === 'DebugGive') {
+      const gold = this.varint();
+      const troops = this.varint();
+      return this.error === null ? { kind, seat, id, gold, troops } : null;
     }
     return this.error === null ? { kind, seat, id } : null;
   }

@@ -96,3 +96,12 @@ Below, everything is in English. See `docs/DECISIONS.md` D73 to D80 for how the 
 | `ENCLAVE_MAX_CELLS` | 64 | sim cells | eget val | A region larger than this is never treated as an enclave (16 std-cells; bounds the work of a failed fill). |
 | `ENCLAVE_PASS_BUDGET_CELLS` | 4096 | cells per tick | eget val | Cells one enclave pass may visit; the rest of its batch waits for the next pass of its bucket. |
 | `FRONT_COMPACT_MIN` | 256 | heap entries | eget val | An attack's frontier (and an owner's boundary list) is purged of stale entries when it reaches this size (then at twice its purged size). |
+
+## Match flow (M05)
+
+| Constant | Value | Unit | Source | Note |
+|----------|-------|------|--------|------|
+| `SPAWN_PHASE_TICKS` | 200 | ticks | plan | 20 s. Enforced by the sim when the match config has `spawnPhase`: Attack is refused during the phase, Spawn after it (D92). |
+| `IMMUNITY_TICKS` | 50 | ticks | plan | 5 s after the phase: an Attack on owned land is refused; an Attack on unowned land (target 0) is allowed. |
+| `MATCH_AI_NATIONS` | 5 | nations | plan | Standard match: you + 5 AI nations (AI v0, part C). |
+| `MATCH_TRIBES` | 20 | tribes | plan | Standard match: 20 tribes at the start (part C). |

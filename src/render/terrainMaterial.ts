@@ -8,6 +8,8 @@ import { atmosphereFragmentShader, atmosphereVertexShader } from './shaders/atmo
 import { starsFragmentShader, starsVertexShader } from './shaders/stars';
 import { terrainFragmentShader, terrainVertexShader } from './shaders/terrain';
 import { createLookTextures, type LookTextures, type WorldTextures } from './textures';
+import { createOwnerPaletteTexture } from './ownerPalette';
+import type { OwnershipTexture } from './ownership';
 
 export interface TerrainMaterial {
   material: ShaderMaterial;
@@ -27,6 +29,7 @@ export function createTerrainMaterial(
   sim: SimGrid,
   meta: WorldMeta,
   look: LookTextures = createLookTextures([]),
+  ownership?: OwnershipTexture,
 ): TerrainMaterial {
   const sun = new Vector3(0, 0, 1);
   // Uniforms used by more than one material are the SAME objects, so one assignment updates all of them.
@@ -70,6 +73,12 @@ export function createTerrainMaterial(
       uClassAlbedo: { value: C.CLASS_ALBEDO.map((c) => new Vector3(c[0], c[1], c[2])) },
       uBorderStrength: { value: C.BORDER_STRENGTH },
       uCountryTint: { value: C.COUNTRY_TINT },
+      // Territory (M05): the ownership texture (all zero without a match), the owner colours and the style numbers.
+      uOwnerTex: { value: ownership?.texture ?? null },
+      uOwnerPalette: { value: createOwnerPaletteTexture() },
+      uOwnerSize: { value: new Vector2(ownership?.width ?? 1, ownership?.height ?? 1) },
+      uOwnerStyle: { value: new Vector4(C.OWNER_TINT, C.OWNER_EDGE_GLOW, C.OWNER_LINE_STRENGTH, C.OWNER_LINE_PX) },
+      uOwnerWarp: { value: new Vector2(C.OWNER_WARP_AMP, C.OWNER_LINE_DARKEN) },
       // Ocean (the animation time is the fx clock, set by Globe.render).
       uTime: { value: 0 },
       uWaveSlope: { value: C.OCEAN_WAVE_SLOPE },

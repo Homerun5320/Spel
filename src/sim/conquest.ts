@@ -42,12 +42,15 @@ import {
   UPHILL_PER_STEP_MILLI,
   UPHILL_STEP_UNITS,
 } from './rules';
+import { PHASE_IMMUNITY, PHASE_SPAWN, phaseAt } from './flow';
 import {
+  REJECT_IMMUNE,
   REJECT_NONE,
   REJECT_NO_ATTACK,
   REJECT_NO_CONTACT,
   REJECT_NO_TROOPS,
   REJECT_NOT_SPAWNED,
+  REJECT_PHASE,
   REJECT_SELF,
 } from './intents';
 import { seatToOwner, type GameState } from './state';
@@ -278,6 +281,12 @@ export function launchAttack(state: GameState, attacker: number, target: number,
 /** Applies an Attack intent. Returns REJECT_NONE or the reason it was refused (nothing changed then). */
 export function applyAttack(state: GameState, seat: number, target: number, pct: number): number {
   const owner = seatToOwner(seat);
+  if (state.header.config.spawnPhase === true) {
+    // Match flow (D92): no Attack in the spawn phase, none on owned land in the immunity that follows.
+    const phase = phaseAt(state.tick);
+    if (phase === PHASE_SPAWN) return REJECT_PHASE;
+    if (phase === PHASE_IMMUNITY && target !== 0) return REJECT_IMMUNE;
+  }
   if ((state.agg.area[owner] as number) === 0) return REJECT_NOT_SPAWNED;
   if (target === owner) return REJECT_SELF;
   if (state.borders.contact(owner, target) === 0) return REJECT_NO_CONTACT;

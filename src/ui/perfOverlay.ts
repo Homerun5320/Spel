@@ -28,6 +28,18 @@ export interface PerfContext {
   stats: FrameStats;
   /** Mode flags worth putting into the report (test, quality, scene...). */
   mode: Record<string, string>;
+  /** The match numbers (M05), when a match runs: the report gets a `match` section. Additive; the schema version stays 1. */
+  match?: () => MatchPerf | null;
+}
+
+/** What the match adds to the perf report: the cost of the simulation per frame and the ownership uploads. */
+export interface MatchPerf {
+  tick: number;
+  speed: number;
+  /** Cost in ms of `host.advance` on the frames that ran ticks (the sim stepping, measured in the browser). */
+  hostAdvanceMs: { mean: number; p95: number; max: number; frames: number };
+  ownershipUploads: number;
+  ownershipGpuUploads: number;
 }
 
 export interface PerfReport {
@@ -44,6 +56,7 @@ export interface PerfReport {
   textureMB: number;
   mode: Record<string, string>;
   userAgent: string;
+  match?: MatchPerf;
 }
 
 const round = (x: number, d = 2): number => Math.round(x * 10 ** d) / 10 ** d;
@@ -65,17 +78,28 @@ export function buildPerfReport(ctx: PerfContext): PerfReport {
     textureMB: round(s.textureMB),
     mode: ctx.mode,
     userAgent: typeof navigator === 'undefined' ? '' : navigator.userAgent,
+    ...matchSection(ctx),
   };
+}
+
+function matchSection(ctx: PerfContext): { match?: MatchPerf } {
+  const m = ctx.match?.() ?? null;
+  if (m === null) return {};
+  return { match: { ...m, hostAdvanceMs: { mean: round(m.hostAdvanceMs.mean, 3), p95: round(m.hostAdvanceMs.p95, 3), max: round(m.hostAdvanceMs.max, 3), frames: m.hostAdvanceMs.frames } } };
 }
 
 export function perfLines(r: PerfReport): string[] {
   const fps = r.fps.frames > 0 ? `${r.fps.mean.toFixed(1)} medel, ${r.fps.p95.toFixed(1)} p95 (${r.fps.p95FrameMs.toFixed(1)} ms)` : 'ingen ram än (testläge: ingen rAF-loop)';
+  const match = r.match
+    ? [`match: tick ${r.match.tick}, fart ${r.match.speed}x, sim-steg per bildruta ${r.match.hostAdvanceMs.mean.toFixed(2)} ms medel / ${r.match.hostAdvanceMs.p95.toFixed(2)} p95 / ${r.match.hostAdvanceMs.max.toFixed(2)} max, ägarkarta ${r.match.ownershipUploads} uppladdn.`]
+    : [];
   return [
     `Renderer: ${r.renderer}`,
     `GL: ${r.glVersion}`,
     `fps: ${fps}`,
     `anrop ${r.renderInfo.calls}  trianglar ${r.renderInfo.triangles}  geometrier ${r.renderInfo.geometries}  texturer ${r.renderInfo.textures}`,
     `texturminne ${r.textureMB.toFixed(1)} MB  nivå ${r.tier}  ${r.viewport.width}x${r.viewport.height} @${r.viewport.dpr}x`,
+    ...match,
   ];
 }
 

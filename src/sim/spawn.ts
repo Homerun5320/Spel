@@ -6,7 +6,8 @@
 // and is cleared again through the list of cells that were touched).
 import { applyStartValues } from './economy';
 import { hash2 } from './fixture';
-import { REJECT_NONE, REJECT_OWNED, REJECT_SPAWNED, REJECT_TERRAIN } from './intents';
+import { PHASE_SPAWN, phaseAt } from './flow';
+import { REJECT_NONE, REJECT_OWNED, REJECT_PHASE, REJECT_SPAWNED, REJECT_TERRAIN } from './intents';
 import { START_DISC_CELLS } from './rules';
 import { NO_OWNER, seatToOwner, type GameState } from './state';
 import { setOwner } from './territory';
@@ -114,6 +115,7 @@ export function claimDisc(state: GameState, center: number, owner: number, stamp
  */
 export function applySpawn(state: GameState, seat: number, cell: number, stamp: number): number {
   const owner = seatToOwner(seat);
+  if (state.header.config.spawnPhase === true && phaseAt(state.tick) !== PHASE_SPAWN) return REJECT_PHASE;
   if ((state.capital[owner] as number) !== 0) return REJECT_SPAWNED;
   if (state.grid.playable[cell] !== 1) return REJECT_TERRAIN;
   if (state.owner[cell] !== NO_OWNER) return REJECT_OWNED;

@@ -18,13 +18,15 @@ export interface DevMode {
   href?: string;
   /** Custom action; without it a mode with `params` writes the hash and reloads. */
   run?: () => void;
+  /** A text field for one parameter (the seed): the panel shows an input with the mode id as its element id and a Starta button that writes `param-value` into the hash. */
+  field?: { param: string; placeholder?: string; pattern: RegExp };
 }
 
 const registry = new Map<string, DevMode>();
 
 /** Registers (or replaces) a mode. A mode needs `run`, `params` or `href`. */
 export function registerDevMode(mode: DevMode): void {
-  if (!mode.run && !mode.params && !mode.href) throw new Error(`dev mode ${mode.id} has no run, params or href`);
+  if (!mode.run && !mode.params && !mode.href && !mode.field) throw new Error(`dev mode ${mode.id} has no run, params, href or field`);
   if (mode.href !== undefined && /^\//.test(mode.href)) throw new Error(`dev mode ${mode.id}: links must be relative, got ${mode.href}`);
   registry.set(mode.id, mode);
 }
@@ -117,6 +119,44 @@ export function mountDevPanel(opts: DevPanelOptions): DevPanel {
       'border:1px solid #3a5a9a;background:#16294a;color:#e8f0ff;font:14px system-ui,sans-serif;cursor:pointer;text-decoration:none;';
     for (const mode of devModes()) {
       const active = modeActive(mode, raw);
+      if (mode.field !== undefined) {
+        const field = mode.field;
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;gap:6px;margin:0 0 6px 0;align-items:center;';
+        const label = document.createElement('label');
+        label.htmlFor = mode.id;
+        label.textContent = mode.label;
+        label.style.cssText = 'flex:0 0 auto;min-width:48px;';
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.id = mode.id;
+        input.inputMode = 'numeric';
+        input.autocomplete = 'off';
+        input.dataset.devField = mode.id;
+        input.placeholder = field.placeholder ?? '';
+        input.value = raw[field.param] ?? '';
+        input.style.cssText = 'flex:1 1 auto;min-width:0;min-height:44px;box-sizing:border-box;padding:0 8px;border-radius:6px;border:1px solid #3a5a9a;background:#0d1a30;color:#e8f0ff;font:14px ui-monospace,Menlo,Consolas,monospace;';
+        const go = document.createElement('button');
+        go.type = 'button';
+        go.dataset.devFieldGo = mode.id;
+        go.textContent = 'Starta';
+        go.style.cssText = 'flex:0 0 auto;min-height:44px;padding:0 12px;border-radius:6px;border:1px solid #3a5a9a;background:#16294a;color:#e8f0ff;font:14px system-ui,sans-serif;cursor:pointer;';
+        const submit = (): void => {
+          const value = input.value.trim();
+          if (!field.pattern.test(value)) {
+            input.style.borderColor = '#e07070';
+            return;
+          }
+          navigate(hashAfterMode({ id: mode.id, label: mode.label, params: { [field.param]: value } }, window.location.hash, raw));
+        };
+        go.addEventListener('click', submit);
+        input.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') submit();
+        });
+        row.append(label, input, go);
+        panel.appendChild(row);
+        continue;
+      }
       if (mode.href !== undefined) {
         const a = document.createElement('a');
         a.href = siteUrl(mode.href.replace(/^\.\//, ''));
