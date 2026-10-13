@@ -1,0 +1,7 @@
+node_modules
+dist
+.cache
+test-results
+.claude/hook.log
+artifact/
+# e2e/goldens/ is intentionally NOT ignored: golden PNGs are committed test fixtures.

@@ -1,0 +1,42 @@
+{
+  "name": "spel",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Original 3D browser war-strategy game on a stylised globe (clean-room).",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run --project unit",
+    "shots": "node scripts/shot.mjs",
+    "verify:fast": "npm run typecheck && npm run lint && vitest run --project unit",
+    "verify": "npm run typecheck && npm run lint && vitest run --project unit && vitest run --project perf --passWithNoTests && vitest run --project e2e"
+  },
+  "dependencies": {
+    "three": "0.186.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/node": "22.20.5",
+    "@types/pngjs": "6.0.5",
+    "@types/three": "0.186.0",
+    "eslint": "10.12.0",
+    "fast-check": "4.10.2",
+    "globals": "17.13.0",
+    "pixelmatch": "8.0.0",
+    "playwright-core": "1.56.1",
+    "pngjs": "7.0.0",
+    "tsx": "4.23.15",
+    "typescript": "6.0.2",
+    "typescript-eslint": "8.71.2",
+    "vite": "8.3.4",
+    "vitest": "5.0.4",
+    "yaml": "2.9.1"
+  }
+}
