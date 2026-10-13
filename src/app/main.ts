@@ -2,6 +2,7 @@
 // attributes on <html>/<body>), starts the spike renderer and exposes the test hooks.
 import { createSpike, TEST_SUN_LAT_DEG, TEST_SUN_LON_DEG, type Spike, type SpikeInfo } from '../render/spike';
 import { parseParams } from './params';
+import { siteUrl } from './paths';
 
 export interface TestHooks {
   /** Render one frame synchronously with the fixed test-view sun. */
@@ -44,6 +45,16 @@ function boot(): void {
   overlay.hidden = params.test;
   wrapper.appendChild(overlay);
   root.appendChild(wrapper);
+
+  // Link to the preview probe page (declared in index.html). Hidden in test mode so the golden is unaffected.
+  const probeLink = document.getElementById('probe-link');
+  if (probeLink instanceof HTMLAnchorElement) {
+    probeLink.href = siteUrl('probe.html');
+    probeLink.style.cssText =
+      'position:fixed;right:8px;bottom:8px;z-index:10;padding:4px 8px;border-radius:4px;' +
+      'background:rgba(0,0,0,0.6);color:#9cf;font:12px/1.4 system-ui,sans-serif;text-decoration:none;';
+    probeLink.hidden = params.test;
+  }
 
   const dpr = params.test ? 1 : Math.min(window.devicePixelRatio || 1, 2);
   const width = params.test ? params.width : window.innerWidth;

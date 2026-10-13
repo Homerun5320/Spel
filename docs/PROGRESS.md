@@ -41,9 +41,30 @@ The SessionStart hook first runs for real in the NEXT session (it is only loaded
 
 CI workflow: `.github/workflows/ci.yml` was committed normally on the branch. Whether the push of `.github/workflows/*` is accepted is decided when the orchestrator pushes; if it is refused, the file moves to `docs/ci/ci.yml.txt` (the unit test accepts both locations) and the user adds it on GitHub by hand (see CLAUDE.md, CI rule and workflow fallback). Case that occurred (2026-10-13): the push of `.github/workflows/ci.yml` was ACCEPTED (the session token may add workflow files), so no `docs/ci/` fallback is needed. CI itself has not run yet: it starts when a pull request is marked ready for review.
 
+### M00b Förhandsvisning (in progress)
+
+Previous merge SHA (origin/main at start): f29121a8d1607ca169e6675b5f22a52d76c42ef7. Note: M00 was NOT yet squash-merged when M00b started (origin/main is still the initial commit; M00 lives on its branch and in pull request #1), so this SHA is the state before M00. The M00 precondition was treated as satisfied by the orchestrator's instruction.
+
+GÖR
+- [x] 1. Portable build: `base: './'`, `assetsDir: 'assets'`, `src/app/paths.ts` (`ROOT_URL`, `siteUrl`), absolute-address test
+- [x] 2. `scripts/artifact-pack.mjs` (`npm run artifact:pack`): fragment, file whitelist, containers, files list, `--prev`, `--probe`, link check
+- [x] 3. `probe.html` + `src/probe.ts` + `src/probe.worker.ts`, linked from index.html
+- [x] 4. `e2e/artifact.test.ts`
+- [ ] 5. Publish the spike as an Artifact (done by the orchestrator, URL goes into docs/PREVIEW.md)
+- [ ] 6. Update procedure (documented in docs/PREVIEW.md)
+- [ ] 7. Other routes (Netlify, local) probed and recorded
+- [ ] 8. docs/PREVIEW.md (Swedish), results in docs/DECISIONS.md
+
+ACCEPTANS
+- [ ] docs/PREVIEW.md exists, in Swedish, names the chosen route and why, the Artifact URL, the update procedure and a result per tried route
+- [ ] absolute-address test passes; `npm run verify` green
+- [ ] `npm run artifact:pack` green; fragment unit test (incl. `<header>`); planted `.glb` / extension-less file gives exit code != 0; `--prev` writes `null`; no batch holds index.html, .bin, .gz or .zip; link check passes
+- [ ] `e2e/artifact.test.ts` green (globe drawn, zero console errors, no 404)
+- [ ] The spike is published as an Artifact (or the local-run guide is complete); the reply ends with the question: syns klotet?
+
 ## Next
 
-- M00b Preview path (GATE): choose how the user looks at the game after each milestone and finalise `docs/PREVIEW.md`.
+- M00b Preview path (GATE): in progress, see Now.
 - M01 Bake world.
 
 ## Known issues

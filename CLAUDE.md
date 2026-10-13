@@ -24,6 +24,8 @@ Project rules for every session. Keep this file under 200 lines. Constitution: `
 - `npm run verify` = typecheck + lint + `vitest run --project unit` + `vitest run --project perf --passWithNoTests` + `vitest run --project e2e` (headless WebGL2 shots and goldens). Sequential, never concurrent with another Chromium. Budget <= 8 min; if it grows, shard e2e and note it in `docs/DECISIONS.md`. `verify` is the only definition of done.
 - Never run a bare `vitest run` (it would mix the projects).
 - `npm test` = unit project, `npm run shots` = smoke screenshot into `test-results/shots/`, `npm run dev|build|preview` = Vite.
+- `npm run artifact:pack` (after `npm run build`) = packs `dist` into the gitignored artifact folder for the Claude Artifact preview; options `-- --container=png|wasm|b64 --prev=<file> --probe`. Procedure in `docs/PREVIEW.md`.
+- Runtime data and page addresses go through `siteUrl()` in `src/app/paths.ts`, never a hand-written relative or absolute data path and never `BASE_URL`.
 - Commands that may exceed 2 minutes run with `run_in_background` and a log file.
 
 ## Working rules
