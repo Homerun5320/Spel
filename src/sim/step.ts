@@ -1,15 +1,19 @@
 // The one function that changes a game state: step(state, turn).
 //
 // A step runs the turn whose index equals state.tick: it validates the turn's intents, puts the valid ones in the
-// canonical order (seat, id, kind, payload), applies them, draws once from the state's generator and increments the tick.
+// canonical order (seat, id, kind, payload), applies them, runs the economy, draws once from the state's generator and
+// increments the tick.
 // An intent that is invalid in this match becomes a no-op and raises state.rejects. step() never throws for bad data: a
 // turn that cannot be run at all (wrong index, not a list, too long) is reported as an error result and leaves the state
 // untouched.
 import { compareIntents, REJECT_DUPLICATE, REJECT_NONE, validateIntent, type Intent, type TurnIntents } from './intents';
+import { economyTick } from './economy';
 import { MAX_INTENTS_PER_TURN } from './rules';
-import { OUTBOX_PAINT, OUTBOX_REJECT } from './outbox';
+import { OUTBOX_REJECT } from './outbox';
 import { nextU32 } from './rng';
+import { applySpawn } from './spawn';
 import { seatToOwner, type GameState } from './state';
+import { setOwner } from './territory';
 
 export type StepError = 'turn-mismatch' | 'bad-turn' | 'too-many';
 
@@ -54,14 +58,20 @@ export function step(state: GameState, turn: TurnIntents): StepResult {
         continue;
       }
       if (intent.kind === 'DebugPaint') {
-        const owner = seatToOwner(intent.seat);
-        state.owner[intent.cell] = owner;
-        state.stamp[intent.cell] = intent.id;
-        state.outbox.push(OUTBOX_PAINT, state.tick, intent.cell, owner);
+        setOwner(state, intent.cell, seatToOwner(intent.seat), intent.id);
+      } else if (intent.kind === 'Spawn') {
+        const why = applySpawn(state, intent.seat, intent.cell, intent.id);
+        if (why !== REJECT_NONE) {
+          rejected++;
+          state.outbox.push(OUTBOX_REJECT, state.tick, why, 0);
+          continue;
+        }
       }
       applied++;
     }
   }
+  // Phases of a tick: 1 intents (above), 2 conquest (M04 part B inserts it here), 3 economy, 4 the generator, 5 the tick.
+  economyTick(state);
   if (rejected > 0) state.rejects = (state.rejects + rejected) >>> 0;
   nextU32(state.rng);
   state.tick = (state.tick + 1) >>> 0;

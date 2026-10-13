@@ -49,7 +49,7 @@ describe('docs/PROGRESS.md', () => {
 });
 
 describe('docs only mention files that exist (or are marked later)', () => {
-  const files = ['CLAUDE.md', 'README.md', 'docs/ARCHITECTURE.md', 'docs/ASSETS.md', 'docs/BACKLOG.md', 'docs/DECISIONS.md', 'docs/PROGRESS.md', 'docs/PROMPT_TEMPLATE.md'];
+  const files = ['CLAUDE.md', 'README.md', 'docs/ARCHITECTURE.md', 'docs/ASSETS.md', 'docs/BACKLOG.md', 'docs/BALANCE.md', 'docs/DECISIONS.md', 'docs/PROGRESS.md', 'docs/PROMPT_TEMPLATE.md'];
   for (const file of files) {
     it(file, () => {
       const missing: string[] = [];

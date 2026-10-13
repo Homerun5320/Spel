@@ -12,7 +12,7 @@ import {
   serializedLength,
   type DeserializeError,
 } from '../../src/sim/serialize';
-import { STATE_ARRAY_NAMES, createEmptyState, createState, stateArray, type GameState } from '../../src/sim/state';
+import { ENGINE_VERSION, STATE_ARRAY_NAMES, createEmptyState, createState, stateArray, type GameState } from '../../src/sim/state';
 import { step } from '../../src/sim/step';
 
 function sample(ticks = 60): GameState {
@@ -40,13 +40,13 @@ describe('serialize / deserialize', () => {
     expect(t.outbox.length).toBe(0);
   });
 
-  it('the layout is the documented one (little-endian, 60 byte header, 9 bytes per cell, 4 byte checksum)', () => {
+  it('the layout is the documented one (little-endian, 64 byte header, 9 bytes per cell, 2 per row, 16 per ownerId, 4 byte checksum)', () => {
     const s = sample(5);
     const b = serialize(s);
     const v = new DataView(b.buffer);
-    expect(b.length).toBe(serializedLength(128, 64));
-    expect(b.length).toBe(HEADER_BYTES + 128 * 64 * 9 + 4);
-    expect(HEADER_BYTES).toBe(60);
+    expect(b.length).toBe(serializedLength(128, 64, 4));
+    expect(b.length).toBe(HEADER_BYTES + 128 * 64 * 9 + 64 * 2 + 5 * 16 + 4);
+    expect(HEADER_BYTES).toBe(64);
     expect(Array.from(b.subarray(0, 4))).toEqual([0x53, 0x50, 0x45, 0x4c]); // 'SPEL'
     expect(v.getUint32(0, true)).toBe(MAGIC);
     expect(v.getUint32(4, true)).toBe(FORMAT_VERSION);
@@ -60,8 +60,9 @@ describe('serialize / deserialize', () => {
     expect(v.getUint32(36, true)).toBe(5);
     expect(v.getUint32(40, true)).toBe(s.rejects);
     for (let i = 0; i < 4; i++) expect(v.getUint32(44 + 4 * i, true)).toBe(s.rng[i]);
-    expect(b[60]).toBe(s.terrain[0]);
-    expect(v.getUint16(60 + 8192 + 2 * 100, true)).toBe(s.elevation[100]);
+    expect(v.getUint32(60, true)).toBe(4); // players
+    expect(b[HEADER_BYTES]).toBe(s.terrain[0]);
+    expect(v.getUint16(HEADER_BYTES + 8192 + 2 * 100, true)).toBe(s.elevation[100]);
     expect(v.getUint32(b.length - 4, true)).toBe(hashState(s));
   });
 
@@ -279,7 +280,7 @@ describe('deserialize: errors are results, never throws', () => {
     expectErr(good.subarray(0, 63), 'too-short');
     expectErr(patch((v) => v.setUint32(0, 0x12345678, true)), 'magic');
     expectErr(patch((v) => v.setUint32(4, FORMAT_VERSION + 1, true)), 'format-version');
-    expectErr(patch((v) => v.setUint32(8, 2, true)), 'engine-version');
+    expectErr(patch((v) => v.setUint32(8, ENGINE_VERSION + 1, true)), 'engine-version');
     expectErr(patch((v) => v.setUint32(20, 2, true)), 'header'); // unknown config bit
     expectErr(patch((v) => v.setUint32(24, 0, true)), 'header'); // zero seats
     expectErr(patch((v) => v.setUint32(24, 256, true)), 'header');
@@ -350,6 +351,6 @@ describe('deserialize: errors are results, never throws', () => {
 
 describe('golden params', () => {
   it('serialized size of the golden world', () => {
-    expect(serialize(createScenarioState(GOLDEN_PARAMS)).length).toBe(60 + 8192 * 9 + 4);
+    expect(serialize(createScenarioState(GOLDEN_PARAMS)).length).toBe(64 + 8192 * 9 + 64 * 2 + 5 * 16 + 4);
   });
 });

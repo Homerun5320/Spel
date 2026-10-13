@@ -1,7 +1,7 @@
 // The golden scenario: a fixture world plus a scripted stream of intents, shared by the Node test, the CLI, the
 // Chromium debug page (debug/sim.html) and the worker test, so all of them hash the same run.
 //
-// The script is a pure function of (seed, turn). It sends a few valid DebugPaints, some Noops and a share of deliberately
+// The script is a pure function of (seed, turn). It sends a few valid DebugPaints, some Noops, Spawns (M04) and a share of deliberately
 // invalid intents per turn (bad seat, bad cell) so that the reject path is part of every golden hash. On one turn in
 // eight it also sends two paints of the SAME cell from two seats, the higher seat first (so the canonical order
 // (seat, id) decides who owns the cell), and on another one in eight two paints of one cell from one seat (the later id
@@ -70,6 +70,15 @@ export function scenarioBodies(seed: number, turn: number, seats: number, cells:
     else if (roll === 1) out.push({ kind: 'DebugPaint', seat: seats + (g >>> 4) % 3, cell });
     else if (roll === 2) out.push({ kind: 'DebugPaint', seat, cell: cells + (g >>> 4) % 5 });
     else out.push({ kind: 'DebugPaint', seat, cell });
+  }
+  // Spawns: every seat tries twice in the first turns (some land on water or on a disc that is already taken, and are
+  // refused), and about one turn in 25 afterwards a random seat tries again (mostly refused: it has spawned already).
+  if (cells > 0) {
+    const early = turn < INTENT_DELAY_TURNS + 2 * seats;
+    if (early || hash2(seed, turn, 400) % 25 === 0) {
+      const seat = early ? (turn - INTENT_DELAY_TURNS) % seats : hash2(seed, turn, 401) % seats;
+      out.push({ kind: 'Spawn', seat, cell: hash2(seed, turn, 402) % cells });
+    }
   }
   if (seats >= 2 && cells > 0 && hash2(seed, turn, 200) % 8 === 0) {
     const cell = hash2(seed, turn, 201) % cells;

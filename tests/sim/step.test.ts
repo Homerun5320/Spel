@@ -110,7 +110,7 @@ describe('step: invalid intents become no-ops and raise the reject counter', () 
     ['negative id', noop(0, -1), REJECT_ID],
     ['id beyond 32 bits', noop(0, 4294967296), REJECT_ID],
     ['missing id', { kind: 'Noop', seat: 0 }, REJECT_ID],
-    ['unknown kind', { kind: 'Spawn', seat: 0, id: 0 }, REJECT_KIND],
+    ['unknown kind', { kind: 'Teleport', seat: 0, id: 0 }, REJECT_KIND],
     ['no kind', { seat: 0, id: 0 }, REJECT_KIND],
     ['null', null, REJECT_SHAPE],
     ['a number', 7, REJECT_SHAPE],
@@ -300,8 +300,10 @@ describe('copyBody and IdAllocator', () => {
     expect(c).toEqual({ kind: 'DebugPaint', seat: 1, cell: 2 });
     expect(c).not.toBe(src);
     expect(copyBody({ kind: 'Noop', seat: 3, id: 5 })).toEqual({ kind: 'Noop', seat: 3 });
-    for (const junk of [null, undefined, 3, 'x', [], { kind: 'Spawn' }, { seat: 1 }]) expect(copyBody(junk)).toBe(INVALID_BODY);
+    for (const junk of [null, undefined, 3, 'x', [], { kind: 'Teleport' }, { seat: 1 }]) expect(copyBody(junk)).toBe(INVALID_BODY);
     expect(copyBody({ kind: 'Noop', seat: 'a' })).toEqual({ kind: 'Noop', seat: -1 });
+    expect(copyBody({ kind: 'Spawn', seat: 2, cell: 9, id: 4, evil: {} })).toEqual({ kind: 'Spawn', seat: 2, cell: 9 });
+    expect(copyBody({ kind: 'Spawn' })).toEqual({ kind: 'Spawn', seat: -1, cell: -1 });
     const alloc = new IdAllocator();
     expect([alloc.alloc(0), alloc.alloc(0), alloc.alloc(1), alloc.alloc(0)]).toEqual([0, 1, 0, 2]);
     expect(alloc.alloc(-1)).toBe(0);

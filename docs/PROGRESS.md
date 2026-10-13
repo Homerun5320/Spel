@@ -24,23 +24,42 @@ GÖR, Part A (this session)
 - [x] A0. Preflight (merge SHA recorded, verify:fast green), this checklist
 - [x] A1. Owner widening (own commit): `GameState.owner`, `StateDiff.owners` / `fullOwner`, `serialize` / `hashState` and the goldens go from Uint8 to Uint16; reason in D71; `FORMAT_VERSION` 2
 - [x] A2. ESLint boundary for `src/host` (heads-up 4 of the M03 audit) with a lint self-test
-- [ ] 1. `SimWorld` (`src/sim/world.ts`, built from plain arrays, sim does not import `src/data`), `src/sim/grid.ts` (x-wrap, 4-neighbours, `cellKm`, cos-lat weights from the committed Q15 row table, DeepSea / Shallows / Ice / Peak unplayable), Node loader for the real 1024x512 world (`tools/sim/realWorld.ts`) (files created in a later commit of this session)
-- [ ] 2. `src/sim/rules.ts` as the one balance file with the std-cell constants and every number of the prompt (also the conquest ones, wired in Part B); `docs/BALANCE.md` (Swedish summary at the top, one table row per constant; a test keeps rules.ts and the table in step); CLAUDE.md "Where things are" (files created in a later commit of this session)
-- [ ] 3. Economy (`src/sim/economy.ts`): troop cap `2000 + 120*N^0.75 + 800*cityLevels` (N^0.75 = sqrt(N)*sqrt(sqrt(N)) in Q15), regeneration `max((8 + 0.35*sqrt(T))*(1 - T/Tmax), -MAX_DECAY)` with a micro-QT remainder, gold from weighted land, start 1200 troops / 500 gold, capital disc radius 8 / `START_DISC_CELLS` 197, tribes (cap/3, regeneration x0.5), T >= 0 clamp after every deduction, land share per seat (files created in a later commit of this session)
-- [ ] 4a. `Spawn{seat, cell}` end to end: validation (`REJECT_*`), codec (kind 2), canonical order, `copyBody` / `withId`, step, `src/sim/spawn.ts` (K nearest contiguous unowned land cells, distance order, hash tie-break, a smaller landmass gives all its cells), state arrays `troops` / `troopFrac` / `gold` / `capital` / `rowCos`, header `players`, serialisation, hash, host, goldens re-pinned (scenario now spawns), `ENGINE_VERSION` 2 (files created in a later commit of this session)
-- [ ] A9. Tests for all of the above (units, ratios, property tests with fast-check, real world), docs: DECISIONS D71-D80, ARCHITECTURE index, BACKLOG; `npm run verify:fast` green; Chromium golden test (`e2e/sim.test.ts`) run alone and green; committed locally
+- [x] 1. `SimWorld` (`src/sim/world.ts`, built from plain arrays, sim does not import `src/data`), `src/sim/grid.ts` (x-wrap, 4-neighbours, `cellKm`, cos-lat weights from the committed Q15 row table, DeepSea / Shallows / Ice / Peak unplayable), Node loader for the real 1024x512 world (`tools/sim/realWorld.ts`)
+- [x] 2. `src/sim/rules.ts` as the one balance file with the std-cell constants and every number of the prompt (also the conquest ones, wired in Part B); `docs/BALANCE.md` (Swedish summary at the top, one table row per constant; a test keeps rules.ts and the table in step); CLAUDE.md "Where things are"
+- [x] 3. Economy (`src/sim/economy.ts`): troop cap `2000 + 120*N^0.75 + 800*cityLevels` (N^0.75 = sqrt(N)*sqrt(sqrt(N)) in Q15), regeneration `max((8 + 0.35*sqrt(T))*(1 - T/Tmax), -MAX_DECAY)` with a micro-QT remainder, gold from weighted land, start 1200 troops / 500 gold, capital disc radius 8 / `START_DISC_CELLS` 197, tribes (cap/3, regeneration x0.5), T >= 0 clamp after every deduction, land share per seat
+- [x] 4a. `Spawn{seat, cell}` end to end: validation (`REJECT_*`), codec (kind 2), canonical order, `copyBody` / `withId`, step, `src/sim/spawn.ts` (K nearest contiguous unowned land cells, distance order, hash tie-break, a smaller landmass gives all its cells), state arrays `troops` / `troopFrac` / `gold` / `capital` / `rowCos`, header `players`, serialisation, hash, host, goldens re-pinned (scenario now spawns), `ENGINE_VERSION` 2
+- [x] A9. Tests for all of the above (units, ratios, property tests with fast-check, real world), docs: DECISIONS D71-D80, ARCHITECTURE index, BACKLOG; `npm run verify:fast` green; Chromium golden test (`e2e/sim.test.ts`) run alone and green; committed locally
 
 ACCEPTANS, Part A
-- [ ] golden hashes identical in Node and Chromium (`e2e/sim.test.ts` alone), snapshot == straight run with Spawn and the economy active
-- [ ] economy unit tests: no negative troops after any deduction, no division by zero (T = 0, Tmax minimum), cap monotone in N, N^0.75 close to the real power, regeneration positive below the cap / zero at the cap / negative above it and never below `-MAX_DECAY`, tribes get a third of the cap
-- [ ] Spawn: exactly K cells on open land, contiguous, nearest first; a small island gives all its cells; a second Spawn of the seat, a Spawn on water / Ice / Peak / an owned cell are refused; two seats spawning on the same cell in one turn: the lower (seat, id) wins
-- [ ] `npm run verify:fast` green
+- [x] golden hashes identical in Node and Chromium (`e2e/sim.test.ts` alone), snapshot == straight run with Spawn and the economy active
+- [x] economy unit tests: no negative troops after any deduction, no division by zero (T = 0, Tmax minimum), cap monotone in N, N^0.75 close to the real power, regeneration positive below the cap / zero at the cap / negative above it and never below `-MAX_DECAY`, tribes get a third of the cap
+- [x] Spawn: exactly K cells on open land, contiguous, nearest first; a small island gives all its cells; a second Spawn of the seat, a Spawn on water / Ice / Peak / an owned cell are refused; two seats spawning on the same cell in one turn: the lower (seat, id) wins
+- [x] `npm run verify:fast` green
+
+Result of Part A (this sandbox): `npm run verify:fast` green (typecheck, lint, 64 files / 751 unit tests); `e2e/sim.test.ts` (6 tests) and `e2e/artifact.test.ts` (8 tests) run alone and green: the golden hashes are identical in Node and Chromium: tick 1 `06030cb7`, 10 `75e1e727`, 100 `a06de058`, 1000 `8a99d81b`, 6000 `9bf19227` (seed 1, 128x64 fixture world, 4 seats, now with Spawn and the economy in the script); `tests/sim.perf.test.ts` green (empty step 0.8 us, 64 DebugPaints 57 us). The full `npm run verify` is NOT run (Part B ends with it). Three commits of this part after the checklist: the owner widening (D71), the `src/host` lint boundary (D72), the rest (D73-D81). Solo economy on the real world (Stockholm-like capital): 1200 troops become about 3100 after 5 minutes (cap about 3320), 500 gold about 866. Hand-over notes for Part B: see the end of this section and D73-D81 in `docs/DECISIONS.md`.
+
+Notes for Part B (read before starting)
+- Units: D73. A conquest cost per sim cell is `BASE_COST_QT_PER_SIM_CELL` (3 QT) times the terrain percent (`TERRAIN_COST_PCT`), the height factor and `(1 + d / DEPTH_COST_DIV_CELLS)`, all in fixed point; troops are QT (`deductTroops` clamps at 0 and returns what was taken); the capture RATE converts with `stdToSimCellRate` (x4) and divides by `TICK_HZ`; keep the remainder of a rate in an integer array like `troopFrac`.
+- Constants for part B are already in `src/sim/rules.ts` and `docs/BALANCE.md` (`CAPTURE_K_MILLI`, `BASE_COST_TROOPS`, `D_MAX_*`, `DEPTH_COST_DIV_*`, `HEIGHT_UNIT_M`, `UPHILL_*`, `ENCLAVE_FLIP_TICKS`, `TRIBE_ATTACK_DIV`); adding a constant means a row in the table (the test fails otherwise); there are no decimal literals in `src/sim`.
+- Ownership changes ONLY through `setOwner` (area, weight, stamp and the outbox stay right). The outbox cap (8192) is smaller than a 100 000-cell conquest: the host falls back to `fullOwner` (D69); the BACKLOG item about a non-lossy changed-cell list is the better answer once the real bound is known.
+- Per-cell scratch: `state.scratch.mark` (all zero between uses); more per-cell work arrays belong in a derived object like `agg`, rebuilt by `assembleState`, not in the registry unless they are real game state (a hashed array needs serialisation, the registry and a sensitivity probe).
+- New intent kinds: append to `INTENT_KINDS`; the places are listed in D74. Tribes are seats `>= header.players`; `isTribe(state, owner)`. `step` has the phase comment where conquest goes (between the intents and `economyTick`).
+- `hash2(seed, a, b)` (in `src/sim/fixture.ts`) is the integer hash for every tie-break.
+- The golden scenario (`src/sim/scenario.ts`) only paints and spawns; part B should add Attack / CancelAttack to it and re-pin (reason in DECISIONS), and `tests/sim/helpers/brokenSteps.ts` (a copy of step) must follow.
+- `ENGINE_VERSION` is 2 and `FORMAT_VERSION` 3: bump both when conquest adds state (an `Attack` table is real game state: serialise it, hash it, register it).
 
 GÖR, Part B (NEXT session; do not start before Part A is committed)
 - [ ] 4. Conquest: `Attack` objects with incremental frontier lists (hash tie-break, no full scan per tick), capture speed `CAPTURE_K*sqrt(L)*2F/(F+Td)`, costs per cell in QT, mutual attacks cancel, enclave flip every 20th tick offset by hash(id), tribes attack with T/20, intents `Attack{target, pct}` and `CancelAttack` (kinds 3 and 4 appended to `INTENT_KINDS`; edits in `copyBody`, `withId`, `comparePayload`, codec `intentSize` / `putIntent` / `assertEncodable` / `Reader.intent`), `step` phase "conquest" between intents and economy, `ENGINE_VERSION` bump
 - [ ] 5. `npm run sim:scenario -- --seed N --minutes 10 --players 12 --tribes 20` (territory curve per minute) and a solo scenario; bots live in `tools/`, never in `src/sim`
 - [ ] 6. Calibration of `CAPTURE_K_MILLI` and `BASE_COST_TROOPS` (at most 3 rounds; solo band ca 1 500-2 500 land cells after 5 min and 5 000-8 000 after 10 min, else the measured band +-30 % with the curve in DECISIONS)
 - [ ] 7. Tests: ratio tests (4:1 troops >= 1.4x, 1:4 <= 0.6x, Mountain >= 2.2x Plains, uphill dearer than downhill, no division by zero, d <= D_MAX), frontier property test (front == brute force after 1000 random steps; an enclosed enclave flips within 20 ticks), work counters (scanned cells per tick proportional to front length + changed cells), perf (`*.perf.test.ts`: tick p95 <= `budgetMs(4)` with 12 players + 20 tribes on the real world, 100 000 cells conquered in one tick median <= `budgetMs(50)`), goldens re-pinned with the reason, `npm run verify` green, DRAFT PR text (the orchestrator opens it)
+
+ACCEPTANS, Part B (from the prompt; tick when proven)
+- [ ] ratio tests at equal contact length: 4:1 troops give >= 1.4x and 1:4 <= 0.6x the capture speed at 1:1; Mountain costs the attacker >= 2.2x Plains; uphill costs more than downhill over the same cell pair; no division by zero, no negative troops, d <= D_MAX (unit tests with F = 0 and Td = 0)
+- [ ] frontier property test: the front equals a brute-force recomputation after 1000 random steps; an enclave surrounded by one seat flips within 20 ticks
+- [ ] work counters are the primary limit: scanned cells per tick proportional to front length + changed cells, never a full-world scan; tick cost p95 (>= 200 ticks after 50 warm-up ticks) <= `budgetMs(4)` with 12 players + 20 tribes on the real world in Node; conquering 100 000 cells in one tick, median <= `budgetMs(50)`; the times are logged (`*.perf.test.ts`)
+- [ ] calibration band of a solo expander (provisional): about 1 500-2 500 land cells after 5 min and 5 000-8 000 after 10 min (or the motivated band of item 6)
+- [ ] golden hashes identical in Node and Chromium; snapshot == straight run with territory active; no forbidden APIs; `npm run verify` green
 
 ### M03 Sim-grund: determinism, intents, host-söm (no visible change; the Artifact is NOT republished) - built locally, `npm run verify` green; the orchestrator pushes and opens/updates the pull request
 
@@ -217,7 +236,7 @@ ACCEPTANS
 
 ## Next
 
-- M04 Territory sim (replaces `Noop` / `DebugPaint` by Spawn / Attack; read `docs/ARCHITECTURE.md` section "Sim flow" and D51-D66 first).
+- M04 Territory sim, PART B (conquest, scenario CLI, calibration, final tests and goldens; Part A is built and committed; read the Part B checklist and notes under Now, `docs/ARCHITECTURE.md` section "Sim flow" and D71-D81 first).
 
 ## Known issues
 
@@ -323,6 +342,16 @@ M03 (same sandbox, Node 22.22):
 | golden run, 6000 ticks of 128x64 | about 7 ms |
 | `npm run verify` | unit 16 s (589 tests), perf 2 s (12), e2e 140 s (58) |
 | `debug/sim.html` chunk | 12.5 kB raw, 5.1 kB gzip (main chunk 584 kB raw, 152 kB gzip, +1.6 kB for the Dev panel entry) |
+
+M04 part A (same sandbox, Node 22.22, real world, 32 seats):
+
+| measure | value |
+|---------|-------|
+| load pack + `createSimWorld` / `createWorldState` | 120-130 ms / 17-31 ms |
+| Spawn (197 cells) | 0.3-0.5 ms |
+| `economyTick` with 32 owners / empty step with 32 owners | 8-16 us / about 8 us |
+| `serialize` / `deserialize` / `hashState` | 15 ms (4.72 MB) / 23 ms / 5 ms |
+| `npm run verify:fast` | about 24 s (751 unit tests) |
 
 M01 (same sandbox):
 

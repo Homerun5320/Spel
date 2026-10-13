@@ -6,10 +6,10 @@
 // intents of one seat, so the result never depends on the order in which they arrived.
 import { MAX_SEATS } from './state';
 
-export type IntentKind = 'Noop' | 'DebugPaint';
+export type IntentKind = 'Noop' | 'DebugPaint' | 'Spawn';
 
 /** The intent kinds in wire order (the index is the kind byte of the codec). Append only: a published code never changes meaning. */
-export const INTENT_KINDS: readonly IntentKind[] = ['Noop', 'DebugPaint'];
+export const INTENT_KINDS: readonly IntentKind[] = ['Noop', 'DebugPaint', 'Spawn'];
 
 /** Does nothing; valid for any seat. Exists to prove the pipeline (and as the heartbeat of a lockstep client). */
 export interface NoopBody {
@@ -17,15 +17,26 @@ export interface NoopBody {
   readonly seat: number;
 }
 
-/** Gives one cell to a seat. Valid only when the match config has debugIntents. M04 replaces it with Spawn and Attack. */
+/** Gives one cell to a seat. Valid only when the match config has debugIntents. Kept next to Spawn for the golden scenario and the sensitivity tests (D74). */
 export interface DebugPaintBody {
   readonly kind: 'DebugPaint';
   readonly seat: number;
   readonly cell: number;
 }
 
+/**
+ * A seat claims its capital: the START_DISC_CELLS nearest contiguous unowned land cells around `cell` become its own and
+ * it receives its start troops and gold (src/sim/spawn.ts). Refused when the cell is not playable land, is owned, or the
+ * seat has spawned before.
+ */
+export interface SpawnBody {
+  readonly kind: 'Spawn';
+  readonly seat: number;
+  readonly cell: number;
+}
+
 /** An intent before it has an id (what the UI submits to a host). */
-export type IntentBody = NoopBody | DebugPaintBody;
+export type IntentBody = NoopBody | DebugPaintBody | SpawnBody;
 
 export type Intent = IntentBody & { readonly id: number };
 
@@ -44,6 +55,12 @@ export const REJECT_ID = 4;
 export const REJECT_CELL = 5;
 export const REJECT_DISABLED = 6;
 export const REJECT_DUPLICATE = 7;
+/** Spawn on a cell that cannot be owned (sea, shallows, Peak, Ice). Found by step(), not by validateIntent. */
+export const REJECT_TERRAIN = 8;
+/** Spawn on a cell somebody already owns. */
+export const REJECT_OWNED = 9;
+/** Spawn by a seat that has spawned before. */
+export const REJECT_SPAWNED = 10;
 
 export interface ValidateContext {
   readonly seats: number;
@@ -72,6 +89,8 @@ export function validateIntent(x: unknown, ctx: ValidateContext): number {
   if (o.kind === 'DebugPaint') {
     if (!ctx.debugIntents) return REJECT_DISABLED;
     if (!isIntegerIn(o.cell, 0, ctx.cells - 1)) return REJECT_CELL;
+  } else if (o.kind === 'Spawn') {
+    if (!isIntegerIn(o.cell, 0, ctx.cells - 1)) return REJECT_CELL;
   }
   return REJECT_NONE;
 }
@@ -79,6 +98,7 @@ export function validateIntent(x: unknown, ctx: ValidateContext): number {
 /** Orders the payloads of two valid intents of the SAME kind. A new kind adds its case here (all fields, most significant first). */
 function comparePayload(a: Intent, b: Intent): number {
   if (a.kind === 'DebugPaint' && b.kind === 'DebugPaint') return a.cell - b.cell;
+  if (a.kind === 'Spawn' && b.kind === 'Spawn') return a.cell - b.cell;
   return 0;
 }
 
@@ -106,14 +126,20 @@ export function copyBody(x: unknown): IntentBody {
   const seat = typeof o.seat === 'number' ? o.seat : -1;
   if (o.kind === 'Noop') return { kind: 'Noop', seat };
   if (o.kind === 'DebugPaint') return { kind: 'DebugPaint', seat, cell: typeof o.cell === 'number' ? o.cell : -1 };
+  if (o.kind === 'Spawn') return { kind: 'Spawn', seat, cell: typeof o.cell === 'number' ? o.cell : -1 };
   return INVALID_BODY;
 }
 
 /** Attaches an id to a body (a new object). */
 export function withId(body: IntentBody, id: number): Intent {
-  return body.kind === 'DebugPaint'
-    ? { kind: 'DebugPaint', seat: body.seat, cell: body.cell, id }
-    : { kind: 'Noop', seat: body.seat, id };
+  switch (body.kind) {
+    case 'DebugPaint':
+      return { kind: 'DebugPaint', seat: body.seat, cell: body.cell, id };
+    case 'Spawn':
+      return { kind: 'Spawn', seat: body.seat, cell: body.cell, id };
+    default:
+      return { kind: 'Noop', seat: body.seat, id };
+  }
 }
 
 /** Hands out intent ids: one counter per seat, starting at 0. A seat outside 0..MAX_SEATS-1 gets id 0 and no counter. */

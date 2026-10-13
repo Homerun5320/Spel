@@ -1,7 +1,7 @@
 // Compact binary codec of intents and turns. Unsigned LEB128 varints in their shortest form only (a longer encoding of
 // the same number is an error), so every accepted byte string has exactly one meaning and re-encodes to itself.
 //
-//   intent  = kind:u8  seat:u8  id:varint  [cell:varint]        (cell only for DebugPaint)
+//   intent  = kind:u8  seat:u8  id:varint  [cell:varint]        (cell for DebugPaint and Spawn)
 //   turn    = turn:varint  count:varint  intent*count
 //
 // Decoding is total: any bytes give either a value or an error result; nothing throws. The decoder checks only what the
@@ -41,20 +41,21 @@ function isU8(v: unknown): v is number {
   return typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= 255;
 }
 
+/** Kinds with a cell on the wire: DebugPaint and Spawn. A new kind with a payload adds its case to intentSize, putIntent, assertEncodable and Reader.intent. */
 function intentSize(i: Intent): number {
-  return 2 + varintSize(i.id) + (i.kind === 'DebugPaint' ? varintSize(i.cell) : 0);
+  return 2 + varintSize(i.id) + (i.kind === 'DebugPaint' || i.kind === 'Spawn' ? varintSize(i.cell) : 0);
 }
 
 function putIntent(out: Uint8Array, at: number, i: Intent): number {
   out[at] = kindCode(i.kind);
   out[at + 1] = i.seat;
   let p = putVarint(out, at + 2, i.id);
-  if (i.kind === 'DebugPaint') p = putVarint(out, p, i.cell);
+  if (i.kind === 'DebugPaint' || i.kind === 'Spawn') p = putVarint(out, p, i.cell);
   return p;
 }
 
 function assertEncodable(i: Intent): void {
-  if (kindCode(i.kind) < 0 || !isU8(i.seat) || !isU32(i.id) || (i.kind === 'DebugPaint' && !isU32(i.cell))) {
+  if (kindCode(i.kind) < 0 || !isU8(i.seat) || !isU32(i.id) || ((i.kind === 'DebugPaint' || i.kind === 'Spawn') && !isU32(i.cell))) {
     throw new RangeError('intent is not representable on the wire (kind, seat 0..255, id and cell 0..2^32-1)');
   }
 }
@@ -130,7 +131,7 @@ class Reader {
     }
     const seat = this.u8();
     const id = this.varint();
-    if (kind === 'DebugPaint') {
+    if (kind === 'DebugPaint' || kind === 'Spawn') {
       const cell = this.varint();
       return this.error === null ? { kind, seat, id, cell } : null;
     }

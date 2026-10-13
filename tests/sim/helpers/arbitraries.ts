@@ -8,6 +8,7 @@ const u8 = fc.integer({ min: 0, max: 255 });
 export const wireIntent: fc.Arbitrary<Intent> = fc.oneof(
   fc.record({ kind: fc.constant('Noop' as const), seat: u8, id: u32 }),
   fc.record({ kind: fc.constant('DebugPaint' as const), seat: u8, id: u32, cell: u32 }),
+  fc.record({ kind: fc.constant('Spawn' as const), seat: u8, id: u32, cell: u32 }),
 );
 
 /** Mostly small numbers so that varints of every length and valid seats / cells occur often. */
@@ -16,6 +17,12 @@ export const mixedIntent: fc.Arbitrary<Intent> = fc.oneof(
   fc.record({ kind: fc.constant('Noop' as const), seat: fc.integer({ min: 0, max: 5 }), id: fc.integer({ min: 0, max: 300 }) }),
   fc.record({
     kind: fc.constant('DebugPaint' as const),
+    seat: fc.integer({ min: 0, max: 5 }),
+    id: fc.integer({ min: 0, max: 300 }),
+    cell: fc.integer({ min: 0, max: 40 }),
+  }),
+  fc.record({
+    kind: fc.constant('Spawn' as const),
     seat: fc.integer({ min: 0, max: 5 }),
     id: fc.integer({ min: 0, max: 300 }),
     cell: fc.integer({ min: 0, max: 40 }),
@@ -29,6 +36,7 @@ export function smallMatchIntent(seats: number, cells: number): fc.Arbitrary<Int
   return fc.oneof(
     { weight: 6, arbitrary: fc.record({ kind: fc.constant('DebugPaint' as const), seat: fc.integer({ min: 0, max: seats - 1 }), id: fc.integer({ min: 0, max: 12 }), cell: fc.integer({ min: 0, max: cells - 1 }) }) },
     { weight: 2, arbitrary: fc.record({ kind: fc.constant('Noop' as const), seat: fc.integer({ min: 0, max: seats - 1 }), id: fc.integer({ min: 0, max: 12 }) }) },
+    { weight: 2, arbitrary: fc.record({ kind: fc.constant('Spawn' as const), seat: fc.integer({ min: 0, max: seats - 1 }), id: fc.integer({ min: 0, max: 12 }), cell: fc.integer({ min: 0, max: cells - 1 }) }) },
     { weight: 1, arbitrary: fc.record({ kind: fc.constant('DebugPaint' as const), seat: fc.integer({ min: 0, max: seats + 2 }), id: fc.integer({ min: 0, max: 12 }), cell: fc.integer({ min: 0, max: cells + 3 }) }) },
   );
 }

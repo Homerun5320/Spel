@@ -4,7 +4,7 @@ Project rules for every session. Keep this file under 200 lines. Constitution: `
 
 ## Language
 - Reply to the user in Swedish. Code, comments, identifiers, docs and commit messages are in English.
-- Exceptions written in Swedish: `docs/PREVIEW.md`, `docs/SERVER.md` (later), `README.md` (bilingual) and the summary at the top of `docs/BALANCE.md` (later).
+- Exceptions written in Swedish: `docs/PREVIEW.md`, `docs/SERVER.md` (later), `README.md` (bilingual) and the summary at the top of `docs/BALANCE.md`.
 - Prompt section headings stay Swedish (see `docs/PROMPT_TEMPLATE.md`).
 
 ## Clean room (hard invariant)
@@ -98,4 +98,5 @@ When compacting the conversation keep: the current milestone id and branch, the 
 ## Where things are
 - `docs/CHARTER.md` constitution; `docs/ARCHITECTURE.md` module and API index; `docs/PROGRESS.md` state (Done / Now / Next / Known issues / Skipped, Environment, usage); `docs/DECISIONS.md`; `docs/BACKLOG.md`; `docs/ASSETS.md`; `docs/PROMPT_TEMPLATE.md`; `docs/PREVIEW.md` (Swedish preview guide and Artifact update procedure, M00b).
 - `CREDITS.md` (M01) credits Terrarium and Natural Earth; baked packs live in `public/data/`.
-- Later: `docs/SERVER.md`, `docs/BALANCE.md`, `docs/ART.md` (all "(later)").
+- `docs/BALANCE.md` (M04) tabulates every constant of `src/sim/rules.ts`; a test keeps the two in step.
+- Later: `docs/SERVER.md`, `docs/ART.md` (both "(later)").
