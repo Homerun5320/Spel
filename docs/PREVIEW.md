@@ -47,9 +47,11 @@ I en Artifact når inte adressparametrar (`?x=y`) sidan, men ett rent ankare (`#
 | `?test=1` | `#test-1` | testläge (fast bild, ingen animation) |
 | `?perf=1` | `#perf-1` (om M02 också godtar kortformen `#perf` skrivs det här) | prestandaläge, kommer senare |
 | `?seed=7` | `#seed-7` | |
+| `?map=class` (debugkartan) | `#map-class` | klassernas karta; även `#map-height` (höjd) och `#map-country` (länder) |
 | flera parametrar | skrivs efter varandra, regeln fastställs i M02 | |
 
 17. Lägen i en Artifact nås alltså med länken + `#läge` (till exempel `https://claude.ai/artifact/H4jqcMBvTMi7udLais5btV#perf`) eller via Dev-panelen: F2 på dator, hörnknappen på telefon. Dev-panelen införs i M02.
+17a. Datakartan (M01): `debug/data.html` ritar den bakade världen. I en Artifact: länken i avsnitt 2 och längst ned till vänster på startsidan raden "Debug: klasskarta / höjdkarta / landkarta" (tre relativa länkar). Lokalt: `http://localhost:5173/debug/data.html?map=class` (eller `?map=height`, `?map=country`) eller ankaret `#map-class`, `#map-height`, `#map-country`. Sidan har också tre knappar (Klasskarta, Höjdkarta, Landkarta). Datapaketen (cirka 4,5 MB) packas som vanligt av `npm run artifact:pack`; i en Artifact blir de `.png`-filer (standard) eller `.b64.txt` med `--container=b64`.
 
 ## 6. Det som inte fungerar i en Artifact
 

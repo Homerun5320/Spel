@@ -25,6 +25,7 @@ Project rules for every session. Keep this file under 200 lines. Constitution: `
 - Never run a bare `vitest run` (it would mix the projects).
 - `npm test` = unit project, `npm run shots` = smoke screenshot into `test-results/shots/`, `npm run dev|build|preview` = Vite.
 - `npm run artifact:pack` (after `npm run build`) = packs `dist` into the gitignored artifact folder for the Claude Artifact preview; options `-- --container=png|wasm|b64 --prev=<file> --probe`. Procedure in `docs/PREVIEW.md`.
+- `npm run bake` (M01) re-bakes `public/data/` from the cached sources in `.cache/bake` (network only for a cold cache: S3 and raw.githubusercontent.com); `npm run bake:check` verifies the committed packs against `public/data/checksums.json` without network. Never commit synthetic bake output.
 - Runtime data and page addresses go through `siteUrl()` in `src/app/paths.ts`, never a hand-written relative or absolute data path and never `BASE_URL`.
 - Commands that may exceed 2 minutes run with `run_in_background` and a log file.
 
@@ -95,4 +96,5 @@ When compacting the conversation keep: the current milestone id and branch, the 
 
 ## Where things are
 - `docs/CHARTER.md` constitution; `docs/ARCHITECTURE.md` module and API index; `docs/PROGRESS.md` state (Done / Now / Next / Known issues / Skipped, Environment, usage); `docs/DECISIONS.md`; `docs/BACKLOG.md`; `docs/ASSETS.md`; `docs/PROMPT_TEMPLATE.md`; `docs/PREVIEW.md` (Swedish preview guide and Artifact update procedure, M00b).
-- Later: `docs/SERVER.md`, `docs/BALANCE.md`, `docs/ART.md`, `CREDITS.md` (all "(later)").
+- `CREDITS.md` (M01) credits Terrarium and Natural Earth; baked packs live in `public/data/`.
+- Later: `docs/SERVER.md`, `docs/BALANCE.md`, `docs/ART.md` (all "(later)").

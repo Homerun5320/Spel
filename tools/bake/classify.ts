@@ -7,6 +7,9 @@ import { TerrainClass, type TerrainClassId } from '../../src/data/format';
 /** A pixel is replaced by the 3 x 3 median when it deviates more than this from it (metres). Removes the two 11 500 m error pixels. */
 export const SPIKE_MEDIAN_DEVIATION_M = 2000;
 
+/** Polar caps (beyond the Web Mercator limit of about 85.05 degrees) copy the nearest real row, smoothed with a box of +-this many columns. */
+export const POLAR_SMOOTH_COLUMNS = 32;
+
 // ---- Sim cell aggregation --------------------------------------------------------------------------------------------
 /** A sim cell (4 x 4 render pixels) is land when at least this many of its 16 pixels are inside a Natural Earth polygon. */
 export const LAND_MIN_PIXELS = 8;

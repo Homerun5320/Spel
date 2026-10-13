@@ -77,6 +77,8 @@ describe('artifact build served from /x/y/', () => {
   let browser: Browser;
   let served: Served;
   let outDir = '';
+  let servedB64: Served;
+  let outB64 = '';
   const tmps: string[] = [];
 
   beforeAll(async () => {
@@ -91,12 +93,19 @@ describe('artifact build served from /x/y/', () => {
     fs.writeFileSync(path.join(outDir, 'planted.gz'), 'x');
     fs.writeFileSync(path.join(outDir, 'planted.zip'), 'x');
     served = await serveArtifact(outDir);
+    // The same build packed with the base64 text container (M01: the real packs must load through both containers).
+    outB64 = makeTmp('spel-e2e-artifact-b64');
+    tmps.push(outB64);
+    const b64 = pack([`--dist=${dist}`, `--out=${outB64}`, '--container=b64'], { cwd: REPO, log: () => {} });
+    expect(b64.errors).toEqual([]);
+    servedB64 = await serveArtifact(outB64);
     ({ browser } = await launchBrowser());
-  }, 60_000);
+  }, 120_000);
 
   afterAll(async () => {
     await browser?.close();
     await served?.close();
+    await servedB64?.close();
     for (const d of tmps) fs.rmSync(d, { recursive: true, force: true });
   });
 
@@ -180,5 +189,72 @@ describe('artifact build served from /x/y/', () => {
     }
     expect(messages).toEqual([]);
     expect(served.notFound).toEqual([]);
+  });
+
+  // ---- M01: the real data packs through the Artifact containers --------------------------------------------------------
+
+  const loadDebugPage = async (base: Served, suffix: string): Promise<{ loadMs: number; messages: string[]; status: string }> => {
+    base.notFound.length = 0;
+    const page = await browser.newPage({ viewport: { width: 1100, height: 700 }, deviceScaleFactor: 1 });
+    const messages: string[] = [];
+    page.on('console', (m) => {
+      if (m.type() === 'error' || m.type() === 'warning') messages.push(`${m.type()}: ${m.text()}`);
+    });
+    page.on('pageerror', (e) => messages.push(`pageerror: ${e.message}`));
+    try {
+      await page.goto(`${base.url}/debug/data.html${suffix}`, { waitUntil: 'load' });
+      await page.waitForSelector('body[data-ready="1"]', { timeout: 30_000 });
+      expect(await page.locator('body').getAttribute('data-checksums')).toBe('ok');
+      const m = await page.locator('canvas#map').screenshot({ type: 'png' });
+      const metrics = analyzeImage(decodePng(m));
+      expect(metrics.distinctColors).toBeGreaterThanOrEqual(8);
+      expect(metrics.lumaStd).toBeGreaterThanOrEqual(20);
+      return {
+        loadMs: Number(await page.locator('body').getAttribute('data-load-ms')),
+        messages,
+        status: await page.locator('#status').innerText(),
+      };
+    } finally {
+      await page.close();
+    }
+  };
+
+  it('real packs, png container: debug/data.html loads and verifies the checksums, no 404', async () => {
+    const r = await loadDebugPage(served, '#map-class');
+    console.log(`[artifact] png container: ${r.status}; load ${r.loadMs.toFixed(0)} ms`);
+    expect(r.messages).toEqual([]);
+    expect(served.notFound).toEqual([]);
+    const manifest = JSON.parse(fs.readFileSync(path.join(outDir, 'data', 'manifest.json'), 'utf8')) as Record<string, { file: string; enc: string }>;
+    expect(manifest).toEqual({ render: { file: 'render.bin.png', enc: 'raw' }, sim: { file: 'sim.bin.png', enc: 'raw' } });
+  });
+
+  it('real packs, b64 container: debug/data.html loads and verifies the checksums, no 404', async () => {
+    const r = await loadDebugPage(servedB64, '#map-height');
+    console.log(`[artifact] b64 container: ${r.status}; load ${r.loadMs.toFixed(0)} ms`);
+    expect(r.messages).toEqual([]);
+    expect(servedB64.notFound).toEqual([]);
+    const manifest = JSON.parse(fs.readFileSync(path.join(outB64, 'data', 'manifest.json'), 'utf8')) as Record<string, { file: string; enc: string }>;
+    expect(manifest).toEqual({ render: { file: 'render.bin.b64.txt', enc: 'b64' }, sim: { file: 'sim.bin.b64.txt', enc: 'b64' } });
+  });
+
+  it('real packs: every file in files.json is under 15 MB and the sum under 64 MB (both containers)', () => {
+    for (const dir of [outDir, outB64]) {
+      const batches = JSON.parse(fs.readFileSync(path.join(dir, 'files.json'), 'utf8')) as Array<Record<string, string | null>>;
+      let sum = fs.statSync(path.join(dir, 'index.html')).size;
+      let largest = 0;
+      let count = 1;
+      for (const batch of batches) {
+        for (const [published, source] of Object.entries(batch)) {
+          if (source === null) continue;
+          const size = fs.statSync(path.join(dir, published)).size;
+          expect(size, published).toBeLessThan(15 * 1024 * 1024);
+          largest = Math.max(largest, size);
+          sum += size;
+          count++;
+        }
+      }
+      console.log(`[artifact] ${path.basename(dir)}: ${count} files, ${(sum / 1_000_000).toFixed(2)} MB, largest ${(largest / 1_000_000).toFixed(2)} MB, ${batches.length} batch(es)`);
+      expect(sum).toBeLessThan(64 * 1024 * 1024);
+    }
   });
 });

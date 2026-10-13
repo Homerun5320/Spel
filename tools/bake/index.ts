@@ -61,7 +61,7 @@ async function main(): Promise<void> {
   }
   log('building');
   const world = buildWorld({ ...inputs, log });
-  log(`land cells ${String(world.stats.landCells)}, without Antarctica ${String(world.stats.landCellsNoAntarctica)}`);
+  log(`land cells ${String(world.stats.landCells)}, without Antarctica ${String(world.stats.landCellsNoAntarctica)}; countries with >= 8 cells: ${world.countries.filter((c) => c.cells >= 8).length} of ${world.countries.length}`);
   const out = prepareOutput(world);
   writeOutput(out, outDir);
   let gzTotal = 0;

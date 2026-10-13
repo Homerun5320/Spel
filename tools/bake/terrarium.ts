@@ -6,7 +6,7 @@
 //      Latitudes beyond the Mercator limit (about +-85.05) are filled synthetically.
 import { PNG } from 'pngjs';
 import { DEPTH_MAX_M, LAND_MAX_M, RENDER_HEIGHT, RENDER_WIDTH } from '../../src/data/format';
-import { SPIKE_MEDIAN_DEVIATION_M } from './classify';
+import { POLAR_SMOOTH_COLUMNS, SPIKE_MEDIAN_DEVIATION_M } from './classify';
 import { TERRARIUM_TILES } from './fetch';
 
 export const MERC_SIZE = TERRARIUM_TILES * 256; // 4096
@@ -178,11 +178,11 @@ export function resampleToRender(merc: Float32Array): RenderHeights {
   }
   if (firstReal < 0) throw new Error('no render rows inside the Mercator range');
 
-  // Polar fill: each polar row copies the nearest real row, smoothed along longitude with a box of +-POLAR_SMOOTH columns,
+  // Polar fill: each polar row copies the nearest real row, smoothed along longitude with a box of +-POLAR_SMOOTH_COLUMNS columns,
   // so the cap is a plausible plateau/ocean instead of the tile seam pattern. Deterministic and clearly synthetic.
   const smooth = (row: number): Float32Array => {
     const out = new Float32Array(W);
-    const R = 32;
+    const R = POLAR_SMOOTH_COLUMNS;
     let acc = 0;
     for (let k = -R; k <= R; k++) acc += mean[row * W + ((k + W) % W)] as number;
     for (let x = 0; x < W; x++) {
