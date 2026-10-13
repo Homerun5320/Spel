@@ -108,6 +108,7 @@ export function enclavePhase(state: GameState): void {
     }
     const cell = batch[i] as number;
     visits++;
+    work.candidates++;
     work.enclaveVisited++;
     if (playable[cell] === 0 || mark[cell] === MARK_OPEN) continue;
     const visited = checkRegion(state, cell);

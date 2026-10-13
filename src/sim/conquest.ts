@@ -18,7 +18,7 @@
 //   dh  is the rise from the highest attacker cell next to the cell to the cell, in HEIGHT_UNIT_M units; uphill
 //       = 1 + 0.25 * dh / 32 capped at x2, downhill and flat cost nothing extra (D83);
 //   the defender pays no terrain term.
-import { Attack, frontKey } from './attacks';
+import type { Attack } from './attacks';
 import { addTroops, deductTroops, isTribe } from './economy';
 import { isqrt } from './detmath';
 import { hash2 } from './fixture';
@@ -52,10 +52,19 @@ import {
 import { seatToOwner, type GameState } from './state';
 import { changeOwner } from './territory';
 
+// Bound once at load: the capture loop calls and reads these for every cell (see src/sim/attacks.ts for why).
+const takeCell = changeOwner;
+const COST_PCT = TERRAIN_COST_PCT;
+const BASE_MILLI_QT = BASE_COST_MILLI_QT_PER_SIM_CELL;
+const DEPTH_DIV = DEPTH_COST_DIV_CELLS;
+const DEPTH_MAX = D_MAX_CELLS;
+const HEIGHT_UNIT = HEIGHT_UNIT_M;
+const MILLI_QT = MILLI_QT_PER_QT;
+const UPHILL_PER_STEP = UPHILL_PER_STEP_MILLI;
+const UPHILL_STEP = UPHILL_STEP_UNITS;
+const UPHILL_CAP = UPHILL_MAX_PCT * 10;
 /** Salt of the per-tick order in which the attacks run. */
 const ORDER_SALT = 0x2d4b;
-/** Cell indices are below 2^22 (MAX_CELLS); a frontier entry packs (key, cell) into one safe integer for sorting. */
-const CELL_RANGE = 4194304;
 /** Attack counts stay below this (seats * seats <= 65025), which lets the run order pack (hash, index) into one safe integer. */
 const INDEX_RANGE = 65536;
 
@@ -77,14 +86,13 @@ export function captureRateMicroPerTick(contact: number, troopsQt: number, defen
 /** The uphill factor in thousandths for a rise of `dhUnits` height units: 1000 for flat or downhill, at most UPHILL_MAX_PCT * 10. */
 export function uphillMilli(dhUnits: number): number {
   if (dhUnits <= 0) return 1000;
-  const f = 1000 + Math.floor((UPHILL_PER_STEP_MILLI * dhUnits) / UPHILL_STEP_UNITS);
-  const cap = UPHILL_MAX_PCT * 10;
-  return f > cap ? cap : f;
+  const f = 1000 + Math.floor((UPHILL_PER_STEP * dhUnits) / UPHILL_STEP);
+  return f > UPHILL_CAP ? UPHILL_CAP : f;
 }
 
 /** The depth that counts for the price: 0 .. D_MAX_CELLS. */
 export function clampDepth(d: number): number {
-  return d < 0 ? 0 : d > D_MAX_CELLS ? D_MAX_CELLS : d;
+  return d < 0 ? 0 : d > DEPTH_MAX ? DEPTH_MAX : d;
 }
 
 /**
@@ -92,17 +100,17 @@ export function clampDepth(d: number): number {
  * or 0 = level or downhill) at depth `depth`. 0 for a class nobody can own (never asked for in play).
  */
 export function captureCostMilliQt(cls: number, dhUnits: number, depth: number): number {
-  const pct = (TERRAIN_COST_PCT[cls] ?? 0) as number;
+  const pct = (COST_PCT[cls] ?? 0) as number;
   if (pct <= 0) return 0;
   const d = clampDepth(depth);
   // BASE * pct/100 * up/1000 * (DIV + d)/DIV, multiplied out and divided once so that nothing is rounded early (< 2^53).
-  return Math.floor((BASE_COST_MILLI_QT_PER_SIM_CELL * pct * uphillMilli(dhUnits) * (DEPTH_COST_DIV_CELLS + d)) / (100 * 1000 * DEPTH_COST_DIV_CELLS));
+  return Math.floor((BASE_MILLI_QT * pct * uphillMilli(dhUnits) * (DEPTH_DIV + d)) / (100 * 1000 * DEPTH_DIV));
 }
 
 /** The rise in height units from the attacker's source cell to the target (metres of mean elevation, floor; 0 or less = no rise). */
 export function riseUnits(targetElevationM: number, sourceElevationM: number): number {
   const rise = targetElevationM - sourceElevationM;
-  return rise <= 0 ? 0 : Math.floor(rise / HEIGHT_UNIT_M);
+  return rise <= 0 ? 0 : Math.floor(rise / HEIGHT_UNIT);
 }
 
 /** Builds the frontier of a new attack from the boundary cells of its attacker: the target cells that touch them. */
@@ -111,35 +119,27 @@ function buildFrontier(state: GameState, a: Attack): void {
   const list = b.lists[a.attacker] as Int32Array;
   const count = b.counts[a.attacker] as number;
   const mark = state.scratch.mark;
+  const owner = state.owner;
   const nb = state.scratch.nb;
   const grid = state.grid;
-  const owner = state.owner;
   const found: number[] = [];
-  const seed = state.header.seed;
   for (let i = 0; i < count; i++) {
     const c = list[i] as number;
     state.work.launchScanned++;
+    if (owner[c] !== a.attacker || (b.diff[c] as number) === 0) continue; // a stale entry
     const cnt = grid.neighbours(c, nb);
     for (let k = 0; k < cnt; k++) {
       const n = nb[k] as number;
       if (mark[n] === 0 && n !== c && grid.playable[n] === 1 && owner[n] === a.target) {
         mark[n] = 1;
-        found.push(frontKey(seed, n, 0) * CELL_RANGE + n);
+        found.push(n);
       }
     }
   }
-  for (let i = 0; i < found.length; i++) mark[(found[i] as number) % CELL_RANGE] = 0;
-  // Sorted by (key, cell) the array is a heap, and it does not depend on the order of the boundary list (which depends on history).
+  for (let i = 0; i < found.length; i++) mark[found[i] as number] = 0;
+  // Sorted by cell index the frontier does not depend on the order of the boundary list (which depends on history).
   found.sort((x, y) => x - y);
-  a.size = 0;
-  a.reserve(found.length);
-  for (let i = 0; i < found.length; i++) {
-    const v = found[i] as number;
-    const cell = v % CELL_RANGE;
-    a.cells[i] = cell;
-    a.keys[i] = (v - cell) / CELL_RANGE;
-  }
-  a.size = found.length;
+  a.setInitial(found);
   a.compactAt = Math.max(FRONT_COMPACT_MIN, 2 * found.length);
   state.work.pushed += found.length;
 }
@@ -157,29 +157,28 @@ function qualifies(state: GameState, a: Attack, cell: number): boolean {
   return false;
 }
 
-/** Drops the entries that no longer qualify from an attack's heap and restores the heap order. */
+/** Drops the entries that no longer qualify from an attack's bags (the order of the others is kept). */
 export function compactFront(state: GameState, a: Attack): void {
-  let kept = 0;
-  const cells = a.cells;
-  const keys = a.keys;
-  for (let i = 0; i < a.size; i++) {
-    const c = cells[i] as number;
-    state.work.purged++;
-    if (qualifies(state, a, c)) {
-      cells[kept] = c;
-      keys[kept] = keys[i] as number;
-      kept++;
+  for (let d = 0; d < a.counts.length; d++) {
+    const n = a.counts[d] as number;
+    if (n === 0) continue;
+    const bag = a.bags[d] as Int32Array;
+    let kept = 0;
+    for (let i = 0; i < n; i++) {
+      const c = bag[i] as number;
+      state.work.purged++;
+      if (qualifies(state, a, c)) bag[kept++] = c;
     }
+    a.counts[d] = kept;
   }
-  a.size = kept;
-  a.heapify();
-  a.compactAt = Math.max(FRONT_COMPACT_MIN, 2 * kept);
+  a.recount();
+  a.compactAt = Math.max(FRONT_COMPACT_MIN, 2 * a.size);
 }
 
 /**
- * Takes up to `n` cells for the attack at index `slot` of the table, in frontier order. Returns how many it took. Sets
+ * Takes up to `n` cells for the attack at index `slot` of the table (shallowest first, by hash within a depth). Returns how many it took. Sets
  * `a.dead` when the attack is over (no frontier left, or the troops cannot pay for the next cell). This is the whole cost
- * of an attack in a tick: O(n log front) plus the stale entries it pops on the way.
+ * of an attack in a tick: O(n) plus the stale entries it picks on the way.
  */
 export function advanceAttack(state: GameState, a: Attack, slot: number, n: number): number {
   const owner = state.owner;
@@ -189,19 +188,16 @@ export function advanceAttack(state: GameState, a: Attack, slot: number, n: numb
   const elevation = state.elevation;
   const terrain = state.terrain;
   const work = state.work;
+  const seed = state.header.seed;
   let taken = 0;
   while (taken < n) {
-    if (a.size === 0) {
+    const cell = a.pick(seed);
+    if (cell < 0) {
       a.dead = true;
       break;
     }
-    const cell = a.cells[0] as number;
-    const key = a.keys[0] as number;
     work.popped++;
-    if (owner[cell] !== a.target || playable[cell] === 0) {
-      a.pop();
-      continue;
-    }
+    if (owner[cell] !== a.target || playable[cell] === 0) continue;
     // Does the cell still touch the attacker, and from which attacker cell is it cheapest to come (the highest)?
     const cnt = grid.neighbours(cell, nb);
     let source = -1;
@@ -212,22 +208,18 @@ export function advanceAttack(state: GameState, a: Attack, slot: number, n: numb
         if (e > source) source = e;
       }
     }
-    if (source < 0) {
-      a.pop();
-      continue;
-    }
-    const depth = key >>> 24;
+    if (source < 0) continue;
+    const depth = a.lastDepth;
     const cost = captureCostMilliQt(terrain[cell] as number, riseUnits(elevation[cell] as number, source), depth);
     const owed = a.costFrac + cost;
-    const whole = Math.floor(owed / MILLI_QT_PER_QT);
+    const whole = Math.floor(owed / MILLI_QT);
     if (a.troops < whole) {
       a.dead = true;
       break;
     }
-    a.pop();
     a.troops -= whole;
-    a.costFrac = owed - whole * MILLI_QT_PER_QT;
-    changeOwner(state, cell, a.attacker, a.id, slot, depth);
+    a.costFrac = owed - whole * MILLI_QT;
+    takeCell(state, cell, a.attacker, a.id, slot, depth);
     taken++;
     work.captured++;
   }
@@ -293,15 +285,17 @@ export function applyCancelAttack(state: GameState, seat: number, target: number
 
 /**
  * The conquest phase of a tick: every attack, in an order that is a hash of (seed, tick, attack id), gains progress and takes
- * its cells; finished attacks hand their troops back and leave the table. Resets the work counters.
+ * its cells; finished attacks hand their troops back and leave the table.
  */
 export function conquestPhase(state: GameState): void {
-  state.work.reset();
   const table = state.attacks;
   const attacks = table.list;
   const count = attacks.length;
   state.work.attacks = count;
-  if (count === 0) return;
+  if (count === 0) {
+    state.work.purged += state.borders.purge(state.owner, state.scratch.mark);
+    return;
+  }
   const order: number[] = [];
   for (let i = 0; i < count; i++) order.push(hash2(state.header.seed, state.tick, (attacks[i] as Attack).id ^ ORDER_SALT) * INDEX_RANGE + i);
   if (count > 1) order.sort((x, y) => x - y);
@@ -331,4 +325,5 @@ export function conquestPhase(state: GameState): void {
     }
   }
   if (anyDead) table.removeDead();
+  state.work.purged += state.borders.purge(state.owner, state.scratch.mark);
 }

@@ -14,6 +14,7 @@ function makeStep(opts: { sort: boolean; dedupe: boolean }): StepFn {
   return (state, turn) => {
     if (turn.turn !== state.tick) return { ok: false, error: 'turn-mismatch' };
     if (turn.intents.length > MAX_INTENTS_PER_TURN) return { ok: false, error: 'too-many' };
+    state.work.reset();
     const ctx = { seats: state.header.seats, cells: state.width * state.height, debugIntents: state.header.config.debugIntents };
     const valid: Intent[] = [];
     let rejected = 0;

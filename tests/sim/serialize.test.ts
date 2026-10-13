@@ -46,8 +46,8 @@ describe('serialize / deserialize', () => {
     const b = serialize(s);
     const v = new DataView(b.buffer);
     expect(b.length).toBe(serializedLengthOf(s));
-    // fixed part + attack table (8 byte head, 32 bytes and 8 per frontier entry per attack) + 20 bucket counts and the queued cells (4 each) + checksum
-    const attacks = s.attacks.list.reduce((n, a) => n + 32 + 8 * a.size, 0);
+    // fixed part + attack table (8 byte head; per attack 36 bytes, 8 per non-empty frontier bag and 4 per frontier cell) + 20 bucket counts and the queued cells (4 each) + checksum
+    const attacks = s.attacks.list.reduce((n, a) => n + 36 + 4 * a.size + 8 * a.counts.reduce((k, c) => k + (c > 0 ? 1 : 0), 0), 0);
     expect(b.length).toBe(HEADER_BYTES + 128 * 64 * 9 + 64 * 2 + 5 * 16 + 8 + attacks + 20 * 4 + 4 * s.enclaves.length + 4);
     expect(serializedLength(128, 64, 4)).toBe(HEADER_BYTES + 128 * 64 * 9 + 64 * 2 + 5 * 16 + 8 + 20 * 4 + 4);
     expect(HEADER_BYTES).toBe(64);

@@ -55,6 +55,7 @@ export function step(state: GameState, turn: TurnIntents): StepResult {
   if (!Array.isArray(list)) return { ok: false, error: 'bad-turn' };
   if (list.length > MAX_INTENTS_PER_TURN) return { ok: false, error: 'too-many' };
 
+  state.work.reset();
   let applied = 0;
   let rejected = 0;
   if (list.length > 0) {

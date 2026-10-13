@@ -29,11 +29,11 @@ export function bruteFrontier(s: GameState, a: Attack): number[] {
   return out;
 }
 
-/** The heap entries that still qualify (unique, ascending): what the lazy list has to offer. */
+/** The frontier entries that still qualify (unique, ascending): what the lazy bags have to offer. */
 function liveHeap(s: GameState, a: Attack): number[] {
   const want = new Set(bruteFrontier(s, a));
   const seen = new Set<number>();
-  for (let i = 0; i < a.size; i++) if (want.has(a.cells[i] as number)) seen.add(a.cells[i] as number);
+  for (const c of a.entries()) if (want.has(c)) seen.add(c);
   return [...seen].sort((x, y) => x - y);
 }
 
@@ -58,26 +58,25 @@ function bruteEdges(s: GameState): Map<string, number> {
 }
 
 function checkDerived(s: GameState, label: string): void {
-  // 1. aggregates and the border index equal a rebuild from the owner array alone
-  const area = Array.from(s.agg.area);
-  const warea = Array.from(s.agg.warea);
-  const edges = Array.from(s.borders.edges);
-  const diff = Array.from(s.borders.diff);
-  const sets: string[] = [];
-  for (let o = 1; o <= s.header.seats; o++) sets.push(Array.from((s.borders.lists[o] as Int32Array).subarray(0, s.borders.counts[o])).sort((x, y) => x - y).join(','));
-  rebuildAggregates(s);
-  expect(Array.from(s.agg.area), `${label}: area`).toEqual(area);
-  expect(Array.from(s.agg.warea), `${label}: warea`).toEqual(warea);
-  expect(Array.from(s.borders.edges), `${label}: edges`).toEqual(edges);
-  expect(Array.from(s.borders.diff), `${label}: diff`).toEqual(diff);
+  // 1. the incrementally kept aggregates and border index equal those of a state rebuilt from the owner array alone (a snapshot round trip)
+  const r = deserialize(serialize(s));
+  if (!r.ok) throw new Error(`${label}: snapshot failed: ${r.error}`);
+  const t = r.state;
+  expect(Array.from(s.agg.area), `${label}: area`).toEqual(Array.from(t.agg.area));
+  expect(Array.from(s.agg.warea), `${label}: warea`).toEqual(Array.from(t.agg.warea));
+  expect(Array.from(s.borders.edges), `${label}: edges`).toEqual(Array.from(t.borders.edges));
+  expect(Array.from(s.borders.diff), `${label}: diff`).toEqual(Array.from(t.borders.diff));
+  // the boundary lists hold every boundary cell of their owner (stale entries and repeats are allowed)
   for (let o = 1; o <= s.header.seats; o++) {
-    expect(Array.from((s.borders.lists[o] as Int32Array).subarray(0, s.borders.counts[o])).sort((x, y) => x - y).join(','), `${label}: boundary of ${o}`).toBe(sets[o - 1]);
+    const mine = Array.from(new Set(s.borders.validCells(o, s.owner))).sort((x, y) => x - y);
+    const rebuilt = Array.from(new Set(t.borders.validCells(o, t.owner))).sort((x, y) => x - y);
+    expect(mine, `${label}: boundary of ${o}`).toEqual(rebuilt);
   }
-  // pos is consistent with the lists
-  for (let o = 1; o <= s.header.seats; o++) {
-    const list = s.borders.lists[o] as Int32Array;
-    for (let i = 0; i < (s.borders.counts[o] as number); i++) expect(s.borders.pos[list[i] as number]).toBe(i);
+  for (let c = 0; c < s.grid.cells; c++) {
+    if (s.grid.playable[c] === 1 && (s.owner[c] as number) !== 0 && (s.borders.diff[c] as number) > 0) expect(s.borders.listed[c], `${label}: cell ${c} is a boundary cell of ${s.owner[c]} but not listed`).toBe(s.owner[c]);
   }
+  // the lists do not grow without bound: at most the purge size (stale entries are dropped when a list reaches it)
+  for (let o = 1; o <= s.header.seats; o++) expect(s.borders.counts[o] as number, `${label}: list of ${o}`).toBeLessThanOrEqual(Math.max(s.borders.purgeAt[o] as number, 4 * (t.borders.counts[o] as number) + 8));
   // 2. contact lengths equal the brute-force edge count
   const brute = bruteEdges(s);
   for (let a = 0; a <= s.header.seats; a++) {
@@ -87,7 +86,8 @@ function checkDerived(s: GameState, label: string): void {
   for (let i = 0; i < s.attacks.list.length; i++) {
     const a = s.attacks.list[i] as Attack;
     expect(s.attacks.indexOf(a.attacker, a.target)).toBe(i);
-    expect(a.isHeap(), `${label}: heap order of attack ${a.id}`).toBe(true);
+    expect(a.entries().length, `${label}: size of attack ${a.id}`).toBe(a.size);
+    for (let d = 0; d < a.low; d++) expect(a.counts[d], `${label}: bags below low are empty`).toBe(0);
     expect(a.troops).toBeLessThan(2 ** 31);
   }
   let queued = 0;
@@ -118,7 +118,7 @@ describe('frontier lists and derived structures after 1000 random steps', () => 
           for (const a of s.attacks.list) {
             const brute = bruteFrontier(s, a);
             const live = liveHeap(s, a);
-            expect(live, `seed ${seed} tick ${t} attack ${a.id} (${a.attacker}->${a.target}): heap misses frontier cells`).toEqual(brute);
+            expect(live, `seed ${seed} tick ${t} attack ${a.id} (${a.attacker}->${a.target}): the bags miss frontier cells`).toEqual(brute);
           }
         }
         if (t % 100 === 99) checkDerived(s, `seed ${seed} tick ${t}`);
@@ -280,6 +280,32 @@ describe('which changes queue an enclave check (each rule of the candidate rule,
     expect([s.owner[idx(s, 5, 0)], s.owner[idx(s, 5, 1)]]).toEqual([2, 2]); // the upper piece still touches free land
   });
 
+  it('WALL LEAK: taking the cell that was the only thing touching the sea closes in the rest of its region', () => {
+    // a region {(5,3), (5,4)} of owner 2 whose upper cell touches the sea at (5,2); owner 1 holds everything else
+    const s = landState(14, 10, { seats: 4, classAt: (x, y) => (x === 5 && y === 2 ? CLASS_DEEP_SEA : CLASS_PLAINS) });
+    for (let c = 0; c < s.grid.cells; c++) if (s.grid.playable[c] === 1) setOwner(s, c, 1, 0);
+    setOwner(s, idx(s, 5, 3), 2, 0);
+    setOwner(s, idx(s, 5, 4), 2, 0);
+    idle(s, 2 * ENCLAVE_FLIP_TICKS);
+    expect(s.agg.area[2]).toBe(2); // open: it touches the sea
+    setOwner(s, idx(s, 5, 3), 1, 0);
+    idle(s, ENCLAVE_FLIP_TICKS);
+    expect(s.owner[idx(s, 5, 4)]).toBe(1);
+  });
+
+  it('THIRD-OWNER LEAK: a big region of a third owner touches the cell; taking the cell closes in the rest of its region', () => {
+    // owner 3 holds rows 0 to 5 (84 cells: too big to be an enclave); owner 2 holds (5,6) and (5,7): (5,6) touches owner 3
+    const s = landState(14, 12, { seats: 4 });
+    for (let c = 0; c < s.grid.cells; c++) setOwner(s, c, c < 14 * 6 ? 3 : 1, 0);
+    setOwner(s, idx(s, 5, 6), 2, 0);
+    setOwner(s, idx(s, 5, 7), 2, 0);
+    idle(s, 2 * ENCLAVE_FLIP_TICKS);
+    expect(s.agg.area[2]).toBe(2);
+    setOwner(s, idx(s, 5, 6), 1, 0);
+    idle(s, ENCLAVE_FLIP_TICKS);
+    expect(s.owner[idx(s, 5, 7)]).toBe(1);
+  });
+
   it('A STRAIGHT BORDER queues nothing: taking a border cell between two stretches of the same region does not call for a check', () => {
     const s = settled([[7, 5, 0], [8, 5, 0], [9, 5, 0], [7, 6, 0], [8, 6, 0], [9, 6, 0], [10, 5, 3]]); // a free block that also touches owner 3: open, so it stays
     // owner 1 takes (8, 5) next to a free block: the free cells around it form ONE run, so no neighbour is queued; only the
@@ -343,7 +369,7 @@ describe('after quiet ticks no small region is left enclosed by one player (the 
   }
 
   let flipped = 0;
-  for (const seed of [1, 2, 3, 4, 5, 6]) {
+  for (const seed of Array.from({ length: 40 }, (_, i) => i + 1)) {
     it(`seed ${seed}: random paints, spawns and attacks, then every attack cancelled and 15 enclave passes: nothing enclosed is left`, () => {
       const s = randomMatchState(seed);
       const d = new MatchDriver(s, seed);

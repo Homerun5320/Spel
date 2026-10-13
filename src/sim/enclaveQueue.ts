@@ -8,10 +8,14 @@ import { ENCLAVE_FLIP_TICKS, ENCLAVE_MAX_CELLS, ENCLAVE_PASS_BUDGET_CELLS } from
 
 /** Salt of the bucket hash. */
 const ENCLAVE_SALT = 0x3c91;
+// Bound once at load, see src/sim/attacks.ts.
+const hashOf = hash2;
+const BUCKETS = ENCLAVE_FLIP_TICKS;
 
 /** The bucket (0..ENCLAVE_FLIP_TICKS-1) in which a cell is checked. */
 export function enclaveBucket(seed: number, cell: number): number {
-  return hash2(seed, cell, ENCLAVE_SALT) % ENCLAVE_FLIP_TICKS;
+  // the top 16 bits of the hash scaled to 0..ENCLAVE_FLIP_TICKS-1 (a multiply and a shift, no division)
+  return ((hashOf(seed, cell, ENCLAVE_SALT) >>> 16) * BUCKETS) >>> 16;
 }
 
 export class EnclaveQueues {

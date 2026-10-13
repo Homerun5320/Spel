@@ -41,6 +41,9 @@ export class Grid {
   readonly totalWeight: number;
   /** Number of playable cells. */
   readonly playableCells: number;
+  /** width - 1 when the width is a power of two (then x = cell & colMask and y = cell >>> rowShift), else -1: a division is the slow way to split a cell index. */
+  readonly colMask: number;
+  readonly rowShift: number;
 
   /** Throws RangeError when the weights of all playable cells would overflow the 32-bit per-owner sums. */
   constructor(width: number, height: number, terrain: Uint8Array, rowCos: Uint16Array) {
@@ -48,6 +51,9 @@ export class Grid {
     this.height = height;
     this.cells = width * height;
     this.rowCos = rowCos;
+    const pow2 = width > 0 && (width & (width - 1)) === 0;
+    this.colMask = pow2 ? width - 1 : -1;
+    this.rowShift = pow2 ? 31 - Math.clz32(width) : -1;
     this.playable = new Uint8Array(this.cells);
     let total = 0;
     let count = 0;
@@ -68,11 +74,11 @@ export class Grid {
   }
 
   cellX(cell: number): number {
-    return cell % this.width;
+    return this.colMask >= 0 ? cell & this.colMask : cell % this.width;
   }
 
   cellY(cell: number): number {
-    return Math.floor(cell / this.width);
+    return this.colMask >= 0 ? cell >>> this.rowShift : Math.floor(cell / this.width);
   }
 
   /** The cell at (x, y) with x wrapped into [0, width); y must be in [0, height). */
@@ -83,7 +89,7 @@ export class Grid {
 
   /** Q15 weight (cos of the latitude) of a cell. */
   weight(cell: number): number {
-    return this.rowCos[Math.floor(cell / this.width)] as number;
+    return this.rowCos[this.colMask >= 0 ? cell >>> this.rowShift : Math.floor(cell / this.width)] as number;
   }
 
   /**
@@ -93,7 +99,7 @@ export class Grid {
    */
   neighbours(cell: number, out: Int32Array): number {
     const w = this.width;
-    const x = cell % w;
+    const x = this.colMask >= 0 ? cell & this.colMask : cell % w;
     const y = (cell - x) / w;
     let n = 0;
     if (y > 0) out[n++] = cell - w;

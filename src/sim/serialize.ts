@@ -8,13 +8,13 @@
 //   64 terrain u8 x n        elevation u16 x n        owner u16 x n           stamp u32 x n
 //      rowCos u16 x height   troops u32 x (seats+1)   troopFrac u32 x (seats+1)
 //      gold u32 x (seats+1)  capital u32 x (seats+1)
-//      attacks: seq u32, count u32, then per attack id attacker target troops costFrac progress compactAt size (u32 each)
-//               followed by size x (cell u32, key u32)                         (the frontier heap exactly as it is)
+//      attacks: seq u32, count u32, then per attack id attacker target troops costFrac progress compactAt picks bags (u32 each),
+//               followed by `bags` x (depth u32, count u32, count x cell u32)   (the frontier bags exactly as they are, ascending depth)
 //      enclave queue: ENCLAVE_FLIP_TICKS x (count u32, count x cell u32)
 //   end: checksum u32 = hashState(state)                                      (n = width * height)
 // The outbox and the derived parts (grid, aggregates, scratch) are not part of the format. deserialize() never throws:
 // any byte string gives a state or an error result.
-import { Attack, AttackTable, keyDepth } from './attacks';
+import { Attack, AttackTable } from './attacks';
 import { EnclaveQueues, enclaveBucket } from './enclaveQueue';
 import { FNV_OFFSET, finishHash, foldBytes, foldU16, foldU32, foldWord } from './hash';
 import { D_MAX_CELLS, ENCLAVE_FLIP_TICKS, MICRO_CELLS_PER_CELL, MICRO_QT_PER_QT, MILLI_QT_PER_QT } from './rules';
@@ -45,10 +45,10 @@ const BYTES_PER_ROW = 2;
 const BYTES_PER_OWNER = 16;
 /** Attack table header (seq, count) and the counts of the enclave buckets: what a state without attacks and candidates adds. */
 const EMPTY_TABLES_BYTES = 8 + ENCLAVE_FLIP_TICKS * 4;
-/** One attack record without its frontier: eight u32. */
-const BYTES_PER_ATTACK = 32;
-/** One frontier entry: cell and key. */
-const BYTES_PER_ENTRY = 8;
+/** One attack record without its frontier: nine u32. */
+const BYTES_PER_ATTACK = 36;
+/** One frontier bag: depth and count, then its cells (4 bytes each). */
+const BYTES_PER_BAG = 8;
 
 export type DeserializeError =
   | 'not-bytes'
@@ -73,10 +73,17 @@ export function serializedLength(width: number, height: number, seats: number): 
   return HEADER_BYTES + width * height * BYTES_PER_CELL + height * BYTES_PER_ROW + ownerSlots(seats) * BYTES_PER_OWNER + EMPTY_TABLES_BYTES + CHECKSUM_BYTES;
 }
 
+/** Number of non-empty frontier bags of an attack. */
+function bagsOf(a: Attack): number {
+  let n = 0;
+  for (let d = 0; d < a.counts.length; d++) if ((a.counts[d] as number) > 0) n++;
+  return n;
+}
+
 /** Number of bytes serialize() produces for this state. */
 export function serializedLengthOf(state: GameState): number {
   let n = serializedLength(state.width, state.height, state.header.seats);
-  for (const a of state.attacks.list) n += BYTES_PER_ATTACK + a.size * BYTES_PER_ENTRY;
+  for (const a of state.attacks.list) n += BYTES_PER_ATTACK + a.size * 4 + bagsOf(a) * BYTES_PER_BAG;
   return n + state.enclaves.length * 4;
 }
 
@@ -114,10 +121,15 @@ export function hashState(state: GameState): number {
     x = foldWord(x, a.costFrac);
     x = foldWord(x, a.progress);
     x = foldWord(x, a.compactAt);
+    x = foldWord(x, a.picks);
     x = foldWord(x, a.size);
-    for (let i = 0; i < a.size; i++) {
-      x = foldWord(x, a.cells[i] as number);
-      x = foldWord(x, a.keys[i] as number);
+    for (let d = 0; d < a.counts.length; d++) {
+      const n = a.counts[d] as number;
+      if (n === 0) continue;
+      const bag = a.bags[d] as Int32Array;
+      x = foldWord(x, d);
+      x = foldWord(x, n);
+      for (let i = 0; i < n; i++) x = foldWord(x, bag[i] as number);
     }
   }
   for (let b = 0; b < ENCLAVE_FLIP_TICKS; b++) {
@@ -189,12 +201,20 @@ export function serialize(state: GameState): Uint8Array {
     v.setUint32(p + 16, a.costFrac, true);
     v.setUint32(p + 20, a.progress, true);
     v.setUint32(p + 24, a.compactAt, true);
-    v.setUint32(p + 28, a.size, true);
+    v.setUint32(p + 28, a.picks, true);
+    v.setUint32(p + 32, bagsOf(a), true);
     p += BYTES_PER_ATTACK;
-    for (let i = 0; i < a.size; i++) {
-      v.setUint32(p, a.cells[i] as number, true);
-      v.setUint32(p + 4, a.keys[i] as number, true);
-      p += BYTES_PER_ENTRY;
+    for (let d = 0; d < a.counts.length; d++) {
+      const count = a.counts[d] as number;
+      if (count === 0) continue;
+      const bag = a.bags[d] as Int32Array;
+      v.setUint32(p, d, true);
+      v.setUint32(p + 4, count, true);
+      p += BYTES_PER_BAG;
+      for (let i = 0; i < count; i++) {
+        v.setUint32(p, bag[i] as number, true);
+        p += 4;
+      }
     }
   }
   for (let b = 0; b < ENCLAVE_FLIP_TICKS; b++) {
@@ -291,23 +311,31 @@ export function deserialize(bytes: Uint8Array): DeserializeResult {
     a.costFrac = v.getUint32(p + 16, true);
     a.progress = v.getUint32(p + 20, true);
     a.compactAt = v.getUint32(p + 24, true);
-    const size = v.getUint32(p + 28, true);
+    a.picks = v.getUint32(p + 28, true);
+    const bagCount = v.getUint32(p + 32, true);
     p += BYTES_PER_ATTACK;
     if (id <= lastId || id > attacks.seq || attacker < 1 || attacker > seats || target > seats || target === attacker) return fail('attack-range');
     if (attacks.slotOf[attacker * slots + target] !== -1) return fail('attack-range');
     if (a.costFrac >= MILLI_QT_PER_QT || a.progress >= MICRO_CELLS_PER_CELL || a.compactAt < 1) return fail('attack-range');
-    if (size > (end - p) / BYTES_PER_ENTRY) return fail('attack-range');
-    a.reserve(size);
-    a.size = size;
-    for (let i = 0; i < size; i++) {
-      const cell = v.getUint32(p, true);
-      const key = v.getUint32(p + 4, true);
-      p += BYTES_PER_ENTRY;
-      if (cell >= n || keyDepth(key) > D_MAX_CELLS) return fail('attack-range');
-      a.cells[i] = cell;
-      a.keys[i] = key;
+    if (bagCount > D_MAX_CELLS + 1 || bagCount * BYTES_PER_BAG > end - p) return fail('attack-range');
+    let lastDepth = -1;
+    for (let k2 = 0; k2 < bagCount; k2++) {
+      if (p + BYTES_PER_BAG > end) return fail('attack-range');
+      const depth = v.getUint32(p, true);
+      const count = v.getUint32(p + 4, true);
+      p += BYTES_PER_BAG;
+      if (depth > D_MAX_CELLS || depth <= lastDepth || count < 1 || count > (end - p) / 4) return fail('attack-range');
+      const bag = new Int32Array(count);
+      for (let i = 0; i < count; i++) {
+        const cell = v.getUint32(p, true);
+        p += 4;
+        if (cell >= n) return fail('attack-range');
+        bag[i] = cell;
+      }
+      a.load(depth, bag);
+      lastDepth = depth;
     }
-    if (!a.isHeap()) return fail('attack-range');
+    a.recount();
     lastId = id;
     attacks.slotOf[attacker * slots + target] = k;
     attacks.list.push(a);

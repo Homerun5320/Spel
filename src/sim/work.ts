@@ -14,7 +14,9 @@ export class WorkCounters {
   launchScanned = 0;
   /** Entries examined by a heap purge. */
   purged = 0;
-  /** Enclave candidates taken and cells visited by their fills. */
+  /** Enclave candidates taken from the bucket of this tick. */
+  candidates = 0;
+  /** Enclave candidates taken plus the cells visited by their fills (at most ENCLAVE_MAX_CELLS + 1 per candidate). */
   enclaveVisited = 0;
   /** Cells that changed owner in the enclave phase of this tick. */
   enclaveFlipped = 0;
@@ -27,6 +29,7 @@ export class WorkCounters {
     this.captured = 0;
     this.launchScanned = 0;
     this.purged = 0;
+    this.candidates = 0;
     this.enclaveVisited = 0;
     this.enclaveFlipped = 0;
     this.attacks = 0;

@@ -40,9 +40,8 @@ describe('attacks and the enclave queue in a snapshot', () => {
     expect(t.attacks.list.length).toBe(s.attacks.list.length);
     s.attacks.list.forEach((a, i) => {
       const b = t.attacks.list[i];
-      expect([b?.id, b?.attacker, b?.target, b?.troops, b?.costFrac, b?.progress, b?.compactAt, b?.size]).toEqual([a.id, a.attacker, a.target, a.troops, a.costFrac, a.progress, a.compactAt, a.size]);
-      expect(Array.from((b?.cells ?? new Int32Array(0)).subarray(0, a.size))).toEqual(Array.from(a.cells.subarray(0, a.size)));
-      expect(Array.from((b?.keys ?? new Uint32Array(0)).subarray(0, a.size))).toEqual(Array.from(a.keys.subarray(0, a.size)));
+      expect([b?.id, b?.attacker, b?.target, b?.troops, b?.costFrac, b?.progress, b?.compactAt, b?.picks, b?.size, b?.low]).toEqual([a.id, a.attacker, a.target, a.troops, a.costFrac, a.progress, a.compactAt, a.picks, a.size, a.low]);
+      expect(b?.entries()).toEqual(a.entries()); // the bags in their order, bag by bag
       expect(t.attacks.indexOf(a.attacker, a.target)).toBe(i);
     });
     expect(Array.from(t.enclaves.counts)).toEqual(Array.from(s.enclaves.counts));
@@ -61,17 +60,22 @@ describe('attacks and the enclave queue in a snapshot', () => {
       expect(hashState(s), `${label} (undone)`).toBe(base);
     };
     touch('seq', () => s.attacks.seq++, () => s.attacks.seq--);
-    for (const field of ['id', 'attacker', 'target', 'troops', 'costFrac', 'progress', 'compactAt'] as const) {
+    for (const field of ['id', 'attacker', 'target', 'troops', 'costFrac', 'progress', 'compactAt', 'picks'] as const) {
       const a = s.attacks.list[1];
       if (a === undefined) throw new Error('need two attacks');
       touch(`attack.${field}`, () => (a[field] += 1), () => (a[field] -= 1));
     }
     const a = s.attacks.list[0];
     if (a === undefined || a.size < 2) throw new Error('need a frontier');
-    touch('frontier cell (first)', () => (a.cells[0] = (a.cells[0] as number) ^ 1), () => (a.cells[0] = (a.cells[0] as number) ^ 1));
-    touch('frontier cell (last)', () => (a.cells[a.size - 1] = (a.cells[a.size - 1] as number) ^ 1), () => (a.cells[a.size - 1] = (a.cells[a.size - 1] as number) ^ 1));
-    touch('frontier key (middle)', () => (a.keys[a.size >> 1] = (a.keys[a.size >> 1] as number) ^ 1), () => (a.keys[a.size >> 1] = (a.keys[a.size >> 1] as number) ^ 1));
-    touch('frontier size', () => a.size--, () => a.size++);
+    let d0 = 0;
+    while ((a.counts[d0] as number) === 0) d0++;
+    const bag = a.bags[d0] as Int32Array;
+    const last = (a.counts[d0] as number) - 1;
+    touch('frontier cell (first of the shallowest bag)', () => (bag[0] = (bag[0] as number) ^ 1), () => (bag[0] = (bag[0] as number) ^ 1));
+    touch('frontier cell (last of the shallowest bag)', () => (bag[last] = (bag[last] as number) ^ 1), () => (bag[last] = (bag[last] as number) ^ 1));
+    touch('frontier count of a bag', () => (a.counts[d0] = (a.counts[d0] as number) - 1), () => (a.counts[d0] = (a.counts[d0] as number) + 1));
+    // the order inside a bag is state: swapping two cells changes the hash
+    if (last >= 1) touch('frontier order', () => { const t = bag[0] as number; bag[0] = bag[last] as number; bag[last] = t; }, () => { const t = bag[0] as number; bag[0] = bag[last] as number; bag[last] = t; });
     let b = 0;
     while ((s.enclaves.counts[b] as number) === 0) b++;
     const list = s.enclaves.buckets[b] as Int32Array;
@@ -83,7 +87,8 @@ describe('attacks and the enclave queue in a snapshot', () => {
     const s = matchWithAttacks();
     const bytes = serialize(s);
     const at = attackStart(s);
-    const rec = at + 8; // first attack record
+    const rec = at + 8; // first attack record: id, attacker, target, troops, costFrac, progress, compactAt, picks, bags
+    const bag0 = rec + 36; // its first bag: depth, count, cells
     const cases: Array<[string, (v: DataView) => void, string]> = [
       ['attack count beyond the pairs that exist', (v) => v.setUint32(at + 4, 100000, true), 'attack-range'],
       ['attack count larger than the bytes', (v) => v.setUint32(at + 4, s.attacks.list.length + 1, true), 'attack-range'],
@@ -94,31 +99,19 @@ describe('attacks and the enclave queue in a snapshot', () => {
       ['a cost remainder of a whole QT', (v) => v.setUint32(rec + 16, 1000, true), 'attack-range'],
       ['progress of a whole cell', (v) => v.setUint32(rec + 20, 1000000, true), 'attack-range'],
       ['a purge threshold of 0', (v) => v.setUint32(rec + 24, 0, true), 'attack-range'],
-      ['a frontier larger than the bytes', (v) => v.setUint32(rec + 28, 0x7fffffff, true), 'attack-range'],
+      ['more bags than depths', (v) => v.setUint32(rec + 32, 0x7fffffff, true), 'attack-range'],
       ['id 0 (ids start at 1 and ascend)', (v) => v.setUint32(rec, 0, true), 'attack-range'],
       ['an id above the sequence number', (v) => v.setUint32(rec, 0xffffffff, true), 'attack-range'],
-      ['a frontier cell outside the map', (v) => v.setUint32(rec + 32, RW * RH, true), 'attack-range'],
-      ['a frontier depth above D_MAX', (v) => v.setUint32(rec + 36, 200 * 16777216, true), 'attack-range'],
+      ['a depth above D_MAX', (v) => v.setUint32(bag0, 81, true), 'attack-range'],
+      ['an empty bag', (v) => v.setUint32(bag0 + 4, 0, true), 'attack-range'],
+      ['a bag larger than the bytes', (v) => v.setUint32(bag0 + 4, 0x7fffffff, true), 'attack-range'],
+      ['a frontier cell outside the map', (v) => v.setUint32(bag0 + 8, RW * RH, true), 'attack-range'],
     ];
     for (const [name, edit, want] of cases) {
       const out = bytes.slice();
       edit(new DataView(out.buffer));
       expect(error(out), name).toBe(want);
     }
-    // a heap whose order is broken (first and last frontier entry swapped, keys differ)
-    const a = s.attacks.list[0];
-    if (a === undefined || a.size < 3) throw new Error('need a frontier');
-    const out = bytes.slice();
-    const v = new DataView(out.buffer);
-    const first = rec + 32;
-    const last = rec + 32 + 8 * (a.size - 1);
-    const c0 = v.getUint32(first, true);
-    const k0 = v.getUint32(first + 4, true);
-    v.setUint32(first, v.getUint32(last, true), true);
-    v.setUint32(first + 4, v.getUint32(last + 4, true) + 16777216, true);
-    v.setUint32(last, c0, true);
-    v.setUint32(last + 4, k0, true);
-    expect(error(out)).toBe('attack-range');
   });
 
   it('bytes that lie about the enclave queue: a cell twice, a cell in the wrong bucket, a cell outside the map, a count beyond the bytes', () => {
@@ -126,7 +119,7 @@ describe('attacks and the enclave queue in a snapshot', () => {
     const bytes = serialize(s);
     // find the start of the enclave section: after the last attack record
     let p = attackStart(s) + 8;
-    for (const a of s.attacks.list) p += 32 + 8 * a.size;
+    for (const a of s.attacks.list) p += 36 + 4 * a.size + 8 * a.counts.reduce((n, c) => n + (c > 0 ? 1 : 0), 0);
     let b = 0;
     let q = p;
     while ((s.enclaves.counts[b] as number) === 0) {

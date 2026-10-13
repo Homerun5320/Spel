@@ -1,7 +1,7 @@
 // Conquest rules: the speed and price formulas (ratio tests, no magic numbers: everything is compared as a relation or against an
 // independent restatement of the plan's formula), the attack life cycle, mutual attacks, tribes, and the refusals.
 import { describe, expect, it } from 'vitest';
-import { keyDepth, frontKey } from '../../src/sim/attacks';
+import { Attack, pickIndex } from '../../src/sim/attacks';
 import {
   advanceAttack,
   applyAttack,
@@ -172,9 +172,15 @@ describe('capture price: BASE * terrain * uphill * (1 + d / DIV) per sim cell, i
     expect(captureCostMilliQt(CLASS_PLAINS, 0, 10 * D_MAX_CELLS)).toBe(captureCostMilliQt(CLASS_PLAINS, 0, D_MAX_CELLS));
     expect(captureCostMilliQt(CLASS_PLAINS, 0, -5)).toBe(base);
     expect([clampDepth(-1), clampDepth(0), clampDepth(D_MAX_CELLS), clampDepth(D_MAX_CELLS + 1), clampDepth(1e9)]).toEqual([0, 0, D_MAX_CELLS, D_MAX_CELLS, D_MAX_CELLS]);
-    // a frontier key never stores a depth above D_MAX, and the depth fits the 8 bits it has
-    expect(D_MAX_CELLS).toBeLessThan(256);
-    for (const d of [0, 1, D_MAX_CELLS, D_MAX_CELLS + 1, 255, 100000]) expect(keyDepth(frontKey(7, 1234, d))).toBeLessThanOrEqual(D_MAX_CELLS);
+    // a frontier never stores a depth above D_MAX: a deeper cell goes into the D_MAX bag
+    const a = new Attack(1, 1, 0, 1000);
+    for (const d of [0, 1, D_MAX_CELLS, D_MAX_CELLS + 1, 255, 100000, -4]) a.push(1000 + d, d);
+    expect(a.size).toBe(7);
+    expect(a.counts.length).toBe(D_MAX_CELLS + 1);
+    expect([a.counts[0], a.counts[1], a.counts[D_MAX_CELLS]]).toEqual([2, 1, 4]);
+    const depths: number[] = [];
+    for (let c = a.pick(5); c >= 0; c = a.pick(5)) depths.push(a.lastDepth);
+    expect(depths).toEqual([0, 0, 1, D_MAX_CELLS, D_MAX_CELLS, D_MAX_CELLS, D_MAX_CELLS]);
   });
 
   it('no terrain class that nobody can own has a price (and the table says so)', () => {
@@ -224,7 +230,7 @@ describe('what an attack really pays (corridor worlds: one cell wide, so the dep
     };
     const spentFor = (s: GameState): number => {
       const a = s.attacks.create(1, 0, 100000);
-      a.push(idx(s, 1, 1), frontKey(1, idx(s, 1, 1), 0));
+      a.push(idx(s, 1, 1), 0);
       expect(advanceAttack(s, a, 0, 1)).toBe(1);
       return (100000 - a.troops) * 1000 + a.costFrac;
     };
@@ -459,42 +465,65 @@ describe('CancelAttack, tribes and refusals', () => {
 });
 
 describe('the hash tie-break of the frontier', () => {
-  it('two cells at equal depth come out in the order of their hash, which depends on the seed and not on the order they were pushed', () => {
+  /** The cells of one bag in the order an attack takes them. */
+  function takeOrder(seed: number, cells: number[], depth = 0): number[] {
+    const a = new Attack(7, 1, 0, 1000);
+    for (const c of cells) a.push(c, depth);
+    const out: number[] = [];
+    for (let c = a.pick(seed); c >= 0; c = a.pick(seed)) out.push(c);
+    return out;
+  }
+
+  it('cells of equal depth come out in an order that a hash of the seed decides: other seeds, other orders; the same seed, the same order', () => {
+    const cells = Array.from({ length: 24 }, (_, i) => 100 + 7 * i);
     const seen = new Set<string>();
     for (const seed of [1, 2, 3, 4, 5, 6, 7, 8]) {
-      const s = landState(20, 5, { seed, classAt: (_x, y) => (y === 2 ? CLASS_PLAINS : CLASS_DEEP_SEA) });
-      const cells = [idx(s, 5, 2), idx(s, 6, 2), idx(s, 7, 2), idx(s, 8, 2)];
-      const a = s.attacks.create(1, 0, 1000);
-      for (const c of cells) a.push(c, frontKey(seed, c, 0));
-      const order: number[] = [];
-      while (a.size > 0) {
-        order.push(a.cells[0] as number);
-        a.pop();
-      }
-      // pushing in the reverse order gives the same order
-      const b = s.attacks.create(2, 0, 1000);
-      for (const c of [...cells].reverse()) b.push(c, frontKey(seed, c, 0));
-      const order2: number[] = [];
-      while (b.size > 0) {
-        order2.push(b.cells[0] as number);
-        b.pop();
-      }
-      expect(order2).toEqual(order);
+      const order = takeOrder(seed, cells);
+      expect([...order].sort((x, y) => x - y)).toEqual(cells); // every cell exactly once
+      expect(takeOrder(seed, cells)).toEqual(order);
       seen.add(order.join(','));
     }
-    expect(seen.size).toBeGreaterThan(2); // different seeds break the ties differently
+    expect(seen.size).toBe(8);
+    // not simply sorted or reversed
+    const order = takeOrder(1, cells);
+    expect(order).not.toEqual(cells);
+    expect(order).not.toEqual([...cells].reverse());
+  });
+
+  it('the choice is spread over the whole bag (no cell is favoured by its place in the array): the first pick is every position about equally often', () => {
+    const counts = new Array<number>(8).fill(0);
+    for (let seed = 0; seed < 800; seed++) {
+      const first = takeOrder(seed, [10, 11, 12, 13, 14, 15, 16, 17])[0] as number;
+      counts[first - 10] = (counts[first - 10] as number) + 1;
+    }
+    for (const n of counts) {
+      expect(n).toBeGreaterThan(60);
+      expect(n).toBeLessThan(140);
+    }
   });
 
   it('depth comes before the hash: a shallow cell is always taken before a deeper one', () => {
-    const s = landState(10, 3);
-    const a = s.attacks.create(1, 0, 1000);
-    for (let c = 0; c < 20; c++) a.push(c, frontKey(5, c, 20 - c));
+    const a = new Attack(3, 1, 0, 1000);
+    for (let c = 0; c < 60; c++) a.push(c, (c * 7) % 23);
     let last = -1;
-    while (a.size > 0) {
-      const d = keyDepth(a.keys[0] as number);
-      expect(d).toBeGreaterThanOrEqual(last);
-      last = d;
-      a.pop();
+    for (let c = a.pick(5); c >= 0; c = a.pick(5)) {
+      expect(a.lastDepth).toBeGreaterThanOrEqual(last);
+      last = a.lastDepth;
+    }
+    expect(a.size).toBe(0);
+    // a shallow cell that arrives late is taken next
+    a.push(500, 9);
+    a.push(501, 2);
+    expect(a.pick(5)).toBe(501);
+    expect(a.pick(5)).toBe(500);
+  });
+
+  it('the pick index is exact over the whole range of bag sizes and never out of range', () => {
+    for (const count of [1, 2, 3, 7, 1000, 65537, 4194303]) {
+      for (const h of [0, 1, 0x7fffffff, 0x80000000, 0xffffffff]) {
+        const i = pickIndex(h, count);
+        expect(Number.isInteger(i) && i >= 0 && i < count, `${h} ${count}`).toBe(true);
+      }
     }
   });
 });
