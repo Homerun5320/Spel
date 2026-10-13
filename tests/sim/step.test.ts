@@ -300,6 +300,23 @@ describe('copyBody and IdAllocator', () => {
   });
 });
 
+describe('IdAllocator counters', () => {
+  it('counters() is a copy that a new allocator can continue from (what a host snapshot carries)', () => {
+    const a = new IdAllocator();
+    for (let i = 0; i < 5; i++) a.alloc(3);
+    a.alloc(254);
+    const c = a.counters();
+    expect(c.length).toBe(255);
+    expect([c[3], c[254], c[0]]).toEqual([5, 1, 0]);
+    c[3] = 99; // scribbling on the copy does not touch the allocator
+    expect(a.alloc(3)).toBe(5);
+    const b = new IdAllocator(a.counters());
+    expect([b.alloc(3), b.alloc(254), b.alloc(0)]).toEqual([6, 1, 0]);
+    expect(a.alloc(3)).toBe(6); // independent of b
+    expect(new IdAllocator(new Uint32Array(3).fill(4)).alloc(2)).toBe(4); // a short array is read as far as it goes
+  });
+});
+
 describe('outbox', () => {
   it('is not part of the hash: junk in it, draining it or never reading it gives the same hash', () => {
     const a = fresh();

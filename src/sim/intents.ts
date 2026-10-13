@@ -120,6 +120,16 @@ export function withId(body: IntentBody, id: number): Intent {
 export class IdAllocator {
   private readonly next = new Uint32Array(MAX_SEATS);
 
+  /** Starts from the counters of an earlier allocator (a copy of `counters`, MAX_SEATS long); omitted = all zero. */
+  constructor(counters?: Uint32Array) {
+    if (counters !== undefined) this.next.set(counters.subarray(0, MAX_SEATS));
+  }
+
+  /** The next id of every seat (a copy): what a resumed allocator needs to carry on. */
+  counters(): Uint32Array {
+    return this.next.slice();
+  }
+
   alloc(seat: number): number {
     if (!isIntegerIn(seat, 0, MAX_SEATS - 1)) return 0;
     const id = this.next[seat] as number;

@@ -63,12 +63,24 @@ describe('createState', () => {
     expect(createEmptyState(2, 2, 5, 1).rng).not.toEqual(createEmptyState(2, 2, 6, 1).rng);
   });
 
+  it('accepts exactly the structural maxima: 255 seats (ownerId 255), seed at both ends of its range', () => {
+    const ok = world(2, 2);
+    const s = createState({ width: 2, height: 2, seed: 1, seats: 255, ...ok });
+    expect(s.header.seats).toBe(255);
+    expect(() => createState({ width: 2, height: 2, seed: 1, seats: 254, ...ok })).not.toThrow();
+    expect(createEmptyState(2, 2, 4294967295, 255).header.seed).toBe(4294967295);
+    expect(createEmptyState(2, 2, -2147483648, 255).header.seed).toBe(2147483648);
+    expect(() => createEmptyState(2, 2, 4294967296, 1)).toThrow(RangeError);
+    expect(() => createEmptyState(2, 2, -2147483649, 1)).toThrow(RangeError);
+  });
+
   it('refuses sizes and counts outside the structural limits (RangeError at construction, never later)', () => {
     const ok = world(2, 2);
     expect(() => createState({ width: 0, height: 2, seed: 1, seats: 1, terrain: new Uint8Array(0), elevation: new Uint16Array(0) })).toThrow(RangeError);
     expect(() => createState({ width: 2.5, height: 2, seed: 1, seats: 1, ...ok })).toThrow(RangeError);
     expect(() => createState({ width: 2, height: 2, seed: 1, seats: 0, ...ok })).toThrow(RangeError);
     expect(() => createState({ width: 2, height: 2, seed: 1, seats: MAX_SEATS + 1, ...ok })).toThrow(RangeError);
+    expect(() => createState({ width: 2, height: 2, seed: 1, seats: 256, ...ok })).toThrow(RangeError);
     expect(() => createState({ width: 2, height: 2, seed: 1.5, seats: 1, ...ok })).toThrow(RangeError);
     expect(() => createState({ width: 2, height: 2, seed: 1, seats: 1, terrain: new Uint8Array(3), elevation: new Uint16Array(4) })).toThrow(RangeError);
     expect(() => createState({ width: MAX_DIMENSION + 1, height: 1, seed: 1, seats: 1, terrain: new Uint8Array(1), elevation: new Uint16Array(1) })).toThrow(RangeError);

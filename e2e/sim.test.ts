@@ -18,6 +18,7 @@ interface Hooks {
   mapHash: string;
   hashes: Record<string, string>;
   hostHashes: Record<string, string>;
+  adversarialHashes: Record<string, string>;
   canary: { values: number; hash: string };
 }
 
@@ -64,6 +65,8 @@ describe('debug/sim.html (Chromium) against the committed hashes (Node)', () => 
       expect(Object.keys(hooks.hashes)).toEqual(['1', '10', '100', '1000', '6000']);
       expect(hooks.hashes).toEqual(golden.hashes);
       expect(hooks.hostHashes).toEqual(golden.hashes);
+      // Raw turn lists (reversed order, repeated (seat, id)): the Array.prototype.sort of this engine must give the Node result.
+      expect(hooks.adversarialHashes).toEqual(golden.adversarial.hashes);
       console.log(`[sim e2e] chromium hashes ${JSON.stringify(hooks.hashes)}`);
       expect(messages).toEqual([]);
     } finally {
@@ -78,6 +81,23 @@ describe('debug/sim.html (Chromium) against the committed hashes (Node)', () => 
       expect(hooks.canary.values).toBe(100000);
       expect(hooks.canary.hash).toBe(golden.canary.hash);
       console.log(`[sim e2e] canary ${hooks.canary.hash} in Chromium, ${golden.canary.hash} committed`);
+    } finally {
+      await page.close();
+    }
+  });
+
+  it('the second pinned seed gives the committed world hash and hashes in Chromium (not just what Node computes now)', async () => {
+    const golden = readGolden();
+    const { page, hooks, messages } = await openSim(browser, baseUrl, `?seed=${golden.alt.seed}&ticks=1000`);
+    try {
+      expect(hooks.seed).toBe(golden.alt.seed);
+      expect(hooks.mapHash).toBe(golden.alt.mapHash);
+      expect(hooks.mapHash).not.toBe(golden.mapHash);
+      for (const t of golden.alt.ticks) {
+        expect(hooks.hashes[String(t)]).toBe(golden.alt.hashes[String(t)]);
+        expect(hooks.hostHashes[String(t)]).toBe(golden.alt.hashes[String(t)]);
+      }
+      expect(messages).toEqual([]);
     } finally {
       await page.close();
     }

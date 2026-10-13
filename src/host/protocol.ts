@@ -2,7 +2,7 @@
 // arrays and plain objects) that structuredClone / postMessage can copy, so the same protocol runs between two objects of
 // one thread (LocalTransport) and between a page and a Web Worker (M24a). No class instance, function or sim reference
 // is ever part of a message.
-import type { IntentBody } from '../sim/intents';
+import type { Intent, IntentBody } from '../sim/intents';
 
 /** Game speed: 0 = pause, otherwise the multiple of the 10 Hz tick rate. */
 export type Speed = 0 | 1 | 2 | 4;
@@ -12,21 +12,46 @@ export function isSpeed(x: unknown): x is Speed {
   return x === 0 || x === 1 || x === 2 || x === 4;
 }
 
-/** What changed while a frame ran its ticks: cells[i] now belongs to owners[i] (ownerId), in the order it happened. */
+/**
+ * What changed while a frame ran its ticks: cells[i] now belongs to owners[i] (ownerId), in the order it happened.
+ *
+ * The list is built from the render-only outbox, which is capped. When a frame's outbox overflowed (more events in one
+ * step than OUTBOX_CAPACITY) the host cannot say which cells changed: `fullOwner` is then the COMPLETE ownerId array
+ * after the frame, `cells` and `owners` are empty, and a consumer must replace its whole ownership mirror with it. It is
+ * null for an ordinary frame. A consumer that handles only cells/owners drifts from the sim after an overflow.
+ */
 export interface StateDiff {
   readonly fromTick: number;
   readonly toTick: number;
   readonly cells: Uint32Array;
   readonly owners: Uint8Array;
+  /** The whole owner array after the frame when the changed-cell list is incomplete (see above), else null. */
+  readonly fullOwner: Uint8Array | null;
   /** The reject counter of the state after the frame. */
   readonly rejects: number;
 }
 
-/** A complete copy of the state: serialize() bytes (src/sim/serialize.ts) with their tick and hash. */
+/**
+ * What a host keeps OUTSIDE the game state and a restart needs: the next intent id of every seat (ids are written into
+ * `state.stamp`, so they are part of the hash) and the intents already scheduled for turns the state has not run yet.
+ */
+export interface HostResume {
+  /** The next intent id per seat (MAX_SEATS entries). */
+  readonly idNext: Uint32Array;
+  /** Scheduled intents, ascending by turn; every turn is >= the snapshot's tick. */
+  readonly pending: ReadonlyArray<{ readonly turn: number; readonly intents: readonly Intent[] }>;
+}
+
+/**
+ * A complete resume point: serialize() bytes (src/sim/serialize.ts) with their tick and hash, plus the host's own
+ * bookkeeping. `MainThreadHost.resume(snapshot)` continues exactly like the straight run; `deserialize(bytes)` alone
+ * gives only the state (enough to inspect or to replay with explicit turn lists).
+ */
 export interface Snapshot {
   readonly tick: number;
   readonly hash: number;
   readonly bytes: Uint8Array;
+  readonly resume: HostResume;
 }
 
 export type HostEvent =
@@ -38,7 +63,10 @@ export type HostEvent =
 export function cloneEvent(e: HostEvent): HostEvent {
   if (e.type === 'diff') {
     const d = e.diff;
-    return { type: 'diff', diff: { fromTick: d.fromTick, toTick: d.toTick, cells: d.cells.slice(), owners: d.owners.slice(), rejects: d.rejects } };
+    return {
+      type: 'diff',
+      diff: { fromTick: d.fromTick, toTick: d.toTick, cells: d.cells.slice(), owners: d.owners.slice(), fullOwner: d.fullOwner === null ? null : d.fullOwner.slice(), rejects: d.rejects },
+    };
   }
   return e.type === 'hash' ? { type: 'hash', tick: e.tick, hash: e.hash } : { type: 'speed', speed: e.speed };
 }

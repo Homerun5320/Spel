@@ -3,11 +3,12 @@
 import { describe, expect, it } from 'vitest';
 import { canaryHash, CANARY_VALUES } from '../../src/sim/canary';
 import { hex32 } from '../../src/sim/hash';
-import { GOLDEN_PARAMS, GOLDEN_TICKS, createScenarioState, runScenario, scenarioHashes } from '../../src/sim/scenario';
+import { ALT_SEED, ALT_TICKS, GOLDEN_PARAMS, GOLDEN_TICKS, createScenarioState, runScenario, scenarioBodies, scenarioHashes } from '../../src/sim/scenario';
 import { hashState } from '../../src/sim/serialize';
 import { step } from '../../src/sim/step';
 import { computeGolden, readGolden, writeGolden } from '../helpers/simGolden';
 import { withHostileGlobals } from './helpers/hostile';
+import { stepCopyIntact, stepWithoutDedupe, stepWithoutSort } from './helpers/brokenSteps';
 import { stepWithMathRandom } from './helpers/nondeterministicStep';
 
 if (process.env.UPDATE_GOLDENS === '1') {
@@ -33,12 +34,57 @@ describe('golden hashes (Node)', () => {
     const now = computeGolden();
     expect(now.mapHash).toBe(golden.mapHash);
     expect(now.hashes).toEqual(golden.hashes);
+    expect(now.alt).toEqual(golden.alt);
+    expect(now.adversarial).toEqual(golden.adversarial);
     expect(now.engineVersion).toBe(golden.engineVersion);
     expect(now.formatVersion).toBe(golden.formatVersion);
   });
 
   it('the five hashes are all different (the run really changes the state)', () => {
     expect(new Set(Object.values(golden.hashes)).size).toBe(5);
+  });
+
+  it('a second seed is pinned: its world hash and its hashes at ticks 10, 100 and 1000 equal the committed ones', () => {
+    expect(golden.alt.seed).toBe(ALT_SEED);
+    expect(golden.alt.ticks).toEqual([10, 100, 1000]);
+    expect(golden.alt.ticks).toEqual([...ALT_TICKS]);
+    const s = createScenarioState({ seed: ALT_SEED });
+    expect(hex32(s.header.mapHash)).toBe(golden.alt.mapHash);
+    expect(scenarioHashes({ seed: ALT_SEED }, ALT_TICKS).map(hex32)).toEqual(ALT_TICKS.map((t) => golden.alt.hashes[String(t)]));
+  });
+
+  it('the seed reaches the world AND the script: seed 2 has another world hash, other intents, other hashes than seed 1', () => {
+    expect(golden.alt.mapHash).not.toBe(golden.mapHash);
+    expect(createScenarioState({ seed: 2 }).header.mapHash).not.toBe(createScenarioState({ seed: 1 }).header.mapHash);
+    // The script alone (same cells, same seats) differs between seeds on many turns.
+    let differing = 0;
+    for (let t = 2; t < 400; t++) {
+      if (JSON.stringify(scenarioBodies(2, t, 4, 8192)) !== JSON.stringify(scenarioBodies(1, t, 4, 8192))) differing++;
+    }
+    expect(differing).toBeGreaterThan(300);
+    for (const t of ALT_TICKS) expect(golden.alt.hashes[String(t)]).not.toBe(golden.hashes[String(t)]);
+  });
+
+  it('the golden script puts two seats on one cell and one seat on one cell twice, and the adversarial run repeats and reverses', () => {
+    let crossSeat = 0;
+    let sameSeat = 0;
+    for (let t = 2; t < 2000; t++) {
+      const bodies = scenarioBodies(1, t, 4, 8192);
+      for (let i = 0; i < bodies.length; i++) {
+        for (let j = i + 1; j < bodies.length; j++) {
+          const a = bodies[i];
+          const b = bodies[j];
+          if (a?.kind === 'DebugPaint' && b?.kind === 'DebugPaint' && a.cell === b.cell && a.cell < 8192) {
+            if (a.seat > b.seat) crossSeat++; // arrives high seat first: only the canonical order puts the low seat first
+            if (a.seat === b.seat) sameSeat++;
+          }
+        }
+      }
+    }
+    expect(crossSeat).toBeGreaterThan(50);
+    expect(sameSeat).toBeGreaterThan(50);
+    expect(golden.adversarial.hashes['10']).not.toBe(golden.hashes['10']);
+    expect(golden.adversarial.hashes['1']).toBe(golden.hashes['1']); // nothing runs before tick 2
   });
 
   it('the Float64 canary equals the committed value', () => {
@@ -88,6 +134,31 @@ describe('sensitivity: a stub or a changed input cannot pass', () => {
     // ... and not even equal to itself on a second run.
     const again = computeGolden(stepWithMathRandom);
     expect(again.hashes['6000']).not.toBe(bad.hashes['6000']);
+  });
+});
+
+describe('mutation: a step with one rule removed FAILS the golden', () => {
+  const golden = readGolden();
+
+  it('the faithful copy passes (so a failure below is caused by the dropped rule alone)', () => {
+    const c = computeGolden(stepCopyIntact);
+    expect(c.hashes).toEqual(golden.hashes);
+    expect(c.alt).toEqual(golden.alt);
+    expect(c.adversarial).toEqual(golden.adversarial);
+  });
+
+  it('no canonical order (intents run in arrival order): the main, the second-seed and the adversarial hashes all differ', () => {
+    const c = computeGolden(stepWithoutSort);
+    expect(c.hashes['10']).not.toBe(golden.hashes['10']);
+    expect(c.hashes['6000']).not.toBe(golden.hashes['6000']);
+    expect(c.alt.hashes['1000']).not.toBe(golden.alt.hashes['1000']);
+    expect(c.adversarial.hashes['6000']).not.toBe(golden.adversarial.hashes['6000']);
+  });
+
+  it('no duplicate check: the adversarial hashes differ (a plain host run cannot repeat a (seat, id), so only they can)', () => {
+    const c = computeGolden(stepWithoutDedupe);
+    expect(c.hashes).toEqual(golden.hashes);
+    for (const t of [10, 100, 1000, 6000]) expect(c.adversarial.hashes[String(t)]).not.toBe(golden.adversarial.hashes[String(t)]);
   });
 });
 

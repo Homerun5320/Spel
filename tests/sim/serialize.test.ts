@@ -12,7 +12,7 @@ import {
   serializedLength,
   type DeserializeError,
 } from '../../src/sim/serialize';
-import { STATE_ARRAY_NAMES, createEmptyState, stateArray, type GameState } from '../../src/sim/state';
+import { STATE_ARRAY_NAMES, createEmptyState, createState, stateArray, type GameState } from '../../src/sim/state';
 import { step } from '../../src/sim/step';
 
 function sample(ticks = 60): GameState {
@@ -120,6 +120,128 @@ describe('serialize / deserialize', () => {
     const b = sample(20);
     for (let i = 0; i < 50; i++) b.outbox.push(1, 0, i, 0);
     expect(serialize(a)).toEqual(serialize(b));
+  });
+});
+
+describe('serialize / deserialize: wide values (every field at its full range)', () => {
+  /** A cheap deterministic word source for the test itself (not the sim generator, so a broken rng cannot hide anything). */
+  function words(seed: number): () => number {
+    let x = seed | 0;
+    return () => {
+      x = (Math.imul(x ^ (x >>> 15), 0x2c1b3c6d) + 0x9e3779b9) | 0;
+      return (x ^ (x >>> 13)) >>> 0;
+    };
+  }
+
+  /** A state with extreme values written directly: owner 0..255, stamp up to 0xffffffff, tick and rejects above 2^16. */
+  function extreme(seed: number, seats: number, w = 40, h = 25): GameState {
+    const s = createEmptyState(w, h, seed, seats, { debugIntents: true });
+    const next = words(seed ^ 0x5bd1e995);
+    for (let i = 0; i < s.owner.length; i++) {
+      s.terrain[i] = next() & 7;
+      s.elevation[i] = next() & 0xffff;
+      s.owner[i] = next() % (seats + 1);
+      s.stamp[i] = next();
+    }
+    // The extremes themselves, so a truncating writer cannot hide behind a lucky random draw.
+    s.stamp[0] = 0xffffffff;
+    s.stamp[1] = 0x10000;
+    s.stamp[2] = 0x80000000;
+    s.elevation[0] = 0xffff;
+    s.owner[0] = seats;
+    s.owner[1] = 1;
+    s.tick = 0xfffffffe;
+    s.rejects = (0x10000 + (next() & 0xffff0000)) >>> 0;
+    for (let i = 0; i < 4; i++) s.rng[i] = next() | 0x80000000;
+    s.rng[0] = 0xffffffff;
+    return s;
+  }
+
+  function roundTrip(s: GameState): GameState {
+    const r = deserialize(serialize(s));
+    if (!r.ok) throw new Error(`round trip failed: ${r.error}`);
+    return r.state;
+  }
+
+  function expectSame(t: GameState, s: GameState): void {
+    expect(hashState(t)).toBe(hashState(s));
+    expect(t.header).toEqual(s.header);
+    expect(t.tick).toBe(s.tick);
+    expect(t.rejects).toBe(s.rejects);
+    expect([t.width, t.height]).toEqual([s.width, s.height]);
+    for (const name of STATE_ARRAY_NAMES) expect(stateArray(t, name)).toEqual(stateArray(s, name));
+  }
+
+  it.each([1, 4, 127, 128, 254, 255])('round-trips a %i-seat state with extreme owner, stamp, tick, rejects and generator words', (seats) => {
+    const s = extreme(seats * 7919, seats);
+    expectSame(roundTrip(s), s);
+    // The bytes themselves: the words are stored in full, not through a narrower field.
+    const v = new DataView(serialize(s).buffer);
+    expect(v.getUint32(24, true)).toBe(seats);
+    expect(v.getUint32(36, true)).toBe(0xfffffffe);
+    expect(v.getUint32(40, true)).toBe(s.rejects);
+    expect(v.getUint32(44, true)).toBe(0xffffffff);
+    const n = s.width * s.height;
+    expect(v.getUint32(HEADER_BYTES + 4 * n + 0, true)).toBe(0xffffffff);
+    expect(v.getUint32(HEADER_BYTES + 4 * n + 4, true)).toBe(0x10000);
+    expect(v.getUint32(HEADER_BYTES + 4 * n + 8, true)).toBe(0x80000000);
+    expect(serialize(s)[HEADER_BYTES + 2 * n + n]).toBe(seats); // owner[0]
+  });
+
+  it('keeps tick and rejects above 65535 apart and exact', () => {
+    for (const [tick, rejects] of [[65536, 65537], [0x12345678, 0x9abcdef0], [0xffffffff, 0xffffffff]] as const) {
+      const s = createEmptyState(8, 8, 3, 2);
+      s.tick = tick;
+      s.rejects = rejects;
+      const t = roundTrip(s);
+      expect([t.tick, t.rejects]).toEqual([tick, rejects]);
+    }
+  });
+
+  it('keeps seeds at both ends of the range: -1 and 0xffffffff are the same seed, 0 and 0x80000000 are kept', () => {
+    for (const seed of [-1, 0xffffffff, 0, 0x80000000, -2147483648, 0x10000]) {
+      const fresh = createEmptyState(40, 25, seed, 3, { debugIntents: true });
+      const t = roundTrip(fresh);
+      expect(t.header.seed).toBe(fresh.header.seed);
+      expect(t.header.seed).toBe(seed >>> 0);
+      expect(t.rng).toEqual(fresh.rng);
+      expect(hashState(t)).toBe(hashState(fresh));
+    }
+  });
+
+  it('keeps all 256 values of the terrain byte, the elevation word and a full-range mapHash', () => {
+    const s = createState({
+      width: 64,
+      height: 64,
+      seed: 5,
+      seats: 255,
+      terrain: Uint8Array.from({ length: 4096 }, (_, i) => i & 255),
+      elevation: Uint16Array.from({ length: 4096 }, (_, i) => (i * 40503) & 0xffff),
+      mapHash: 0xfedcba98,
+    });
+    for (let i = 0; i < 4096; i++) s.owner[i] = (i * 3) & 255 || 255;
+    expectSame(roundTrip(s), s);
+    expect(roundTrip(s).header.mapHash).toBe(0xfedcba98);
+  });
+
+  it('round-trips random extreme states (fast-check: seats, seed, tick, rejects, sizes)', () => {
+    fc.assert(
+      fc.property(
+        fc.integer({ min: 1, max: 255 }),
+        fc.integer({ min: -2147483648, max: 4294967295 }),
+        fc.integer({ min: 1, max: 12 }),
+        fc.integer({ min: 1, max: 12 }),
+        fc.integer({ min: 0, max: 0xffffffff }),
+        fc.integer({ min: 0, max: 0xffffffff }),
+        (seats, seed, w, h, tick, rejects) => {
+          const s = extreme(seed, seats, w, h);
+          s.tick = tick;
+          s.rejects = rejects;
+          expectSame(roundTrip(s), s);
+        },
+      ),
+      { numRuns: 200 },
+    );
   });
 });
 

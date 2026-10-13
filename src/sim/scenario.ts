@@ -2,9 +2,18 @@
 // Chromium debug page (debug/sim.html) and the worker test, so all of them hash the same run.
 //
 // The script is a pure function of (seed, turn). It sends a few valid DebugPaints, some Noops and a share of deliberately
-// invalid intents per turn (bad seat, bad cell) so that the reject path is part of every golden hash. The first
+// invalid intents per turn (bad seat, bad cell) so that the reject path is part of every golden hash. On one turn in
+// eight it also sends two paints of the SAME cell from two seats, the higher seat first (so the canonical order
+// (seat, id) decides who owns the cell), and on another one in eight two paints of one cell from one seat (the later id
+// must stay in `stamp`); a step without the sort lands on another hash. The first
 // INTENT_DELAY_TURNS turns are empty: nothing submitted at a tick can run earlier than T + 2, so a host driven run and a
 // direct run of the script are the same run.
+//
+// The ADVERSARIAL variant (direct runs only) additionally hands step() raw turn lists that no host can build: on a
+// share of the turns the list is reversed (so same-seat paints of one cell arrive with ids in reverse submission order)
+// and on a share of the turns one intent is repeated (a repeated (seat, id)). A correct step sorts the reversal away
+// and refuses the repeat, so the adversarial run of a correct step differs from the plain run only by the rejects the
+// repeats add; a step without the sort or without the duplicate check lands on another hash.
 import { IdAllocator, withId, type Intent, type IntentBody } from './intents';
 import { INTENT_DELAY_TURNS } from './rules';
 import { hash2, buildFixtureWorld } from './fixture';
@@ -19,6 +28,10 @@ export const GOLDEN_SEATS = 4;
 export const GOLDEN_CONFIG: MatchConfig = Object.freeze({ debugIntents: true });
 /** The tick points whose hashes are committed in e2e/goldens/sim-hashes.json. */
 export const GOLDEN_TICKS: readonly number[] = Object.freeze([1, 10, 100, 1000, 6000]);
+/** The second pinned seed: proves that the seed reaches both the fixture world and the script. */
+export const ALT_SEED = 2;
+/** The tick points pinned for ALT_SEED. */
+export const ALT_TICKS: readonly number[] = Object.freeze([10, 100, 1000]);
 
 export interface ScenarioParams {
   readonly seed: number;
@@ -58,6 +71,20 @@ export function scenarioBodies(seed: number, turn: number, seats: number, cells:
     else if (roll === 2) out.push({ kind: 'DebugPaint', seat, cell: cells + (g >>> 4) % 5 });
     else out.push({ kind: 'DebugPaint', seat, cell });
   }
+  if (seats >= 2 && cells > 0 && hash2(seed, turn, 200) % 8 === 0) {
+    const cell = hash2(seed, turn, 201) % cells;
+    const high = 1 + (hash2(seed, turn, 202) % (seats - 1));
+    const low = hash2(seed, turn, 203) % high;
+    out.push({ kind: 'DebugPaint', seat: high, cell });
+    out.push({ kind: 'DebugPaint', seat: low, cell });
+  }
+  if (cells > 0 && hash2(seed, turn, 204) % 8 === 0) {
+    // One seat paints one cell twice: the later id must be the one that stays in `stamp`.
+    const seat = hash2(seed, turn, 205) % seats;
+    const cell = hash2(seed, turn, 206) % cells;
+    out.push({ kind: 'DebugPaint', seat, cell });
+    out.push({ kind: 'DebugPaint', seat, cell });
+  }
   return out;
 }
 
@@ -68,20 +95,24 @@ export function allocatorAt(seed: number, seats: number, cells: number, tick: nu
   return alloc;
 }
 
-/** The intents of one turn with ids from `alloc`, in submission order. */
-export function scenarioIntents(seed: number, turn: number, seats: number, cells: number, alloc: IdAllocator): Intent[] {
-  return scenarioBodies(seed, turn, seats, cells).map((b) => withId(b, alloc.alloc(b.seat)));
+/** The intents of one turn with ids from `alloc`, in submission order (adversarial: see the header of this file). */
+export function scenarioIntents(seed: number, turn: number, seats: number, cells: number, alloc: IdAllocator, adversarial = false): Intent[] {
+  const list = scenarioBodies(seed, turn, seats, cells).map((b) => withId(b, alloc.alloc(b.seat)));
+  if (!adversarial || list.length === 0) return list;
+  if (hash2(seed, turn, 300) % 4 === 0) list.push({ ...(list[hash2(seed, turn, 301) % list.length] as Intent) });
+  if (hash2(seed, turn, 302) % 2 === 0) list.reverse();
+  return list;
 }
 
 /** Runs the script from the state's current tick up to `toTick`. Returns the number of steps that failed (0 for a sound run). */
-export function runScenario(state: GameState, toTick: number, stepFn: StepFn = step): number {
+export function runScenario(state: GameState, toTick: number, stepFn: StepFn = step, adversarial = false): number {
   const seed = state.header.seed;
   const cells = state.width * state.height;
   const alloc = allocatorAt(seed, state.header.seats, cells, state.tick);
   let failed = 0;
   while (state.tick < toTick) {
     const turn = state.tick;
-    const r = stepFn(state, { turn, intents: scenarioIntents(seed, turn, state.header.seats, cells, alloc) });
+    const r = stepFn(state, { turn, intents: scenarioIntents(seed, turn, state.header.seats, cells, alloc, adversarial) });
     if (!r.ok) {
       failed++;
       break;
@@ -91,11 +122,11 @@ export function runScenario(state: GameState, toTick: number, stepFn: StepFn = s
 }
 
 /** Hashes of a fresh scenario run at the given ticks (ascending). */
-export function scenarioHashes(p: Partial<ScenarioParams> = {}, ticks: readonly number[] = GOLDEN_TICKS, stepFn: StepFn = step): number[] {
+export function scenarioHashes(p: Partial<ScenarioParams> = {}, ticks: readonly number[] = GOLDEN_TICKS, stepFn: StepFn = step, adversarial = false): number[] {
   const state = createScenarioState(p);
   const out: number[] = [];
   for (const t of ticks) {
-    runScenario(state, t, stepFn);
+    runScenario(state, t, stepFn, adversarial);
     out.push(hashState(state));
   }
   return out;

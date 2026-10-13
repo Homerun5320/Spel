@@ -1,6 +1,7 @@
 // debug/sim.html: runs the golden scenario of the deterministic simulation in the browser and shows the hashes.
-// `?seed=N` / `#seed-N` picks the seed (default 1) and `?ticks=T` / `#ticks-T` the length (default 6000). Two runs are made:
-// the plain step loop and the same script driven through MainThreadHost (submitIntent + advance). The Playwright test
+// `?seed=N` / `#seed-N` picks the seed (default 1) and `?ticks=T` / `#ticks-T` the length (default 6000). Three runs are made:
+// the plain step loop, the same script driven through MainThreadHost (submitIntent + advance) and the adversarial variant
+// of the script (raw turn lists no host can build). The Playwright test
 // (e2e/sim.test.ts) compares both with e2e/goldens/sim-hashes.json, and the Float64 canary with its committed value.
 import { MainThreadHost } from '../host/mainThreadHost';
 import { canaryHash, CANARY_VALUES } from '../sim/canary';
@@ -8,6 +9,7 @@ import { hex32 } from '../sim/hash';
 import { TICK_MS } from '../sim/rules';
 import { GOLDEN_SEED, GOLDEN_TICKS, createScenarioState, runScenario, scenarioBodies } from '../sim/scenario';
 import { FORMAT_VERSION, hashState } from '../sim/serialize';
+import { step } from '../sim/step';
 import { ENGINE_VERSION } from '../sim/state';
 import { scheduledTurn } from '../sim/time';
 import { parseRaw } from './params';
@@ -24,6 +26,8 @@ export interface DebugSimHooks {
   hashes: Record<string, string>;
   /** The same points reached through MainThreadHost. */
   hostHashes: Record<string, string>;
+  /** The same points of the adversarial run (raw turn lists: reversed order, repeated (seat, id)); see src/sim/scenario.ts. */
+  adversarialHashes: Record<string, string>;
   canary: { values: number; hash: string };
 }
 
@@ -54,6 +58,13 @@ async function main(): Promise<void> {
     hashes[String(t)] = hex32(hashState(direct));
   }
 
+  const adversarial = createScenarioState({ seed });
+  const adversarialHashes: Record<string, string> = {};
+  for (const t of points) {
+    runScenario(adversarial, t, step, true);
+    adversarialHashes[String(t)] = hex32(hashState(adversarial));
+  }
+
   const state = createScenarioState({ seed });
   const host = new MainThreadHost(state);
   const cells = state.width * state.height;
@@ -70,7 +81,7 @@ async function main(): Promise<void> {
   await Promise.all(waits);
 
   const canary = { values: CANARY_VALUES, hash: hex32(canaryHash()) };
-  window.__debugSim = { ready: true, seed, ticks, engineVersion: ENGINE_VERSION, formatVersion: FORMAT_VERSION, mapHash, hashes, hostHashes, canary };
+  window.__debugSim = { ready: true, seed, ticks, engineVersion: ENGINE_VERSION, formatVersion: FORMAT_VERSION, mapHash, hashes, hostHashes, adversarialHashes, canary };
 
   const wrap = document.createElement('div');
   wrap.style.cssText = 'margin:0;padding:8px 12px;background:#101418;color:#dde;font:14px/20px system-ui,sans-serif;min-height:100vh;box-sizing:border-box;';

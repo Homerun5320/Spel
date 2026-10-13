@@ -18,7 +18,10 @@ import {
 import type { IntentBody } from '../sim/intents';
 
 function transferablesOf(event: HostEvent): ArrayBuffer[] {
-  return event.type === 'diff' ? [event.diff.cells.buffer as ArrayBuffer, event.diff.owners.buffer as ArrayBuffer] : [];
+  if (event.type !== 'diff') return [];
+  const list = [event.diff.cells.buffer as ArrayBuffer, event.diff.owners.buffer as ArrayBuffer];
+  if (event.diff.fullOwner !== null) list.push(event.diff.fullOwner.buffer as ArrayBuffer);
+  return list;
 }
 
 /** Serves `host` on `port`. Malformed messages are ignored (the port is a trust boundary). Returns a function that stops serving. */
