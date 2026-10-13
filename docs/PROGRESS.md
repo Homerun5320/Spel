@@ -23,7 +23,7 @@ Units (decided in Part A, details in D71-D80 of `docs/DECISIONS.md`): a std-cell
 GÖR, Part A (this session)
 - [x] A0. Preflight (merge SHA recorded, verify:fast green), this checklist
 - [x] A1. Owner widening (own commit): `GameState.owner`, `StateDiff.owners` / `fullOwner`, `serialize` / `hashState` and the goldens go from Uint8 to Uint16; reason in D71; `FORMAT_VERSION` 2
-- [ ] A2. ESLint boundary for `src/host` (heads-up 4 of the M03 audit) with a lint self-test
+- [x] A2. ESLint boundary for `src/host` (heads-up 4 of the M03 audit) with a lint self-test
 - [ ] 1. `SimWorld` (`src/sim/world.ts`, built from plain arrays, sim does not import `src/data`), `src/sim/grid.ts` (x-wrap, 4-neighbours, `cellKm`, cos-lat weights from the committed Q15 row table, DeepSea / Shallows / Ice / Peak unplayable), Node loader for the real 1024x512 world (`tools/sim/realWorld.ts`) (files created in a later commit of this session)
 - [ ] 2. `src/sim/rules.ts` as the one balance file with the std-cell constants and every number of the prompt (also the conquest ones, wired in Part B); `docs/BALANCE.md` (Swedish summary at the top, one table row per constant; a test keeps rules.ts and the table in step); CLAUDE.md "Where things are" (files created in a later commit of this session)
 - [ ] 3. Economy (`src/sim/economy.ts`): troop cap `2000 + 120*N^0.75 + 800*cityLevels` (N^0.75 = sqrt(N)*sqrt(sqrt(N)) in Q15), regeneration `max((8 + 0.35*sqrt(T))*(1 - T/Tmax), -MAX_DECAY)` with a micro-QT remainder, gold from weighted land, start 1200 troops / 500 gold, capital disc radius 8 / `START_DISC_CELLS` 197, tribes (cap/3, regeneration x0.5), T >= 0 clamp after every deduction, land share per seat (files created in a later commit of this session)

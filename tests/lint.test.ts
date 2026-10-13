@@ -119,6 +119,22 @@ describe('lint self-test: scope of the rules', () => {
     expect(await lint('src/data/fixture.ts', 'export const a = Math.sin(1) + Date.now();')).toEqual([]);
   });
 
+  it('src/host (it runs in the M24a Worker) has the boundary but not the determinism rules', async () => {
+    const bad: Array<[string, string]> = [
+      ['three', "import * as T from 'three';\nexport const a = T;"],
+      ['render', "import { x } from '../render/globe';\nexport const a = x;"],
+      ['ui', "import { x } from '../ui/report';\nexport const a = x;"],
+      ['audio', "import { x } from '../audio/engine';\nexport const a = x;"],
+      ['app', "import { x } from '../app/main';\nexport const a = x;"],
+      ['window', 'export const a = window.innerWidth;'],
+      ['document', "export const a = document.title;"],
+      ['localStorage', "export const a = localStorage.getItem('x');"],
+    ];
+    for (const [name, code] of bad) expect((await lint('src/host/fixture.ts', code)).length, name).toBeGreaterThan(0);
+    expect(await lint('src/host/fixture.ts', "import { step } from '../sim/step';\nexport const a = [step, new Map<number, number>()];")).toEqual([]);
+    expect(await lint('src/host/fixture.ts', 'export const a = Math.sin(1);')).toEqual([]);
+  });
+
   it('src/render and src/app may import three and use the DOM', async () => {
     expect(await lint('src/render/fixture.ts', "import { Vector3 } from 'three';\nexport const v = new Vector3(Math.sin(1), 0, 0);")).toEqual([]);
     expect(await lint('src/app/fixture.ts', 'export const a = window.innerWidth;')).toEqual([]);

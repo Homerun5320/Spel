@@ -3,8 +3,9 @@ import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import globals from 'globals';
 
-// Boundary rules: src/sim, src/ai and src/data are pure (no three, no render/ui/audio/app, no DOM).
-const BOUNDARY_FILES = ['src/sim/**/*.ts', 'src/ai/**/*.ts', 'src/data/**/*.ts'];
+// Boundary rules: src/sim, src/ai and src/data are pure (no three, no render/ui/audio/app, no DOM). src/host runs
+// inside the M24a Worker, so it gets the same boundary (but not the determinism rules: it never changes a game rule).
+const BOUNDARY_FILES = ['src/sim/**/*.ts', 'src/ai/**/*.ts', 'src/data/**/*.ts', 'src/host/**/*.ts'];
 // Determinism rules: src/sim and src/ai only.
 const DETERMINISM_FILES = ['src/sim/**/*.ts', 'src/ai/**/*.ts'];
 // Test files are never exempted by name; they simply live in tests/ and e2e/. The one
@@ -19,7 +20,7 @@ const DOM_GLOBALS = [
   'sessionStorage',
   'requestAnimationFrame',
   'cancelAnimationFrame',
-].map((name) => ({ name, message: 'DOM globals are forbidden in src/sim, src/ai and src/data.' }));
+].map((name) => ({ name, message: 'DOM globals are forbidden in src/sim, src/ai, src/data and src/host.' }));
 
 const NONDETERMINISTIC_GLOBALS = ['Date', 'performance', 'crypto', 'Intl', 'globalThis'].map((name) => ({
   name,
@@ -30,11 +31,11 @@ const BOUNDARY_IMPORTS = {
   patterns: [
     {
       group: ['three', 'three/*', 'crypto', 'node:crypto'],
-      message: 'three and crypto must not be imported from src/sim, src/ai or src/data.',
+      message: 'three and crypto must not be imported from src/sim, src/ai, src/data or src/host.',
     },
     {
       group: ['**/render', '**/render/**', '**/ui', '**/ui/**', '**/audio', '**/audio/**', '**/app', '**/app/**'],
-      message: 'src/sim, src/ai and src/data must not import render, ui, audio or app.',
+      message: 'src/sim, src/ai, src/data and src/host must not import render, ui, audio or app.',
     },
   ],
 };
