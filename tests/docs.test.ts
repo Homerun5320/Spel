@@ -49,6 +49,7 @@ describe('docs only mention files that exist (or are marked later)', () => {
         for (const m of line.matchAll(/`([^`\s]+)`/g)) {
           const token = m[1] as string;
           if (/[*<>{}$|=:?#]|^\.\.|^https?/.test(token)) continue;
+          if (/^test-results|hook\.log$/.test(token)) continue; // generated, gitignored
           if (!/\/|\.(md|ts|mjs|mts|json|yml|sh|html|js)$/.test(token)) continue;
           if (token.endsWith('/')) {
             if (!fs.existsSync(token)) missing.push(token);
