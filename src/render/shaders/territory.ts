@@ -98,8 +98,8 @@ float territoryEdge(vec2 pw, vec2 dx, vec2 dy, int id) {
   return n * 0.25;
 }
 
-// Tints the land albedo (display space) with the territory under the uv. Must be called from uniform control flow (derivatives).
-vec3 applyTerritory(vec3 albedo, vec2 uv) {
+// Tints the land albedo (display space) with the territory under the uv. Must be called from uniform control flow (derivatives); landMask is the land fraction of the pixel (0 = open sea skips all the work).
+vec3 applyTerritory(vec3 albedo, vec2 uv, float landMask) {
   vec2 p0 = uv * vec2(uOwnerSize);
   vec2 dx = dFdx(p0);
   vec2 dy = dFdy(p0);
@@ -109,6 +109,7 @@ vec3 applyTerritory(vec3 albedo, vec2 uv) {
   dy.x -= w * floor(dy.x / w + 0.5);
   dx = clamp(dx, vec2(-8.0), vec2(8.0));
   dy = clamp(dy, vec2(-8.0), vec2(8.0));
+  if (landMask < 0.001) return albedo; // open sea: nothing to tint (the derivatives above were taken in uniform control flow)
   vec2 pw = ownerWarp(p0);
   bool sea;
   int id = territoryOwner(pw, sea);
@@ -118,7 +119,7 @@ vec3 applyTerritory(vec3 albedo, vec2 uv) {
   vec3 col = texelFetch(uOwnerPalette, ivec2(id & 255, 0), 0).rgb;
   float fill = uOwnerStyle.x + uOwnerStyle.y * inner;
   vec3 outAlbedo = mix(albedo, col, fill);
-  outAlbedo = mix(outAlbedo, col * uOwnerWarp.y, clamp(line * 2.0, 0.0, 1.0) * uOwnerStyle.z);
+  outAlbedo = mix(outAlbedo, col * uOwnerWarp.y, clamp(line * 3.0, 0.0, 1.0) * uOwnerStyle.z);
   return outAlbedo;
 }
 `;

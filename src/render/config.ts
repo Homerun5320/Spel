@@ -91,12 +91,12 @@ export const COUNTRY_TINT = 0.06;
 /** The ownership texture is re-uploaded at most this often (FX seconds), whatever the sim speed. */
 export const OWNERSHIP_MIN_UPLOAD_INTERVAL_S = 0.1;
 /** Share of the owner's colour mixed into the land albedo inside a territory. */
-export const OWNER_TINT = 0.44;
+export const OWNER_TINT = 0.52;
 /** Extra tint in the band just inside a border (a soft inner glow that outlines a territory). */
-export const OWNER_EDGE_GLOW = 0.26;
+export const OWNER_EDGE_GLOW = 0.22;
 /** Strength of the sharp border line (0..1) and its width in screen pixels. */
 export const OWNER_LINE_STRENGTH = 1;
-export const OWNER_LINE_PX = 2;
+export const OWNER_LINE_PX = 2.4;
 /** Domain warp of the cell lookup: amplitude in cells (two octaves, 4 and 2 cells wide) that makes the borders organic. */
 export const OWNER_WARP_AMP = 0.7;
 /** How dark the border line is: the owner's colour times this. */

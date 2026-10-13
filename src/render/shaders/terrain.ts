@@ -214,7 +214,7 @@ void main() {
   vec3 borderCol = mix(vec3(0.06, 0.05, 0.04), pal * 0.45, 0.35);
   albedoLand = mix(albedoLand, borderCol, border * uBorderStrength * (1.0 - snow * 0.5));
   // Territory of the match: tint, inner glow and a sharp organic border line (src/render/shaders/territory.ts).
-  albedoLand = applyTerritory(albedoLand, uv);
+  albedoLand = applyTerritory(albedoLand, uv, landMask);
 
   // Lighting (linear space): day factor from the sphere normal, diffuse from the flat normal on land.
   vec3 sun = normalize(uSun);
