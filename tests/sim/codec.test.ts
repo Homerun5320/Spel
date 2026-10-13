@@ -2,6 +2,9 @@ import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { decodeIntent, decodeTurn, encodeIntent, encodeTurn } from '../../src/sim/codec';
 import { MAX_INTENTS_PER_TURN } from '../../src/sim/rules';
+import { hashState } from '../../src/sim/serialize';
+import { createEmptyState } from '../../src/sim/state';
+import { step } from '../../src/sim/step';
 import { mixedIntent, wireIntent, wireTurn } from './helpers/arbitraries';
 
 describe('codec: round trip', () => {
@@ -110,6 +113,54 @@ describe('codec: malformed bytes give an error result and never throw', () => {
         for (let n = 0; n < bytes.length; n++) expect(decodeTurn(bytes.subarray(0, n)).ok).toBe(false);
       }),
       { numRuns: 300 },
+    );
+  });
+});
+
+/** Pure noise, or a valid turn with a few bytes overwritten (so that a good share still decodes). */
+const garbledBytes = fc.oneof(
+  fc.uint8Array({ maxLength: 64 }),
+  fc
+    .tuple(wireTurn, fc.array(fc.tuple(fc.nat(60), fc.integer({ min: 0, max: 255 })), { maxLength: 3 }))
+    .map(([turn, edits]) => {
+      const b = encodeTurn(turn).slice();
+      for (const [at, v] of edits) if (at < b.length) b[at] = v;
+      return b;
+    }),
+);
+
+describe('malformed bytes never throw out of step()', () => {
+  it('random bytes through decodeTurn into step(): 20 000 runs, with the decoded turn as it is and re-aimed at the current tick', () => {
+    let decoded = 0;
+    fc.assert(
+      fc.property(garbledBytes, fc.boolean(), (bytes, aimed) => {
+        const state = createEmptyState(6, 5, 3, 4, { debugIntents: true });
+        const r = decodeTurn(bytes);
+        if (!r.ok) return;
+        decoded++;
+        const turn = aimed ? { turn: state.tick, intents: r.value.intents } : r.value;
+        const result = step(state, turn);
+        expect(typeof result.ok).toBe('boolean');
+        if (result.ok) expect(state.tick).toBe(1);
+        hashState(state);
+      }),
+      { numRuns: 20000 },
+    );
+    expect(decoded).toBeGreaterThan(100);
+  });
+
+  it('structured garbage: well-formed turns full of out-of-range seats and cells are refused one by one, not thrown', () => {
+    fc.assert(
+      fc.property(wireTurn, (t) => {
+        const state = createEmptyState(6, 5, 3, 4, { debugIntents: true });
+        const r = decodeTurn(encodeTurn(t));
+        expect(r.ok).toBe(true);
+        if (!r.ok) return;
+        const result = step(state, { turn: 0, intents: r.value.intents });
+        expect(result.ok).toBe(true);
+        if (result.ok) expect(result.applied + result.rejected).toBe(t.intents.length);
+      }),
+      { numRuns: 2000 },
     );
   });
 });
