@@ -13,3 +13,5 @@ export {
   REJECT_SPAWNED,
   REJECT_TERRAIN,
 } from '../sim/intents';
+export { TICK_HZ } from '../sim/rules';
+export { REJECT_PCT } from '../sim/intents';

@@ -2,6 +2,8 @@
 // tooltip, the F3 overlay and the `?test=1` hooks. The only code in `src` that drives the fx clock from real frames.
 import { createWorldLoader } from '../data';
 import { advanceFx, fxNow, setFxTime } from '../render/clock';
+import { wrapLon } from '../render/geo';
+import { buildOwnerPalette } from '../render/ownerPalette';
 import type { ViewState } from '../render/camera';
 import { Globe, type GlobeInfo, type GlobePick, type ScreenHit, type WorldData } from '../render/globe';
 import type { WorldTextureName } from '../render/textures';
@@ -10,10 +12,13 @@ import { resolveQuality } from '../render/quality';
 import { FrameStats } from '../ui/frameStats';
 import { createPerfOverlay, type PerfOverlay } from '../ui/perfOverlay';
 import { ClickTracker } from '../ui/clickTracker';
-import { createMatchHud, NOT_CONQUERABLE_TEXT, rejectText, type MatchHud } from '../ui/matchHud';
+import { createMatchHud, notConquerableText, rejectText, type MatchHud, type MatchHudModel } from '../ui/matchHud';
+import { getLanguage, languageOf, onLanguageChange, setLanguage, setStrictI18n, t, type TextKey } from '../ui/i18n';
+import { START_SPIN_DEG_PER_S } from '../ui/uiConfig';
 import { mountStartScreen, type StartScreen } from '../ui/startScreen';
 import { PHASE_IMMUNITY, PHASE_SPAWN } from '../sim/flow';
 import { REJECT_NOT_SPAWNED } from '../sim/intents';
+import { seatToOwner } from '../sim/state';
 import { isPlayableClass } from '../sim/terrain';
 import type { IntentBody } from '../sim/intents';
 import { resolveClickCell } from './clickTarget';
@@ -80,6 +85,12 @@ export interface GlobeTestHooks {
   give(seat: number, gift: { gold?: number; troops?: number }): void;
   /** The sim state hash (through a snapshot request). */
   hash(): Promise<number>;
+  /** The text of an i18n key in the current language; throws in test mode when the key is missing from a table (D98). */
+  text(key: string, params?: Record<string, string | number>): string;
+  /** The UI language ('sv' or 'en'). */
+  language(): string;
+  /** Runs the HUD refresh `n` times without changing anything; returns the milliseconds it took (a DOM-free steady state does no work). */
+  hudRefresh(n: number): number;
   /** Runs `seconds` of wall time in frames of 1/fps without drawing: fx clock, host.advance and the throttled ownership flush, as the live loop does. Returns the ownership uploads and ticks it caused. */
   run(seconds: number, fps?: number): { uploads: number; ticks: number };
   /** Owners (ownerId) of sim cells as the GPU texture holds them. */
@@ -123,9 +134,12 @@ function loadWorld(): Promise<WorldData> {
 /** Boots the globe scene; the promise resolves to a function that stops it (listeners, frame loop, GL resources, DOM). */
 export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   const { wrapper, canvas, overlay, params } = ctx;
+  // Language and strictness first: every text below goes through t(). Test mode fails on a missing key (D98).
+  setLanguage(languageOf(ctx.state.raw));
+  setStrictI18n(params.test);
   const status = document.createElement('div');
   status.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#9bd;font:14px system-ui,sans-serif;pointer-events:none;';
-  status.textContent = 'Laddar världen...';
+  status.textContent = t('app.loading');
   if (!params.test) wrapper.appendChild(status);
 
   const world = await loadWorld();
@@ -154,7 +168,10 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   const abort = new AbortController();
   const { signal } = abort;
   let alive = true;
-  const names = countryNameMap(meta);
+  let names = countryNameMap(meta, getLanguage());
+  const stopNames = onLanguageChange((l) => {
+    names = countryNameMap(meta, l);
+  });
   const tip = document.createElement('div');
   tip.style.cssText =
     'position:absolute;left:0;top:0;display:none;padding:3px 8px;border-radius:4px;background:rgba(10,16,28,0.82);color:#e8f0ff;' +
@@ -175,7 +192,13 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   let session = null as MatchSession | null;
   let hud = null as MatchHud | null;
   let startScreen = null as StartScreen | null;
+  const ownerPalette = buildOwnerPalette();
+  const ownerCss: string[] = [];
+  for (let id = 0; id < ownerPalette.length / 4; id++) ownerCss.push(`rgb(${ownerPalette[id * 4]}, ${ownerPalette[id * 4 + 1]}, ${ownerPalette[id * 4 + 2]})`);
+  /** CSS colour of a seat: the colour its territory has on the globe (ownerId = seat + 1). */
+  const seatColor = (seat: number): string => ownerCss[seatToOwner(seat)] ?? '#888888';
   const hostAdvance = new FrameStats(240); // ms per frame that ran ticks: the cost of the sim stepping in the browser
+  const hudCost = new FrameStats(240); // ms per frame of the HUD refresh (live loop only)
   const startMatch = async (): Promise<void> => {
     if (session !== null) return;
     const s = await MatchSession.create(
@@ -192,23 +215,26 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       if (d.fullOwner !== null) globe.ownership.setFromOwners(m.owner);
       else globe.ownership.applyCells(d.cells, d.owners);
     });
-    hud = createMatchHud(wrapper, { setCommit: (p) => s.setCommit(p), setSpeed: (sp) => s.setSpeed(sp), togglePause: () => s.togglePause() });
+    hud = createMatchHud(wrapper, { setCommit: (p) => s.setCommit(p), setSpeed: (sp) => s.setSpeed(sp), togglePause: () => s.togglePause() }, { seatColor });
     hud.setVisible(!params.test || ctx.state.raw.hud === '1'); // test mode hides it (the globe goldens), `#hud` / `?hud=1` shows it
+    // The two link chips of the start page sit above the HUD (they are outside the wrapper); the Dev panel lists the same pages.
+    for (const id of ['probe-link', 'debug-links']) {
+      const chip = document.getElementById(id);
+      if (chip) chip.hidden = true;
+    }
+    refreshHud(); // the HUD is filled before its first frame is drawn
   };
+  /** The one model object the HUD reads each frame (rewritten in place: nothing is allocated per frame). */
+  let model: { -readonly [K in keyof MatchHudModel]: MatchHudModel[K] } | null = null;
   const refreshHud = (): void => {
     if (session === null || hud === null) return;
     const alpha = session.alpha();
-    hud.update(
-      {
-        view: session.view,
-        localSeat: LOCAL_SEAT,
-        commitPct: session.commitPct,
-        speed: session.speed,
-        troops: session.stats.value('troopsQt', LOCAL_SEAT, alpha) / 4,
-        gold: session.stats.value('goldMilli', LOCAL_SEAT, alpha) / 1000,
-      },
-      fxNow(),
-    );
+    model ??= { view: session.view, localSeat: LOCAL_SEAT, commitPct: 0, speed: 0, troops: 0, gold: 0 };
+    model.commitPct = session.commitPct;
+    model.speed = session.speed;
+    model.troops = session.stats.value('troopsQt', LOCAL_SEAT, alpha) / 4;
+    model.gold = session.stats.value('goldMilli', LOCAL_SEAT, alpha) / 1000;
+    hud.update(model, fxNow());
     const refused = session.takeNewReject();
     if (refused !== 0) hud.toast(rejectText(refused), fxNow());
   };
@@ -231,7 +257,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       return;
     }
     if (!isPlayableClass(cls)) {
-      hud?.toast(NOT_CONQUERABLE_TEXT, fxNow());
+      hud?.toast(notConquerableText(), fxNow());
       return;
     }
     const target = v.owner[cell] as number;
@@ -289,6 +315,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
               tick: session.view.tick,
               speed: session.speed,
               hostAdvanceMs: { mean: hostAdvance.meanMs(), p95: hostAdvance.p95Ms(), max: hostAdvance.maxMs(), frames: hostAdvance.frames },
+              hudUpdateMs: { mean: hudCost.meanMs(), p95: hudCost.p95Ms(), max: hudCost.maxMs(), frames: hudCost.frames },
               ownershipUploads: globe.ownership.uploads,
               ownershipGpuUploads: globe.ownership.gpuUploads,
             },
@@ -301,6 +328,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     perf?.dispose();
     hud?.dispose();
     startScreen?.dispose();
+    stopNames();
     session?.dispose();
     tip.remove();
     status.remove();
@@ -459,6 +487,13 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
         session?.submit({ kind: 'DebugGive', seat, gold: gift.gold ?? 0, troops: gift.troops ?? 0 });
       },
       hash: () => (session === null ? Promise.resolve(0) : session.hash()),
+      text: (key, params) => t(key as TextKey, params),
+      language: () => getLanguage(),
+      hudRefresh(n): number {
+        const t0 = performance.now();
+        for (let i = 0; i < n; i++) refreshHud();
+        return performance.now() - t0;
+      },
       run(seconds, fps = 60): { uploads: number; ticks: number } {
         const sess = session;
         if (sess === null) return { uploads: 0, ticks: 0 };
@@ -496,13 +531,17 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
 
   window.addEventListener('resize', () => globe.resize(window.innerWidth, window.innerHeight, Math.min(window.devicePixelRatio || 1, quality.maxDpr)), { signal });
   // The normal page opens with the start screen; the match begins when Play is pressed.
-  startScreen = mountStartScreen(wrapper, () => {
+  // Building the match takes a moment on the main thread: let the button show "loading" first (two frames), then start.
+  const nextPaint = (): Promise<void> => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+  startScreen = mountStartScreen(wrapper, async () => {
+    await nextPaint();
+    await startMatch();
     startScreen?.dispose();
     startScreen = null;
-    void startMatch();
   });
   let last = performance.now();
   let sinceOverlay = 0;
+  const spinFrom = fxNow();
   const loop = (now: number): void => {
     if (!alive) return;
     const dt = (now - last) / 1000;
@@ -511,12 +550,15 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       fps = fps * 0.9 + (1 / dt) * 0.1;
       stats.push(dt * 1000);
       advanceFx(Math.min(dt, 0.1));
+      if (startScreen !== null) globe.setView({ lon: wrapLon(DEFAULT_START_VIEW.lon + (fxNow() - spinFrom) * START_SPIN_DEG_PER_S) }); // the globe turns slowly behind the start screen
       if (session !== null) {
         const before = session.view.tick;
         const t0 = performance.now();
         session.frame(Math.min(dt * 1000, 250));
         if (session.view.tick !== before) hostAdvance.push(performance.now() - t0);
+        const h0 = performance.now();
         refreshHud();
+        hudCost.push(performance.now() - h0);
       }
     }
     renderFrame();

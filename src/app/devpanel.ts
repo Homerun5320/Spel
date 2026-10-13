@@ -2,7 +2,7 @@
 // app is registered here with `registerDevMode`, so that nobody has to edit the address bar. A mode is written to the
 // HASH (`#perf`, grammar in params.ts) and the page reloads; the app also listens to `hashchange` and restarts the mode
 // without a reload. The panel never touches `location.search`.
-import { DEV_PANEL_EVENT, type DevPanelEventDetail } from '../ui/events';
+import { DEV_PANEL_EVENT, DEV_PANEL_REQUEST_EVENT, type DevPanelEventDetail } from '../ui/events';
 import { parseHash, toHash, type RawParams } from './params';
 import { siteUrl } from './paths';
 
@@ -215,6 +215,7 @@ export function mountDevPanel(opts: DevPanelOptions): DevPanel {
     }
   };
   window.addEventListener('keydown', onKey);
+  window.addEventListener(DEV_PANEL_REQUEST_EVENT, toggle);
 
   return {
     button,
@@ -231,6 +232,7 @@ export function mountDevPanel(opts: DevPanelOptions): DevPanel {
     },
     dispose(): void {
       window.removeEventListener('keydown', onKey);
+      window.removeEventListener(DEV_PANEL_REQUEST_EVENT, toggle);
       close();
       button.remove();
       panel.remove();

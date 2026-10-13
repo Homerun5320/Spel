@@ -1,30 +1,28 @@
-// TEMPORARY match controls of M05 part A (Part B replaces this file's content with the real HUD and moves every string into
-// the i18n tables): a phase banner with the countdown, speed buttons, the commitment slider, two readouts and a toast line.
-// Everything is plain DOM built from JS. It only CALLS functions it is given (`MatchHudActions`) and READS a SimView; it
-// never touches the sim. Elements carry `data-testid` for the e2e tests. No CSS transitions or animations (the fx clock is
-// the only cosmetic clock): the toast's lifetime is measured in fx seconds by the caller of `update`.
-import {
-  PHASE_IMMUNITY,
-  PHASE_PLAY,
-  PHASE_SPAWN,
-  REJECT_AMOUNT,
-  REJECT_IMMUNE,
-  REJECT_NOT_SPAWNED,
-  REJECT_NO_CONTACT,
-  REJECT_NO_TROOPS,
-  REJECT_OWNED,
-  REJECT_PHASE,
-  REJECT_SELF,
-  REJECT_SPAWNED,
-  REJECT_TERRAIN,
-} from './hudCodes';
+// The DOM HUD of the match (M05 part B): the status panel (gold with income per second, troops with a cap bar and a warning at
+// 80 % of the cap, land share, match time), the leaderboard (top 5 and you), the banner with the phase prompt and its countdown,
+// the speed buttons, the commitment slider and a toast line. Plain DOM built from JS; the style sheet is hudStyle.ts, the
+// constants are uiConfig.ts, every text goes through t() (i18n.ts).
+//
+// The HUD only CALLS the functions it is given (`MatchHudActions`) and READS a `SimView`; it never touches the sim. Nothing is
+// allocated per frame: texts are rebuilt only when the number behind them (or the language) changed (`TextCell`), the troop
+// bar moves with a transform, the leaderboard is re-ranked once per tick into a preallocated array. `data-testid` ids are the
+// hooks of the e2e tests and `data-value` carries the raw number behind a formatted text.
 import type { SimView } from '../sim/view';
-import { COMMIT_MAX_PCT, COMMIT_MIN_PCT, COMMIT_STEP_PCT, TOAST_SECONDS, Z_HUD } from './uiConfig';
+import { TICK_HZ } from './hudCodes';
+import { bannerState, phaseName, rankOf, rankTop, rejectKey, seatName, shareHundredths, troopBar } from './hudLogic';
+import { formatClock, formatFixed, formatInt, languageVersion, t, type TextKey } from './i18n';
+import { mountHudStyle } from './hudStyle';
+import { COMMIT_MAX_PCT, COMMIT_MIN_PCT, COMMIT_STEP_PCT, LEADERBOARD_INCLUDES_TRIBES, LEADERBOARD_ROWS, PLAY_HINT_SECONDS, TOAST_SECONDS, TROOP_WARNING_FRACTION } from './uiConfig';
 
 export interface MatchHudActions {
   setCommit(pct: number): void;
   setSpeed(speed: 1 | 2 | 4): void;
   togglePause(): void;
+}
+
+export interface MatchHudOptions {
+  /** CSS colour of a seat (the territory colour on the globe), for the swatches of the leaderboard. */
+  seatColor?: (seat: number) => string;
 }
 
 export interface MatchHudModel {
@@ -46,67 +44,184 @@ export interface MatchHud {
   dispose(): void;
 }
 
-/** Shown when the player clicks land that nobody can own (sea, Peak, Ice). */
-export const NOT_CONQUERABLE_TEXT = 'Det går inte att erövra (hav, bergstopp eller is).';
-
-/** Swedish text of a refusal (temporary, Part B moves it to the tables). */
+/** The text of a refusal reason (a REJECT_* code of the sim), in the current language. */
 export function rejectText(reason: number): string {
-  switch (reason) {
-    case REJECT_TERRAIN:
-      return 'Du kan inte spawna där (hav, bergstopp eller is).';
-    case REJECT_OWNED:
-      return 'Någon äger redan marken där.';
-    case REJECT_SPAWNED:
-      return 'Du har redan spawnat.';
-    case REJECT_PHASE:
-      return 'Det går inte i den här fasen.';
-    case REJECT_IMMUNE:
-      return 'Skyddad de första sekunderna.';
-    case REJECT_NO_CONTACT:
-      return 'Du gränsar inte till den marken.';
-    case REJECT_NO_TROOPS:
-      return 'Inga trupper att skicka.';
-    case REJECT_SELF:
-      return 'Det är din egen mark.';
-    case REJECT_NOT_SPAWNED:
-      return 'Spawna först.';
-    case REJECT_AMOUNT:
-      return 'Ogiltigt belopp.';
-    default:
-      return `Avvisat (kod ${reason}).`;
+  return t(rejectKey(reason), { code: reason });
+}
+
+/** Shown when the player clicks land that nobody can own (sea, Peak, Ice). */
+export function notConquerableText(): string {
+  return t('toast.notConquerable');
+}
+
+/** The banner texts by index (a TextCell holds numbers, so the key travels as an index). */
+const BANNER_KEYS: readonly TextKey[] = ['phase.spawnPick', 'phase.spawnDone', 'phase.spawnMissed', 'phase.immunity', 'phase.play'];
+
+type Make = (a: number, b: number) => string;
+
+/** A text node that is rebuilt only when its numbers or the language changed. */
+class TextCell {
+  private a = Number.NaN;
+  private b = Number.NaN;
+  private lang = -1;
+  constructor(
+    readonly el: HTMLElement,
+    private readonly make: Make,
+    private readonly valueAttr = false,
+  ) {}
+  set(a: number, b = 0): void {
+    const lv = languageVersion();
+    if (a === this.a && b === this.b && lv === this.lang) return;
+    this.a = a;
+    this.b = b;
+    this.lang = lv;
+    this.el.textContent = this.make(a, b);
+    if (this.valueAttr) this.el.dataset.value = String(a);
   }
 }
 
-/** Writes text only when it changed (a DOM write every frame would cost layout and allocate). */
-function setText(e: HTMLElement, text: string): void {
-  if (e.textContent !== text) e.textContent = text;
-}
-
-function el<K extends keyof HTMLElementTagNameMap>(tag: K, css: string, testid?: string): HTMLElementTagNameMap[K] {
+function el<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, testid?: string): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag);
-  e.style.cssText = css;
+  if (className !== '') e.className = className;
   if (testid !== undefined) e.dataset.testid = testid;
   return e;
 }
 
-const PANEL = 'background:rgba(10,16,28,0.78);color:#e8f0ff;border:1px solid #2a3d63;border-radius:8px;font:14px system-ui,sans-serif;';
+/** A label whose text is the translation of a fixed key. */
+function label(className: string, key: TextKey, testid?: string): TextCell {
+  return new TextCell(el('span', className, testid), () => t(key));
+}
 
-export function createMatchHud(parent: HTMLElement, actions: MatchHudActions): MatchHud {
-  const root = el('div', `position:absolute;inset:0;z-index:${Z_HUD};pointer-events:none;`, 'match-hud');
-  // Top: phase banner
-  const banner = el('div', `${PANEL}position:absolute;left:50%;top:12px;transform:translateX(-50%);padding:8px 16px;text-align:center;pointer-events:none;max-width:70vw;`, 'phase');
-  const bannerText = el('div', 'font-weight:600;', 'phase-text');
-  const bannerSeconds = el('div', 'font:600 20px ui-monospace,Menlo,Consolas,monospace;', 'phase-seconds');
+const percentText = (hundredths: number): string => t('hud.percent', { n: formatFixed(hundredths / 100, 2) });
+
+class BoardRow {
+  readonly root = el('div', 'hud-row', 'leader-row');
+  private readonly rank = el('span', 'hud-rank');
+  private readonly swatch = el('span', 'hud-swatch');
+  private readonly name = el('span', 'hud-name');
+  private readonly share = el('span', 'hud-share');
+  private seat = -2;
+  private rankNo = -2;
+  private shareQ15 = -2;
+  private lang = -1;
+  constructor() {
+    this.root.append(this.rank, this.swatch, this.name, this.share);
+    this.root.hidden = true;
+  }
+  hide(): void {
+    if (!this.root.hidden) this.root.hidden = true;
+    this.seat = -2;
+  }
+  set(seat: number, rankNo: number, shareQ15: number, players: number, localSeat: number, color: string): void {
+    const lv = languageVersion();
+    if (this.root.hidden) this.root.hidden = false;
+    if (seat !== this.seat || lv !== this.lang) {
+      const nm = seatName(seat, players, localSeat);
+      this.name.textContent = t(nm.key, { n: nm.n });
+      this.swatch.style.background = color;
+      this.root.dataset.seat = String(seat);
+      this.root.dataset.you = seat === localSeat ? '1' : '0';
+      this.seat = seat;
+    }
+    if (rankNo !== this.rankNo || lv !== this.lang) {
+      this.rank.textContent = rankNo > 0 ? t('hud.rank', { n: rankNo }) : '-';
+      this.root.dataset.rank = String(rankNo);
+      this.rankNo = rankNo;
+    }
+    if (shareQ15 !== this.shareQ15 || lv !== this.lang) {
+      this.share.textContent = percentText(shareHundredths(shareQ15));
+      this.root.dataset.share = String(shareQ15);
+      this.shareQ15 = shareQ15;
+    }
+    this.lang = lv;
+  }
+}
+
+export function createMatchHud(parent: HTMLElement, actions: MatchHudActions, options: MatchHudOptions = {}): MatchHud {
+  const seatColor = options.seatColor ?? ((): string => '#888888');
+  const root = el('div', 'hud-root', 'match-hud');
+  root.append(mountHudStyle(root));
+  /** Texts that only depend on the language: rebuilt (cheaply, cached) by every update. */
+  const statics: TextCell[] = [];
+  const cell = (c: TextCell): TextCell => {
+    statics.push(c);
+    return c;
+  };
+  /** Texts that hold a number: set by name in `update`. */
+  const dyn = (c: TextCell): TextCell => c;
+
+  // --- Banner: the phase prompt and its countdown ---
+  const banner = el('div', 'hud-panel hud-banner', 'phase');
+  banner.setAttribute('aria-live', 'polite');
+  const bannerText = el('div', 'hud-banner-text', 'phase-text');
+  const bannerSeconds = el('div', 'hud-banner-seconds', 'phase-seconds');
   banner.append(bannerText, bannerSeconds);
-  // Bottom: controls
-  const bar = el('div', `${PANEL}position:absolute;left:50%;bottom:12px;transform:translateX(-50%);display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:center;padding:8px 12px;pointer-events:auto;max-width:calc(100vw - 16px);box-sizing:border-box;`, 'controls');
-  const troops = el('span', 'min-width:90px;', 'troops');
-  const gold = el('span', 'min-width:80px;', 'gold');
+  const bannerCell = new TextCell(bannerText, (k) => t(BANNER_KEYS[k] as TextKey));
+  const secondsCell = new TextCell(bannerSeconds, (s) => t('phase.seconds', { s }), true);
+  const badge = el('div', 'hud-panel hud-badge', 'paused');
+  badge.hidden = true;
+  cell(new TextCell(badge, () => t('phase.paused')));
+
+  // --- Status: gold, troops with the cap bar, land share, time ---
+  const status = el('div', 'hud-panel hud-status', 'status');
+  const goldLabel = cell(label('hud-label', 'hud.gold'));
+  const goldRow = el('span', 'hud-right');
+  const goldNum = dyn(new TextCell(el('span', 'hud-num hud-gold', 'gold'), (a) => formatInt(a), true));
+  const goldRate = dyn(new TextCell(el('span', 'hud-dim', 'gold-rate'), (a) => t('hud.goldRate', { rate: formatFixed(a / 1000, 1) }), true));
+  goldRow.append(goldNum.el, document.createTextNode(' '), goldRate.el);
+  const troopsLabel = cell(label('hud-label', 'hud.troops'));
+  const troopsRow = el('span', 'hud-right');
+  const troopsNum = dyn(new TextCell(el('span', 'hud-num hud-troops', 'troops'), (a) => formatInt(a), true));
+  const capText = dyn(new TextCell(el('span', 'hud-dim', 'troops-cap'), (a) => t('hud.cap', { cap: formatInt(a) }), true));
+  troopsRow.append(troopsNum.el, document.createTextNode(' '), capText.el);
+  const bar = el('div', 'hud-bar', 'troops-bar');
+  bar.setAttribute('role', 'progressbar');
+  bar.setAttribute('aria-valuemin', '0');
+  const barFill = el('div', 'hud-bar-fill');
+  const barMark = el('div', 'hud-bar-mark');
+  barMark.style.left = `${Math.round(TROOP_WARNING_FRACTION * 100)}%`;
+  bar.append(barFill, barMark);
+  const warn = cell(new TextCell(el('div', 'hud-warn', 'troops-warning'), () => t('hud.nearCap')));
+  warn.el.hidden = true;
+  const meta = el('div', 'hud-meta');
+  const shareBox = el('span', '');
+  const shareLabel = cell(label('hud-label', 'hud.landShare'));
+  const shareText = dyn(new TextCell(el('span', 'hud-num', 'land-share'), (q) => percentText(shareHundredths(q)), true));
+  shareText.el.style.marginLeft = '0.4em';
+  shareBox.append(shareLabel.el, shareText.el);
+  const timerBox = el('span', '');
+  const timerLabel = cell(label('hud-label', 'hud.timer'));
+  const timerText = dyn(new TextCell(el('span', 'hud-num', 'timer'), (s) => formatClock(s), true));
+  timerText.el.style.marginLeft = '0.4em';
+  timerBox.append(timerLabel.el, timerText.el);
+  meta.append(shareBox, timerBox);
+  status.append(goldLabel.el, goldRow, troopsLabel.el, troopsRow, bar, warn.el, meta);
+  warn.el.style.gridColumn = '1 / -1';
+
+  // --- Leaderboard ---
+  const board = el('div', 'hud-panel hud-board', 'leaderboard');
+  const boardTitle = cell(label('hud-board-title', 'hud.leaderboard'));
+  const boardEmpty = cell(new TextCell(el('div', 'hud-empty', 'leaderboard-empty'), () => t('hud.leaderboardEmpty')));
+  const rows: BoardRow[] = [];
+  board.append(boardTitle.el, boardEmpty.el);
+  for (let i = 0; i <= LEADERBOARD_ROWS; i++) {
+    const r = new BoardRow();
+    rows.push(r);
+    board.append(r.root);
+  }
+  const top = new Int32Array(LEADERBOARD_ROWS);
+
+  // --- Controls: speed and commitment ---
+  const controls = el('div', 'hud-panel hud-controls', 'controls');
+  const speedGroup = el('div', 'hud-group');
+  const speedLabel = cell(label('hud-label', 'hud.speedLabel'));
+  const btns = el('div', 'hud-btns');
   const buttons = new Map<string, HTMLButtonElement>();
-  const mkBtn = (id: string, label: string, onClick: () => void): HTMLButtonElement => {
-    const b = el('button', 'min-width:44px;min-height:36px;padding:0 8px;border-radius:6px;border:1px solid #3a5a9a;background:#16294a;color:#e8f0ff;font:600 13px system-ui,sans-serif;cursor:pointer;', `speed-${id}`);
+  const mkBtn = (id: string, text: TextCell, onClick: () => void): HTMLButtonElement => {
+    const b = el('button', 'hud-btn', `speed-${id}`);
     b.type = 'button';
-    b.textContent = label;
+    b.setAttribute('aria-pressed', 'false');
+    b.append(text.el);
     b.addEventListener('click', () => {
       onClick();
       b.blur(); // keys (space) must keep going to the game, not to this button
@@ -114,64 +229,157 @@ export function createMatchHud(parent: HTMLElement, actions: MatchHudActions): M
     buttons.set(id, b);
     return b;
   };
-  const speedBox = el('span', 'display:flex;gap:4px;');
-  speedBox.append(mkBtn('pause', 'II', () => actions.togglePause()), mkBtn('1', '1x', () => actions.setSpeed(1)), mkBtn('2', '2x', () => actions.setSpeed(2)), mkBtn('4', '4x', () => actions.setSpeed(4)));
-  const commitLabel = el('label', 'display:flex;gap:8px;align-items:center;');
-  const commitText = el('span', 'min-width:96px;', 'commit');
-  const slider = el('input', 'width:140px;', 'commit-slider');
+  const pauseText = cell(new TextCell(el('span', ''), () => t('hud.pause')));
+  btns.append(
+    mkBtn('pause', pauseText, () => actions.togglePause()),
+    mkBtn('1', cell(new TextCell(el('span', ''), () => t('hud.speedValue', { n: 1 }))), () => actions.setSpeed(1)),
+    mkBtn('2', cell(new TextCell(el('span', ''), () => t('hud.speedValue', { n: 2 }))), () => actions.setSpeed(2)),
+    mkBtn('4', cell(new TextCell(el('span', ''), () => t('hud.speedValue', { n: 4 }))), () => actions.setSpeed(4)),
+  );
+  speedGroup.append(speedLabel.el, btns);
+  const commitLine = el('div', 'hud-commit-line');
+  const commitLabel = cell(label('hud-label', 'hud.commit'));
+  const commitPct = dyn(new TextCell(el('span', 'hud-num', 'commit'), (p) => t('hud.percent', { n: p }), true));
+  const commitTroops = dyn(new TextCell(el('span', 'hud-dim', 'commit-troops'), (n) => t('hud.commitTroops', { n: formatInt(n) })));
+  const commitLeft = el('span', '');
+  commitLeft.append(commitLabel.el, document.createTextNode(' '), commitPct.el);
+  commitLine.append(commitLeft, commitTroops.el);
+  const slider = el('input', 'hud-slider', 'commit-slider');
   slider.type = 'range';
   slider.min = String(COMMIT_MIN_PCT);
   slider.max = String(COMMIT_MAX_PCT);
   slider.step = String(COMMIT_STEP_PCT);
   slider.addEventListener('input', () => actions.setCommit(Number(slider.value)));
   slider.addEventListener('change', () => slider.blur());
-  commitLabel.append(commitText, slider);
-  bar.append(troops, gold, speedBox, commitLabel);
-  // Toast line
-  const toastBox = el('div', `${PANEL}position:absolute;left:50%;bottom:76px;transform:translateX(-50%);padding:6px 12px;display:none;pointer-events:none;`, 'toast');
-  root.append(banner, bar, toastBox);
+  controls.append(speedGroup, commitLine, slider);
+
+  const dock = el('div', 'hud-dock');
+  dock.append(status, controls);
+  const toastBox = el('div', 'hud-panel hud-toast', 'toast');
+  toastBox.setAttribute('role', 'status');
+  toastBox.hidden = true;
+  root.append(banner, badge, board, dock, toastBox);
   // Clicks and wheel turns on the HUD stop here; the globe's listeners sit on the canvas, a sibling, and would not see them anyway.
   for (const type of ['pointerdown', 'pointerup', 'wheel', 'contextmenu']) root.addEventListener(type, (e) => e.stopPropagation());
   parent.appendChild(root);
 
   let toastUntil = 0;
+  let playSince = -1;
+  let boardTick = -1;
+  let boardLang = -1;
+  let boardLocalCells = -1;
+  let lastPhaseName = '';
+  let lastTone = '';
+  let lastBarQ = -1;
+  let lastWarning = -1;
+  let lastSpeed = -1;
+  let lastSpeedLang = -1;
+
   return {
     update(m: MatchHudModel, fxNow: number): void {
+      if (root.hidden) return;
       const v = m.view;
-      if (v.phase === PHASE_SPAWN) {
-        setText(bannerText, 'Klicka på marken för att spawna');
-        setText(bannerSeconds, `${Math.ceil(v.phaseTicksLeft / 10)} s`);
-      } else if (v.phase === PHASE_IMMUNITY) {
-        setText(bannerText, 'Skyddad en kort stund');
-        setText(bannerSeconds, `${Math.ceil(v.phaseTicksLeft / 10)} s`);
+      const st = v.stats;
+      const L = m.localSeat;
+      const spawned = (st.capital[L] as number) !== 0;
+
+      // Banner
+      const ban = bannerState(v.phase, v.phaseTicksLeft, spawned);
+      if (ban.tone === 'play') {
+        if (playSince < 0) playSince = fxNow;
       } else {
-        setText(bannerText, 'Klicka på fiende- eller oägd mark för att anfalla');
-        setText(bannerSeconds, '');
+        playSince = -1;
       }
-      const phaseName = v.phase === PHASE_SPAWN ? 'spawn' : v.phase === PHASE_IMMUNITY ? 'immunity' : v.phase === PHASE_PLAY ? 'play' : '?';
-      if (banner.dataset.phase !== phaseName) banner.dataset.phase = phaseName;
-      const secondsDisplay = v.phase === PHASE_PLAY ? 'none' : 'block';
-      if (bannerSeconds.style.display !== secondsDisplay) bannerSeconds.style.display = secondsDisplay;
-      setText(troops, `Trupper ${Math.floor(m.troops)}`);
-      setText(gold, `Guld ${Math.floor(m.gold)}`);
-      setText(commitText, `Insats ${m.commitPct} %`);
-      if (slider.value !== String(m.commitPct)) slider.value = String(m.commitPct);
-      for (const [id, b] of buttons) {
-        const active = id === 'pause' ? m.speed === 0 : m.speed === Number(id);
-        const flag = active ? '1' : '0';
-        if (b.dataset.active !== flag) {
-          b.dataset.active = flag;
-          b.style.borderColor = active ? '#7fd1ff' : '#3a5a9a';
+      const bannerShown = !(ban.tone === 'play' && fxNow - playSince > PLAY_HINT_SECONDS);
+      if (banner.hidden === bannerShown) banner.hidden = !bannerShown;
+      const pn = phaseName(v.phase);
+      if (pn !== lastPhaseName) {
+        lastPhaseName = pn;
+        banner.dataset.phase = pn;
+      }
+      if (ban.tone !== lastTone) {
+        lastTone = ban.tone;
+        banner.dataset.tone = ban.tone;
+      }
+      bannerCell.set(BANNER_KEYS.indexOf(ban.key));
+      const hasSeconds = ban.seconds >= 0;
+      if (bannerSeconds.hidden === hasSeconds) bannerSeconds.hidden = !hasSeconds;
+      secondsCell.set(hasSeconds ? ban.seconds : 0);
+      const paused = m.speed === 0;
+      if (badge.hidden === paused) badge.hidden = !paused;
+
+      // Status
+      const capTroops = Math.floor((st.capQt[L] as number) / 4);
+      goldNum.set(Math.floor(m.gold));
+      goldRate.set(st.goldPerSecMilli[L] as number);
+      troopsNum.set(Math.floor(m.troops));
+      capText.set(capTroops);
+      shareText.set(st.landShareQ15[L] as number);
+      timerText.set(Math.floor(v.tick / TICK_HZ));
+      const tb = troopBar(m.troops, capTroops);
+      const q = Math.round(tb.fraction * 400);
+      if (q !== lastBarQ) {
+        lastBarQ = q;
+        barFill.style.transform = `scaleX(${q / 400})`;
+        bar.setAttribute('aria-valuenow', String(Math.floor(m.troops)));
+        bar.setAttribute('aria-valuemax', String(capTroops));
+      }
+      const w = tb.warning ? 1 : 0;
+      if (w !== lastWarning) {
+        lastWarning = w;
+        bar.dataset.warning = String(w);
+        warn.el.hidden = w === 0;
+        status.dataset.warning = String(w);
+      }
+      for (const c of statics) c.set(0);
+
+      // Leaderboard: once per tick (and when the language or your own start changed)
+      const lv = languageVersion();
+      const localCells = st.cells[L] as number;
+      if (v.tick !== boardTick || lv !== boardLang || (localCells > 0 ? 1 : 0) !== boardLocalCells) {
+        boardTick = v.tick;
+        boardLang = lv;
+        boardLocalCells = localCells > 0 ? 1 : 0;
+        const seatCount = LEADERBOARD_INCLUDES_TRIBES ? v.seats : v.players;
+        const n = rankTop(st, seatCount, top);
+        let used = 0;
+        let youShown = false;
+        for (let i = 0; i < n; i++) {
+          const seat = top[i] as number;
+          if (seat === L) youShown = true;
+          (rows[used++] as BoardRow).set(seat, i + 1, st.landShareQ15[seat] as number, v.players, L, seatColor(seat));
+        }
+        if (!youShown && localCells > 0) {
+          (rows[used++] as BoardRow).set(L, rankOf(st, seatCount, L), st.landShareQ15[L] as number, v.players, L, seatColor(L));
+        }
+        for (let i = used; i < rows.length; i++) (rows[i] as BoardRow).hide();
+        const empty = used === 0;
+        if (boardEmpty.el.hidden !== !empty) boardEmpty.el.hidden = !empty;
+      }
+
+      // Controls
+      if (m.speed !== lastSpeed || lv !== lastSpeedLang) {
+        lastSpeed = m.speed;
+        lastSpeedLang = lv;
+        slider.setAttribute('aria-label', t('hud.commitAria'));
+        for (const [id, b] of buttons) {
+          const active = id === 'pause' ? m.speed === 0 : m.speed === Number(id);
+          b.setAttribute('aria-pressed', active ? 'true' : 'false');
+          b.dataset.active = active ? '1' : '0';
         }
       }
+      commitPct.set(m.commitPct);
+      commitTroops.set(Math.floor((m.troops * m.commitPct) / 100));
+      if (slider.valueAsNumber !== m.commitPct) slider.value = String(m.commitPct);
+
       if (toastUntil > 0 && fxNow >= toastUntil) {
-        toastBox.style.display = 'none';
+        toastBox.hidden = true;
         toastUntil = 0;
       }
     },
     toast(text: string, fxNow: number): void {
       toastBox.textContent = text;
-      toastBox.style.display = 'block';
+      toastBox.hidden = false;
       toastUntil = fxNow + TOAST_SECONDS;
     },
     setVisible(visible: boolean): void {

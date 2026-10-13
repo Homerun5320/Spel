@@ -7,6 +7,7 @@ import { bootGlobe, type GlobeTestHooks } from './globeApp';
 import { registerAppModes } from './modes';
 import { parseAppState, parseRaw } from './params';
 import { siteUrl } from './paths';
+import { t } from '../ui/i18n';
 
 export interface TestHooks {
   /** Render one frame synchronously with the fixed test-view sun. */
@@ -55,8 +56,8 @@ function startScene(root: HTMLElement): Stop {
   overlay.style.cssText =
     'position:absolute;left:8px;top:8px;margin:0;padding:6px 8px;background:rgba(0,0,0,0.7);color:#cfe;' +
     'font:12px/1.4 ui-monospace,Menlo,Consolas,monospace;white-space:pre;pointer-events:none;max-width:calc(100vw - 88px);overflow:hidden;';
-  // Hidden by default in test mode and in perf mode (the perf overlay takes its place); F3 toggles it.
-  overlay.hidden = params.test || state.perf;
+  // Hidden by default (the first thing the player sees is the start screen, D98); F3 toggles it.
+  overlay.hidden = true;
   wrapper.appendChild(overlay);
   root.appendChild(wrapper);
   stops.push(() => {
@@ -99,7 +100,7 @@ function startScene(root: HTMLElement): Stop {
         console.error(err);
         const msg = document.createElement('div');
         msg.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#f99;font:14px system-ui,sans-serif;';
-        msg.textContent = `Kunde inte starta: ${err instanceof Error ? err.message : String(err)}`;
+        msg.textContent = t('app.error', { message: err instanceof Error ? err.message : String(err) });
         wrapper.appendChild(msg);
       });
     return stop;

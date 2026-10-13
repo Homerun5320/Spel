@@ -36,11 +36,11 @@ GÖR, Part A (items 1, 2, 3, 5)
 - [x] 5. Debug hooks: `?seed=` / `#seed-7` / `?test=1` / `#test`, `__test.advance(dt, ticks)`, `__test.state()`, `__test.give(seat, {gold, troops})`, `__test.submit(body)`, ownership upload counter, the Dev-panel seed field (id `seed`) and `./debug/sim.html` link
 - [x] A9. Tests: unit (rules, intents, view, mirror, texture packing, palette), e2e for Part A (run alone); `npm run verify:fast` green; docs (ARCHITECTURE, DECISIONS); committed locally
 
-GÖR, Part B (items 4, 7, i18n) - NOT started
-- [ ] 4. DOM HUD with `data-testid`: gold with +/s, troops with a cap bar and a warning at 80 % of the cap, land share in %, timer, top-5 leaderboard + you
-- [ ] 4b. i18n: src/ui/i18n.ts (`t(key, params?)`, tables `sv` and `en`), parity unit test, test mode fails on a missing key, the i18n rule in CLAUDE.md; every string of the temporary Part A UI moves into the tables
-- [ ] 7. Start screen with a Play button and a small Dev button (first thing the user sees; test mode bypasses it)
-- [ ] B-last. `docs/PREVIEW.md` (Swedish): how to start, controls, seed addresses in hash form, the Dev panel
+GÖR, Part B (items 4, 7, i18n) - DONE (this session; nothing pushed, no PR, no Artifact)
+- [x] 4. DOM HUD with `data-testid`: gold with income per second, troops with a cap bar and a warning at 80 % of the cap, land share in %, timer, top-5 leaderboard + you; the speed buttons, the commitment slider, the banner with the spawn-phase prompt and countdown, the toast (D99)
+- [x] 4b. i18n: `src/ui/i18n.ts` (`t(key, params?)`, tables `sv` and `en`), parity unit test, test mode throws on a missing key (`__test.text`), the i18n rule in CLAUDE.md; every string of the temporary Part A UI moved into the tables, plus the hover tooltip and the loading / error texts (D98); the UI constants are in the one file `src/ui/uiConfig.ts`
+- [x] 7. Start screen with a Play button and a small Dev button (first thing the user sees in the live page; a language button; test mode bypasses it) (D100)
+- [x] B-last. `docs/PREVIEW.md` (Swedish): how to start, controls, seed addresses in hash form, the HUD, the Dev panel (17d to 17i); ARCHITECTURE, DECISIONS D98 to D101, BACKLOG
 
 GÖR, Part C (item 6) - NOT started
 - [ ] 6. 20 tribes at start; AI v0 in `src/ai` for 5 nations (`think(view, memory, rng) -> Intent[]`), src/sim/public.ts type-only intent re-exports and rules constants, ESLint allow-list + type test, the host calls it at tick boundaries with its own memory and PRNG (intents T+2), `*.perf.test.ts` budget `budgetMs(0.5)` per seat
@@ -51,13 +51,15 @@ ACCEPTANS (all three parts; the part that owns each item is in brackets)
 - [x] [A] Negative e2e: spawn on sea, Peak or Ice is refused (state unchanged, reject counter +1); attack on own land and spawn after the phase are refused; pct 0 is refused
 - [x] [A] Ownership readback equals the owner array in 200 sampled cells; upload counter <= 10 per second (fx clock) whatever the sim speed
 - [x] [A] Borders: at a border cell on a Mountain cell the border pixel differs from both the own and the neighbour colour by CIE76 dE >= 15; palette has dE >= 25 between the own colour and every other palette colour (unit test)
-- [ ] [B] i18n: `sv` and `en` have the same keys (parity test); a missing key fails in test mode
+- [x] [B] i18n: `sv` and `en` have the same keys (parity test, `tests/i18n.test.ts`); a missing key fails in test mode (`e2e/hud.test.ts`: `__test.text` throws, every key of both tables resolves in the page)
 - [ ] [C] 6000-tick run in the browser without console errors; test tier <= 150k triangles; AI v0 `think` median over 200 calls after 20 warm-ups <= `budgetMs(0.5)` per seat (logged); type test and lint forbid `src/ai` from importing step or state
 - [x] [A] `__test.give` changes gold / troops only through an intent (negative test without debugIntents: `tests/sim/debugGive.test.ts`; nothing changes before T + 2: `e2e/match.test.ts`); golden sim hashes equal in Node and Chromium (`e2e/sim.test.ts`, unchanged hashes); [ ] [C] `npm run verify` green
 
 Result of Part A (this sandbox): `npm run verify:fast` green (typecheck, lint, 81 unit files / 948 tests); the perf project green (5 files / 16 tests); the whole e2e project green (11 files / 71 tests, 184 s: the 59 of M00 to M04 with every golden unchanged, plus the 12 of `e2e/match.test.ts`). `npm run verify` as a whole is NOT run (part C ends with it). Measured and logged by the tests: seed 7 script (spawn at 48.5 N 11 E, attack on unowned land at tick 255): 197 cells after the spawn (a full capital disc), 382 at tick 600, land share 0.150 % to 0.293 %, sim hash `9db19f91` (the same through `#test_seed-7`); ownership uploads 6.0 / 8.3 / 8.7 per fx second at 1x / 2x / 4x with a conquest running every tick (limit 10); border pixel on a Mountain block (cell 143, 88): dE76 25.0 to 29.3 against both the own and the neighbour colour (limit 15); own palette colour at least 32.1 dE76 from every other (limit 25), the 26 seats of a match pairwise at least 20.3; 6600 ticks in the browser without a console error, 74 560 triangles and 3 draw calls in the test tier; the host advance cost per frame at 4x with a running conquest 0.02 ms (300 frames in 6 ms, nothing drawn), in the live page under SwiftShader 3.7 ms mean / 9.1 ms p95 (software GL competing for the CPU; the perf overlay reports it as `match`: sim-steg per bildruta). Nothing is pushed, no pull request opened, no Artifact published.
 
-Notes for part B (HUD, i18n, start screen; read before starting)
+Result of Part B (this sandbox): `npm run verify:fast` green (typecheck, lint, 84 unit files / 981 tests). The whole e2e project is green too: 12 files / 90 tests in 201 s (the 71 of part A with every golden unchanged, plus the 19 of `e2e/hud.test.ts`). `npm run verify` as a whole is NOT run (part C ends with it); `npm run build` works (main chunk 168 kB gzip). Measured and logged by the tests: HUD font 16 px at 960x540 and 22 px at 1920x1080; the HUD panel padding is dark over day, night and polar ice (luma at most 36 of 255) and every panel shows bright text pixels; the contrast of every text colour on its panel is 6.3 to 18.3 (limit 4.5) over white and over black; 500 refreshes of an unchanged HUD cause 0 DOM mutations (about 0.003 ms each); in the live page under software GL the HUD refresh costs 0.47 ms mean / 1.1 ms p95 per frame (`match.hudUpdateMs` of the perf report) and the sim step 0.7 ms mean at 1x. What the screenshots showed (looked at): the start screen with the globe visible behind it, the HUD at both sizes, in Swedish and English, the leaderboard with six rows, the troop warning, the phone-sized start card. Nothing is pushed, no pull request opened, no Artifact published.
+
+Notes for part B (written by part A; DONE, kept for the record)
 - The temporary UI is `src/ui/matchHud.ts` (`createMatchHud(parent, actions)`, `MatchHudModel`, `rejectText`, `NOT_CONQUERABLE_TEXT`) and `src/ui/startScreen.ts` (`mountStartScreen(parent, onPlay)`); `src/app/globeApp.ts` is the only caller (`startMatch`, `refreshHud`, `onGlobeClick`, the Play button). Replace the contents, keep the call shapes, and move every Swedish string of those two files and of `src/ui/matchHud.ts` `rejectText` into the i18n tables. The test hooks read the HUD through `data-testid` (`troops`, `gold`, `phase`, `phase-text`, `phase-seconds`, `controls`, `speed-*`, `commit`, `commit-slider`, `toast`, `start-screen`, `play`); `e2e/match.test.ts` uses them, so a new HUD either keeps those ids or changes the test in the same commit with a reason.
 - Test mode has no start screen and hides the HUD (`#hud` / `?hud=1` shows it; Dev-panel mode `hud`). Keep both: the six globe goldens of M02 are taken with the HUD hidden. The HUD numbers are NOT interpolated in test mode (`MatchSession` option `interpolate`), so they equal the sim values.
 - Data for the HUD: `session.view.stats` per seat (`troopsQt`, `capQt` for the cap bar and the 80 % warning (`TROOP_WARNING_FRACTION` in `src/ui/uiConfig.ts`), `goldMilli`, `goldPerSecMilli`, `cells`, `landShareQ15` (cos-weighted, 32768 = all land), `alive`), `view.phase` / `phaseTicksLeft` for the timer, `StatInterpolator` (`session.stats.value(field, seat, session.alpha())`) for smooth numbers. The top-5 leaderboard sorts `landShareQ15` over the seats. Troops are shown in whole troops (QT / 4), gold in whole gold (milli / 1000).
@@ -69,6 +71,8 @@ Notes for part C (tribes, AI v0; read before starting)
 - The host calls the AI at tick boundaries with its own memory and PRNG (not the UI's); the AI reads a `SimView`. `StateView` (src/sim/view.ts) is the zero-copy view over a live state for code in the sim's own thread (call `refresh()` after the steps of a frame); `src/sim/public.ts` already exists (barrel: `seatToOwner`, `ownerToSeat`, phases, the view types): part C adds the type-only `Intent` types and constructors and the constants of `src/sim/rules.ts` the AI reads, then the ESLint allow-list for `src/ai` and the type test.
 - `MainThreadHost` takes `stepFn`, `speed`, `hashEveryTicks`; the AI driver needs a hook before each tick (it must submit intents scheduled at T + 2, so call it from `runTicks` per tick, or wrap the host). The `ViewMirror` in the page is untouched by AI intents (it follows the diffs).
 - The default seed of the page is 1 (`?seed=` / `#seed-N` / the Dev panel field change it); the AI and the tribe placement must be pure functions of the seed.
+- From part B: `e2e/match.test.ts` and `e2e/hud.test.ts` assume that nobody but you acts in the match (the seed 7 script cells 197 / 382 and its sim hash `9db19f91`, the leaderboard showing only you, refusal counts, the painted nations 1 to 5 of the leaderboard tests). The moment tribes and AI nations spawn and act those numbers change. Give the match an option for it (for example `?ai=0` / `#ai-0` read by the one parser, `MatchOptions.ai`, default ON in the live page and in test mode of the final gate) and make those two e2e files open with it, or change the expectations in the same commit with the reason in `docs/DECISIONS.md`; the globe goldens are taken with no match drawn beyond your own territory and must stay as they are.
+- From part B: every new player-facing string needs both tables (`src/ui/i18n.ts`); test mode throws on a missing key. The leaderboard lists the five nations and their seats are 1 to 5 ("Nation N"); tribes are not listed. A text for the AI is not needed (it only emits intents). `__test.state().seats` and the HUD read the same statistics, so an AI that spawns shows up in the leaderboard by itself.
 
 ### M04 fix pass after the independent audit (no visible change; the Artifact is NOT republished; details in D91 of `docs/DECISIONS.md`)
 
@@ -317,7 +321,7 @@ ACCEPTANS
 
 ## Next
 
-- M05 First playable conquest (GATE, i18n): part A is built (see Now). Next is part B (HUD, i18n, start screen) and then part C (tribes, AI v0, the final `npm run verify`, the Artifact pack): read "Notes for part B" and "Notes for part C" under Now, `docs/ARCHITECTURE.md` ("Sim flow", "Snapshot growth") and D92 to D97 first.
+- M05 First playable conquest (GATE, i18n): parts A and B are built (see Now). Next is part C (tribes, AI v0, the final `npm run verify`, the Artifact pack): read "Notes for part C" under Now, `docs/ARCHITECTURE.md` ("Sim flow", "Snapshot growth") and D92 to D101 first.
 
 ## Known issues
 
@@ -344,8 +348,11 @@ ACCEPTANS
 - M00b: confirmed in practice: the user opened the Artifact (M02, version 3) and saw the globe at 30-50 fps.
 
 - M05 A: the territory look (`OWNER_*` in `src/render/config.ts`) was judged in SwiftShader screenshots at the test tier only; tint, inner glow, line width and warp are the first things to tune on a real GPU. The weak M02 country border lines still run through the middle of a territory.
-- M05 A: only seat 0 acts until part C: the five AI nations and the 20 tribes do not spawn yet, so the match is empty apart from you.
+- M05 A: only seat 0 acts until part C: the five AI nations and the 20 tribes do not spawn yet, so the match is empty apart from you (the leaderboard shows only you until then; a test paints the other seats to prove the ranking).
 - M05 A: in the live page under software GL the frame rate is about 5 fps (the loop is unchanged); the sim cost per frame is small (see Result of Part A), the real-GPU frame rate is the user's gate.
+
+- M05 B: judged in SwiftShader screenshots only: the HUD font and panel sizes, the colours, the start screen. The perf overlay (top left) can cover the banner during the first seconds when `#perf` is on from the start (BACKLOG). The Dev panel opens at the right and covers the leaderboard while it is open.
+- M05 B: the F3 text overlay is now hidden until F3 is pressed (it used to show in the live page).
 
 ## Skipped
 

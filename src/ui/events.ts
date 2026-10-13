@@ -13,3 +13,6 @@ export interface DevPanelEventDetail {
 export function rectsOverlap(a: { left: number; top: number; right: number; bottom: number }, b: { left: number; top: number; right: number; bottom: number }): boolean {
   return a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
 }
+
+/** Dispatched on `window` by any UI (the start screen's Dev button) to ask the Dev panel to open or close. */
+export const DEV_PANEL_REQUEST_EVENT = 'dev-panel-request';

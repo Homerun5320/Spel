@@ -105,12 +105,17 @@ describe('the playable match: spawn, attack, 600 ticks', () => {
       expect(r.end.rejects).toBe(0);
       // HUD values equal the sim values (data-testid)
       const hud = await page.evaluate(() => ({
-        troops: document.querySelector('[data-testid="troops"]')?.textContent ?? '',
-        gold: document.querySelector('[data-testid="gold"]')?.textContent ?? '',
+        // the HUD of part B formats its numbers (1 234), so the raw number sits in data-value and the text must show the same digits
+        troops: document.querySelector('[data-testid="troops"]')?.getAttribute('data-value') ?? '',
+        gold: document.querySelector('[data-testid="gold"]')?.getAttribute('data-value') ?? '',
+        troopsText: (document.querySelector('[data-testid="troops"]')?.textContent ?? '').replace(/\D/g, ''),
+        goldText: (document.querySelector('[data-testid="gold"]')?.textContent ?? '').replace(/\D/g, ''),
         phase: document.querySelector('[data-testid="phase"]')?.getAttribute('data-phase') ?? '',
       }));
-      expect(Number(/\d+/.exec(hud.troops)?.[0])).toBe(r.end.local.troops);
-      expect(Number(/\d+/.exec(hud.gold)?.[0])).toBe(r.end.local.gold);
+      expect(Number(hud.troops)).toBe(r.end.local.troops);
+      expect(Number(hud.gold)).toBe(r.end.local.gold);
+      expect(hud.troopsText).toBe(String(r.end.local.troops));
+      expect(hud.goldText).toBe(String(r.end.local.gold));
       expect(hud.phase).toBe('play');
       // the four screenshots exist, are not blank, and differ from each other
       const names = ['match-t000', 'match-t100', 'match-t300', 'match-t600'];
@@ -520,7 +525,7 @@ describe('the live page (no test mode): start screen, Play, a click spawns, the 
       expect(await page.locator('[data-testid="start-screen"]').count()).toBe(0);
       // a click on the middle of the globe (the default view looks at the Sahara): spawn
       await page.mouse.click(480, 270);
-      await page.waitForFunction(() => Number(/\d+/.exec(document.querySelector('[data-testid="troops"]')?.textContent ?? '')?.[0] ?? 0) > 100, undefined, { timeout: 30_000 });
+      await page.waitForFunction(() => Number(document.querySelector('[data-testid="troops"]')?.getAttribute('data-value') ?? 0) > 100, undefined, { timeout: 30_000 });
       // the loop runs: the countdown of the spawn phase goes down
       await page.waitForFunction(() => Number(/\d+/.exec(document.querySelector('[data-testid="phase-seconds"]')?.textContent ?? '')?.[0] ?? 99) < 20, undefined, { timeout: 30_000 });
       fs.writeFileSync(path.join(SHOT_DIR, 'match-live.png'), await page.screenshot({ type: 'png' }));

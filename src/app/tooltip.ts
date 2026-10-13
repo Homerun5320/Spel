@@ -1,9 +1,19 @@
-// Hover tooltip text: country, terrain class and height in metres. Pure (unit-tested). Swedish for now; the
-// i18n tables (`t(key)`) arrive in M05 and take over these strings.
+// Hover tooltip text: country, terrain class and height in metres. Pure (unit-tested). The words come from the i18n tables
+// (`t`, `src/ui/i18n.ts`); country names follow the UI language (`name_sv` / `name_en` of meta.json).
 import type { WorldMeta } from '../data';
 import { landClassForHeight, waterClassForDepth } from '../render/describe';
+import { TABLES, t, type Lang, type TextKey } from '../ui/i18n';
 
-export const CLASS_LABEL_SV: readonly string[] = ['Djuphav', 'Grunt hav', 'Slätt', 'Skog', 'Kullar', 'Berg', 'Bergstopp', 'Is'];
+const CLASS_KEYS: readonly TextKey[] = ['class.0', 'class.1', 'class.2', 'class.3', 'class.4', 'class.5', 'class.6', 'class.7'];
+
+/** The Swedish class names (the `sv` table), index = terrain class of the sim pack. */
+export const CLASS_LABEL_SV: readonly string[] = CLASS_KEYS.map((k) => TABLES.sv[k] as string);
+
+/** The class name in the current language. */
+export function classLabel(classId: number): string {
+  const key = CLASS_KEYS[classId];
+  return key === undefined ? '?' : t(key);
+}
 
 export interface TooltipPick {
   classId: number;
@@ -18,9 +28,10 @@ export function formatMetres(m: number): string {
   return `${r < 0 ? '-' : ''}${digits} m`;
 }
 
-export function countryNameMap(meta: WorldMeta): Map<number, string> {
+/** Country names in `lang` (the other language when one is empty). */
+export function countryNameMap(meta: WorldMeta, lang: Lang = 'sv'): Map<number, string> {
   const m = new Map<number, string>();
-  for (const c of meta.countries) m.set(c.id, c.name_sv || c.name_en);
+  for (const c of meta.countries) m.set(c.id, (lang === 'sv' ? c.name_sv || c.name_en : c.name_en || c.name_sv));
   return m;
 }
 
@@ -34,6 +45,6 @@ export function tooltipText(pick: TooltipPick, names: Map<number, string>): stri
   let classId = pick.classId;
   if (land && classId <= 1) classId = landClassForHeight(pick.elevationM);
   if (!land && classId >= 2) classId = waterClassForDepth(-pick.elevationM);
-  const where = land ? (names.get(pick.countryId) ?? 'Okänt land') : 'Hav';
-  return `${where} · ${CLASS_LABEL_SV[classId] ?? '?'} · ${formatMetres(pick.elevationM)}`;
+  const where = land ? (names.get(pick.countryId) ?? t('tooltip.unknownCountry')) : t('tooltip.sea');
+  return `${where} · ${classLabel(classId)} · ${formatMetres(pick.elevationM)}`;
 }

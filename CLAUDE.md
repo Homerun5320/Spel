@@ -55,6 +55,11 @@ Project rules for every session. Keep this file under 200 lines. Constitution: `
 - Leak tests (all heapDelta / memory measurements in later milestones) render in a 320x180 viewport over 60 render calls (3 rounds x 20), threshold 5 MB, median of 3, and are tagged `leak-test` in the e2e shell.
 - Test mode `?test=1`: no rAF loop, fixed seed, DPR 1, 960x540 (override with `w`, `h`), MSAA off, preserveDrawingBuffer, `window.__test = { render(), info() }`. Hooks added by later milestones are listed in `docs/ARCHITECTURE.md`.
 
+## i18n
+- Every player-facing string goes through `t(key, params?)` from `src/ui/i18n.ts`. The two tables `sv` (default) and `en` change in the SAME commit; `en` is typed `Record<TextKey, string>` and `tests/i18n.test.ts` checks the keys, the `{placeholders}`, unused keys and Swedish text hiding in code.
+- Test mode (`?test=1`) throws on a key missing from either table (`__test.text(key)` probes it). Colours, sizes and slider steps of the UI live in `src/ui/uiConfig.ts`, never inline.
+- Developer tools (Dev panel, perf overlay and its report, debug pages) stay Swedish only (D98 in `docs/DECISIONS.md`). Country names follow the UI language.
+
 ## Golden rule
 - Goldens (`e2e/goldens/*.png`) are authoritative in the cloud session's `verify`.
 - Two renders in one browser start must be byte-identical. Against a committed golden: pixelmatch threshold 0.1 and at most 0.2 % differing pixels (`GOLDEN_MAX_DIFF`, a fraction).

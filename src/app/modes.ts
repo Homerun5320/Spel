@@ -12,9 +12,12 @@ export function registerAppModes(): void {
   registerDevMode({ id: 'quality-high', label: 'Kvalitet: hög', params: { quality: 'high' } });
   registerDevMode({ id: 'seed-7', label: 'Seed 7', params: { seed: '7' } });
   registerDevMode({ id: 'seed', label: 'Seed', field: { param: 'seed', placeholder: '1', pattern: /^-?\d{1,10}$/ } });
+  registerDevMode({ id: 'lang-en', label: 'Språk: English', params: { lang: 'en' } });
+  registerDevMode({ id: 'lang-sv', label: 'Språk: svenska', params: { lang: 'sv' } });
   registerDevMode({ id: 'hud', label: 'HUD i testläge', params: { hud: '1' }, toggle: true });
   registerDevMode({ id: 'debug-data', label: 'Datakartan (debug/data.html)', href: './debug/data.html' });
   registerDevMode({ id: 'debug-data-height', label: 'Datakartan: höjd', href: './debug/data.html#map-height' });
   registerDevMode({ id: 'debug-data-country', label: 'Datakartan: länder', href: './debug/data.html#map-country' });
   registerDevMode({ id: 'debug-sim', label: 'Simuleringens hashar (debug/sim.html)', href: './debug/sim.html' });
+  registerDevMode({ id: 'probe', label: 'Förhandsvisningstest (probe.html)', href: './probe.html' });
 }

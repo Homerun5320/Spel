@@ -38,6 +38,8 @@ export interface MatchPerf {
   speed: number;
   /** Cost in ms of `host.advance` on the frames that ran ticks (the sim stepping, measured in the browser). */
   hostAdvanceMs: { mean: number; p95: number; max: number; frames: number };
+  /** Cost in ms of one HUD refresh (the DOM work of the HUD per drawn frame), measured in the live loop. Additive (M05 part B). */
+  hudUpdateMs?: { mean: number; p95: number; max: number; frames: number };
   ownershipUploads: number;
   ownershipGpuUploads: number;
 }
@@ -85,13 +87,20 @@ export function buildPerfReport(ctx: PerfContext): PerfReport {
 function matchSection(ctx: PerfContext): { match?: MatchPerf } {
   const m = ctx.match?.() ?? null;
   if (m === null) return {};
-  return { match: { ...m, hostAdvanceMs: { mean: round(m.hostAdvanceMs.mean, 3), p95: round(m.hostAdvanceMs.p95, 3), max: round(m.hostAdvanceMs.max, 3), frames: m.hostAdvanceMs.frames } } };
+  const hud = m.hudUpdateMs;
+  return {
+    match: {
+      ...m,
+      hostAdvanceMs: { mean: round(m.hostAdvanceMs.mean, 3), p95: round(m.hostAdvanceMs.p95, 3), max: round(m.hostAdvanceMs.max, 3), frames: m.hostAdvanceMs.frames },
+      ...(hud === undefined ? {} : { hudUpdateMs: { mean: round(hud.mean, 3), p95: round(hud.p95, 3), max: round(hud.max, 3), frames: hud.frames } }),
+    },
+  };
 }
 
 export function perfLines(r: PerfReport): string[] {
   const fps = r.fps.frames > 0 ? `${r.fps.mean.toFixed(1)} medel, ${r.fps.p95.toFixed(1)} p95 (${r.fps.p95FrameMs.toFixed(1)} ms)` : 'ingen ram än (testläge: ingen rAF-loop)';
   const match = r.match
-    ? [`match: tick ${r.match.tick}, fart ${r.match.speed}x, sim-steg per bildruta ${r.match.hostAdvanceMs.mean.toFixed(2)} ms medel / ${r.match.hostAdvanceMs.p95.toFixed(2)} p95 / ${r.match.hostAdvanceMs.max.toFixed(2)} max, ägarkarta ${r.match.ownershipUploads} uppladdn.`]
+    ? [`match: tick ${r.match.tick}, fart ${r.match.speed}x, sim-steg per bildruta ${r.match.hostAdvanceMs.mean.toFixed(2)} ms medel / ${r.match.hostAdvanceMs.p95.toFixed(2)} p95 / ${r.match.hostAdvanceMs.max.toFixed(2)} max, ägarkarta ${r.match.ownershipUploads} uppladdn.${r.match.hudUpdateMs ? `, HUD ${r.match.hudUpdateMs.mean.toFixed(2)} ms medel / ${r.match.hudUpdateMs.p95.toFixed(2)} p95` : ''}`]
     : [];
   return [
     `Renderer: ${r.renderer}`,
