@@ -9,10 +9,11 @@ Resume: Läs CLAUDE.md och docs/PROGRESS.md, kör git log -10 och npm run verify
 | M00 | (set after the squash merge) | Harness: verify, lint rules, WebGL2 spike, shot.mjs, perfguard, CI file, hook, docs. Previous merge SHA (origin/main at start): f29121a8d1607ca169e6675b5f22a52d76c42ef7 |
 | M00b | (set after the squash merge) | Preview path: portable build, `siteUrl`, Artifact pack script, probe page, Artifact e2e, `docs/PREVIEW.md`. Previous merge SHA (origin/main at start): f29121a8d1607ca169e6675b5f22a52d76c42ef7 (M00 was not merged yet) |
 | M01 | (set after the squash merge) | Bake world: terrain, countries, cities, ports as committed binary packs, loader, debug map page. Previous merge SHA (origin/main at start): f29121a8d1607ca169e6675b5f22a52d76c42ef7 (M00 and M00b were NOT merged yet; they live on this branch, so the M00b precondition was treated as satisfied by the orchestrator's instruction) |
+| M02 | (set after the squash merge) | Wow 1, the stylised 3D Earth (terrain, ocean, atmosphere, borders, night lights, camera, picking, Dev panel, hash grammar, goldens). GATE PASSED: the user looked at the Artifact (version 3) on a real GPU and reported 30-50 fps and a good picture (this also confirms the M00b Artifact route). Previous merge SHA (origin/main at start): f29121a8d1607ca169e6675b5f22a52d76c42ef7 (M00, M00b and M01 were NOT merged yet; they live on this branch) |
 
 ## Now
 
-### M02 Wow 1: den stiliserade 3D-jorden (GATE) - built, audited and fixed; pushed to PR #1 and published in the Artifact as version 3 (`npm run verify` green: 376 unit, 9 perf, 52 e2e); waiting for the user's look on a real GPU (the gate)
+### M02 Wow 1: den stiliserade 3D-jorden (GATE) - built, audited and fixed; pushed to PR #1 and published in the Artifact as version 3 (`npm run verify` green: 376 unit, 9 perf, 52 e2e); gate passed: the user reported 30-50 fps and a good picture on a real GPU; waiting for the squash merge (the real-GPU tuning of the night lights, atmosphere and glint is in `docs/BACKLOG.md`)
 
 Previous merge SHA (origin/main at start): f29121a8d1607ca169e6675b5f22a52d76c42ef7 (still the initial commit: M00, M00b and M01 are NOT merged, they live on this branch and in draft pull request #1; the "M01 is merged" precondition was treated as satisfied by the orchestrator's instruction). `npm ci && npm run verify:fast` was green at the start (279 unit tests).
 
@@ -154,8 +155,7 @@ ACCEPTANS
 
 ## Next
 
-- M02 Checkpoint B and the last step (see Now): ocean, atmosphere, terminator, stars, night lights, glitter, country borders, perf overlay, Dev panel and hash grammar, goldens, budgets table, preview.
-- M03 Sim foundation.
+- M03 Sim foundation (no visible change; do not republish the Artifact).
 
 ## Known issues
 
@@ -175,7 +175,7 @@ ACCEPTANS
 - M02: the coast band of one render pixel (10 km) has a surface height above 0 but is drawn partly as sea; the tooltip calls it land there (consistent with the height, D49), so the elevation printed at such a point is the mean of the land pixels around it and can be higher than the surface under the cursor (Rio: 166 m against 18 m).
 - M02 B: the Dev button is hidden in `?test=1` (so goldens stay clean); `#devbtn` shows it there.
 - M00b: the data manifest format of M01 is assumed (name to file relative to the data folder, enc defaults to raw), see D17 in `docs/DECISIONS.md`. M01 must keep it or change the pack script.
-- M00b: the Artifact URL in `docs/PREVIEW.md` is a placeholder until the orchestrator publishes; the user's "klotet syns" confirmation is pending.
+- M00b: confirmed in practice: the user opened the Artifact (M02, version 3) and saw the globe at 30-50 fps.
 
 ## Skipped
 
