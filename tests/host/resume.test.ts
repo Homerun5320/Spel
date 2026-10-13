@@ -202,7 +202,7 @@ describe('the ownership diff survives an outbox overflow', () => {
     expect(d.cells.length).toBe(0);
     expect(d.owners.length).toBe(0);
     let painted = 0;
-    for (const o of d.fullOwner as Uint8Array) painted += o === 1 ? 1 : 0;
+    for (const o of d.fullOwner as Uint16Array) painted += o === 1 ? 1 : 0;
     expect(painted).toBe(OVER); // every cell, including the ones the outbox had to drop
     expect(d.fullOwner?.[OVER - 1]).toBe(1);
   });
@@ -210,7 +210,7 @@ describe('the ownership diff survives an outbox overflow', () => {
   it('a mirror that applies fullOwner when present never drifts from the state, across overflowing and ordinary frames', async () => {
     const state = createEmptyState(256, 128, 1, 2, { debugIntents: true });
     const host = new MainThreadHost(state, { stepFn: painter(OVER, 3) });
-    const mirror = new Uint8Array(256 * 128);
+    const mirror = new Uint16Array(256 * 128);
     let flagged = 0;
     host.subscribe((e) => {
       if (e.type !== 'diff') return;

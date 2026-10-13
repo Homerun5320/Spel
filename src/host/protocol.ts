@@ -24,9 +24,9 @@ export interface StateDiff {
   readonly fromTick: number;
   readonly toTick: number;
   readonly cells: Uint32Array;
-  readonly owners: Uint8Array;
+  readonly owners: Uint16Array;
   /** The whole owner array after the frame when the changed-cell list is incomplete (see above), else null. */
-  readonly fullOwner: Uint8Array | null;
+  readonly fullOwner: Uint16Array | null;
   /** The reject counter of the state after the frame. */
   readonly rejects: number;
 }

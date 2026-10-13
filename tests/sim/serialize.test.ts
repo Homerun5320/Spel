@@ -40,12 +40,12 @@ describe('serialize / deserialize', () => {
     expect(t.outbox.length).toBe(0);
   });
 
-  it('the layout is the documented one (little-endian, 60 byte header, 8 bytes per cell, 4 byte checksum)', () => {
+  it('the layout is the documented one (little-endian, 60 byte header, 9 bytes per cell, 4 byte checksum)', () => {
     const s = sample(5);
     const b = serialize(s);
     const v = new DataView(b.buffer);
     expect(b.length).toBe(serializedLength(128, 64));
-    expect(b.length).toBe(HEADER_BYTES + 128 * 64 * 8 + 4);
+    expect(b.length).toBe(HEADER_BYTES + 128 * 64 * 9 + 4);
     expect(HEADER_BYTES).toBe(60);
     expect(Array.from(b.subarray(0, 4))).toEqual([0x53, 0x50, 0x45, 0x4c]); // 'SPEL'
     expect(v.getUint32(0, true)).toBe(MAGIC);
@@ -182,10 +182,28 @@ describe('serialize / deserialize: wide values (every field at its full range)',
     expect(v.getUint32(40, true)).toBe(s.rejects);
     expect(v.getUint32(44, true)).toBe(0xffffffff);
     const n = s.width * s.height;
-    expect(v.getUint32(HEADER_BYTES + 4 * n + 0, true)).toBe(0xffffffff);
-    expect(v.getUint32(HEADER_BYTES + 4 * n + 4, true)).toBe(0x10000);
-    expect(v.getUint32(HEADER_BYTES + 4 * n + 8, true)).toBe(0x80000000);
+    expect(v.getUint32(HEADER_BYTES + 5 * n + 0, true)).toBe(0xffffffff);
+    expect(v.getUint32(HEADER_BYTES + 5 * n + 4, true)).toBe(0x10000);
+    expect(v.getUint32(HEADER_BYTES + 5 * n + 8, true)).toBe(0x80000000);
     expect(serialize(s)[HEADER_BYTES + 2 * n + n]).toBe(seats); // owner[0]
+  });
+
+  it('ownerId is a 16-bit field (D71): the high byte is stored, hashed and range checked', () => {
+    const s = createEmptyState(4, 2, 3, 2);
+    expect(s.owner).toBeInstanceOf(Uint16Array);
+    s.owner[5] = 2;
+    const base = serialize(s);
+    const ownerAt = HEADER_BYTES + 8 + 16;
+    expect([base[ownerAt + 10], base[ownerAt + 11]]).toEqual([2, 0]);
+    // A value that only a 16-bit field can hold: the hash sees it, the checksum accepts it, the range check refuses it.
+    const wide = createEmptyState(4, 2, 3, 2);
+    wide.owner[5] = 0x0102;
+    expect(hashState(wide)).not.toBe(hashState(s));
+    const bytes = serialize(wide);
+    expect([bytes[ownerAt + 10], bytes[ownerAt + 11]]).toEqual([2, 1]);
+    const r = deserialize(bytes);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toBe('owner-range');
   });
 
   it('keeps tick and rejects above 65535 apart and exact', () => {
@@ -271,8 +289,8 @@ describe('deserialize: errors are results, never throws', () => {
     expectErr(patch((v) => v.setUint32(28, 5, true)), 'size');
     expectErr(good.subarray(0, good.length - 1), 'size');
     expectErr(new Uint8Array([...good, 0]), 'size');
-    const ownerAt = HEADER_BYTES + 8 + 16; // 4x2 = 8 cells: terrain 8 bytes, elevation 16 bytes, then owner
-    expectErr(patch((_v, b) => { b[ownerAt + 3] = 3; }), 'owner-range'); // 2 seats: ownerId 3 does not exist
+    const ownerAt = HEADER_BYTES + 8 + 16; // 4x2 = 8 cells: terrain 8 bytes, elevation 16 bytes, then owner (u16, little endian)
+    expectErr(patch((_v, b) => { b[ownerAt + 6] = 3; }), 'owner-range'); // 2 seats: ownerId 3 does not exist
     expectErr(patch((v) => v.setUint32(good.length - 4, 0, true)), 'checksum');
     expectErr(patch((v) => v.setUint32(36, 99, true)), 'checksum'); // tick altered, checksum stale
   });
@@ -332,6 +350,6 @@ describe('deserialize: errors are results, never throws', () => {
 
 describe('golden params', () => {
   it('serialized size of the golden world', () => {
-    expect(serialize(createScenarioState(GOLDEN_PARAMS)).length).toBe(60 + 8192 * 8 + 4);
+    expect(serialize(createScenarioState(GOLDEN_PARAMS)).length).toBe(60 + 8192 * 9 + 4);
   });
 });

@@ -4,7 +4,7 @@
 //   0  magic u32 'SPEL'      4  formatVersion u32     8  engineVersion u32    12 mapHash u32
 //   16 seed u32              20 config flags u32      24 seats u32            28 width u32
 //   32 height u32            36 tick u32              40 rejects u32          44 rng[4] u32 x 4
-//   60 terrain u8 x n        elevation u16 x n        owner u8 x n            stamp u32 x n
+//   60 terrain u8 x n        elevation u16 x n        owner u16 x n           stamp u32 x n
 //   end: checksum u32 = hashState(state)                                      (n = width * height)
 // The outbox is not part of the format. deserialize() never throws: any byte string gives a state or an error result.
 import { FNV_OFFSET, finishHash, foldBytes, foldU16, foldU32, foldWord } from './hash';
@@ -20,12 +20,12 @@ import {
 } from './state';
 
 /** Bumped when the byte layout above changes. */
-export const FORMAT_VERSION = 1;
+export const FORMAT_VERSION = 2;
 /** 'SPEL' as a little-endian u32. */
 export const MAGIC = 0x4c455053;
 export const HEADER_BYTES = 60;
 const CHECKSUM_BYTES = 4;
-const BYTES_PER_CELL = 8;
+const BYTES_PER_CELL = 9;
 
 export type DeserializeError =
   | 'not-bytes'
@@ -63,7 +63,7 @@ export function hashState(state: GameState): number {
   x = foldU32(x, state.rng);
   x = foldBytes(x, state.terrain);
   x = foldU16(x, state.elevation);
-  x = foldBytes(x, state.owner);
+  x = foldU16(x, state.owner);
   x = foldU32(x, state.stamp);
   return finishHash(x);
 }
@@ -91,8 +91,8 @@ export function serialize(state: GameState): Uint8Array {
   p += n;
   for (let i = 0; i < n; i++) v.setUint16(p + i * 2, state.elevation[i] as number, true);
   p += n * 2;
-  out.set(state.owner, p);
-  p += n;
+  for (let i = 0; i < n; i++) v.setUint16(p + i * 2, state.owner[i] as number, true);
+  p += n * 2;
   for (let i = 0; i < n; i++) v.setUint32(p + i * 4, state.stamp[i] as number, true);
   p += n * 4;
   v.setUint32(p, hashState(state), true);
@@ -136,9 +136,9 @@ export function deserialize(bytes: Uint8Array): DeserializeResult {
   const elevation = new Uint16Array(n);
   for (let i = 0; i < n; i++) elevation[i] = v.getUint16(p + i * 2, true);
   p += n * 2;
-  const owner = new Uint8Array(n);
-  owner.set(bytes.subarray(p, p + n));
-  p += n;
+  const owner = new Uint16Array(n);
+  for (let i = 0; i < n; i++) owner[i] = v.getUint16(p + i * 2, true);
+  p += n * 2;
   for (let i = 0; i < n; i++) if ((owner[i] as number) > seats) return fail('owner-range');
   const stamp = new Uint32Array(n);
   for (let i = 0; i < n; i++) stamp[i] = v.getUint32(p + i * 4, true);

@@ -25,7 +25,7 @@ describe('RemoteHost over LocalTransport', () => {
     const { transport, remote } = pair();
     const cells = GOLDEN_PARAMS.width * GOLDEN_PARAMS.height;
     const got: Record<string, string> = {};
-    const rebuilt = new Uint8Array(cells);
+    const rebuilt = new Uint16Array(cells);
     remote.subscribe((e) => {
       if (e.type === 'diff') for (let i = 0; i < e.diff.cells.length; i++) rebuilt[e.diff.cells[i] as number] = e.diff.owners[i] as number;
     });

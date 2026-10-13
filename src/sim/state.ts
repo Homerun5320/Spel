@@ -9,7 +9,8 @@ import { createRng } from './rng';
 /** Bumped whenever a rule, a constant in rules.ts or the meaning of a state array changes. Part of the match header. */
 export const ENGINE_VERSION = 1;
 
-// Structural limits of the typed arrays (not tunables): ownerId is a Uint8, a cell index must stay below 2^22.
+// Structural limits (not tunables): a seat is one byte on the wire (intents), so 255 seats at most; ownerId is a Uint16
+// (room for tribes after the players), a cell index must stay below 2^22.
 export const MAX_SEATS = 255;
 export const MAX_DIMENSION = 4096;
 export const MAX_CELLS = 4194304;
@@ -73,8 +74,8 @@ export interface GameState {
   readonly terrain: Uint8Array;
   /** Mean elevation in metres per cell. Constant in M03. */
   readonly elevation: Uint16Array;
-  /** ownerId per cell (0 = unowned). */
-  readonly owner: Uint8Array;
+  /** ownerId per cell (0 = unowned). Uint16 since M04 (D71). */
+  readonly owner: Uint16Array;
   /** The id of the intent that last painted the cell (0 when never painted). */
   readonly stamp: Uint32Array;
   /** Render-only events; NOT part of the state (not hashed, not serialised). */
@@ -159,7 +160,7 @@ export function createState(p: CreateStateParams): GameState {
     rng: createRng(seed),
     terrain,
     elevation,
-    owner: new Uint8Array(n),
+    owner: new Uint16Array(n),
     stamp: new Uint32Array(n),
     outbox: new Outbox(),
   };

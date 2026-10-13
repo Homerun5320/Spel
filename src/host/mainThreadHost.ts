@@ -145,7 +145,7 @@ export class MainThreadHost implements SimHost {
       fromTick,
       toTick: this.state.tick,
       cells: overflowed ? new Uint32Array(0) : Uint32Array.from(cells),
-      owners: overflowed ? new Uint8Array(0) : Uint8Array.from(owners),
+      owners: overflowed ? new Uint16Array(0) : Uint16Array.from(owners),
       fullOwner: overflowed ? this.state.owner.slice() : null,
       rejects: this.state.rejects,
     };

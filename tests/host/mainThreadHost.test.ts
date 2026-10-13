@@ -12,7 +12,7 @@ import { driveScenario } from './helpers';
 const small = () => new MainThreadHost(createEmptyState(6, 5, 7, 4, { debugIntents: true }));
 const diffsOf = (events: HostEvent[]): StateDiff[] => events.flatMap((e) => (e.type === 'diff' ? [e.diff] : []));
 
-async function owners(host: MainThreadHost): Promise<Uint8Array> {
+async function owners(host: MainThreadHost): Promise<Uint16Array> {
   const snap = await host.requestSnapshot();
   const r = deserialize(snap.bytes);
   if (!r.ok) throw new Error('bad snapshot');
@@ -270,7 +270,7 @@ describe('MainThreadHost runs the golden scenario', () => {
 
   it('the diff stream alone rebuilds the ownership array exactly (diffs are complete and ordered)', async () => {
     const host = new MainThreadHost(createScenarioState());
-    const rebuilt = new Uint8Array(128 * 64);
+    const rebuilt = new Uint16Array(128 * 64);
     let expectFrom = 0;
     host.subscribe((e) => {
       if (e.type !== 'diff') return;
