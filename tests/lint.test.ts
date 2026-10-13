@@ -45,6 +45,29 @@ describe('lint self-test: determinism rules in src/sim and src/ai', () => {
     ['localStorage', "export const a = localStorage.getItem('x');", /no-restricted-globals/],
     ['requestAnimationFrame', 'export const a = requestAnimationFrame(() => {});', /no-restricted-globals/],
     ['globalThis', 'export const a = globalThis;', /no-restricted-globals/],
+    // Bypasses of the Math allow-list: Math must only appear as Math.<allowed member>.
+    ['Math destructuring (forbidden member)', 'const { asin } = Math;\nexport const a = asin(0.5);', /no-restricted-syntax: Math may only be used as Math\./],
+    ['Math destructuring (allowed member)', 'const { floor } = Math;\nexport const a = floor(1.5);', /no-restricted-syntax: Math may only be used as Math\./],
+    ['Math alias', 'const M = Math;\nexport const a = M.sin(1);', /no-restricted-syntax: Math may only be used as Math\./],
+    ['Math assignment', 'let m: unknown = 0;\nm = Math;\nexport { m };', /no-restricted-syntax: Math may only be used as Math\./],
+    ['Math passed as argument', 'declare function use(m: unknown): number;\nexport const a = use(Math);', /no-restricted-syntax: Math may only be used as Math\./],
+    ['Math returned', 'export function getMath() {\n  return Math;\n}', /no-restricted-syntax: Math may only be used as Math\./],
+    ['Math in array', 'export const a = [Math];', /no-restricted-syntax: Math may only be used as Math\./],
+    ['Math in object shorthand', 'export const a = { Math };', /no-restricted-syntax: Math may only be used as Math\./],
+    ['Math via sequence expression', 'export const a = (0, Math).sin(1);', /no-restricted-syntax: Math may only be used as Math\./],
+    ['Math via type assertion', 'export const a = (Math as unknown as { sin(x: number): number }).sin(1);', /no-restricted-syntax: Math may only be used as Math\./],
+    ['Math computed with an allowed-looking variable', "const abs = 'sin';\nexport const a = Math[abs](1);", /no-restricted-syntax: Only exactly-rounded Math functions/],
+    // Bypasses of the object-key iteration bans.
+    ['Reflect.ownKeys', 'export const a = Reflect.ownKeys({ a: 1 });', /no-restricted-syntax: Reflect\.ownKeys is forbidden/],
+    ['Reflect.ownKeys optional call', 'export const a = Reflect.ownKeys?.({ a: 1 });', /no-restricted-syntax: Reflect\.ownKeys is forbidden/],
+    ['Object.getOwnPropertyNames', 'export const a = Object.getOwnPropertyNames({ a: 1 });', /no-restricted-syntax: Object\.keys\/values\/entries\/getOwnPropertyNames/],
+    ['Object.getOwnPropertySymbols', 'export const a = Object.getOwnPropertySymbols({ a: 1 });', /no-restricted-syntax: Object\.keys\/values\/entries\/getOwnPropertyNames/],
+    ['Object computed member', "export const a = Object['keys']({ a: 1 });", /no-restricted-syntax: Computed member access on Object or Reflect/],
+    ['Reflect computed member', "export const a = Reflect['ownKeys']({ a: 1 });", /no-restricted-syntax: Computed member access on Object or Reflect/],
+    ['Object destructuring', 'const { keys } = Object;\nexport const a = keys({ a: 1 });', /no-restricted-syntax: Object may only be used as Object\./],
+    ['Object alias', 'const O = Object;\nexport const a = O.keys({ a: 1 });', /no-restricted-syntax: Object may only be used as Object\./],
+    ['Reflect destructuring', 'const { ownKeys } = Reflect;\nexport const a = ownKeys({ a: 1 });', /no-restricted-syntax: Reflect may only be used as Reflect\./],
+    ['Reflect alias', 'const R = Reflect;\nexport const a = R.ownKeys({ a: 1 });', /no-restricted-syntax: Reflect may only be used as Reflect\./],
   ];
 
   for (const [name, code, rule] of forbidden) {
@@ -66,6 +89,19 @@ describe('lint self-test: determinism rules in src/sim and src/ai', () => {
       '  for (let i = 0; i < 3; i++) s += i * i;',
       '  return x + y + z + s;',
       '}',
+      '',
+    ].join('\n');
+    expect(await lint(SIM, code)).toEqual([]);
+  });
+
+  it('other Object and Reflect members and plain properties named Math pass', async () => {
+    const code = [
+      'declare const cfg: Record<string, number>;',
+      'export const frozen = Object.freeze(Object.assign({}, { a: 1 }));',
+      "export const pairs = Object.fromEntries([['a', 1]]);",
+      "export const has = Object.hasOwn({ a: 1 }, 'a') && Reflect.has({ a: 1 }, 'a');",
+      'export const floorFn = Math.floor;',
+      'export const m = cfg.Math;',
       '',
     ].join('\n');
     expect(await lint(SIM, code)).toEqual([]);

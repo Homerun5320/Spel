@@ -34,7 +34,7 @@ ACCEPTANS
 - [x] Two renders in one start are byte-identical; golden rule met; the blank-canvas debug param makes smoke fail
 - [x] Lint self-test: planted Math.sin / Math.asin / Math.log2 / three import in src/sim fail, clean code passes
 - [x] perfguard and heapDelta self-tests pass; CI file test passes
-- [x] CLAUDE.md < 200 lines and holds the required rules; `grep -n PROMPTLISTA CLAUDE.md` gives one line; PROGRESS.md has the resume line, Environment table and usage table
+- [x] CLAUDE.md < 200 lines and holds the required rules; the user-file rule line appears exactly once in CLAUDE.md; PROGRESS.md has the resume line, Environment table and usage table
 - [x] Hook script verified (`bash -n`, manual run: 1 line, exit 0)
 
 The SessionStart hook first runs for real in the NEXT session (it is only loaded at session start).

@@ -27,7 +27,7 @@ Project rules for every session. Keep this file under 200 lines. Constitution: `
 - Commands that may exceed 2 minutes run with `run_in_background` and a log file.
 
 ## Working rules
-- Write GOR and ACCEPTANS as a tickable checklist under "Now" in `docs/PROGRESS.md` first, and tick items off.
+- Write GÖR and ACCEPTANS as a tickable checklist under "Now" in `docs/PROGRESS.md` first, and tick items off.
 - Commit and push WIP at every green sub-goal. If context or usage runs low, commit and write Now / Next.
 - Never weaken or rewrite a test to make it pass. Never delete a test.
 - No refactoring outside the deliverables.

@@ -29,6 +29,15 @@ describe('CLAUDE.md', () => {
   });
 });
 
+describe('the user-file rule line', () => {
+  // The user's own prompt list is named exactly once in CLAUDE.md (and in the charter's section 7), nowhere else in the docs.
+  it('is not repeated in README.md or in any docs/*.md other than the charter', () => {
+    const others = ['README.md', ...fs.readdirSync('docs').filter((f) => f.endsWith('.md') && f !== 'CHARTER.md').map((f) => `docs/${f}`)];
+    const offenders = others.filter((f) => read(f).includes('PROMPTLISTA'));
+    expect(offenders).toEqual([]);
+  });
+});
+
 describe('docs/PROGRESS.md', () => {
   const text = read('docs/PROGRESS.md');
   it('has the resume line, Environment table and usage table', () => {

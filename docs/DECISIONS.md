@@ -45,3 +45,7 @@ In normal mode the F3 overlay is shown by default and the sun drifts 12 degrees 
 
 ### D13 CI file location
 See `docs/PROGRESS.md` ("CI workflow") for which case occurred.
+
+### D14 Lint bypass hardening and hook install detection
+Determinism lint (`eslint.config.js`, src/sim and src/ai): `Math`, `Object` and `Reflect` may only appear as the object of a member expression. Destructuring, aliasing, assigning, passing, returning or wrapping them (`const { asin } = Math`, `const M = Math`, `(0, Math).sin`, `(Math as T).sin`) fails; a plain property read such as `x.Math` is fine. Allowed Math members must be non-computed (`Math[abs]` fails even if a variable is named abs). `Object.getOwnPropertyNames`, `Object.getOwnPropertySymbols`, `Reflect.ownKeys` and any computed member access on Object / Reflect are banned next to keys / values / entries. Every bypass has a case in `tests/lint.test.ts`. The rules guard against accidents, not against deliberate evasion such as `eval` or the `Function` constructor.
+SessionStart hook: a missing hidden lockfile in node_modules (npm writes it last) counts as an incomplete install and triggers `npm ci` (90 s timeout). The report field is "npm ci körd denna session" (ja / nej). After a failed or timed-out `npm ci` the hook removes node_modules so that a half-written tree never looks complete and the next session retries. `tests/hook.test.ts` runs the real script against a stub npm.

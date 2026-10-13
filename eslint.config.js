@@ -41,20 +41,51 @@ const BOUNDARY_IMPORTS = {
 
 const ALLOWED_MATH = 'abs|min|max|floor|ceil|round|trunc|sign|sqrt|imul|fround|clz32';
 
+// Math, Object and Reflect may only appear as the object of a member expression
+// (`Math.floor(x)`, `Object.freeze(o)`). Any other appearance of the identifier (destructuring,
+// aliasing, assignment, passing it as an argument, returning it, `(0, Math)`, `Math as any`, ...)
+// would bypass the member-based selectors below, so it is forbidden. A plain property access such
+// as `x.Math` is not a reference to the global and stays allowed.
+const bareIdentifier = (name, message) => ({
+  selector: `Identifier[name='${name}']:not(MemberExpression > Identifier.object, MemberExpression[computed=false] > Identifier.property)`,
+  message,
+});
+
 const DETERMINISM_SYNTAX = [
   {
-    selector: `MemberExpression[object.name='Math']:not([property.name=/^(${ALLOWED_MATH})$/])`,
+    // Only a non-computed member whose name is on the allow-list passes (`Math[abs]` with a variable named abs does not).
+    selector: `MemberExpression[object.name='Math']:not([computed=false][property.name=/^(${ALLOWED_MATH})$/])`,
     message: `Only exactly-rounded Math functions are allowed (${ALLOWED_MATH.split('|').join(', ')}).`,
   },
+  bareIdentifier(
+    'Math',
+    `Math may only be used as Math.<member> with an allowed member (${ALLOWED_MATH.split('|').join(', ')}); destructuring, aliasing, assigning, passing or returning Math is forbidden (determinism).`,
+  ),
   { selector: "MemberExpression[property.name='toFixed']", message: 'toFixed is forbidden (determinism).' },
   { selector: "MemberExpression[property.name='localeCompare']", message: 'localeCompare is forbidden (determinism).' },
   { selector: "BinaryExpression[operator='**']", message: 'The ** operator is forbidden (determinism).' },
   { selector: "AssignmentExpression[operator='**=']", message: 'The **= operator is forbidden (determinism).' },
   { selector: 'ForInStatement', message: 'for...in is forbidden (object-key iteration).' },
   {
-    selector: "MemberExpression[object.name='Object'][property.name=/^(keys|values|entries)$/]",
-    message: 'Object.keys/values/entries are forbidden (object-key iteration).',
+    selector: "MemberExpression[object.name='Object'][property.name=/^(keys|values|entries|getOwnPropertyNames|getOwnPropertySymbols)$/]",
+    message: 'Object.keys/values/entries/getOwnPropertyNames/getOwnPropertySymbols are forbidden (object-key iteration).',
   },
+  {
+    selector: "MemberExpression[object.name='Reflect'][property.name='ownKeys']",
+    message: 'Reflect.ownKeys is forbidden (object-key iteration).',
+  },
+  {
+    selector: "MemberExpression[computed=true][object.name=/^(Object|Reflect)$/]",
+    message: 'Computed member access on Object or Reflect is forbidden (it would bypass the key-iteration bans).',
+  },
+  bareIdentifier(
+    'Object',
+    'Object may only be used as Object.<member>; destructuring, aliasing, assigning, passing or returning Object is forbidden (it would bypass the key-iteration bans).',
+  ),
+  bareIdentifier(
+    'Reflect',
+    'Reflect may only be used as Reflect.<member>; destructuring, aliasing, assigning, passing or returning Reflect is forbidden (it would bypass the key-iteration bans).',
+  ),
 ];
 
 export default defineConfig([
