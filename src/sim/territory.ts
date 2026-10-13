@@ -4,11 +4,12 @@
 // and the debug paint all go through it, so no derived structure can be forgotten.
 import type { Attack } from './attacks';
 import { OUTBOX_PAINT } from './outbox';
-import { WEIGHT_ONE } from './rules';
+import { D_MAX_CELLS, WEIGHT_ONE } from './rules';
 import type { GameState } from './state';
 
 // Bound once at load, see src/sim/attacks.ts.
 const PAINT = OUTBOX_PAINT;
+const DEPTH_MAX = D_MAX_CELLS;
 
 /**
  * Gives a cell to `owner` (an ownerId, or NO_OWNER to free it), stamps it with the id of the intent or attack that did it
@@ -27,6 +28,7 @@ export function changeOwner(state: GameState, cell: number, owner: number, stamp
   const prev = state.owner[cell] as number;
   state.stamp[cell] = stamp;
   if (prev === owner) return;
+  state.exposure[cell] = 0; // an exposure record belongs to the owner the cell had
   const weight = state.grid.weight(cell);
   const { area, warea } = state.agg;
   if (prev !== 0) {
@@ -56,10 +58,13 @@ export function changeOwner(state: GameState, cell: number, owner: number, stamp
  *    neighbours, runs of non-`next` cells), or if the cell itself was what kept the region open by touching a wall (sea,
  *    Peak, Ice, the edge of the map; a wall joins nothing, so the runs do not see it). A third owner at the cell needs no
  *    rule of its own: it is a port, and a port that is linked to the region's port through a non-`next` diagonal cell keeps
- *    touching it. A straight border between two owners queues nothing.
+ *    touching it. A straight border between two owners queues none of these ports.
  * A cell that is itself waiting in the queue and changes owner hands its job to its non-`next` ports (the region it stood
- * for may now be a region next to it). The cell itself is queued only when it has at most one friendly neighbour (a lone
- * cell or a tip): the one way to make a pocket of `next` is to put its cell down inside somebody else's land.
+ * for may now be a region next to it). The cell itself is queued too whenever it has a neighbour at all, unless it touches two
+ * different foreign owners (D86, corrected in D91): it joins its friendly neighbours into ONE region of `next`, and the cell
+ * may have been the last leak of that merged region (a small region of the new owner's own land that this change closes in,
+ * or a lone cell put down inside somebody else's land); a fill from the cell covers the merged region. With two different
+ * foreign owners at the cell the region touches both, so it is open and nothing is queued for it.
  */
 function afterChange(state: GameState, cell: number, prev: number, next: number, viaSlot: number, viaDepth: number): void {
   const grid = state.grid;
@@ -73,6 +78,7 @@ function afterChange(state: GameState, cell: number, prev: number, next: number,
   const seen = state.scratch.seen;
   const table = state.attacks;
   const attacking = table.list.length > 0;
+  const exposure = state.exposure;
   const enclaves = state.enclaves;
   const seed = state.header.seed;
   const w = grid.width;
@@ -108,6 +114,9 @@ function afterChange(state: GameState, cell: number, prev: number, next: number,
   let seenCount = 0;
   let diffHere = 0;
   let friends = 0;
+  let foreign = -1; // the owner of the first foreign port; twoForeign: a second, different one exists
+  let twoForeign = false;
+  let prevPort = -1; // the first port that still belongs to `prev`: a piece of the region that has just lost the cell
   for (let i = 0; i < 4; i++) {
     const n = ports[i] as number;
     if (n < 0) continue;
@@ -120,13 +129,18 @@ function afterChange(state: GameState, cell: number, prev: number, next: number,
       const e = next < r ? next * slots + r : r * slots + next;
       edges[e] = (edges[e] as number) + 1;
       diffHere++;
+      if (foreign === -1) foreign = r;
+      else if (foreign !== r) twoForeign = true;
       if (r !== prev || runs >= 2 || leak || wasQueued) enclaves.push(n, seed);
+      else if (prevPort === -1) prevPort = n;
       if (attacking) {
         // The attack of `next` on `r` gains n, a cell of its target that now touches a new cell of the attacker.
         const s1 = table.slotOf[next * slots + r] as number;
         if (s1 >= 0 && !touchesOther(grid, owner, n, cell, next)) {
           // (n already touching another cell of the attacker means it is in the frontier already: no duplicate)
-          (table.list[s1] as Attack).push(n, s1 === viaSlot ? viaDepth + 1 : 0);
+          const depth = s1 === viaSlot ? (viaDepth < DEPTH_MAX ? viaDepth + 1 : DEPTH_MAX) : 0;
+          (table.list[s1] as Attack).push(n, depth);
+          exposure[n] = (next << 8) | depth; // the record that a relaunch of this attack starts from (D91)
           state.work.pushed++;
         }
         // The attack of `r` on `next` gains the cell itself: it is now land of its target and touches r.
@@ -154,7 +168,13 @@ function afterChange(state: GameState, cell: number, prev: number, next: number,
   }
   diff[cell] = diffHere;
   if (diffHere > 0 && next !== 0 && b.listed[cell] !== next) b.add(next, cell);
-  if (diffHere >= 3 || (diffHere > 0 && friends === 0)) enclaves.push(cell, seed);
+  // The cell joins its friendly neighbours into one region of `next`, and that merged region may be closed in now (the cell
+  // may have been its last leak): queue the cell, whose fill covers the merged region. Two different foreign owners at the
+  // cell mean the region touches both, so it cannot be an enclave.
+  if (!twoForeign && (friends > 0 || diffHere > 0)) enclaves.push(cell, seed);
+  // The region of `prev` has lost the cell. It may now be small enough (at most ENCLAVE_MAX_CELLS) to be an enclave that was
+  // open only because it was too big: one of its ports is checked (all its pieces are covered by the SPLIT rule above).
+  if (prevPort !== -1) enclaves.push(prevPort, seed);
 }
 
 /** Is `c` (-1: off the map) a playable cell, other than `cell`, that is not `next`'s? Walls (off the map, unplayable) are no cells: they join nothing. */

@@ -4,7 +4,8 @@ import { describe, expect, it } from 'vitest';
 import { advanceAttack } from '../../src/sim/conquest';
 import { ENCLAVE_MAX_CELLS, ENCLAVE_PASS_BUDGET_CELLS } from '../../src/sim/rules';
 import { step } from '../../src/sim/step';
-import type { GameState } from '../../src/sim/state';
+import { type GameState } from '../../src/sim/state';
+import { setOwner } from '../../src/sim/territory';
 import { makeBurstState } from '../helpers/burstWorld';
 import { startRealMatch } from '../helpers/realMatch';
 import { landState } from './helpers/worlds';
@@ -122,7 +123,38 @@ describe('work counters on a whole match: 12 players and 20 tribes on the real w
       `[work] ${ticks} ticks of the 12+20 match: mean cells scanned per tick ${(scannedSum / ticks).toFixed(0)} (max ${scannedMax}, the map has ${cells}), changed per tick ${(paintsSum / ticks).toFixed(1)}, scanned per changed cell ${typical.toFixed(1)}, ` +
         `candidates per changed cell ${(candidatesSum / paintsSum).toFixed(2)}, launch reads ${launchSum}; captures ${changedSum} (conquest + enclave flips)`,
     );
-    expect(typical).toBeLessThan(60);
+    // 110: the candidate rule of D91 queues the captured cell and one port of the region it left (about 1.8 candidates per change, each a fill of up to 65 cells); it was 60 for the rule of D86 (about 1.1 candidates per change)
+    expect(typical).toBeLessThan(110);
     expect(changedSum).toBeGreaterThan(5000);
+  }, 60000);
+});
+
+describe('the enclave pass: its budget is real and what it cannot do now is done later', () => {
+  it('a lattice of 32 041 lone cells in a 360x360 world: no pass visits more than ENCLAVE_PASS_BUDGET_CELLS + ENCLAVE_MAX_CELLS + 1 cells, a pass does run into the budget, and every lone cell flips in the end', () => {
+    const n = 360;
+    const s = landState(n, n, { seats: 2 });
+    for (let c = 0; c < n * n; c++) setOwner(s, c, 1, 0);
+    for (let y = 1; y < n - 1; y += 2) for (let x = 1; x < n - 1; x += 2) setOwner(s, y * n + x, 2, 0);
+    const lone = s.agg.area[2] as number;
+    expect(lone).toBe(179 * 179);
+    expect(s.enclaves.length).toBeGreaterThan(20 * ENCLAVE_PASS_BUDGET_CELLS); // far more work than the budget of one pass of any bucket
+    let maxVisited = 0;
+    let budgeted = 0;
+    let flipped = 0;
+    for (let t = 0; t < 800; t++) {
+      step(s, { turn: s.tick, intents: [] });
+      const v = s.work.enclaveVisited;
+      maxVisited = Math.max(maxVisited, v);
+      if (v > ENCLAVE_PASS_BUDGET_CELLS - 10) budgeted++;
+      flipped += s.work.enclaveFlipped;
+      expect(v, `tick ${t}`).toBeLessThanOrEqual(ENCLAVE_PASS_BUDGET_CELLS + ENCLAVE_MAX_CELLS + 1);
+    }
+    console.log(`[work] lattice of ${lone} lone cells: largest pass visited ${maxVisited} cells (budget ${ENCLAVE_PASS_BUDGET_CELLS}), ${budgeted} passes ran into the budget, ${flipped} cells flipped, ${s.enclaves.length} candidates still waiting`);
+    expect(budgeted).toBeGreaterThan(0);
+    expect(maxVisited).toBeGreaterThan(ENCLAVE_PASS_BUDGET_CELLS - 10);
+    expect(s.agg.area[2], 'candidates that did not fit a pass were lost').toBe(0);
+    expect(flipped).toBe(lone);
+    expect(s.agg.area[1]).toBe(n * n);
+    expect(s.scratch.mark.every((m) => m === 0), 'the marks of a pass are cleared').toBe(true);
   }, 60000);
 });

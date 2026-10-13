@@ -12,8 +12,8 @@ import { createRng } from './rng';
 import { WEIGHT_ONE } from './rules';
 import { WorkCounters } from './work';
 
-/** Bumped whenever a rule, a constant in rules.ts or the meaning of a state array changes. Part of the match header. 2: M04 (economy, Spawn, owner arrays). 3: M04 conquest (attacks, enclaves, calibrated constants). */
-export const ENGINE_VERSION = 3;
+/** Bumped whenever a rule, a constant in rules.ts or the meaning of a state array changes. Part of the match header. 2: M04 (economy, Spawn, owner arrays). 3: M04 conquest (attacks, enclaves, calibrated constants). 4: M04 fix pass (the exposure array, the enclave candidate rule). */
+export const ENGINE_VERSION = 4;
 
 // Structural limits (not tunables): a seat is one byte on the wire (intents), so 255 seats at most; ownerId is a Uint16
 // (room for tribes after the players), a cell index must stay below 2^22.
@@ -111,6 +111,12 @@ export interface GameState {
   readonly owner: Uint16Array;
   /** The id of the intent that last painted the cell (0 when never painted). */
   readonly stamp: Uint32Array;
+  /**
+   * How deep the cell was when a capture last exposed it to an attacker: `attacker << 8 | depth` (depth 0..D_MAX_CELLS), 0 =
+   * never exposed. Cleared whenever the cell changes owner. A new attack of that attacker starts the cell at this depth, so
+   * cancelling and relaunching an attack cannot reset the depth term of the price (D91).
+   */
+  readonly exposure: Uint16Array;
   /** Q15 cos(latitude) of each row: the cell weight. The committed table for the real world, the sine table for fixtures. Constant. */
   readonly rowCos: Uint16Array;
   /** Troops per ownerId (index 0 unused) in quarter troops. */
@@ -139,7 +145,7 @@ export interface GameState {
 }
 
 /** The state arrays in their fixed order (serialisation and hash). Adding an array means adding it here, in serialize.ts and in the tests. */
-export const STATE_ARRAY_NAMES = ['rng', 'terrain', 'elevation', 'owner', 'stamp', 'rowCos', 'troops', 'troopFrac', 'gold', 'capital'] as const;
+export const STATE_ARRAY_NAMES = ['rng', 'terrain', 'elevation', 'owner', 'stamp', 'exposure', 'rowCos', 'troops', 'troopFrac', 'gold', 'capital'] as const;
 export type StateArrayName = (typeof STATE_ARRAY_NAMES)[number];
 export type StateArray = Uint8Array | Uint16Array | Uint32Array;
 
@@ -155,6 +161,8 @@ export function stateArray(state: GameState, name: StateArrayName): StateArray {
       return state.owner;
     case 'stamp':
       return state.stamp;
+    case 'exposure':
+      return state.exposure;
     case 'rowCos':
       return state.rowCos;
     case 'troops':
@@ -223,6 +231,7 @@ export interface StateParts {
   readonly elevation: Uint16Array;
   readonly owner: Uint16Array;
   readonly stamp: Uint32Array;
+  readonly exposure: Uint16Array;
   readonly rowCos: Uint16Array;
   readonly troops: Uint32Array;
   readonly troopFrac: Uint32Array;
@@ -307,6 +316,7 @@ export function createState(p: CreateStateParams): GameState {
     elevation,
     owner: new Uint16Array(n),
     stamp: new Uint32Array(n),
+    exposure: new Uint16Array(n),
     rowCos: p.rowCos !== undefined ? p.rowCos.slice() : rowCosFromLut(p.height),
     troops: new Uint32Array(ownerSlots(p.seats)),
     troopFrac: new Uint32Array(ownerSlots(p.seats)),

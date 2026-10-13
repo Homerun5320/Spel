@@ -6,7 +6,7 @@
 //   32 height u32            36 tick u32              40 rejects u32          44 rng[4] u32 x 4
 //   60 players u32
 //   64 terrain u8 x n        elevation u16 x n        owner u16 x n           stamp u32 x n
-//      rowCos u16 x height   troops u32 x (seats+1)   troopFrac u32 x (seats+1)
+//      exposure u16 x n  rowCos u16 x height   troops u32 x (seats+1)   troopFrac u32 x (seats+1)
 //      gold u32 x (seats+1)  capital u32 x (seats+1)
 //      attacks: seq u32, count u32, then per attack id attacker target troops costFrac progress compactAt picks bags (u32 each),
 //               followed by `bags` x (depth u32, count u32, count x cell u32)   (the frontier bags exactly as they are, ascending depth)
@@ -31,14 +31,14 @@ import {
   type MatchHeader,
 } from './state';
 
-/** Bumped when the byte layout above changes. 2: owner u16 (D71). 3: players, rowCos and the per-owner economy arrays (M04). 4: attacks and the enclave queue (M04 conquest). */
-export const FORMAT_VERSION = 4;
+/** Bumped when the byte layout above changes. 2: owner u16 (D71). 3: players, rowCos and the per-owner economy arrays (M04). 4: attacks and the enclave queue (M04 conquest). 5: the exposure array (M04 fix pass). */
+export const FORMAT_VERSION = 5;
 /** 'SPEL' as a little-endian u32. */
 export const MAGIC = 0x4c455053;
 export const HEADER_BYTES = 64;
 const CHECKSUM_BYTES = 4;
-/** terrain 1 + elevation 2 + owner 2 + stamp 4. */
-const BYTES_PER_CELL = 9;
+/** terrain 1 + elevation 2 + owner 2 + stamp 4 + exposure 2. */
+const BYTES_PER_CELL = 11;
 /** rowCos: u16 per row. */
 const BYTES_PER_ROW = 2;
 /** troops, troopFrac, gold, capital: 4 u32 per ownerId (0..seats). */
@@ -60,6 +60,7 @@ export type DeserializeError =
   | 'size'
   | 'owner-range'
   | 'economy-range'
+  | 'exposure-range'
   | 'attack-range'
   | 'enclave-range'
   | 'checksum';
@@ -106,6 +107,7 @@ export function hashState(state: GameState): number {
   x = foldU16(x, state.elevation);
   x = foldU16(x, state.owner);
   x = foldU32(x, state.stamp);
+  x = foldU16(x, state.exposure);
   x = foldU16(x, state.rowCos);
   x = foldU32(x, state.troops);
   x = foldU32(x, state.troopFrac);
@@ -185,6 +187,7 @@ export function serialize(state: GameState): Uint8Array {
   p = putU16s(v, p, state.elevation);
   p = putU16s(v, p, state.owner);
   p = putU32s(v, p, state.stamp);
+  p = putU16s(v, p, state.exposure);
   p = putU16s(v, p, state.rowCos);
   p = putU32s(v, p, state.troops);
   p = putU32s(v, p, state.troopFrac);
@@ -273,6 +276,13 @@ export function deserialize(bytes: Uint8Array): DeserializeResult {
   for (let i = 0; i < n; i++) if ((owner[i] as number) > seats) return fail('owner-range');
   const stamp = new Uint32Array(n);
   p = getU32s(v, p, stamp);
+  const exposure = new Uint16Array(n);
+  p = getU16s(v, p, exposure);
+  // An exposure record is 0 or (an attacker that exists, a depth in range).
+  for (let i = 0; i < n; i++) {
+    const e = exposure[i] as number;
+    if (e !== 0 && ((e >>> 8) < 1 || (e >>> 8) > seats || (e & 255) > D_MAX_CELLS)) return fail('exposure-range');
+  }
   const rowCos = new Uint16Array(height);
   p = getU16s(v, p, rowCos);
   if (!validRowCos(rowCos)) return fail('header');
@@ -361,7 +371,7 @@ export function deserialize(bytes: Uint8Array): DeserializeResult {
   const header: MatchHeader = Object.freeze({ engineVersion, mapHash, seed, config: Object.freeze(config), seats, players });
   let state: GameState;
   try {
-    state = assembleState({ header, width, height, tick: v.getUint32(36, true), rejects: v.getUint32(40, true), rng, terrain, elevation, owner, stamp, rowCos, troops, troopFrac, gold, capital, attacks, enclaves });
+    state = assembleState({ header, width, height, tick: v.getUint32(36, true), rejects: v.getUint32(40, true), rng, terrain, elevation, owner, stamp, exposure, rowCos, troops, troopFrac, gold, capital, attacks, enclaves });
   } catch {
     return fail('header');
   }

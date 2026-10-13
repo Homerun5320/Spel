@@ -7,7 +7,7 @@ import { rebuildAggregates, type GameState } from '../../src/sim/state';
 import { step } from '../../src/sim/step';
 import { setOwner } from '../../src/sim/territory';
 import { CLASS_DEEP_SEA, CLASS_PLAINS } from '../../src/sim/terrain';
-import { MatchDriver, RPLAYERS, RSEATS, RW, RH, randomMatchState } from './helpers/randomMatch';
+import { MatchDriver, RPLAYERS, RSEATS, RW, RH, denseBodies, denseWorld, randomMatchState } from './helpers/randomMatch';
 import { landState } from './helpers/worlds';
 
 const idx = (s: GameState, x: number, y: number): number => y * s.width + x;
@@ -200,6 +200,20 @@ describe('enclaves flip to the player that closes them in, within ENCLAVE_FLIP_T
     expect(flippedAt).toBeLessThan(ENCLAVE_FLIP_TICKS);
   });
 
+  it('PINNED for M12a: a landing party of 1, 9 or 64 cells behind enemy lines is an enclave and flips to the surrounding player within 20 ticks; 65 cells stay (the cap is below the 80 cells at which M12a calls a beachhead established; BACKLOG: beachheads need an exemption)', () => {
+    for (const cells of [1, 9, 64, 65]) {
+      const s = landState(24, 16, { seats: 3 });
+      for (let c = 0; c < s.grid.cells; c++) setOwner(s, c, 1, 0);
+      const side = Math.ceil(Math.sqrt(cells));
+      let n = 0;
+      for (let y = 4; y < 4 + side && n < cells; y++) for (let x = 4; x < 4 + side && n < cells; x++, n++) setOwner(s, idx(s, x, y), 2, 0);
+      expect(s.agg.area[2]).toBe(cells);
+      idle(s, 2 * ENCLAVE_FLIP_TICKS);
+      expect(s.agg.area[2], `${cells} cells`).toBe(cells <= ENCLAVE_MAX_CELLS ? 0 : cells);
+    }
+    expect(ENCLAVE_MAX_CELLS).toBeLessThan(80);
+  });
+
   it('an enclave that is open stays: it touches the sea, a third owner, an unplayable cell, or is larger than ENCLAVE_MAX_CELLS', () => {
     // sea next to the pocket
     const sea = pocketWorld(2, 2, (s) => {
@@ -307,15 +321,66 @@ describe('which changes queue an enclave check (each rule of the candidate rule,
     expect(s.owner[idx(s, 5, 7)]).toBe(1);
   });
 
-  it('A STRAIGHT BORDER queues nothing: taking a border cell between two stretches of the same region does not call for a check', () => {
-    const s = settled([[7, 5, 0], [8, 5, 0], [9, 5, 0], [7, 6, 0], [8, 6, 0], [9, 6, 0], [10, 5, 3]]); // a free block that also touches owner 3: open, so it stays
-    // owner 1 takes (8, 5) next to a free block: the free cells around it form ONE run, so no neighbour is queued; only the
-    // cell itself is (three of its four neighbours are foreign: a tip)
+  it('A STRAIGHT BORDER queues no more than the cell and ONE piece of the region it left: taking a border cell between two stretches of the same region does not queue all its ports (D86, corrected in D91)', () => {
+    const free = [[7, 5], [8, 5], [9, 5], [7, 6], [8, 6], [9, 6]] as const;
+    const s = settled([...free.map(([x, y]) => [x, y, 0] as [number, number, number]), [10, 5, 3]]); // a free block that also touches owner 3: open, so it stays
+    // owner 1 takes (8, 5) next to a free block: the free cells around it form ONE run (no split), so the cell itself is queued
+    // (it joins the owner's land into one region, which this change may have closed in) and one port of the free region it left
     setOwner(s, idx(s, 8, 5), 1, 0);
-    expect(s.enclaves.length).toBe(1);
-    // and (7, 5) beside it: one foreign neighbour, three friends, one run: nothing new
+    expect(s.enclaves.length).toBe(2);
+    expect(s.enclaves.queued[idx(s, 8, 5)]).toBe(1);
+    const ports = [[7, 5], [9, 5], [8, 6]] as const;
+    expect(ports.filter(([x, y]) => s.enclaves.queued[idx(s, x, y)] === 1).length).toBe(1);
+    // and (7, 5) beside it: again the cell and one port of the free region (it has one free port, (7, 6))
     setOwner(s, idx(s, 7, 5), 1, 0);
-    expect(s.enclaves.length).toBe(1);
+    expect(s.enclaves.length).toBe(4);
+    expect(s.enclaves.queued[idx(s, 7, 5)]).toBe(1);
+    expect(s.enclaves.queued[idx(s, 7, 6)]).toBe(1);
+  });
+
+  it('MERGE: taking the last leak of a small region of the taker\'s OWN land closes the merged region in (the cell itself is the candidate)', () => {
+    // owner 1 holds everything; owner 3 holds (3,1) and (2,2), two diagonal cells; owner 2 holds the cell (3,2) between them, which
+    // touches both and so keeps the pocket {(3,1), (2,2), (3,2)} open (it touches owners 1 and 2)
+    const s = landState(16, 12, { seats: 3, players: 3 });
+    for (let c = 0; c < s.grid.cells; c++) setOwner(s, c, 1, 0);
+    setOwner(s, idx(s, 3, 1), 3, 0);
+    setOwner(s, idx(s, 2, 2), 3, 0);
+    setOwner(s, idx(s, 3, 2), 2, 0);
+    idle(s, 2 * ENCLAVE_FLIP_TICKS);
+    expect(s.agg.area[3]).toBe(2); // two single cells of owner 3 are open: each touches owner 1 and owner 2's cell
+    // owner 3 takes the leak: its three cells are now one region with only owner 1 around it
+    setOwner(s, idx(s, 3, 2), 3, 0);
+    idle(s, ENCLAVE_FLIP_TICKS);
+    expect([idx(s, 3, 1), idx(s, 2, 2), idx(s, 3, 2)].map((c) => s.owner[c])).toEqual([1, 1, 1]);
+    expect(s.agg.area[3]).toBe(0);
+  });
+
+  it('TWO FOREIGN OWNERS: a captured cell that touches two different foreign owners is not queued (its region is open); with one foreign owner it is', () => {
+    const make = (): GameState => settled([[5, 5, 2], [6, 5, 3]]); // (5,5) touches owners 1 and 3, (6,5) touches 1 and 2: both stay
+    const open = make();
+    expect(open.owner[idx(open, 5, 5)]).toBe(2);
+    setOwner(open, idx(open, 5, 5), 4, 0); // the new owner 4 meets owners 1 and 3
+    expect(open.enclaves.queued[idx(open, 5, 5)]).toBe(0);
+    const closed = make();
+    setOwner(closed, idx(closed, 5, 5), 3, 0); // owner 3 joins its neighbour (6,5): the region {(5,5), (6,5)} meets owner 1 only
+    expect(closed.enclaves.queued[idx(closed, 5, 5)]).toBe(1);
+    idle(closed, ENCLAVE_FLIP_TICKS);
+    expect([closed.owner[idx(closed, 5, 5)], closed.owner[idx(closed, 6, 5)]]).toEqual([1, 1]);
+  });
+
+  it('SHRINK: a region that was too big to be an enclave and is eaten down to ENCLAVE_MAX_CELLS cells by its surrounding owner flips (the captured cell\'s ports that still belong to the old owner are checked)', () => {
+    const s = landState(20, 14, { seats: 3 });
+    for (let c = 0; c < s.grid.cells; c++) setOwner(s, c, 1, 0);
+    for (let y = 3; y < 9; y++) for (let x = 4; x < 15; x++) setOwner(s, idx(s, x, y), 2, 0); // 6 x 11 = 66 cells of owner 2 inside owner 1
+    idle(s, 2 * ENCLAVE_FLIP_TICKS);
+    expect(s.agg.area[2]).toBe(66); // larger than ENCLAVE_MAX_CELLS: open
+    setOwner(s, idx(s, 4, 3), 1, 0); // 65 cells
+    idle(s, 2 * ENCLAVE_FLIP_TICKS);
+    expect(s.agg.area[2]).toBe(65);
+    setOwner(s, idx(s, 14, 8), 1, 0); // 64 cells: now an enclave
+    idle(s, ENCLAVE_FLIP_TICKS);
+    expect(s.agg.area[2]).toBe(0);
+    expect(s.agg.area[1]).toBe(20 * 14);
   });
 
   it('A PENDING CANDIDATE that changes owner hands its job to its neighbours', () => {
@@ -395,5 +460,83 @@ describe('after quiet ticks no small region is left enclosed by one player (the 
     expect(enclosedRegions(s)).toEqual([[idx(s, 4, 4)]]);
     expect(RSEATS).toBeGreaterThan(RPLAYERS);
     expect(RW * RH).toBe(1536);
+  });
+});
+
+/** Every enclosed region (see the header of src/sim/enclaves.ts) of at most ENCLAVE_MAX_CELLS cells, keyed by owner, surrounding owner and cells. */
+function enclosedKeys(s: GameState): Map<string, number> {
+  const seen = new Uint8Array(s.grid.cells);
+  const nb = new Int32Array(4);
+  const out = new Map<string, number>();
+  for (let start = 0; start < s.grid.cells; start++) {
+    if (seen[start] || s.grid.playable[start] !== 1) continue;
+    const x = s.owner[start] as number;
+    const region = [start];
+    seen[start] = 1;
+    let surround = -1;
+    let open = false;
+    for (let h = 0; h < region.length; h++) {
+      const c = region[h] as number;
+      const n = s.grid.neighbours(c, nb);
+      for (let k = 0; k < n; k++) {
+        const m = nb[k] as number;
+        if (m === c) continue;
+        if (s.grid.playable[m] !== 1) open = true;
+        else if (s.owner[m] === x) {
+          if (!seen[m]) {
+            seen[m] = 1;
+            region.push(m);
+          }
+        } else if (surround === -1) surround = s.owner[m] as number;
+        else if (surround !== s.owner[m]) open = true;
+      }
+    }
+    if (!open && surround > 0 && region.length <= ENCLAVE_MAX_CELLS) out.set(`${x}:${surround}:${region.sort((p, q) => p - q).join(',')}`, region.length);
+  }
+  return out;
+}
+
+describe('an enclosed region never outlives its check: looked for after EVERY tick of dense matches on tiny worlds (D91)', () => {
+  // Small power-of-two and odd widths, narrow and flat worlds, many seats on few cells: the shapes where regions close in all the time.
+  const shapes: Array<[string, number, number, number]> = [
+    ['8x12', 8, 12, 7],
+    ['5x5', 5, 5, 9],
+    ['3x10', 3, 10, 7],
+    ['9x2', 9, 2, 7],
+    ['16x7', 16, 7, 7],
+    ['32x9', 32, 9, 7],
+    ['24x16', 24, 16, 7],
+    ['128x64', 128, 64, 7],
+  ];
+  let flipped = 0;
+  let steps = 0;
+  for (const [name, w, h, seats] of shapes) {
+    const seeds = w * h > 1000 ? 2 : 30;
+    it(`${name}: ${seeds} seeds x 2 modes x 450 ticks, no enclosed region stays for more than ${ENCLAVE_FLIP_TICKS + 1} ticks`, () => {
+      for (let seed = 1; seed <= seeds; seed++) {
+        for (const mode of [0, 1]) {
+          const s = denseWorld(seed * 7 + mode, w, h, seats, 3);
+          const d = new MatchDriver(s, seed);
+          const firstSeen = new Map<string, number>();
+          for (let t = 0; t < 450; t++) {
+            expect(d.step(d.intents(denseBodies(seed * 31 + mode, s.tick, seats, w * h, mode)))).toBe(true);
+            s.outbox.clear();
+            steps++;
+            flipped += s.work.enclaveFlipped;
+            const now = enclosedKeys(s);
+            for (const k of now.keys()) if (!firstSeen.has(k)) firstSeen.set(k, s.tick);
+            for (const [k, t0] of [...firstSeen]) {
+              if (!now.has(k)) firstSeen.delete(k);
+              else if (s.tick - t0 > ENCLAVE_FLIP_TICKS + 1) expect.fail(`${name} seed ${seed} mode ${mode}: the region ${k.slice(0, 60)} has been enclosed for ${s.tick - t0} ticks`);
+            }
+          }
+        }
+      }
+    });
+  }
+
+  it('it is not vacuous: the matches flip many enclosed cells', () => {
+    expect(steps).toBeGreaterThan(6 * 30 * 2 * 450 + 2 * 2 * 450 - 1);
+    expect(flipped).toBeGreaterThan(5000);
   });
 });

@@ -76,3 +76,40 @@ import { step } from '../../../src/sim/step';
 function stepFn(state: GameState, intents: Intent[]): boolean {
   return step(state, { turn: state.tick, intents }).ok;
 }
+
+/**
+ * The intent bodies of one tick of a DENSE random match on a tiny world: more seats than players, spawns in the first ticks, then
+ * attacks, cancels, debug paints and the odd refused intent. `mode` 1 sends many attackers at one target. Pure in (seed, tick).
+ */
+export function denseBodies(seed: number, tick: number, seats: number, cells: number, mode: number): IntentBody[] {
+  const out: IntentBody[] = [];
+  if (tick < seats + 2) out.push({ kind: 'Spawn', seat: tick % seats, cell: hash2(seed, tick, 7) % cells });
+  const n = hash2(seed, tick, 1) % (mode === 1 ? 6 : 3);
+  for (let j = 0; j < n; j++) {
+    const g = hash2(seed, tick, 10 + j);
+    const seat = g % seats;
+    const roll = (g >>> 8) % 100;
+    let target = hash2(seed, tick, 20 + j) % (seats + 1);
+    if (mode === 1) target = hash2(seed, tick, 90) % 3 === 0 ? 0 : 1 + (hash2(seed, tick, 91) % seats);
+    if (roll < 12) out.push({ kind: 'Spawn', seat, cell: hash2(seed, tick, 30 + j) % cells });
+    else if (roll < 72) out.push({ kind: 'Attack', seat, target, pct: 1 + (hash2(seed, tick, 40 + j) % 100) });
+    else if (roll < 82) out.push({ kind: 'CancelAttack', seat, target });
+    else if (roll < 94) out.push({ kind: 'DebugPaint', seat, cell: hash2(seed, tick, 50 + j) % cells });
+    else out.push({ kind: 'Attack', seat, target: seats + 1 + (g % 5), pct: 50 });
+  }
+  return out;
+}
+
+/** A tiny world of w x h playable cells (Forest / Hills / Plains by a hash, elevations to 3000 m) for the dense matches. */
+export function denseWorld(seed: number, width: number, height: number, seats: number, players: number): GameState {
+  const terrain = new Uint8Array(width * height);
+  const elevation = new Uint16Array(width * height);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const own = hash2(seed + 1, x, y) % 10;
+      terrain[y * width + x] = own === 0 ? CLASS_FOREST : own === 1 ? CLASS_HILLS : CLASS_PLAINS;
+      elevation[y * width + x] = hash2(seed + 2, x, y) % 3000;
+    }
+  }
+  return createState({ width, height, seed, seats, players, config: { debugIntents: true }, terrain, elevation });
+}

@@ -13,8 +13,9 @@
 // The cell RATE converts with STD_CELL_AREA (x4), per tick with / TICK_HZ.
 //
 // PRICE per sim cell (milli-QT):  BASE * terrain% * uphill * (1 + d / DEPTH_DIV), where
-//   d   is the depth of the cell in the attack's frontier: how many captures of this attack separate it from land that
-//       touched the attacker before; 0 at the border, clamped to D_MAX_CELLS (D82);
+//   d   is the depth of the cell in the attack's frontier: how many captures separate it from land that touched the attacker
+//       before; 0 at the border, clamped to D_MAX_CELLS (D82). The depth a capture gives a cell is also left in the cell
+//       (state.exposure), so a new attack of the same attacker starts there and cancelling cannot reset it (D91);
 //   dh  is the rise from the highest attacker cell next to the cell to the cell, in HEIGHT_UNIT_M units; uphill
 //       = 1 + 0.25 * dh / 32 capped at x2, downhill and flat cost nothing extra (D83);
 //   the defender pays no terrain term.
@@ -123,6 +124,7 @@ function buildFrontier(state: GameState, a: Attack): void {
   const nb = state.scratch.nb;
   const grid = state.grid;
   const found: number[] = [];
+  const exposure = state.exposure;
   for (let i = 0; i < count; i++) {
     const c = list[i] as number;
     state.work.launchScanned++;
@@ -139,7 +141,13 @@ function buildFrontier(state: GameState, a: Attack): void {
   for (let i = 0; i < found.length; i++) mark[found[i] as number] = 0;
   // Sorted by cell index the frontier does not depend on the order of the boundary list (which depends on history).
   found.sort((x, y) => x - y);
-  a.setInitial(found);
+  // A cell this attacker's captures exposed earlier keeps its depth, so cancelling and relaunching does not reset the price (D91).
+  const depths: number[] = [];
+  for (let i = 0; i < found.length; i++) {
+    const e = exposure[found[i] as number] as number;
+    depths.push(e >>> 8 === a.attacker ? e & 255 : 0);
+  }
+  a.setInitial(found, depths);
   a.compactAt = Math.max(FRONT_COMPACT_MIN, 2 * found.length);
   state.work.pushed += found.length;
 }
@@ -226,9 +234,14 @@ export function advanceAttack(state: GameState, a: Attack, slot: number, n: numb
   return taken;
 }
 
-/** Ends an attack at once: its remaining troops go back to the attacker. For use between phases (intents). */
+/**
+ * Ends an attack at once: its remaining troops go back to the attacker. For use between phases (intents). The part of a cell's
+ * price that was owed but not yet paid (`costFrac`) is paid now, rounded up to one QT, so that cancelling and relaunching an
+ * attack cannot round a price away (D91).
+ */
 function endNow(state: GameState, a: Attack): void {
-  addTroops(state, a.attacker, a.troops);
+  const owed = a.costFrac > 0 && a.troops > 0 ? 1 : 0;
+  addTroops(state, a.attacker, a.troops - owed);
   a.troops = 0;
   a.dead = true;
   state.attacks.removeDead();

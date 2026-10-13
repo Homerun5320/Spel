@@ -41,15 +41,15 @@ describe('serialize / deserialize', () => {
     expect(t.outbox.length).toBe(0);
   });
 
-  it('the layout is the documented one (little-endian, 64 byte header, 9 bytes per cell, 2 per row, 16 per ownerId, the attack table, the enclave queue, 4 byte checksum)', () => {
+  it('the layout is the documented one (little-endian, 64 byte header, 11 bytes per cell, 2 per row, 16 per ownerId, the attack table, the enclave queue, 4 byte checksum)', () => {
     const s = sample(5);
     const b = serialize(s);
     const v = new DataView(b.buffer);
     expect(b.length).toBe(serializedLengthOf(s));
     // fixed part + attack table (8 byte head; per attack 36 bytes, 8 per non-empty frontier bag and 4 per frontier cell) + 20 bucket counts and the queued cells (4 each) + checksum
     const attacks = s.attacks.list.reduce((n, a) => n + 36 + 4 * a.size + 8 * a.counts.reduce((k, c) => k + (c > 0 ? 1 : 0), 0), 0);
-    expect(b.length).toBe(HEADER_BYTES + 128 * 64 * 9 + 64 * 2 + 5 * 16 + 8 + attacks + 20 * 4 + 4 * s.enclaves.length + 4);
-    expect(serializedLength(128, 64, 4)).toBe(HEADER_BYTES + 128 * 64 * 9 + 64 * 2 + 5 * 16 + 8 + 20 * 4 + 4);
+    expect(b.length).toBe(HEADER_BYTES + 128 * 64 * 11 + 64 * 2 + 5 * 16 + 8 + attacks + 20 * 4 + 4 * s.enclaves.length + 4);
+    expect(serializedLength(128, 64, 4)).toBe(HEADER_BYTES + 128 * 64 * 11 + 64 * 2 + 5 * 16 + 8 + 20 * 4 + 4);
     expect(HEADER_BYTES).toBe(64);
     expect(Array.from(b.subarray(0, 4))).toEqual([0x53, 0x50, 0x45, 0x4c]); // 'SPEL'
     expect(v.getUint32(0, true)).toBe(MAGIC);
@@ -67,6 +67,9 @@ describe('serialize / deserialize', () => {
     expect(v.getUint32(60, true)).toBe(4); // players
     expect(b[HEADER_BYTES]).toBe(s.terrain[0]);
     expect(v.getUint16(HEADER_BYTES + 8192 + 2 * 100, true)).toBe(s.elevation[100]);
+    // the exposure array follows the stamp array (terrain 1 + elevation 2 + owner 2 + stamp 4 bytes per cell)
+    const exposureAt = HEADER_BYTES + 128 * 64 * 9;
+    for (const i of [0, 100, 4097, 8191]) expect(v.getUint16(exposureAt + 2 * i, true)).toBe(s.exposure[i]);
     expect(v.getUint32(b.length - 4, true)).toBe(hashState(s));
   });
 
@@ -355,6 +358,6 @@ describe('deserialize: errors are results, never throws', () => {
 
 describe('golden params', () => {
   it('serialized size of the golden world', () => {
-    expect(serialize(createScenarioState(GOLDEN_PARAMS)).length).toBe(64 + 8192 * 9 + 64 * 2 + 5 * 16 + 8 + 20 * 4 + 4);
+    expect(serialize(createScenarioState(GOLDEN_PARAMS)).length).toBe(64 + 8192 * 11 + 64 * 2 + 5 * 16 + 8 + 20 * 4 + 4);
   });
 });

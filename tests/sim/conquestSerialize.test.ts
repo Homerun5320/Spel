@@ -20,7 +20,7 @@ function matchWithAttacks(): GameState {
 
 /** Byte offset of the attack table in the serialized form. */
 function attackStart(s: GameState): number {
-  return HEADER_BYTES + RW * RH * 9 + RH * 2 + (s.header.seats + 1) * 16;
+  return HEADER_BYTES + RW * RH * 11 + RH * 2 + (s.header.seats + 1) * 16;
 }
 
 function error(bytes: Uint8Array): string {

@@ -55,7 +55,7 @@ describe('serialize: economy arrays', () => {
     expect(v((d) => d.setUint32(60, 0, true))).toBe('header');
     expect(v((d) => d.setUint32(60, 6, true))).toBe('header'); // more players than seats
     expect(v((d) => d.setUint32(60, 5, true))).toBe('checksum'); // fine as a header, the checksum notices
-    const rowAt = HEADER_BYTES + 72 * 9;
+    const rowAt = HEADER_BYTES + 72 * 11;
     expect(v((d) => d.setUint16(rowAt, 32769, true))).toBe('header');
   });
 

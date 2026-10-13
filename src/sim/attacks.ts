@@ -1,6 +1,7 @@
 // The attack table: the real game state of the conquest. One Attack per (attacker, target) pair holds the troops committed
 // to it, the progress it has made towards the next cell and its FRONTIER: the target cells that touch the attacker's land,
-// kept in one bag per DEPTH (0 .. D_MAX_CELLS; the depth is what the price of a cell depends on, D82). The attack always
+// kept in one bag per DEPTH (0 .. D_MAX_CELLS; the depth is what the price of a cell depends on, D82; a new attack starts each
+// cell at the depth that state.exposure remembers for it, D91). The attack always
 // takes from the shallowest non-empty bag, and inside a bag it takes the entry that a HASH of (match seed, attack id, number
 // of picks so far) points at, so ties between cells of equal depth are broken by a hash and never by the order in which the
 // cells were found or by their position in an array. A pick is O(1): index by hash, swap with the last entry, shrink.
@@ -116,20 +117,18 @@ export class Attack {
     return out;
   }
 
-  /** Replaces the bags by the given cells, all at depth 0 (a new attack's frontier). */
-  setInitial(cells: readonly number[]): void {
+  /**
+   * Replaces the bags by the given cells (a new attack's frontier). `depths[i]` is the depth of `cells[i]` (0 .. D_MAX_CELLS,
+   * the exposure the cell already had, D91); inside a bag the cells keep the order they were given in.
+   */
+  setInitial(cells: readonly number[], depths: readonly number[]): void {
     for (let d = 0; d <= DEPTH_MAX; d++) {
       this.counts[d] = 0;
       this.bags[d] = null;
     }
     this.size = 0;
     this.low = 0;
-    if (cells.length === 0) return;
-    const bag = new Int32Array(Math.max(INITIAL_CAPACITY, cells.length));
-    for (let i = 0; i < cells.length; i++) bag[i] = cells[i] as number;
-    this.bags[0] = bag;
-    this.counts[0] = cells.length;
-    this.size = cells.length;
+    for (let i = 0; i < cells.length; i++) this.push(cells[i] as number, depths[i] as number);
   }
 
   /** Puts a bag at a depth (deserialize; call recount() when all bags are in). The depth must be in range. */
