@@ -47,15 +47,28 @@ GÖR, Part C (item 6) - NOT started
 - [ ] C-last. `npm run verify` green; `npm run build && npm run artifact:pack`; ARCHITECTURE and DECISIONS final; Så spelar du list for the reply
 
 ACCEPTANS (all three parts; the part that owns each item is in brackets)
-- [ ] [A+B] Playwright `?test=1&seed=7` (`#test_seed-7` is the same match): spawn at fixed coordinates, `advance` 600 ticks, the player's land share above the start value; HUD values equal sim values (`data-testid`); screenshots at tick 0 / 100 / 300 / 600
-- [ ] [A] Negative e2e: spawn on sea, Peak or Ice is refused (state unchanged, reject counter +1); attack on own land and spawn after the phase are refused; pct 0 is refused
-- [ ] [A] Ownership readback equals the owner array in 200 sampled cells; upload counter <= 10 per second (fx clock) whatever the sim speed
-- [ ] [A] Borders: at a border cell on a Mountain cell the border pixel differs from both the own and the neighbour colour by CIE76 dE >= 15; palette has dE >= 25 between the own colour and every other palette colour (unit test)
+- [x] [A done, B re-checks with the real HUD] Playwright `?test=1&seed=7` (`#test_seed-7` is the same match): spawn at fixed coordinates, `advance` 600 ticks, the player's land share above the start value (0.150 % to 0.293 %); HUD values equal sim values (`data-testid`, the temporary HUD; part B must keep the test green for its HUD: land share, timer, leaderboard are new); screenshots at tick 0 / 100 / 300 / 600 (`test-results/shots/match-t000.png` and so on)
+- [x] [A] Negative e2e: spawn on sea, Peak or Ice is refused (state unchanged, reject counter +1); attack on own land and spawn after the phase are refused; pct 0 is refused
+- [x] [A] Ownership readback equals the owner array in 200 sampled cells; upload counter <= 10 per second (fx clock) whatever the sim speed
+- [x] [A] Borders: at a border cell on a Mountain cell the border pixel differs from both the own and the neighbour colour by CIE76 dE >= 15; palette has dE >= 25 between the own colour and every other palette colour (unit test)
 - [ ] [B] i18n: `sv` and `en` have the same keys (parity test); a missing key fails in test mode
 - [ ] [C] 6000-tick run in the browser without console errors; test tier <= 150k triangles; AI v0 `think` median over 200 calls after 20 warm-ups <= `budgetMs(0.5)` per seat (logged); type test and lint forbid `src/ai` from importing step or state
-- [ ] [A] `__test.give` changes gold / troops only through an intent (negative test without debugIntents); golden sim hashes equal in Node and Chromium; [C] `npm run verify` green
+- [x] [A] `__test.give` changes gold / troops only through an intent (negative test without debugIntents: `tests/sim/debugGive.test.ts`; nothing changes before T + 2: `e2e/match.test.ts`); golden sim hashes equal in Node and Chromium (`e2e/sim.test.ts`, unchanged hashes); [ ] [C] `npm run verify` green
 
-Result of Part A: (filled in at the end of the session)
+Result of Part A (this sandbox): `npm run verify:fast` green (typecheck, lint, 81 unit files / 948 tests); the perf project green (5 files / 16 tests); the whole e2e project green (11 files / 71 tests, 184 s: the 59 of M00 to M04 with every golden unchanged, plus the 12 of `e2e/match.test.ts`). `npm run verify` as a whole is NOT run (part C ends with it). Measured and logged by the tests: seed 7 script (spawn at 48.5 N 11 E, attack on unowned land at tick 255): 197 cells after the spawn (a full capital disc), 382 at tick 600, land share 0.150 % to 0.293 %, sim hash `9db19f91` (the same through `#test_seed-7`); ownership uploads 6.0 / 8.3 / 8.7 per fx second at 1x / 2x / 4x with a conquest running every tick (limit 10); border pixel on a Mountain block (cell 143, 88): dE76 25.0 to 29.3 against both the own and the neighbour colour (limit 15); own palette colour at least 32.1 dE76 from every other (limit 25), the 26 seats of a match pairwise at least 20.3; 6600 ticks in the browser without a console error, 74 560 triangles and 3 draw calls in the test tier; the host advance cost per frame at 4x with a running conquest 0.02 ms (300 frames in 6 ms, nothing drawn), in the live page under SwiftShader 3.7 ms mean / 9.1 ms p95 (software GL competing for the CPU; the perf overlay reports it as `match`: sim-steg per bildruta). Nothing is pushed, no pull request opened, no Artifact published.
+
+Notes for part B (HUD, i18n, start screen; read before starting)
+- The temporary UI is `src/ui/matchHud.ts` (`createMatchHud(parent, actions)`, `MatchHudModel`, `rejectText`, `NOT_CONQUERABLE_TEXT`) and `src/ui/startScreen.ts` (`mountStartScreen(parent, onPlay)`); `src/app/globeApp.ts` is the only caller (`startMatch`, `refreshHud`, `onGlobeClick`, the Play button). Replace the contents, keep the call shapes, and move every Swedish string of those two files and of `src/ui/matchHud.ts` `rejectText` into the i18n tables. The test hooks read the HUD through `data-testid` (`troops`, `gold`, `phase`, `phase-text`, `phase-seconds`, `controls`, `speed-*`, `commit`, `commit-slider`, `toast`, `start-screen`, `play`); `e2e/match.test.ts` uses them, so a new HUD either keeps those ids or changes the test in the same commit with a reason.
+- Test mode has no start screen and hides the HUD (`#hud` / `?hud=1` shows it; Dev-panel mode `hud`). Keep both: the six globe goldens of M02 are taken with the HUD hidden. The HUD numbers are NOT interpolated in test mode (`MatchSession` option `interpolate`), so they equal the sim values.
+- Data for the HUD: `session.view.stats` per seat (`troopsQt`, `capQt` for the cap bar and the 80 % warning (`TROOP_WARNING_FRACTION` in `src/ui/uiConfig.ts`), `goldMilli`, `goldPerSecMilli`, `cells`, `landShareQ15` (cos-weighted, 32768 = all land), `alive`), `view.phase` / `phaseTicksLeft` for the timer, `StatInterpolator` (`session.stats.value(field, seat, session.alpha())`) for smooth numbers. The top-5 leaderboard sorts `landShareQ15` over the seats. Troops are shown in whole troops (QT / 4), gold in whole gold (milli / 1000).
+- The Dev panel already has the seed field (id `seed`), the `hud` toggle and the `./debug/sim.html` link; a Dev button on the start screen is the corner button of `src/app/devpanel.ts` (visible outside test mode), or open the panel by `window` key F2.
+- The i18n rule goes into CLAUDE.md (under 200 lines; 103 now). Strings that already exist outside the match UI (the tooltip classes in `src/app/tooltip.ts`, the Dev panel labels, the perf overlay) are old M02 strings; the prompt says every NEW string from M05 on; decide in part B whether to move the old ones too and say so in DECISIONS.
+
+Notes for part C (tribes, AI v0; read before starting)
+- The match is 26 seats: seat 0 you, seats 1 to 5 the AI nations (`MATCH_AI_NATIONS`), seats 6 to 25 the tribes (`MATCH_TRIBES`); `src/app/match.ts` builds it with `spawnPhase` on. Nothing spawns the 25 other seats yet. Tribes must Spawn at tick 0 (the phase allows it), the AI nations during the phase; a Spawn at or after tick 200 is refused (`REJECT_PHASE`), an Attack before tick 200 too, and an Attack on owned land before tick 250 (`REJECT_IMMUNE`), so the AI must wait; tribes attack with T / `TRIBE_ATTACK_DIV` through the normal `Attack` intent.
+- The host calls the AI at tick boundaries with its own memory and PRNG (not the UI's); the AI reads a `SimView`. `StateView` (src/sim/view.ts) is the zero-copy view over a live state for code in the sim's own thread (call `refresh()` after the steps of a frame); `src/sim/public.ts` already exists (barrel: `seatToOwner`, `ownerToSeat`, phases, the view types): part C adds the type-only `Intent` types and constructors and the constants of `src/sim/rules.ts` the AI reads, then the ESLint allow-list for `src/ai` and the type test.
+- `MainThreadHost` takes `stepFn`, `speed`, `hashEveryTicks`; the AI driver needs a hook before each tick (it must submit intents scheduled at T + 2, so call it from `runTicks` per tick, or wrap the host). The `ViewMirror` in the page is untouched by AI intents (it follows the diffs).
+- The default seed of the page is 1 (`?seed=` / `#seed-N` / the Dev panel field change it); the AI and the tribe placement must be pure functions of the seed.
 
 ### M04 fix pass after the independent audit (no visible change; the Artifact is NOT republished; details in D91 of `docs/DECISIONS.md`)
 
@@ -304,7 +317,7 @@ ACCEPTANS
 
 ## Next
 
-- M05 First playable conquest (GATE, i18n): read the notes for M05 at the end of the M04 section under Now, `docs/ARCHITECTURE.md` ("Sim flow") and D82 to D90 first.
+- M05 First playable conquest (GATE, i18n): part A is built (see Now). Next is part B (HUD, i18n, start screen) and then part C (tribes, AI v0, the final `npm run verify`, the Artifact pack): read "Notes for part B" and "Notes for part C" under Now, `docs/ARCHITECTURE.md` ("Sim flow", "Snapshot growth") and D92 to D97 first.
 
 ## Known issues
 
@@ -329,6 +342,10 @@ ACCEPTANS
 - M03: the first two turns of every match are empty by construction (T + 2 input delay).
 - M00b: the data manifest format of M01 is assumed (name to file relative to the data folder, enc defaults to raw), see D17 in `docs/DECISIONS.md`. M01 must keep it or change the pack script.
 - M00b: confirmed in practice: the user opened the Artifact (M02, version 3) and saw the globe at 30-50 fps.
+
+- M05 A: the territory look (`OWNER_*` in `src/render/config.ts`) was judged in SwiftShader screenshots at the test tier only; tint, inner glow, line width and warp are the first things to tune on a real GPU. The weak M02 country border lines still run through the middle of a territory.
+- M05 A: only seat 0 acts until part C: the five AI nations and the 20 tribes do not spawn yet, so the match is empty apart from you.
+- M05 A: in the live page under software GL the frame rate is about 5 fps (the loop is unchanged); the sim cost per frame is small (see Result of Part A), the real-GPU frame rate is the user's gate.
 
 ## Skipped
 
