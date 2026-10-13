@@ -25,7 +25,7 @@ Project rules for every session. Keep this file under 200 lines. Constitution: `
 - Never run a bare `vitest run` (it would mix the projects).
 - `npm test` = unit project, `npm run shots` = smoke screenshot into `test-results/shots/`, `npm run dev|build|preview` = Vite.
 - `npm run artifact:pack` (after `npm run build`) = packs `dist` into the gitignored artifact folder for the Claude Artifact preview; options `-- --container=png|wasm|b64 --prev=<file> --probe`. Procedure in `docs/PREVIEW.md`.
-- `npm run bake` (M01) re-bakes `public/data/` from the cached sources in `.cache/bake` (network only for a cold cache: S3 and raw.githubusercontent.com); `npm run bake:check` verifies the committed packs against `public/data/checksums.json` without network. Never commit synthetic bake output.
+- `npm run bake` (M01) re-bakes `public/data/` from the cached sources in the gitignored cache folder .cache/bake (network only for a cold cache: S3 and raw.githubusercontent.com); `npm run bake:check` verifies the committed packs against `public/data/checksums.json` without network. Never commit synthetic bake output.
 - `npm run sim:run -- --seed N --ticks T` (M03) prints the sim hashes at ticks 1/10/100/1000/6000 and the last tick (compare with `e2e/goldens/sim-hashes.json`; rewrite it only with `UPDATE_GOLDENS=1` through `tests/sim/golden.test.ts`, exact, never warn mode); `npm run gen:lut` rewrites `src/sim/sinLut.ts`.
 - `npm run sim:scenario -- --seed N --minutes 10 --players 12 --tribes 20` (M04) prints the territory per minute of a headless match on the real world (scripted bots in `tools/sim`, never in `src/sim`); `-- --solo` is the calibration scenario whose band `tools/sim/bands.ts` holds.
 - Runtime data and page addresses go through `siteUrl()` in `src/app/paths.ts`, never a hand-written relative or absolute data path and never `BASE_URL`.
@@ -39,7 +39,7 @@ Project rules for every session. Keep this file under 200 lines. Constitution: `
 - Do not change earlier milestones' tests, tolerances or goldens except where your change provably causes the difference (justify it in `docs/DECISIONS.md`).
 - Ideas go to `docs/BACKLOG.md` instead of being built.
 - Exact dependency pins, no `^` or `~`; never upgrade a dependency mid-milestone. A changed pin is explained in `docs/DECISIONS.md`.
-- Docs may only mention files that exist or are created now; future files are marked "(later)".
+- Docs may only mention files that exist or are created now; future files are marked "(later)". Gitignored generated folders (the bake cache, the Artifact pack folder, dist) are written without backticks: `tests/docs.test.ts` checks every backticked path, and a fresh checkout (CI) lacks them.
 - `PROMPTLISTA.md` in the repo root is the user's own prompt list: do not read it, do not change it, do not reference it.
 
 ## Time rule
