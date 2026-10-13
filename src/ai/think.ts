@@ -3,8 +3,9 @@
 // calls it files the intents for T + 2 like any other.
 //
 // Behaviour (docs/DECISIONS.md D104):
-//  - Spawn phase: at its seeded tick a seat plants its capital on a seeded place with a whole disc of land and clear ground
-//    around it; if the capital has not appeared a few ticks later it tries another place.
+//  - Spawn phase: the seats wait for the human's capital (or AI_SPAWN_WAIT_TICKS), then plant their capitals one by one, the
+//    nations first, on seeded places with a whole disc of land and clear ground around them, near the human's capital so that the
+//    world fills in around the player; if a capital has not appeared a few ticks later the seat tries another place.
 //  - After that, once per second on its own tick (staggered by seat), a seat with troops of at least AI_EXPAND_TROOP_PCT of its
 //    cap acts: a nation first attacks the WEAKEST neighbour it outnumbers (AI_WAR_MIN_RATIO_PCT), else expands into unowned
 //    land it touches. A tribe only expands. A seat does not attack the same target again within a cooldown.
@@ -12,10 +13,14 @@ import {
   AI_ATTACK_COOLDOWN_TICKS,
   AI_EXPAND_COMMIT_PCT,
   AI_EXPAND_TROOP_PCT,
+  AI_ANCHOR_SEAT,
   AI_NATION_CLEARANCE_CELLS,
+  AI_NATION_REACH_CELLS,
   AI_SPAWN_RETRY_TICKS,
+  AI_SPAWN_WAIT_TICKS,
   AI_THINK_PERIOD_TICKS,
   AI_TRIBE_CLEARANCE_CELLS,
+  AI_TRIBE_REACH_CELLS,
   AI_TRIBE_COOLDOWN_TICKS,
   AI_TRIBE_MAX_CELLS,
   AI_WAR_COMMIT_PCT,
@@ -53,10 +58,17 @@ export function think(view: SimView, memory: AiMemory, rng: Uint32Array): readon
 
   if ((stats.capital[seat] as number) === 0) {
     // Not spawned yet.
-    if (view.phase !== PHASE_SPAWN || tick < memory.spawnAt || tick < memory.retryAt) return NONE;
+    if (view.phase !== PHASE_SPAWN) return NONE;
+    const anchor = (stats.capital[AI_ANCHOR_SEAT] as number) - 1; // the human's capital cell, -1 before it exists
+    if (memory.release < 0) {
+      if (anchor < 0 && tick < AI_SPAWN_WAIT_TICKS) return NONE;
+      memory.release = tick;
+    }
+    if (tick < memory.release + memory.slot || tick < memory.retryAt) return NONE;
     memory.attempts++;
     memory.retryAt = tick + AI_SPAWN_RETRY_TICKS;
-    const cell = pickSpawnCell(view, rng, memory.tribe ? AI_TRIBE_CLEARANCE_CELLS : AI_NATION_CLEARANCE_CELLS);
+    const tribe = memory.tribe;
+    const cell = pickSpawnCell(view, rng, tribe ? AI_TRIBE_CLEARANCE_CELLS : AI_NATION_CLEARANCE_CELLS, anchor, tribe ? AI_TRIBE_REACH_CELLS : AI_NATION_REACH_CELLS);
     return cell < 0 ? NONE : [spawnBody(seat, cell)];
   }
   if (view.phase === PHASE_SPAWN || (tick + memory.phase) % AI_THINK_PERIOD_TICKS !== 0) return NONE;

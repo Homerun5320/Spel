@@ -101,18 +101,20 @@ describe('types: what src/sim/public.ts lets the AI reach', () => {
   it('exports exactly this list (adding an export is a decision that must be reviewed here)', () => {
     expect(names).toEqual(
       [
+        'AI_ANCHOR_SEAT',
         'AI_ATTACK_COOLDOWN_TICKS',
         'AI_EXPAND_COMMIT_PCT',
         'AI_EXPAND_TROOP_PCT',
         'AI_NATION_CLEARANCE_CELLS',
-        'AI_SPAWN_FIRST_TICK',
-        'AI_SPAWN_LAST_TICK',
+        'AI_NATION_REACH_CELLS',
         'AI_SPAWN_RETRY_TICKS',
         'AI_SPAWN_SPACING_TICKS',
+        'AI_SPAWN_WAIT_TICKS',
         'AI_SPAWN_TRIES',
         'AI_THINK_PERIOD_TICKS',
         'AI_THINK_STAGGER_TICKS',
         'AI_TRIBE_CLEARANCE_CELLS',
+        'AI_TRIBE_REACH_CELLS',
         'AI_TRIBE_COOLDOWN_TICKS',
         'AI_TRIBE_MAX_CELLS',
         'AI_WAR_COMMIT_PCT',

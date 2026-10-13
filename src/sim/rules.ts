@@ -180,17 +180,24 @@ export const MATCH_TRIBES = 20;
 export const AI_THINK_PERIOD_TICKS = 10;
 /** The thought of seat s happens when (tick + s * this) is a multiple of the period: the seats think on different ticks. */
 export const AI_THINK_STAGGER_TICKS = 3;
-/** The 20 tribes Spawn one by one from tick 0, this many ticks apart (a Spawn runs 2 ticks after it was sent, so a seat sees the one before it). */
+/** The seat the AI places its capitals around: the human's (seat 0). */
+export const AI_ANCHOR_SEAT = 0;
+/**
+ * The AI seats wait for the anchor seat's Spawn so that the world fills in around the player; if it has not spawned by this tick
+ * (10 s of the 20 s phase) they go ahead with places spread over the whole map.
+ */
+export const AI_SPAWN_WAIT_TICKS = 110;
+/** From its release the AI seats Spawn one by one, the nations first, this many ticks apart (a Spawn runs 2 ticks after it was sent, so each seat sees the capital of the one before it). */
 export const AI_SPAWN_SPACING_TICKS = 3;
-/** An AI nation's Spawn is tried at a seeded tick in AI_SPAWN_FIRST_TICK .. AI_SPAWN_LAST_TICK (inside the 200 tick spawn phase, after the tribes), at least AI_SPAWN_SPACING_TICKS apart. */
-export const AI_SPAWN_FIRST_TICK = 60;
-export const AI_SPAWN_LAST_TICK = 150;
 /** Ticks to wait for the capital to show up (a Spawn runs 2 ticks after it was sent) before the Spawn is tried at another place. */
 export const AI_SPAWN_RETRY_TICKS = 6;
 /** A nation's capital is at least this many sim cells from every owned cell (about 1100 km at the equator); tribes use the smaller one. */
 export const AI_NATION_CLEARANCE_CELLS = 28;
 export const AI_TRIBE_CLEARANCE_CELLS = 14;
-/** Random places tried for one Spawn; the clearance is halved after every quarter of them, so a crowded map still finds a place. */
+/** With an anchor, a capital is at most this many sim cells from it (a square, x wrapping): nations farther out than tribes. */
+export const AI_NATION_REACH_CELLS = 90;
+export const AI_TRIBE_REACH_CELLS = 90;
+/** Random places tried for one Spawn; the clearance is halved after every quarter of them, and the second half ignores the reach, so a crowded map still finds a place. */
 export const AI_SPAWN_TRIES = 400;
 /** An AI seat expands or attacks only with at least this share of its troop cap (percent). */
 export const AI_EXPAND_TROOP_PCT = 50;

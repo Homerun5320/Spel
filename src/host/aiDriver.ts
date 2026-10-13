@@ -31,7 +31,7 @@ export class AiDriver implements TickDriver {
   onTick(view: SimView, submit: (body: IntentBody) => void): void {
     if (this.memories === null) {
       this.memories = [];
-      for (let seat = FIRST_AI_SEAT; seat < view.seats; seat++) this.memories.push(createAiMemory(view, seat, this.rng));
+      for (let seat = FIRST_AI_SEAT; seat < view.seats; seat++) this.memories.push(createAiMemory(view, seat));
     }
     const memories = this.memories;
     for (let i = 0; i < memories.length; i++) {

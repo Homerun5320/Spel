@@ -7,10 +7,11 @@ import {
   AI_ATTACK_COOLDOWN_TICKS,
   AI_EXPAND_COMMIT_PCT,
   AI_NATION_CLEARANCE_CELLS,
-  AI_SPAWN_FIRST_TICK,
-  AI_SPAWN_LAST_TICK,
+  AI_NATION_REACH_CELLS,
   AI_SPAWN_RETRY_TICKS,
   AI_SPAWN_SPACING_TICKS,
+  AI_SPAWN_WAIT_TICKS,
+  AI_TRIBE_REACH_CELLS,
   AI_THINK_PERIOD_TICKS,
   AI_TRIBE_COOLDOWN_TICKS,
   AI_TRIBE_MAX_CELLS,
@@ -64,36 +65,27 @@ function toThinkTick(state: GameState, memory: AiMemory): void {
 }
 
 describe('createAiMemory', () => {
-  it('gives the 20 tribes one spawn tick each (3 ticks apart from 0) and the nations a seeded slice of the window each, in seat order, at least 3 ticks apart', () => {
-    const state = world(64, 48, { seats: 26, players: 6 });
-    const view = new StateView(state);
-    const rng = createRng(5);
-    const tribes = [] as number[];
-    for (let seat = 6; seat < 26; seat++) tribes.push(createAiMemory(view, seat, rng).spawnAt);
-    expect(tribes).toEqual(Array.from({ length: 20 }, (_, i) => i * AI_SPAWN_SPACING_TICKS));
-    const nations = [1, 2, 3, 4, 5].map((seat) => createAiMemory(view, seat, rng));
-    for (const m of nations) {
-      expect(m.tribe).toBe(false);
-      expect(m.spawnAt).toBeGreaterThanOrEqual(AI_SPAWN_FIRST_TICK);
-      expect(m.spawnAt).toBeLessThanOrEqual(AI_SPAWN_LAST_TICK);
+  it('orders the spawns: the five nations first, then the 20 tribes, AI_SPAWN_SPACING_TICKS apart, none released yet', () => {
+    const view = new StateView(world(64, 48, { seats: 26, players: 6 }));
+    const memories = Array.from({ length: 25 }, (_, i) => createAiMemory(view, i + 1));
+    expect(memories.map((m) => m.slot)).toEqual(Array.from({ length: 25 }, (_, i) => i * AI_SPAWN_SPACING_TICKS));
+    expect(memories.map((m) => m.tribe)).toEqual(Array.from({ length: 25 }, (_, i) => i >= 5));
+    for (const m of memories) {
+      expect(m.release).toBe(-1);
+      expect(m.attempts).toBe(0);
+      expect(m.lastAttack).toHaveLength(27);
     }
-    for (let i = 1; i < nations.length; i++) expect((nations[i] as AiMemory).spawnAt - (nations[i - 1] as AiMemory).spawnAt).toBeGreaterThanOrEqual(AI_SPAWN_SPACING_TICKS);
   });
 
-  it('is a pure function of the stream: the same seed gives the same memories, another seed another spawn ticks', () => {
+  it('the last tribe is down before the spawn phase ends even when the wait runs out (a release at the wait limit)', () => {
     const view = new StateView(world(64, 48, { seats: 26, players: 6 }));
-    const ticks = (seed: number): number[] => {
-      const rng = createRng(seed);
-      return [1, 2, 3, 4, 5].map((s) => createAiMemory(view, s, rng).spawnAt);
-    };
-    expect(ticks(9)).toEqual(ticks(9));
-    expect(ticks(9)).not.toEqual(ticks(10));
+    const last = createAiMemory(view, 25);
+    expect(AI_SPAWN_WAIT_TICKS + last.slot + AI_SPAWN_RETRY_TICKS).toBeLessThan(200);
   });
 
   it('staggers the thinking ticks of neighbouring seats', () => {
     const view = new StateView(world(64, 48, { seats: 26, players: 6 }));
-    const rng = createRng(1);
-    const phases = [1, 2, 3, 4, 5].map((s) => createAiMemory(view, s, rng).phase);
+    const phases = [1, 2, 3, 4, 5].map((s) => createAiMemory(view, s).phase);
     expect(new Set(phases).size).toBe(5);
     for (const p of phases) expect(p).toBeLessThan(AI_THINK_PERIOD_TICKS);
   });
@@ -135,6 +127,25 @@ describe('pickSpawnCell', () => {
     expect(seen.size).toBeGreaterThan(20);
   });
 
+  it('with an anchor it stays within the reach of it, with no anchor it uses the whole map, and a human on a small island does not leave it without a capital', () => {
+    const view = new StateView(world(400, 200, { seats: 4, players: 4 }));
+    const anchor = 100 * 400 + 200;
+    const far = new Set<number>();
+    for (let seed = 1; seed <= 40; seed++) {
+      const cell = pickSpawnCell(view, createRng(seed), 14, anchor, AI_TRIBE_REACH_CELLS);
+      const x = cell % 400;
+      const y = (cell - x) / 400;
+      expect(Math.max(Math.min(Math.abs(x - 200), 400 - Math.abs(x - 200)), Math.abs(y - 100)), `seed ${seed}`).toBeLessThanOrEqual(AI_TRIBE_REACH_CELLS);
+      const free = pickSpawnCell(view, createRng(seed), 14);
+      far.add(Math.max(Math.abs((free % 400) - 200), 0));
+    }
+    expect(Math.max(...far)).toBeGreaterThan(AI_NATION_REACH_CELLS);
+    // The anchor sits on a 30 x 30 island; the only other land is 150 cells away: the second half of the tries finds it.
+    const islands = world(400, 200, { seats: 4, players: 4, classAt: (x, y) => ((x >= 185 && x < 215 && y >= 85 && y < 115) || (x >= 20 && x < 90 && y >= 40 && y < 110) ? CLASS_PLAINS : CLASS_DEEP_SEA) });
+    const cell = pickSpawnCell(new StateView(islands), createRng(2), 14, 100 * 400 + 200, AI_TRIBE_REACH_CELLS);
+    expect(cell).toBeGreaterThanOrEqual(0);
+  });
+
   it('finds nothing on a world of sea, or of islands smaller than a capital disc, and a crowded map relaxes the clearance instead of failing', () => {
     expect(pickSpawnCell(new StateView(world(160, 96, { seats: 2, players: 2, classAt: () => CLASS_DEEP_SEA })), createRng(1), 28)).toBe(-1);
     const specks = world(160, 96, { seats: 2, players: 2, classAt: (x, y) => (x % 12 < 6 && y % 12 < 6 ? CLASS_PLAINS : CLASS_DEEP_SEA) });
@@ -147,23 +158,73 @@ describe('pickSpawnCell', () => {
   });
 });
 
+/** A 160 x 96 match with the human (seat 0) spawned at the centre when `human`, and the AI seats 1.. as `players` / `seats` say. */
+function spawnWorld(seats: number, players: number, human: boolean): { state: GameState; view: StateView; rng: Uint32Array } {
+  const state = world(160, 96, { seats, players });
+  if (human) run(state, 3, { 0: [{ kind: 'Spawn', seat: 0, cell: 48 * 160 + 80 }] });
+  return { state, view: new StateView(state), rng: createRng(2) };
+}
+
 describe('think: the spawn', () => {
-  it('does nothing before its tick, spawns on its tick, waits for the capital and tries another place when none appears', () => {
-    const state = world(160, 96, { seats: 3, players: 2 });
-    const view = new StateView(state);
-    const rng = createRng(2);
-    const m = createAiMemory(view, 1, rng);
-    run(state, m.spawnAt - 1);
+  it('waits for the human capital; once it exists the nations Spawn one after the other near it, a nation first, then a tribe 3 ticks later', () => {
+    const { state, view, rng } = spawnWorld(3, 2, false);
+    const nation = createAiMemory(view, 1);
+    const tribe = createAiMemory(view, 2);
+    for (let t = 0; t < 40; t++) {
+      view.refresh();
+      expect(think(view, nation, rng), `tick ${state.tick}`).toEqual([]);
+      run(state, state.tick + 1);
+    }
+    // the human spawns (a direct step runs its intent on the tick it is sent for); the capital shows from the next tick on
+    run(state, 41, { 40: [{ kind: 'Spawn', seat: 0, cell: 48 * 160 + 80 }] });
+    view.refresh();
+    const first = think(view, nation, rng);
+    expect(first).toHaveLength(1);
+    expect(first[0]).toMatchObject({ kind: 'Spawn', seat: 1 });
+    expect(nation.release).toBe(41);
+    const cellOf = (b: IntentBody): { x: number; y: number } => {
+      const c = (b as { cell: number }).cell;
+      return { x: c % 160, y: Math.floor(c / 160) };
+    };
+    const near = cellOf(first[0] as IntentBody);
+    expect(Math.max(Math.abs(near.x - 80), Math.abs(near.y - 48))).toBeLessThanOrEqual(AI_NATION_REACH_CELLS);
+    // the tribe has the slot after the nation's
+    expect(think(view, tribe, rng)).toEqual([]);
+    run(state, 41 + AI_SPAWN_SPACING_TICKS - 1);
+    view.refresh();
+    expect(think(view, tribe, rng)).toEqual([]);
+    run(state, 41 + AI_SPAWN_SPACING_TICKS);
+    view.refresh();
+    const second = think(view, tribe, rng);
+    expect(second[0]).toMatchObject({ kind: 'Spawn', seat: 2 });
+    const t = cellOf(second[0] as IntentBody);
+    expect(Math.max(Math.abs(t.x - 80), Math.abs(t.y - 48))).toBeLessThanOrEqual(AI_TRIBE_REACH_CELLS);
+  });
+
+  it('without a human capital it goes ahead at AI_SPAWN_WAIT_TICKS, anywhere on the map', () => {
+    const { state, view, rng } = spawnWorld(3, 2, false);
+    const m = createAiMemory(view, 1);
+    run(state, AI_SPAWN_WAIT_TICKS - 1);
     view.refresh();
     expect(think(view, m, rng)).toEqual([]);
-    run(state, m.spawnAt);
+    run(state, AI_SPAWN_WAIT_TICKS);
+    view.refresh();
+    const out = think(view, m, rng);
+    expect(out).toHaveLength(1);
+    expect(m.release).toBe(AI_SPAWN_WAIT_TICKS);
+  });
+
+  it('waits for the capital to show up and tries another place when none appears', () => {
+    const { state, view, rng } = spawnWorld(3, 2, true);
+    const m = createAiMemory(view, 1);
     view.refresh();
     const first = think(view, m, rng);
     expect(first).toHaveLength(1);
-    expect(first[0]).toMatchObject({ kind: 'Spawn', seat: 1 });
     // Asked again before the capital can exist, it waits.
+    run(state, state.tick + 1);
+    view.refresh();
     expect(think(view, m, rng)).toEqual([]);
-    run(state, m.spawnAt + AI_SPAWN_RETRY_TICKS);
+    run(state, 3 + AI_SPAWN_RETRY_TICKS);
     view.refresh();
     const retry = think(view, m, rng);
     expect(retry).toHaveLength(1);
@@ -172,11 +233,8 @@ describe('think: the spawn', () => {
   });
 
   it('after the spawn it sends nothing during the rest of the spawn phase, and never spawns again', () => {
-    const state = world(160, 96, { seats: 3, players: 2 });
-    const view = new StateView(state);
-    const rng = createRng(2);
-    const m = createAiMemory(view, 1, rng);
-    run(state, m.spawnAt);
+    const { state, view, rng } = spawnWorld(3, 2, true);
+    const m = createAiMemory(view, 1);
     view.refresh();
     const spawn = think(view, m, rng)[0] as IntentBody;
     run(state, state.tick + 1, { [state.tick]: [spawn] });
@@ -187,23 +245,9 @@ describe('think: the spawn', () => {
     }
   });
 
-  it('a tribe spawns at the tick of its number with the smaller clearance', () => {
-    const state = world(160, 96, { seats: 6, players: 2 });
-    const view = new StateView(state);
-    const rng = createRng(1);
-    const m = createAiMemory(view, 4, rng);
-    expect(m.tribe).toBe(true);
-    expect(m.spawnAt).toBe(2 * AI_SPAWN_SPACING_TICKS);
-    run(state, m.spawnAt);
-    view.refresh();
-    expect(think(view, m, rng)[0]).toMatchObject({ kind: 'Spawn', seat: 4 });
-  });
-
   it('gives up quietly when the spawn phase is over without a capital', () => {
-    const state = world(160, 96, { seats: 3, players: 2 });
-    const view = new StateView(state);
-    const rng = createRng(2);
-    const m = createAiMemory(view, 1, rng);
+    const { state, view, rng } = spawnWorld(3, 2, false);
+    const m = createAiMemory(view, 1);
     run(state, 260);
     view.refresh();
     expect(think(view, m, rng)).toEqual([]);
@@ -221,7 +265,7 @@ function twoNations(gapX = 16): { state: GameState; view: StateView; a: AiMemory
       { kind: 'Spawn', seat: 2, cell: 32 * 120 + 40 + gapX },
     ],
   });
-  return { state, view, a: createAiMemory(view, 1, rng), b: createAiMemory(view, 2, rng), rng };
+  return { state, view, a: createAiMemory(view, 1), b: createAiMemory(view, 2), rng };
 }
 
 describe('think: expansion and war', () => {
@@ -277,7 +321,7 @@ describe('think: expansion and war', () => {
     expect(war.pct).toBeGreaterThanOrEqual(AI_WAR_COMMIT_PCT - 10);
     expect(war.pct).toBeLessThanOrEqual(AI_WAR_COMMIT_PCT + 10);
     // Fresh memory, the neighbour is now stronger than the margin allows: no war, expansion instead.
-    const b2 = createAiMemory(view, 1, createRng(3));
+    const b2 = createAiMemory(view, 1);
     state.troops[theirs] = Math.floor((ownerCapQt(state, mine) * 100) / 110);
     view.refresh();
     expect((think(view, b2, rng)[0] as { target: number }).target).toBe(0);
@@ -295,7 +339,7 @@ describe('think: expansion and war', () => {
       ],
     });
     run(state, 255);
-    const m = createAiMemory(view, 1, rng);
+    const m = createAiMemory(view, 1);
     toThinkTick(state, m);
     const me = seatToOwner(1);
     state.troops[me] = ownerCapQt(state, me);
@@ -305,7 +349,7 @@ describe('think: expansion and war', () => {
     expect(view.contactLength(me, seatToOwner(2))).toBeGreaterThan(0);
     expect(view.contactLength(me, seatToOwner(3))).toBeGreaterThan(0);
     expect((think(view, m, rng)[0] as { target: number }).target).toBe(seatToOwner(3));
-    const tie = createAiMemory(view, 1, createRng(3));
+    const tie = createAiMemory(view, 1);
     state.troops[seatToOwner(2)] = 700;
     view.refresh();
     expect((think(view, tie, rng)[0] as { target: number }).target).toBe(seatToOwner(2));
@@ -348,7 +392,7 @@ describe('think: expansion and war', () => {
       const rng = createRng(3);
       run(state, 3, { 0: [{ kind: 'Spawn', seat, cell: 32 * 160 + 80 }] });
       run(state, 255);
-      const m = createAiMemory(view, seat, rng);
+      const m = createAiMemory(view, seat);
       toThinkTick(state, m);
       const me = seatToOwner(seat);
       const fill = (): void => {
@@ -402,7 +446,7 @@ describe('think: tribes', () => {
       ],
     });
     run(state, 255);
-    const t = createAiMemory(view, 2, rng);
+    const t = createAiMemory(view, 2);
     toThinkTick(state, t);
     return { state, view, t, rng };
   }

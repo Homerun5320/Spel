@@ -114,13 +114,15 @@ The AI only emits intents (`src/ai`, read through `src/sim/public.ts`); these va
 |----------|-------|------|--------|------|
 | `AI_THINK_PERIOD_TICKS` | 10 | ticks | eget val | One thought per seat per second. |
 | `AI_THINK_STAGGER_TICKS` | 3 | ticks per seat | eget val | Seat s thinks when (tick + s * 3) is a multiple of the period, so the seats do not all think on one tick. |
-| `AI_SPAWN_SPACING_TICKS` | 3 | ticks | eget val | The tribes Spawn one by one from tick 0, and the nations at least this far apart: a Spawn runs 2 ticks after it was sent, so each seat sees the capital of the one before it and picks another place. |
-| `AI_SPAWN_FIRST_TICK` | 60 | ticks | eget val | First tick at which an AI nation tries its Spawn (6 s into the 20 s spawn phase: the tribes are down by then, the player has had time to click, and the nations still appear on screen). |
-| `AI_SPAWN_LAST_TICK` | 150 | ticks | eget val | Last tick of the seeded Spawn window; the phase ends at 200. |
+| `AI_ANCHOR_SEAT` | 0 | seat | eget val | The seat the AI places its capitals around: the human's. |
+| `AI_SPAWN_WAIT_TICKS` | 110 | ticks | eget val | The AI seats wait for the human's Spawn so that the world fills in around the player (D104); if the human has not spawned by tick 110 (11 s of the 20 s phase) they go ahead with places spread over the whole map. |
+| `AI_SPAWN_SPACING_TICKS` | 3 | ticks | eget val | From the release the AI seats Spawn one by one, the nations first, this far apart: a Spawn runs 2 ticks after it was sent, so each seat sees the capital of the one before it and picks another place. 25 seats take 72 ticks, so the last one is down before the phase ends at tick 200. |
 | `AI_SPAWN_RETRY_TICKS` | 6 | ticks | eget val | A Spawn runs 2 ticks after it was sent; if the capital is still missing after this many, another place is tried. |
 | `AI_NATION_CLEARANCE_CELLS` | 28 | sim cells | eget val | A nation's capital is at least this far from every owned cell (about 1100 km at the equator). |
 | `AI_TRIBE_CLEARANCE_CELLS` | 14 | sim cells | eget val | The same for a tribe. |
-| `AI_SPAWN_TRIES` | 400 | places | eget val | Random places tried for one Spawn; the clearance is halved after every quarter of them. |
+| `AI_NATION_REACH_CELLS` | 90 | sim cells | eget val | A nation's capital is at most this far from the human's (a square, x wrapping; about 3500 km at the equator). Measured with a scripted human expander: first contact with a nation after 2 to 6 minutes, with a tribe after about a minute (D104). |
+| `AI_TRIBE_REACH_CELLS` | 90 | sim cells | eget val | The same for a tribe. |
+| `AI_SPAWN_TRIES` | 400 | places | eget val | Random places tried for one Spawn; the clearance is halved after every quarter of them, and the second half ignores the reach. |
 | `AI_EXPAND_TROOP_PCT` | 50 | % of the cap | plan | "Expands when troops are at least 50 % of the cap." |
 | `AI_EXPAND_COMMIT_PCT` | 70 | % of troops | eget val | Share of its troops a nation commits to an Attack on unowned land. |
 | `AI_WAR_COMMIT_PCT` | 50 | % of troops | eget val | Share of its troops a nation commits to an Attack on a neighbour. |
