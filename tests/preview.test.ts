@@ -13,7 +13,7 @@ describe('docs/PREVIEW.md (Swedish guide)', () => {
   });
 
   it('names the Artifact URL (or its placeholder) and a result for Netlify and for local running', () => {
-    expect(/<ARTIFACT_URL>|https:\/\/claude\.ai\/\S+/.test(text)).toBe(true);
+    expect(/https:\/\/claude\.ai\/artifact\/\S+/.test(text)).toBe(true);
     expect(text).toMatch(/Netlify \| EJ MÖJLIG/);
     expect(text).toMatch(/Lokalt: `npm ci && npm run dev` \| fungerade/);
   });

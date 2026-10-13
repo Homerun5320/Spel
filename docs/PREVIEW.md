@@ -12,7 +12,7 @@ Den här filen är på svenska och skriven för dig som inte är utvecklare. Cla
 
 ## 2. Artifact-länken
 
-4. Artifact-URL: **<ARTIFACT_URL>**
+4. Artifact-URL: **https://claude.ai/artifact/H4jqcMBvTMi7udLais5btV**
 5. Sidan är privat. Bara du, inloggad på ditt Claude-konto, kan öppna den. Dela den inte om du inte vill att andra ska se spelet.
 
 ## 3. Så öppnar du länken
@@ -49,7 +49,7 @@ I en Artifact når inte adressparametrar (`?x=y`) sidan, men ett rent ankare (`#
 | `?seed=7` | `#seed-7` | |
 | flera parametrar | skrivs efter varandra, regeln fastställs i M02 | |
 
-17. Lägen i en Artifact nås alltså med länken + `#läge` (till exempel `<ARTIFACT_URL>#perf`) eller via Dev-panelen: F2 på dator, hörnknappen på telefon. Dev-panelen införs i M02.
+17. Lägen i en Artifact nås alltså med länken + `#läge` (till exempel `https://claude.ai/artifact/H4jqcMBvTMi7udLais5btV#perf`) eller via Dev-panelen: F2 på dator, hörnknappen på telefon. Dev-panelen införs i M02.
 
 ## 6. Det som inte fungerar i en Artifact
 
