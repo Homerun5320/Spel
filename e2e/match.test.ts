@@ -331,6 +331,98 @@ describe('territory borders', () => {
   });
 });
 
+describe('territory at night (D108)', () => {
+  /** Paints a 12 x 6 block of the first Mountain cells: the left half to seat 0 (owner 1), the right half to `rightSeat` (-1 = left unowned). Returns the screen position of the vertical border and the pixels per cell. */
+  async function nightBorder(rightSeat: number, name: string): Promise<{ own: number; other: number; rim: number; rimLuma: number; lumaOwn: number; lumaOther: number }> {
+    const sim = await worldLoader().loadSim();
+    let block: { x: number; y: number } | null = null;
+    const BW = 12;
+    const BH = 6;
+    outer: for (let y = 40; y < 470; y++) {
+      for (let x = 0; x < 1024 - BW; x++) {
+        let ok = true;
+        for (let j = 0; j < BH && ok; j++) for (let i = 0; i < BW && ok; i++) if (sim.terrainClass[(y + j) * 1024 + x + i] !== CLASS_MOUNTAIN) ok = false;
+        if (ok) {
+          block = { x, y };
+          break outer;
+        }
+      }
+    }
+    expect(block, 'a 12 x 6 block of Mountain cells exists').not.toBeNull();
+    const b = block as { x: number; y: number };
+    const lat = 90 - ((b.y + BH / 2) / 512) * 180;
+    const lonMid = ((b.x + BW / 2) / 1024) * 360 - 180;
+    const { page, messages } = await open('test=1&seed=7&ai=0');
+    try {
+      await page.evaluate(
+        ([x0, y0, w, h, rs]) => {
+          const t = (window as any).__test;
+          for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
+            const seat = i < w / 2 ? 0 : rs;
+            if (seat >= 0) t.submit({ kind: 'DebugPaint', seat, cell: (y0 + j) * 1024 + x0 + i });
+          }
+        },
+        [b.x, b.y, BW, BH, rightSeat] as const,
+      );
+      await advance(page, 0, 3);
+      // deep night over the block: the sun is on the other side of the planet
+      await view(page, { lat, lon: lonMid, distKm: 750, heading: 0, tilt: 0, time: timeForSubsolarLon(lonMid + 180) });
+      const png = await shot(page, name);
+      const img = decodePng(png);
+      const at = (x: number, y: number): [number, number, number] => {
+        const o = (Math.round(y) * img.width + Math.round(x)) * 4;
+        return [img.data[o] as number, img.data[o + 1] as number, img.data[o + 2] as number];
+      };
+      const mean = (x: number, y: number): [number, number, number] => {
+        const acc = [0, 0, 0];
+        for (let dy = -4; dy <= 4; dy++) for (let dx = -4; dx <= 4; dx++) at(x + dx, y + dy).forEach((v, k) => (acc[k] = (acc[k] as number) + v));
+        return [(acc[0] as number) / 81, (acc[1] as number) / 81, (acc[2] as number) / 81];
+      };
+      const p = await page.evaluate(([a, o]) => (window as any).__test.project(a, o), [lat, lonMid] as const);
+      const lab = (c: [number, number, number]) => rgbToLab(c[0], c[1], c[2]);
+      const own: number[] = [];
+      const other: number[] = [];
+      const rim: number[] = [];
+      const lumas: number[][] = [[], [], []];
+      for (const dy of [-60, -30, 0, 30, 60]) {
+        const y = p.y + dy;
+        const left = mean(p.x - 90, y);
+        const right = mean(p.x + 90, y);
+        // the border pixel at night: the brightest pixel within 40 px of the nominal border position (the domain warp moves the line)
+        let best = at(p.x, y);
+        for (let dx = -40; dx <= 40; dx++) if (luma(...at(p.x + dx, y)) > luma(...best)) best = at(p.x + dx, y);
+        own.push(deltaE76(lab(left), lab(right)));
+        other.push(deltaE76(lab(best), lab(left)));
+        rim.push(deltaE76(lab(best), lab(right)));
+        lumas[0]?.push(luma(...left));
+        lumas[1]?.push(luma(...right));
+        lumas[2]?.push(luma(...best));
+      }
+      const m = (v: number[]): number => Math.min(...v);
+      const lm = (v: number[] | undefined): number => Math.min(...(v ?? [0]));
+      console.log(`[night] ${name}: dE76 left vs right (worst of 5 rows) ${m(own).toFixed(1)}; rim vs left ${m(other).toFixed(1)}, rim vs right ${m(rim).toFixed(1)}; luma left ${lm(lumas[0]).toFixed(1)}, right ${lm(lumas[1]).toFixed(1)}, rim ${lm(lumas[2]).toFixed(1)}`);
+      expect(messages).toEqual([]);
+      return { own: m(own), other: m(other), rim: m(rim), rimLuma: lm(lumas[2]), lumaOwn: lm(lumas[0]), lumaOther: lm(lumas[1]) };
+    } finally {
+      await page.close();
+    }
+  }
+
+  it('on the night side the border between your land and unowned land is visible: the two sides differ by dE76 >= 15, and the rim is brighter than your interior', async () => {
+    const r = await nightBorder(-1, 'match-night-border-free');
+    expect(r.own).toBeGreaterThanOrEqual(15);
+    expect(r.other).toBeGreaterThanOrEqual(15); // the rim against the own side
+    expect(r.rimLuma).toBeGreaterThan(r.lumaOwn);
+  });
+
+  it('on the night side the border between your land and another seat\'s land is visible: the two sides differ by dE76 >= 15 and the rim differs from both', async () => {
+    const r = await nightBorder(1, 'match-night-border-seat');
+    expect(r.own).toBeGreaterThanOrEqual(15);
+    expect(r.other).toBeGreaterThanOrEqual(15);
+    expect(r.rim).toBeGreaterThanOrEqual(15);
+  });
+});
+
 describe('input: click against drag, the HUD, the keys', () => {
   it('a drag rotates the globe and spawns nothing; a click on the HUD never reaches the globe; a short click spawns', async () => {
     const { page, messages } = await open('test=1&seed=7&hud=1&ai=0');
@@ -404,7 +496,54 @@ describe('input: click against drag, the HUD, the keys', () => {
       await page.keyboard.press(' ');
       await page.keyboard.press(' ');
       expect((await state(page)).speed).toBe(2);
-      // the attack commits what the slider says
+      expect(messages).toEqual([]);
+    } finally {
+      await page.close();
+    }
+  });
+  it('a real click on ENEMY land attacks that owner (target = the owner under the cursor) with exactly the slider\'s commitment', async () => {
+    const { page, messages } = await open('test=1&seed=7&hud=1&ai=0');
+    try {
+      await view(page, VIEW);
+      await clickAt(page, START.lat, START.lon);
+      await advance(page, 0.1, 5);
+      const s1 = await state(page);
+      expect(s1.local.spawned).toBe(true);
+      // a block of seat 1 land (ownerId 2) east of the capital disc (radius 8 cells), touching it
+      const cx = cellOf(START.lat, START.lon) % 1024;
+      const cy = Math.floor(cellOf(START.lat, START.lon) / 1024);
+      await page.evaluate(
+        ([x0, y0]) => {
+          const t = (window as any).__test;
+          for (let dy = -4; dy <= 4; dy++) for (let dx = 9; dx <= 22; dx++) t.submit({ kind: 'DebugPaint', seat: 1, cell: (y0 + dy) * 1024 + x0 + dx });
+        },
+        [cx, cy] as const,
+      );
+      await advance(page, 0, 255 - s1.tick); // the spawn phase and the immunity are over (tick 255)
+      const enemyCell = (cy * 1024) + cx + 14;
+      expect(await page.evaluate((c) => (window as any).__test.ownerOf(c), enemyCell)).toBe(2);
+      const painted = (await state(page)).seats[1]?.cells as number;
+      expect(painted).toBeGreaterThan(80);
+      // set the slider to 65 % through the real control, then click the enemy block
+      await page.locator('[data-testid="commit-slider"]').fill('65');
+      expect((await state(page)).commitPct).toBe(65);
+      const before = await state(page);
+      const lat = 90 - ((cy + 0.5) / 512) * 180;
+      const lon = ((cx + 14.5) / 1024) * 360 - 180;
+      await clickAt(page, lat, lon);
+      await advance(page, 0, 4);
+      const after = await state(page);
+      expect(after.rejects).toBe(before.rejects);
+      // the commitment: 65 % of the troops left the pool (a few ticks of regeneration are added back, nothing like 35 % of it)
+      const ratio = after.local.troopsQt / before.local.troopsQt;
+      console.log(`[click] enemy click at slider 65 %: troops ${before.local.troopsQt} -> ${after.local.troopsQt} QT (${(ratio * 100).toFixed(1)} % left)`);
+      expect(ratio).toBeGreaterThan(0.33);
+      expect(ratio).toBeLessThan(0.4);
+      // the target: the enemy block shrinks, and the player's land grows from it (an attack on unowned land would leave the block alone)
+      await advance(page, 0, 120);
+      const end = await state(page);
+      expect(end.seats[1]?.cells).toBeLessThan(painted);
+      expect(end.local.cells).toBeGreaterThan(before.local.cells);
       expect(messages).toEqual([]);
     } finally {
       await page.close();
@@ -458,6 +597,9 @@ describe('long runs and budgets', () => {
       const info = await page.evaluate(() => (window as any).__test.info());
       console.log(`[match] after ${s.tick} ticks: ${s.local.cells} cells (${s.local.landSharePct.toFixed(2)} % of the land), ${info.triangles} triangles, ${info.drawCalls} draw calls, ${info.textureMB.toFixed(1)} MB of textures`);
       expect(info.triangles).toBeLessThanOrEqual(150_000);
+      // The perf report counts every texture the match adds: height 8 + bathy 2 + country 8 + class 0.5 + lights 2 MiB, the ownership texture (1024 x 512 RGBA8, 2 MiB)
+      // and the two 256 x 1 RGBA8 palettes (1 KiB each). Without the ownership texture the figure would be 20.5 MiB.
+      expect(info.textureMB).toBeCloseTo(22.5 + 2 / 1024, 3);
       expect(messages).toEqual([]);
     } finally {
       await page.close();

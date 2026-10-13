@@ -79,6 +79,8 @@ export function createTerrainMaterial(
       uOwnerSize: { value: new Vector2(ownership?.width ?? 1, ownership?.height ?? 1) },
       uOwnerStyle: { value: new Vector4(C.OWNER_TINT, C.OWNER_EDGE_GLOW, C.OWNER_LINE_STRENGTH, C.OWNER_LINE_PX) },
       uOwnerWarp: { value: new Vector2(C.OWNER_WARP_AMP, C.OWNER_LINE_DARKEN) },
+      uOwnerNight: { value: new Vector4(C.OWNER_NIGHT_INTERIOR, C.OWNER_NIGHT_RIM, C.OWNER_NIGHT_HALO, C.OWNER_NIGHT_HALO_PX) },
+      uOwnerNightLevel: { value: C.OWNER_NIGHT_LEVEL },
       // Ocean (the animation time is the fx clock, set by Globe.render).
       uTime: { value: 0 },
       uWaveSlope: { value: C.OCEAN_WAVE_SLOPE },

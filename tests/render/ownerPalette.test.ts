@@ -29,7 +29,7 @@ describe('CIE76 colour maths', () => {
 describe('owner palette', () => {
   const p = buildOwnerPalette();
 
-  it('has 256 entries, owner 0 is nobody (transparent), owner 1 is the blue of the player, every other entry is opaque', () => {
+  it('has 256 entries, owner 0 is nobody (transparent), owner 1 is the colour of the player, every other entry is opaque', () => {
     expect(p.length).toBe(OWNER_PALETTE_SIZE * 4);
     expect(p[3]).toBe(0); // nobody: transparent
     expect(colour(p, 1)).toEqual(PLAYER_COLORS[0]);
@@ -43,6 +43,25 @@ describe('owner palette', () => {
     console.log(`[palette] own colour against the other 254 entries: worst dE76 ${worst.toFixed(1)}`);
     expect(worst).toBeGreaterThanOrEqual(25);
     expect(OWN_SEPARATION_DE).toBeGreaterThanOrEqual(25);
+  });
+
+  it('the player\'s own colour is neither a sea nor a land colour (D108): dE76 >= 40 from shallow and deep sea, grass, forest, desert, rock and snow, and no hue of the blue or green kind', () => {
+    const own = colour(p, 1);
+    const nature: Array<[string, [number, number, number]]> = [
+      ['shallow sea', [60, 130, 170]],
+      ['sea', [30, 90, 150]],
+      ['deep sea', [12, 40, 90]],
+      ['grass', [110, 150, 70]],
+      ['forest', [60, 105, 55]],
+      ['desert', [205, 180, 125]],
+      ['rock', [125, 105, 85]],
+      ['snow', [235, 240, 250]],
+    ];
+    const lab = rgbToLab(own[0], own[1], own[2]);
+    for (const [name, c] of nature) expect(deltaE76Rgb(own, c), name).toBeGreaterThanOrEqual(40);
+    const hue = (Math.atan2(lab[2], lab[1]) * 180) / Math.PI; // CIE hue angle: blue is about -130 to -45 degrees, green and teal 100 to 180 and -180 to -150
+    const kind = hue > -130 && hue < -45 ? 'blue' : hue > 100 || hue < -150 ? 'green or teal' : 'other';
+    expect(kind, `hue ${hue.toFixed(0)}`).toBe('other');
   });
 
   it('the six players are pairwise far apart (dE76 >= 25) and the 26 seats of a standard match are all distinct from each other (dE76 >= 12)', () => {

@@ -6,6 +6,7 @@ import { ownerCapQt } from '../../src/sim/economy';
 import {
   AI_ATTACK_COOLDOWN_TICKS,
   AI_EXPAND_COMMIT_PCT,
+  AI_EXPAND_TROOP_PCT,
   AI_NATION_CLEARANCE_CELLS,
   AI_NATION_REACH_CELLS,
   AI_SPAWN_RETRY_TICKS,
@@ -109,6 +110,25 @@ describe('pickSpawnCell', () => {
     run(state, 3, { 0: [{ kind: 'Spawn', seat: 0, cell }] });
     expect(state.rejects).toBe(0);
     expect(state.agg.area[seatToOwner(0)]).toBe(197);
+  });
+
+  it('keeps its distance from Spawns that are still in flight (sent, not yet run), as it does from owned land', () => {
+    const state = world(160, 96, { seats: 4, players: 4 });
+    const view = new StateView(state);
+    const flying = 48 * 160 + 80; // nothing owns it yet: only the caller knows that a Spawn is on its way there
+    for (let seed = 1; seed <= 30; seed++) {
+      const free = pickSpawnCell(view, createRng(seed), AI_NATION_CLEARANCE_CELLS);
+      expect(free).toBeGreaterThanOrEqual(0);
+      const cell = pickSpawnCell(view, createRng(seed), AI_NATION_CLEARANCE_CELLS, -1, 0, [free, flying]);
+      expect(cell, `seed ${seed}`).toBeGreaterThanOrEqual(0);
+      for (const avoid of [free, flying]) {
+        const dx = Math.abs((cell % 160) - (avoid % 160));
+        const dy = Math.abs(Math.floor(cell / 160) - Math.floor(avoid / 160));
+        expect(Math.max(Math.min(dx, 160 - dx), dy), `seed ${seed} against ${avoid}`).toBeGreaterThanOrEqual(R + 2);
+      }
+    }
+    // with nothing in flight the pick is the one without the argument (the argument costs nothing)
+    expect(pickSpawnCell(view, createRng(7), AI_NATION_CLEARANCE_CELLS, -1, 0, [])).toBe(pickSpawnCell(view, createRng(7), AI_NATION_CLEARANCE_CELLS));
   });
 
   it('keeps its distance from owned land, and chooses other places for other streams', () => {
@@ -274,10 +294,10 @@ describe('think: expansion and war', () => {
     run(state, 255);
     toThinkTick(state, a);
     const owner = seatToOwner(1);
-    state.troops[owner] = Math.floor(ownerCapQt(state, owner) / 2) - 8;
+    state.troops[owner] = Math.floor((ownerCapQt(state, owner) * AI_EXPAND_TROOP_PCT) / 100) - 8;
     view.refresh();
     expect(think(view, a, rng)).toEqual([]);
-    state.troops[owner] = Math.floor(ownerCapQt(state, owner) / 2) + 4;
+    state.troops[owner] = Math.floor((ownerCapQt(state, owner) * AI_EXPAND_TROOP_PCT) / 100) + 4;
     view.refresh();
     const out = think(view, a, rng);
     expect(out).toHaveLength(1);

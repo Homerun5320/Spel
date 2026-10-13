@@ -41,6 +41,8 @@ export const HUD_FONT_VW = 1;
 export const HUD_FONT_BIAS_PX = 6;
 /** Every button and the slider are at least this many CSS pixels tall and wide (a finger is about 44). */
 export const TARGET_MIN_PX = 44;
+/** At or below this viewport width (or in portrait) the HUD uses the narrow layout (banner across the top, leaderboard below it). */
+export const NARROW_MAX_PX = 600;
 
 /**
  * Colours. The panels are dark and nearly opaque so that the text stays readable over snow and desert in daylight as well as

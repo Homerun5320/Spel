@@ -37,6 +37,35 @@ describe('purity boundary (structural test, complements the ESLint rules)', () =
     });
   }
 
+  // CHARTER invariant 6 (the structural twin of the ESLint entry for the front end, which tests/lint.test.ts proves fires): the UI, the
+  // renderer and the app shell reach the sim only through these modules; the two files that run or build a sim are named.
+  const FRONT_END_SIM_ALLOWED = new Set(['view', 'public', 'intents', 'flow', 'rules', 'terrain', 'time', 'state']);
+  const FRONT_END_SIM_FILES = new Set(['app/debugSim.ts', 'app/match.ts']);
+  for (const dir of ['ui', 'render', 'app']) {
+    it(`src/${dir} imports only the read-only sim modules (never step, serialize, conquest or another mutator)`, () => {
+      for (const file of listTs(path.join(SRC, dir))) {
+        const rel = path.relative(SRC, file).split(path.sep).join('/');
+        if (FRONT_END_SIM_FILES.has(rel)) continue;
+        for (const spec of imports(file)) {
+          const m = /(?:^|\/)sim(?:\/(.*))?$/.exec(spec);
+          if (m === null) continue;
+          expect(FRONT_END_SIM_ALLOWED.has(m[1] ?? ''), `${rel} imports ${spec}`).toBe(true);
+        }
+      }
+    });
+  }
+
+  it('the front end never assigns into a sim array through the view (no `.owner[...] =` and no `.troops[...] =` outside the sim)', () => {
+    for (const dir of ['ui', 'render', 'app']) {
+      for (const file of listTs(path.join(SRC, dir))) {
+        const text = fs.readFileSync(file, 'utf8');
+        const rel = path.relative(SRC, file).split(path.sep).join('/');
+        if (FRONT_END_SIM_FILES.has(rel)) continue;
+        expect(text, `${rel} writes a sim array`).not.toMatch(/\.(owner|terrain|troops|gold|elevation|exposure|stamp)\s*\[[^\]]*\]\s*(=[^=]|\+=|-=|\|=)/);
+      }
+    }
+  });
+
   it('three is imported only under src/render and src/app', () => {
     for (const file of listTs(SRC)) {
       const rel = path.relative(SRC, file).split(path.sep)[0];

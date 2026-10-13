@@ -261,6 +261,31 @@ describe('speed, measured on whole attacks (equal contact length)', () => {
     expect(takenInAMinute(4 * big, big) / even).toBeGreaterThanOrEqual(1.4);
     expect(takenInAMinute(big, 4 * big) / even).toBeLessThanOrEqual(0.6);
   });
+
+  /** Owner 1 holds the left 10 columns of a 120x40 field of free land of class `cls` and attacks it with plenty of troops; returns the cells taken in 100 ticks (D106). */
+  function takenIn100Ticks(cls: number): number {
+    const s = landState(120, 40, { seats: 2, classAt: () => cls });
+    for (let y = 0; y < 40; y++) for (let x = 0; x < 10; x++) setOwner(s, idx(s, x, y), 1, 0);
+    s.troops[1] = 40000000;
+    expect(applyAttack(s, 0, 0, 100)).toBe(REJECT_NONE);
+    const before = s.agg.area[1] as number;
+    conquer(s, 100);
+    return (s.agg.area[1] as number) - before;
+  }
+
+  it('terrain slows the front (D106): a Mountain front gains at most 0.6x the cells of a Plains front per 100 ticks, Hills and Forest lie in between, in the order of the cost table', () => {
+    const plains = takenIn100Ticks(CLASS_PLAINS);
+    const forest = takenIn100Ticks(CLASS_FOREST);
+    const hills = takenIn100Ticks(CLASS_HILLS);
+    const mountain = takenIn100Ticks(CLASS_MOUNTAIN);
+    console.log(`[terrain speed] cells per 100 ticks: plains ${plains}, forest ${forest}, hills ${hills}, mountain ${mountain}`);
+    expect(plains).toBeGreaterThan(50);
+    expect(mountain / plains).toBeLessThanOrEqual(0.6);
+    expect(mountain / plains).toBeGreaterThan(0.2); // slowed, not stopped
+    expect(forest).toBeLessThan(plains);
+    expect(hills).toBeLessThan(forest);
+    expect(mountain).toBeLessThan(hills);
+  });
 });
 
 describe('attack life cycle', () => {

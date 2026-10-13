@@ -16,6 +16,7 @@ import { createTerrainMaterial } from './terrainMaterial';
 import { readTexels } from './textureProbe';
 import {
   allTextureBytes,
+  rgbaTextureBytes,
   createLookTextures,
   createWorldTextures,
   disposeLookTextures,
@@ -232,7 +233,9 @@ export class Globe {
     const gl = this.renderer.getContext();
     const ext = gl.getExtension('WEBGL_debug_renderer_info');
     const info = this.renderer.info;
-    const bytes = allTextureBytes(this.textures, this.look);
+    // The world and look textures, plus the match's two: the 1024x512 RGBA8 ownership texture (2 MB) and the 256x1 owner palette.
+    const palette = (this.material.uniforms.uOwnerPalette as { value: { image: unknown } }).value;
+    const bytes = allTextureBytes(this.textures, this.look) + rgbaTextureBytes(this.ownership.texture) + rgbaTextureBytes(palette);
     return {
       renderer: (ext ? String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)) : '') || String(gl.getParameter(gl.RENDERER)),
       vendor: (ext ? String(gl.getParameter(ext.UNMASKED_VENDOR_WEBGL)) : '') || String(gl.getParameter(gl.VENDOR)),

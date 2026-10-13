@@ -40,6 +40,7 @@ import { pickSpawnCell } from './place';
 
 /** The answer "nothing to do". Shared, so a thought that does nothing allocates nothing; callers must not change it. */
 const NONE: readonly IntentBody[] = Object.freeze([]);
+const NO_CELLS: readonly number[] = Object.freeze([]);
 
 /** The commitment (percent) with a little seeded variation, in steps of 5, so the nations do not move in lockstep. */
 function jittered(base: number, rng: Uint32Array): number {
@@ -51,7 +52,11 @@ function coolingDown(memory: AiMemory, target: number, tick: number, cooldown: n
   return last >= 0 && tick - last < cooldown;
 }
 
-export function think(view: SimView, memory: AiMemory, rng: Uint32Array): readonly IntentBody[] {
+/**
+ * `inFlight`: the capital cells of Spawns that other AI seats have sent and that have not run yet (the host driver keeps the list),
+ * so that seats which Spawn on consecutive ticks do not pick the same neighbourhood.
+ */
+export function think(view: SimView, memory: AiMemory, rng: Uint32Array, inFlight: readonly number[] = NO_CELLS): readonly IntentBody[] {
   const seat = memory.seat;
   const tick = view.tick;
   const stats = view.stats;
@@ -68,7 +73,7 @@ export function think(view: SimView, memory: AiMemory, rng: Uint32Array): readon
     memory.attempts++;
     memory.retryAt = tick + AI_SPAWN_RETRY_TICKS;
     const tribe = memory.tribe;
-    const cell = pickSpawnCell(view, rng, tribe ? AI_TRIBE_CLEARANCE_CELLS : AI_NATION_CLEARANCE_CELLS, anchor, tribe ? AI_TRIBE_REACH_CELLS : AI_NATION_REACH_CELLS);
+    const cell = pickSpawnCell(view, rng, tribe ? AI_TRIBE_CLEARANCE_CELLS : AI_NATION_CLEARANCE_CELLS, anchor, tribe ? AI_TRIBE_REACH_CELLS : AI_NATION_REACH_CELLS, inFlight);
     return cell < 0 ? NONE : [spawnBody(seat, cell)];
   }
   if (view.phase === PHASE_SPAWN || (tick + memory.phase) % AI_THINK_PERIOD_TICKS !== 0) return NONE;

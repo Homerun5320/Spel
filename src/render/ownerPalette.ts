@@ -1,6 +1,7 @@
 // Territory colours: a lookup table from ownerId (0..255) to an RGBA colour. No art assets; the table is computed.
 //  - owner 0 (nobody) is transparent black;
-//  - owners 1..PLAYER_COLORS.length are the players: hand-picked, strongly different hues (owner 1 is YOU, blue);
+//  - owners 1..PLAYER_COLORS.length are the players: hand-picked, strongly different hues (owner 1 is YOU, magenta). No player is blue
+//    or green: on the globe a blue territory reads as a lake or a shallow sea and a green one as forest (D108);
 //  - the owners after them are tribes and further seats: muted colours chosen greedily so that each is as far as possible
 //    (CIE76) from every colour chosen before, and never within OWN_SEPARATION_DE of the player's own colour.
 // tests/render/ownerPalette.test.ts states the acceptance: dE76 >= 25 between the own colour and every other colour.
@@ -11,12 +12,12 @@ export const OWNER_PALETTE_SIZE = 256;
 /** Colours chosen greedily (the players and 26 further owners: the 20 tribes of a standard match and a few spare); later ids repeat them in order. */
 export const DISTINCT_COLORS = 32;
 
-/** Players: you (blue), then the five AI nations. */
+/** Players: you (magenta, a hue that no biome and no sea has), then the five AI nations (red, yellow, violet, orange, teal). */
 export const PLAYER_COLORS: readonly Rgb8[] = [
-  [40, 120, 235],
+  [236, 50, 150],
   [225, 55, 55],
-  [235, 190, 40],
-  [170, 70, 205],
+  [240, 205, 40],
+  [130, 90, 225],
   [240, 125, 35],
   [35, 185, 175],
 ];

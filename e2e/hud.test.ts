@@ -653,6 +653,43 @@ describe('the live page: the start screen first, Play, language, Dev', () => {
     }
   });
 
+  it('on a 390x844 phone the phase banner is readable and nothing in the top area overlaps (banner, leaderboard, Dev button)', async () => {
+    const { page, messages } = await live('#seed-7', { width: 390, height: 844 });
+    try {
+      await page.keyboard.press('Enter');
+      await page.waitForSelector('[data-testid="match-hud"]', { timeout: 60_000 });
+      const box = async (sel: string): Promise<{ x: number; y: number; width: number; height: number }> => {
+        const b = await page.locator(sel).first().boundingBox();
+        if (b === null) throw new Error(`${sel} has no box`);
+        return b;
+      };
+      const check = async (label: string): Promise<void> => {
+        const banner = await box('[data-testid="phase"]');
+        const board = await box('[data-testid="leaderboard"]');
+        const dev = await box('[data-dev-button]');
+        expect(banner.width, `${label}: banner width`).toBeGreaterThanOrEqual(200);
+        expect(banner.height, `${label}: banner height`).toBeLessThan(90);
+        expect(banner.x, label).toBeGreaterThanOrEqual(0);
+        expect(banner.x + banner.width, label).toBeLessThanOrEqual(390);
+        expect(overlap(banner, board), `${label}: banner and leaderboard`).toBe(false);
+        expect(overlap(banner, dev), `${label}: banner and Dev button`).toBe(false);
+        expect(overlap(board, dev), `${label}: leaderboard and Dev button`).toBe(false);
+        expect(board.x + board.width, label).toBeLessThanOrEqual(390);
+      };
+      await check('spawn phase');
+      await page.screenshot({ path: path.join(SHOT_DIR, 'm390-01-banner.png') });
+      await page.mouse.click(195, 470);
+      await page.waitForFunction(() => Number(document.querySelector('[data-testid="troops"]')?.getAttribute('data-value') ?? 0) > 100, undefined, { timeout: 30_000 });
+      await page.waitForTimeout(500);
+      await check('after the click');
+      expect(await page.locator('[data-testid="phase-text"]').textContent()).toContain('Startplats vald');
+      fs.writeFileSync(path.join(SHOT_DIR, 'm390-02-after-click.png'), await page.screenshot({ type: 'png' }));
+      expect(messages).toEqual([]);
+    } finally {
+      await page.close();
+    }
+  });
+
   it('on a phone-sized screen the start card fits and Play is reachable', async () => {
     const { page, messages } = await live('', { width: 390, height: 844 });
     try {

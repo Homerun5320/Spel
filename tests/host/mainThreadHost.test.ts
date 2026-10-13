@@ -241,6 +241,57 @@ describe('MainThreadHost: nothing is shared across the interface', () => {
     expect(s3.tick).toBe(3);
   });
 
+  it('requestView() returns copies: filling the owner, terrain and stats of one view with 9 changes neither the host state nor the next view, and no buffer is the sim\'s own', async () => {
+    const host = small();
+    host.submitIntent({ kind: 'DebugPaint', seat: 1, cell: 4 });
+    for (let i = 0; i < 3; i++) host.advance(TICK_MS);
+    const state = (host as unknown as { state: { owner: Uint16Array; terrain: Uint8Array } }).state;
+    const hashBefore = hashState(state as never);
+    const ownerBefore = state.owner.slice();
+    const terrainBefore = state.terrain.slice();
+    const v1 = await host.requestView();
+    const baseline = await host.requestView();
+    expect(v1.owner).not.toBeNull();
+    expect(v1.terrain).not.toBeNull();
+    expect((v1.owner as Uint16Array).buffer).not.toBe(state.owner.buffer);
+    expect((v1.terrain as Uint8Array).buffer).not.toBe(state.terrain.buffer);
+    expect(v1.owner).not.toBe(baseline.owner);
+    expect((v1.owner as Uint16Array).buffer).not.toBe((baseline.owner as Uint16Array).buffer);
+    expect(v1.stats.buffer).not.toBe(baseline.stats.buffer);
+    (v1.owner as Uint16Array).fill(9);
+    (v1.terrain as Uint8Array).fill(9);
+    v1.stats.fill(9);
+    const v2 = await host.requestView();
+    expect(Array.from(v2.owner as Uint16Array)).toEqual(Array.from(ownerBefore));
+    expect(Array.from(v2.terrain as Uint8Array)).toEqual(Array.from(terrainBefore));
+    expect(Array.from(v2.stats)).toEqual(Array.from(baseline.stats));
+    expect(Array.from(state.owner)).toEqual(Array.from(ownerBefore));
+    expect(Array.from(state.terrain)).toEqual(Array.from(terrainBefore));
+    expect(hashState(state as never)).toBe(hashBefore);
+  });
+
+  it('the light view in a diff is a copy per listener: scribbling on diff.view.stats in one listener changes neither another listener\'s view nor the next view', async () => {
+    const host = small();
+    host.submitIntent({ kind: 'DebugPaint', seat: 1, cell: 4 });
+    const seenA: HostEvent[] = [];
+    const seenB: HostEvent[] = [];
+    host.subscribe((e) => {
+      seenA.push(e);
+      if (e.type === 'diff') e.diff.view.stats.fill(9);
+    });
+    host.subscribe((e) => seenB.push(e));
+    for (let i = 0; i < 3; i++) host.advance(TICK_MS);
+    const a = diffsOf(seenA).at(-1) as StateDiff;
+    const b = diffsOf(seenB).at(-1) as StateDiff;
+    expect(a.view.stats.buffer).not.toBe(b.view.stats.buffer);
+    expect(b.view.stats.some((x) => x === 9)).toBe(false);
+    const fresh = await host.requestView();
+    expect(Array.from(b.view.stats)).toEqual(Array.from(fresh.stats));
+    host.advance(TICK_MS);
+    const later = diffsOf(seenB).at(-1) as StateDiff;
+    expect(later.view.stats.some((x) => x === 9)).toBe(false);
+  });
+
   it('every message of the SimHost interface is plain structured-cloneable data', () => {
     const host = small();
     const events: HostEvent[] = [];

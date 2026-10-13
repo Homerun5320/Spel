@@ -1,5 +1,5 @@
 // The match session without a browser: seats, speeds, pause, commitment, intents through the host, the mirror, refusals.
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { LOCAL_SEAT, MATCH_PLAYERS, MATCH_SEATS, MatchSession } from '../../src/app/match';
 import { REJECT_PHASE, REJECT_SPAWNED, REJECT_TERRAIN } from '../../src/sim/intents';
 import { MATCH_AI_NATIONS, MATCH_TRIBES, TICK_MS } from '../../src/sim/rules';
@@ -176,5 +176,73 @@ describe('MatchSession', () => {
     expect(alive).toBeGreaterThanOrEqual(2); // a 64 x 32 world has room for only a few capitals
     expect(busy.view.stats.cells[LOCAL_SEAT]).toBe(0);
     busy.dispose();
+  });
+
+  it('attack(target) sends exactly {kind: Attack, seat: 0, target, pct: the chosen commitment}: a target other than 0 and a commitment other than the default arrive as they are', async () => {
+    const s = await session();
+    const host = (s as unknown as { host: { submitIntent(b: unknown): void } }).host;
+    const sent: unknown[] = [];
+    const spy = vi.spyOn(host, 'submitIntent').mockImplementation((b) => {
+      sent.push(b);
+    });
+    s.setCommit(65);
+    s.attack(7);
+    s.setCommit(15);
+    s.attack(0);
+    s.setCommit(100);
+    s.attack(25);
+    expect(sent).toEqual([
+      { kind: 'Attack', seat: LOCAL_SEAT, target: 7, pct: 65 },
+      { kind: 'Attack', seat: LOCAL_SEAT, target: 0, pct: 15 },
+      { kind: 'Attack', seat: LOCAL_SEAT, target: 25, pct: 100 },
+    ]);
+    spy.mockRestore();
+    s.dispose();
+  });
+
+  it('spawnAt(cell) sends {kind: Spawn, seat: 0, cell}', async () => {
+    const s = await session();
+    const host = (s as unknown as { host: { submitIntent(b: unknown): void } }).host;
+    const sent: unknown[] = [];
+    const spy = vi.spyOn(host, 'submitIntent').mockImplementation((b) => {
+      sent.push(b);
+    });
+    s.spawnAt(123);
+    expect(sent).toEqual([{ kind: 'Spawn', seat: LOCAL_SEAT, cell: 123 }]);
+    spy.mockRestore();
+    s.dispose();
+  });
+
+  it('takeNewReject reports only refusals of the human: an AI seat\'s refused intent in a tick where the human sent nothing is never shown', async () => {
+    const s = await session();
+    const host = (s as unknown as { host: { submitIntent(b: unknown): void } }).host;
+    // seat 3 (an AI nation) tries to spawn on the sea column: the sim refuses it, the human sent nothing
+    host.submitIntent({ kind: 'Spawn', seat: 3, cell: 10 });
+    s.runTicks(4);
+    expect(s.view.rejects).toBe(1);
+    expect(s.view.lastRejectReason).toBe(REJECT_TERRAIN);
+    expect(s.takeNewReject()).toBe(0);
+    expect(s.takeNewReject()).toBe(0);
+    // a refusal of the human's own intent some ticks later is still reported, once
+    s.spawnAt(10 + W); // sea again (the column is sea in every row)
+    s.runTicks(4);
+    expect(s.view.rejects).toBe(2);
+    expect(s.takeNewReject()).toBe(REJECT_TERRAIN);
+    expect(s.takeNewReject()).toBe(0);
+    s.dispose();
+  });
+
+  it('takeNewReject still reports the human\'s refusal when an AI seat was refused in the same tick, and forgets old ticks of its own intents', async () => {
+    const s = await session();
+    const host = (s as unknown as { host: { submitIntent(b: unknown): void } }).host;
+    host.submitIntent({ kind: 'Spawn', seat: 3, cell: 10 });
+    s.spawnAt(10 + 2 * W);
+    s.runTicks(4);
+    expect(s.takeNewReject()).toBe(REJECT_TERRAIN);
+    // a human intent that was accepted leaves nothing to report, even much later
+    s.spawnAt(5 * W + 30);
+    s.runTicks(50);
+    expect(s.takeNewReject()).toBe(0);
+    s.dispose();
   });
 });

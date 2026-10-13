@@ -102,6 +102,30 @@ const AI_IMPORTS = {
   ],
 };
 
+// The front end (src/ui, src/render, src/app) READS the sim through SimView and sends intents (CHARTER section 2, invariant 6: "UI never
+// imports step or writes sim arrays"). It may import only these sim modules: the view types and stat helpers, the intent types and
+// constructors, the match flow, the rule constants, the terrain classes and the tick clock, plus from sim/state the two pure seat
+// functions and any TYPE. Everything else (step, serialize, conquest, territory, spawn, attacks, economy, units, world, ...) is an error.
+// The two files that really run or build a sim are named in FRONT_END_SIM_FILES and nowhere else is exempt.
+const FRONT_END_FILES = ['src/ui/**/*.ts', 'src/render/**/*.ts', 'src/app/**/*.ts'];
+const FRONT_END_SIM_FILES = ['src/app/debugSim.ts', 'src/app/match.ts'];
+const FRONT_END_IMPORTS = {
+  patterns: [
+    {
+      regex: '(^|/)sim(/(?!(view|public|intents|flow|rules|terrain|time|state)$).*)?$',
+      allowTypeImports: true,
+      message:
+        'src/ui, src/render and src/app may import only sim/view, sim/public, sim/intents, sim/flow, sim/rules, sim/terrain, sim/time and sim/state (seatToOwner / ownerToSeat and types). Never step, serialize, conquest or another mutator. Only src/app/debugSim.ts and src/app/match.ts run a sim.',
+    },
+    {
+      group: ['**/sim/state'],
+      allowImportNames: ['seatToOwner', 'ownerToSeat'],
+      allowTypeImports: true,
+      message: 'From sim/state the front end may import only seatToOwner and ownerToSeat (and types): never a state constructor or a mutator.',
+    },
+  ],
+};
+
 export default defineConfig([
   globalIgnores(['dist/**', 'node_modules/**', '.cache/**', 'test-results/**', 'artifact/**', 'e2e/goldens/**', 'public/**']),
   js.configs.recommended,
@@ -150,6 +174,16 @@ export default defineConfig([
         ...DETERMINISM_SYNTAX,
         { selector: 'ImportExpression', message: 'src/ai may not use dynamic import().' },
       ],
+    },
+  },
+  {
+    // The front end: reads the sim, never runs or writes it. The core rule is off for these files, the TypeScript one lets TYPE imports pass.
+    files: FRONT_END_FILES,
+    ignores: [...TEST_FILES, ...FRONT_END_SIM_FILES],
+    rules: {
+      'no-restricted-imports': 'off',
+      '@typescript-eslint/no-restricted-imports': ['error', FRONT_END_IMPORTS],
+      'no-restricted-syntax': ['error', { selector: "ImportExpression[source.value=/(^|\\/)sim(\\/|$)/]", message: 'The front end may not import the sim dynamically.' }],
     },
   },
 ]);

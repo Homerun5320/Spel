@@ -11,6 +11,9 @@
 //      is the length in std-cells, so sqrt(L std) = isqrt(L * CAPTURE_SQRT_SCALE) / 1000;
 //   F  the troops committed to this attack and Td the target's troops (0 for unowned land); F + Td == 0 gives speed 0.
 // The cell RATE converts with STD_CELL_AREA (x4), per tick with / TICK_HZ.
+// TERRAIN SLOWS THE CAPTURE (D106): a cell of class c takes TERRAIN_COST_PCT[c] / 100 cells' worth of progress, so a Mountain
+// front moves 2.5 times slower than a Plains front. The extra is booked as DEBT after the capture (`a.progress` goes
+// negative, down to -PROGRESS_DEBT_MAX) and is paid off by the next ticks' progress before the next cell falls.
 //
 // PRICE per sim cell (milli-QT):  BASE * terrain% * uphill * (1 + d / DEPTH_DIV), where
 //   d   is the depth of the cell in the attack's frontier: how many captures separate it from land that touched the attacker
@@ -34,6 +37,7 @@ import {
   HEIGHT_UNIT_M,
   MICRO_CELLS_PER_CELL,
   MILLI_QT_PER_QT,
+  PROGRESS_DEBT_MAX,
   STD_CELL_AREA,
   TERRAIN_COST_PCT,
   TICK_HZ,
@@ -67,6 +71,8 @@ const MILLI_QT = MILLI_QT_PER_QT;
 const UPHILL_PER_STEP = UPHILL_PER_STEP_MILLI;
 const UPHILL_STEP = UPHILL_STEP_UNITS;
 const UPHILL_CAP = UPHILL_MAX_PCT * 10;
+/** Micro-cells of progress per percent point of terrain cost above (or below) Plains. */
+const MICRO_PER_PCT = MICRO_CELLS_PER_CELL / 100;
 /** Salt of the per-tick order in which the attacks run. */
 const ORDER_SALT = 0x2d4b;
 /** Attack counts stay below this (seats * seats <= 65025), which lets the run order pack (hash, index) into one safe integer. */
@@ -231,6 +237,9 @@ export function advanceAttack(state: GameState, a: Attack, slot: number, n: numb
     a.troops -= whole;
     a.costFrac = owed - whole * MILLI_QT;
     takeCell(state, cell, a.attacker, a.id, slot, depth);
+    // Terrain slows the front: the extra progress this cell was worth is owed (a Mountain cell: 1.5 cells' worth).
+    const owedProgress = a.progress - ((COST_PCT[terrain[cell] as number] ?? 100) - 100) * MICRO_PER_PCT;
+    a.progress = owedProgress < -PROGRESS_DEBT_MAX ? -PROGRESS_DEBT_MAX : owedProgress;
     taken++;
     work.captured++;
   }
@@ -332,7 +341,8 @@ export function conquestPhase(state: GameState): void {
     }
     const defender = a.target === 0 ? 0 : (state.troops[a.target] as number);
     const progress = a.progress + captureRateMicroPerTick(contact, a.troops, defender);
-    const whole = Math.floor(progress / MICRO_CELLS_PER_CELL);
+    // Below one cell (or still in terrain debt) nothing falls this tick and the progress, possibly negative, is kept.
+    const whole = progress >= MICRO_CELLS_PER_CELL ? Math.floor(progress / MICRO_CELLS_PER_CELL) : 0;
     a.progress = progress - whole * MICRO_CELLS_PER_CELL;
     if (whole > 0) advanceAttack(state, a, slot, whole);
     if (!a.dead && a.size >= a.compactAt) compactFront(state, a);

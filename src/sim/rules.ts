@@ -118,7 +118,7 @@ export const MAX_DECAY_MICRO_QT_PER_TICK = (MAX_DECAY_TROOPS_PER_SEC * MICRO_QT_
 // Conquest (wired in M04 part B; the numbers are the plan's starting values, calibrated in D88)
 
 /** Capture speed = CAPTURE_K * sqrt(L) * 2F / (F + Td), in std-cells per second; this is CAPTURE_K in thousandths (80 = 0.08). */
-export const CAPTURE_K_MILLI = 103;
+export const CAPTURE_K_MILLI = 123;
 /** Troops to take one std-cell of Plains with the attacker's depth term 0, before the multipliers. */
 export const BASE_COST_TROOPS = 3;
 /** The same per SIM cell in QT: BASE_COST_TROOPS * QT_PER_TROOP / STD_CELL_AREA (3 QT = 0.75 troop). */
@@ -145,6 +145,8 @@ export const ENCLAVE_FLIP_TICKS = 20;
 
 /** Micro-cells per cell: the unit of the capture progress an attack carries from tick to tick. */
 export const MICRO_CELLS_PER_CELL = 1000000;
+/** The most terrain debt (negative capture progress, in micro-cells) an attack can owe: 1000 cells' worth. */
+export const PROGRESS_DEBT_MAX = 1000 * MICRO_CELLS_PER_CELL;
 /** Milli-QT per QT: the unit of the cost of one cell; the part of a QT that is not yet paid is carried in the attack. */
 export const MILLI_QT_PER_QT = 1000;
 /** BASE_COST_QT_PER_SIM_CELL in milli-QT (3000 = 3 QT = 0.75 troop per Plains sim cell). */
@@ -184,11 +186,11 @@ export const AI_THINK_STAGGER_TICKS = 3;
 export const AI_ANCHOR_SEAT = 0;
 /**
  * The AI seats wait for the anchor seat's Spawn so that the world fills in around the player; if it has not spawned by this tick
- * (10 s of the 20 s phase) they go ahead with places spread over the whole map.
+ * (15 s of the 20 s phase: a player who reads the banner first still gets the AI around them) they go ahead with places spread over the whole map.
  */
-export const AI_SPAWN_WAIT_TICKS = 110;
-/** From its release the AI seats Spawn one by one, the nations first, this many ticks apart (a Spawn runs 2 ticks after it was sent, so each seat sees the capital of the one before it). */
-export const AI_SPAWN_SPACING_TICKS = 3;
+export const AI_SPAWN_WAIT_TICKS = 150;
+/** From its release the AI seats Spawn one by one, the nations first, this many ticks apart. The driver tells each seat which Spawns are still in flight (they run 2 ticks after they were sent), so consecutive ticks are safe. */
+export const AI_SPAWN_SPACING_TICKS = 1;
 /** Ticks to wait for the capital to show up (a Spawn runs 2 ticks after it was sent) before the Spawn is tried at another place. */
 export const AI_SPAWN_RETRY_TICKS = 6;
 /** A nation's capital is at least this many sim cells from every owned cell (about 1100 km at the equator); tribes use the smaller one. */
@@ -200,7 +202,7 @@ export const AI_TRIBE_REACH_CELLS = 90;
 /** Random places tried for one Spawn; the clearance is halved after every quarter of them, and the second half ignores the reach, so a crowded map still finds a place. */
 export const AI_SPAWN_TRIES = 400;
 /** An AI seat expands or attacks only with at least this share of its troop cap (percent). */
-export const AI_EXPAND_TROOP_PCT = 50;
+export const AI_EXPAND_TROOP_PCT = 40;
 /** Percent of its troops an AI nation commits to an attack on unowned land / on a neighbour. A tribe commits troops / TRIBE_ATTACK_DIV whatever this says. */
 export const AI_EXPAND_COMMIT_PCT = 70;
 export const AI_WAR_COMMIT_PCT = 50;

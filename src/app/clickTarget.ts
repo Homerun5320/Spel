@@ -29,3 +29,17 @@ export function resolveClickCell(pick: GlobePick, terrain: ReadonlyNumbers, widt
   }
   return best;
 }
+
+/** What a click on the globe means once the match is running (after the spawn phase): attack `target` (an ownerId, 0 = unowned land), nothing (your own land) or a refusal (a cell nobody can own). */
+export type ClickMeaning = { readonly kind: 'attack'; readonly target: number } | { readonly kind: 'own' } | { readonly kind: 'unplayable' };
+
+/**
+ * The meaning of a click on `cell`: an unplayable class (sea, Peak, Ice) is refused with a toast, your own land does nothing, anything
+ * else is an attack whose target is the owner of that cell (0 = unowned land). Pure: the caller sends the intent.
+ */
+export function clickMeaning(cell: number, terrain: ReadonlyNumbers, owner: ReadonlyNumbers, localOwner: number): ClickMeaning {
+  if (!isPlayableClass(terrain[cell] as number)) return { kind: 'unplayable' };
+  const target = owner[cell] as number;
+  if (target === localOwner) return { kind: 'own' };
+  return { kind: 'attack', target };
+}

@@ -36,7 +36,7 @@ export class Attack {
   troops: number;
   /** Cost already owed for the next cell, in milli-QT (< MILLI_QT_PER_QT). */
   costFrac: number;
-  /** Capture progress in micro-cells (< MICRO_CELLS_PER_CELL between ticks). */
+  /** Capture progress in micro-cells (< MICRO_CELLS_PER_CELL between ticks; negative while the attack pays off terrain debt, D106). */
   progress: number;
   /** Frontier size at which the next purge runs. */
   compactAt: number;

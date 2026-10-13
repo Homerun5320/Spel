@@ -61,6 +61,12 @@ export function textureBytes(t: DataTexture): number {
   return img.width * img.height;
 }
 
+/** Bytes an RGBA8 texture occupies on the GPU (no mipmaps): the ownership texture and the owner palette. */
+export function rgbaTextureBytes(t: { image: unknown }): number {
+  const img = t.image as { width: number; height: number };
+  return img.width * img.height * 4;
+}
+
 export function disposeWorldTextures(t: WorldTextures): void {
   t.height.dispose();
   t.bathy.dispose();

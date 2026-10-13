@@ -101,6 +101,16 @@ export const OWNER_LINE_PX = 2.4;
 export const OWNER_WARP_AMP = 0.7;
 /** How dark the border line is: the owner's colour times this. */
 export const OWNER_LINE_DARKEN = 0.3;
+/**
+ * Territory at night (D108). After the lighting the owner's colour is mixed into the lit land with a weight of its own times the
+ * darkness of the pixel (0 by day, 1 deep in the night): the interior, the border rim (a lightened owner colour) and a halo of
+ * OWNER_NIGHT_HALO_PX pixels on the unowned land just outside the border. LEVEL is the brightness (linear) of the colour at weight 1.
+ */
+export const OWNER_NIGHT_INTERIOR = 0.34;
+export const OWNER_NIGHT_RIM = 0.9;
+export const OWNER_NIGHT_HALO = 0.55;
+export const OWNER_NIGHT_HALO_PX = 3;
+export const OWNER_NIGHT_LEVEL = 0.62;
 
 // --- Camera ----------------------------------------------------------------------------------------------------
 /** Vertical field of view in degrees. */

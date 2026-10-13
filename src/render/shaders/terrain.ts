@@ -229,6 +229,8 @@ void main() {
   vec3 viewDir = normalize(cameraPosition - vPos);
   vec3 litLand = toLinear(albedoLand) * (ambient + sunCol * day * (0.12 + 0.95 * diffLand));
   vec3 bodyWater = toLinear(albedoWater) * (ambient + sunCol * day * (0.10 + 0.9 * diffWater));
+  // Territory at night: mix the owner's colour into the lit land after the lighting (see territory.ts), so it stays readable in the dark.
+  litLand = mix(litLand, toLinear(territoryGlow.rgb) * uOwnerNightLevel, territoryGlow.a * (1.0 - day));
   vec3 litWater = oceanColor(bodyWater, dir, viewDir, pixelAngle, sun, day, sunCol);
   vec3 col = mix(litWater, litLand, land);
 

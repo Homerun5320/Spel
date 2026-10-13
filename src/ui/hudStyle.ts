@@ -1,7 +1,7 @@
 // The style sheet of the match HUD and the start screen, built from the tokens in uiConfig.ts. One <style> element per root; the
 // classes are prefixed `hud-` / `start-`. No transitions or animations (CSS time is not the fx clock; tests/fxClock.test.ts
 // forbids them): every visible change is a state change driven from JS.
-import { HUD_FONT_BIAS_PX, HUD_FONT_MAX_PX, HUD_FONT_MIN_PX, HUD_FONT_VW, TARGET_MIN_PX, UI_COLORS as C, Z_HUD, Z_START_SCREEN } from './uiConfig';
+import { NARROW_MAX_PX, HUD_FONT_BIAS_PX, HUD_FONT_MAX_PX, HUD_FONT_MIN_PX, HUD_FONT_VW, TARGET_MIN_PX, UI_COLORS as C, Z_HUD, Z_START_SCREEN } from './uiConfig';
 
 export function hudCss(): string {
   const fontSize = `clamp(${HUD_FONT_MIN_PX}px, calc(${HUD_FONT_VW}vw + ${HUD_FONT_BIAS_PX}px), ${HUD_FONT_MAX_PX}px)`;
@@ -56,6 +56,18 @@ export function hudCss(): string {
 .hud-slider { width: 100%; min-height: ${target}; margin: 0; accent-color: ${C.accent}; cursor: pointer; }
 
 .hud-toast { position: absolute; left: 50%; bottom: 11em; transform: translateX(-50%); width: max-content; max-width: min(30em, calc(100vw - 2em)); text-align: center; padding: 0.45em 1em; pointer-events: none; border-color: ${C.danger}; }
+
+/* Narrow screens (a phone held upright, D107): the banner takes the whole top row left of the Dev button, with the countdown beside the
+   text; the leaderboard sits below it, so nothing overlaps the banner, the board or the Dev button (48 px + 8 px margins). */
+@media (max-width: ${NARROW_MAX_PX}px), (max-aspect-ratio: 1/1) {
+  .hud-banner { left: 8px; right: 64px; top: 8px; transform: none; width: auto; max-width: none; display: flex; align-items: center; justify-content: space-between; gap: 0.6em; text-align: left; padding: 0.35em 0.7em; }
+  .hud-banner-text { font-size: 1em; }
+  .hud-banner-seconds { font-size: 1.6em; flex: none; }
+  .hud-badge { left: 8px; transform: none; top: 5.4em; }
+  .hud-board { top: 6.4em; right: 8px; width: 13em; padding: 0.35em 0.5em 0.4em; }
+  .hud-row { min-height: 1.5em; }
+  .hud-toast { bottom: 17em; }
+}
 
 .start-root { position: absolute; inset: 0; z-index: ${Z_START_SCREEN}; display: flex; align-items: center; justify-content: center; padding: 1em; background: radial-gradient(ellipse at center, ${C.scrim} 0%, ${C.scrimEdge} 100%); overflow: auto; }
 .start-card { width: min(34em, 100%); display: flex; flex-direction: column; align-items: center; gap: 0.9em; text-align: center; padding: 1.2em 1.5em 1.1em; background: ${C.card}; border: 1px solid ${C.panelBorder}; border-radius: 1em; box-shadow: 0 0.4em 2em rgba(0, 0, 0, 0.6); }

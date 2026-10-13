@@ -112,6 +112,58 @@ describe('lint self-test: determinism rules in src/sim and src/ai', () => {
   });
 });
 
+describe('lint self-test: the front end (src/ui, src/render, src/app) reads the sim and never runs or writes it (CHARTER invariant 6)', () => {
+  const forbidden: Array<[string, string]> = [
+    ['step', "import { step } from '../sim/step';\nexport const a = step;"],
+    ['serialize', "import { serialize } from '../sim/serialize';\nexport const a = serialize;"],
+    ['conquest', "import { launchAttack } from '../sim/conquest';\nexport const a = launchAttack;"],
+    ['territory', "import { setOwner } from '../sim/territory';\nexport const a = setOwner;"],
+    ['spawn', "import { applySpawn } from '../sim/spawn';\nexport const a = applySpawn;"],
+    ['attacks', "import { AttackTable } from '../sim/attacks';\nexport const a = AttackTable;"],
+    ['economy', "import { addTroops } from '../sim/economy';\nexport const a = addTroops;"],
+    ['units', "import { troopsToQt } from '../sim/units';\nexport const a = troopsToQt;"],
+    ['world', "import { createSimWorld } from '../sim/world';\nexport const a = createSimWorld;"],
+    ['a value from sim/state other than the seat functions', "import { createState } from '../sim/state';\nexport const a = createState;"],
+    ['a namespace import of sim/state', "import * as S from '../sim/state';\nexport const a = S;"],
+    ['a re-export of step', "export { step } from '../sim/step';"],
+    ['a dynamic import of step', "export const a = import('../sim/step');"],
+    ['the evil example of the audit (writes state.owner and steps)', "import { step } from '../sim/step';\nimport { type GameState } from '../sim/state';\nexport function evil(s: GameState): void { s.owner[0] = 5; step(s, { turn: s.tick, intents: [] }); }"],
+  ];
+  for (const [name, code] of forbidden) {
+    for (const file of ['src/ui/fixture.ts', 'src/render/fixture.ts', 'src/app/fixture.ts']) {
+      it(`${name} fails in ${file}`, async () => {
+        const errors = await lint(file, code);
+        expect(errors.length, JSON.stringify(errors)).toBeGreaterThan(0);
+        expect(errors.some((e) => /no-restricted-(imports|syntax)/.test(e)), JSON.stringify(errors)).toBe(true);
+      });
+    }
+  }
+
+  it('the allowed imports pass: the view, intents, flow, rules, terrain, time, seatToOwner / ownerToSeat and any TYPE from sim/state', async () => {
+    const code = [
+      "import { STAT_COUNT, type SimView } from '../sim/view';",
+      "import { attackBody, type IntentBody } from '../sim/intents';",
+      "import { PHASE_SPAWN } from '../sim/flow';",
+      "import { TICK_HZ } from '../sim/rules';",
+      "import { isPlayableClass } from '../sim/terrain';",
+      "import { scheduledTurn } from '../sim/time';",
+      "import { seatToOwner, ownerToSeat, type GameState } from '../sim/state';",
+      "import type { Intent } from '../sim/public';",
+      'export const a = [STAT_COUNT, attackBody, PHASE_SPAWN, TICK_HZ, isPlayableClass, scheduledTurn, seatToOwner, ownerToSeat];',
+      'export type T = [SimView, IntentBody, GameState, Intent];',
+    ].join('\n');
+    for (const file of ['src/ui/fixture.ts', 'src/render/fixture.ts', 'src/app/fixture.ts']) expect(await lint(file, code), file).toEqual([]);
+  });
+
+  it('only src/app/debugSim.ts and src/app/match.ts, which run and build a sim, may import step, serialize and world', async () => {
+    const code = "import { step } from '../sim/step';\nimport { hashState } from '../sim/serialize';\nimport { createSimWorld } from '../sim/world';\nexport const a = [step, hashState, createSimWorld];";
+    expect(await lint('src/app/debugSim.ts', code)).toEqual([]);
+    expect(await lint('src/app/match.ts', code)).toEqual([]);
+    expect((await lint('src/app/globeApp.ts', code)).length).toBeGreaterThan(0);
+    expect((await lint('src/app/devpanel.ts', code)).length).toBeGreaterThan(0);
+  });
+});
+
 describe('lint self-test: scope of the rules', () => {
   it('src/data forbids three and DOM globals but allows Math.sin and Date', async () => {
     expect((await lint('src/data/fixture.ts', "import * as T from 'three';\nexport const a = T;")).length).toBeGreaterThan(0);

@@ -51,6 +51,14 @@ GÖR, Part C (item 6 and the finish) - DONE (this session; nothing pushed, no PR
 - [x] C6. AI calibration (D104), screenshots looked at, a full simulated session at 4x through Playwright (below)
 - [x] C-last. Docs (ARCHITECTURE "The AI call", DECISIONS D102 to D105, PREVIEW in Swedish 17d to 17k and two table rows, BACKLOG, BALANCE, CLAUDE.md), `npm run verify` green, build and pack
 
+Audit round after part C (four auditors, eleven findings, all fixed; details D106 to D110 of `docs/DECISIONS.md`; nothing pushed, no PR, no Artifact)
+- [x] 1. Terrain slows the capture (a Mountain front 0.39 of a Plains front per 100 ticks), `CAPTURE_K_MILLI` 123, `ENGINE_VERSION` 5, sim goldens re-pinned once (D106)
+- [x] 2. HUD at 390x844: banner readable (>= 200 px wide, < 90 px tall), no overlap with the leaderboard or the Dev button, e2e (D107)
+- [x] 3. Territory readable at night (emissive floor, bright rim, halo), own colour magenta instead of blue, e2e at night (D108)
+- [x] 4. ESLint and structural boundary for `src/ui`, `src/render`, `src/app` (explicit exceptions `src/app/debugSim.ts`, `src/app/match.ts`), lint rows and scans (D110)
+- [x] 5. `requestView()` copies pinned; 6. `textureMB` counts the ownership texture; 7. attack target and commitment pinned (pure `clickMeaning`, spy test, e2e click on enemy land); 8. `goldPerSecMilli` unit pinned; 9. `StatInterpolator` three pushes; 10. `setFromOwners` dirty flag; 11. `resolveClickCell` nearest of several; 12. `takeNewReject` filters AI refusals; 13. the AI waits 15 s for you and Spawns on consecutive ticks (D109), `AI_EXPAND_TROOP_PCT` 40
+- [x] `docs/PREVIEW.md` (Swedish) updated: click your start place within 15 seconds, terrain speed, magenta colour, phone layout
+
 ACCEPTANS (all three parts; the part that owns each item is in brackets)
 - [x] [A done, B re-checks with the real HUD] Playwright `?test=1&seed=7` (`#test_seed-7` is the same match): spawn at fixed coordinates, `advance` 600 ticks, the player's land share above the start value (0.150 % to 0.293 %); HUD values equal sim values (`data-testid`, the temporary HUD; part B must keep the test green for its HUD: land share, timer, leaderboard are new); screenshots at tick 0 / 100 / 300 / 600 (`test-results/shots/match-t000.png` and so on)
 - [x] [A] Negative e2e: spawn on sea, Peak or Ice is refused (state unchanged, reject counter +1); attack on own land and spawn after the phase are refused; pct 0 is refused

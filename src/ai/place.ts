@@ -4,6 +4,7 @@
 import { NO_OWNER, START_DISC_RADIUS_CELLS, AI_SPAWN_TRIES, isPlayableClass, nextBelow, type SimView } from '../sim/public';
 
 const R = START_DISC_RADIUS_CELLS;
+const NO_CELLS: readonly number[] = Object.freeze([]);
 /** The clearance never drops below this, so two capitals never overlap. */
 const MIN_CLEARANCE = R + 2;
 
@@ -37,14 +38,28 @@ function isClear(view: SimView, x: number, y: number, clearance: number): boolea
   return true;
 }
 
+/** Is (x, y) at least `clearance` cells (a square, x wrapping) from every capital in `avoid`? The cells are Spawns that are on their way (sent, not yet run). */
+function isClearOfPending(view: SimView, x: number, y: number, clearance: number, avoid: readonly number[]): boolean {
+  const w = view.width;
+  for (let i = 0; i < avoid.length; i++) {
+    const c = avoid[i] as number;
+    const cx = c % w;
+    const dx = Math.abs(cx - x);
+    if (Math.min(dx, w - dx) < clearance && Math.abs((c - cx) / w - y) < clearance) return false;
+  }
+  return true;
+}
+
 /**
  * A cell to Spawn on, or -1 when none was found in AI_SPAWN_TRIES random places.
+ *  - `avoid` (cells): Spawns of other seats that are in flight (sent, they run 2 ticks later, so the view does not show them yet); a
+ *    place within the clearance of one of them is never picked, so seats can Spawn on consecutive ticks without two capitals meeting.
  *  - `anchor` (a cell, or -1): the first half of the tries stay within `reach` cells of it (a square, x wrapping); the second half
  *    ignore it, so a human on a small island does not leave the AI without a capital.
  *  - the clearance (cells to the nearest owned cell) is halved after every quarter of the tries, down to a floor, so that a
  *    crowded map still finds a place.
  */
-export function pickSpawnCell(view: SimView, rng: Uint32Array, clearance: number, anchor = -1, reach = 0): number {
+export function pickSpawnCell(view: SimView, rng: Uint32Array, clearance: number, anchor = -1, reach = 0, avoid: readonly number[] = NO_CELLS): number {
   const w = view.width;
   const h = view.height;
   if (h <= 2 * R) return -1;
@@ -67,7 +82,7 @@ export function pickSpawnCell(view: SimView, rng: Uint32Array, clearance: number
     }
     const cell = y * w + x;
     if (!isPlayableClass(view.terrainClass[cell] as number) || (view.owner[cell] as number) !== NO_OWNER) continue;
-    if (!discIsLand(view, x, y) || !isClear(view, x, y, need)) continue;
+    if (!discIsLand(view, x, y) || !isClear(view, x, y, need) || !isClearOfPending(view, x, y, need, avoid)) continue;
     return cell;
   }
   return -1;

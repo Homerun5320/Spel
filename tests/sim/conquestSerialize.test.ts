@@ -1,7 +1,7 @@
 // The attack table and the enclave queue in the snapshot: round trip, hash coverage, and bytes that lie about them.
 import { describe, expect, it } from 'vitest';
 import { enclaveBucket } from '../../src/sim/enclaveQueue';
-import { ENCLAVE_FLIP_TICKS } from '../../src/sim/rules';
+import { ENCLAVE_FLIP_TICKS, PROGRESS_DEBT_MAX } from '../../src/sim/rules';
 import { HEADER_BYTES, deserialize, hashState, serialize, serializedLength } from '../../src/sim/serialize';
 import type { GameState } from '../../src/sim/state';
 import { MatchDriver, RW, RH, RSEATS, randomMatchState } from './helpers/randomMatch';
@@ -40,7 +40,14 @@ describe('attacks and the enclave queue in a snapshot', () => {
     expect(t.attacks.list.length).toBe(s.attacks.list.length);
     s.attacks.list.forEach((a, i) => {
       const b = t.attacks.list[i];
-      expect([b?.id, b?.attacker, b?.target, b?.troops, b?.costFrac, b?.progress, b?.compactAt, b?.picks, b?.size, b?.low]).toEqual([a.id, a.attacker, a.target, a.troops, a.costFrac, a.progress, a.compactAt, a.picks, a.size, a.low]);
+      expect([b?.id, b?.attacker, b?.target, b?.troops, b?.costFrac, b?.progress, b?.compactAt, b?.picks, b?.size]).toEqual([a.id, a.attacker, a.target, a.troops, a.costFrac, a.progress, a.compactAt, a.picks, a.size]);
+      // `low` is derived and only a lower bound ("every bag below it is empty"): the live attack may keep a stale low after its shallowest
+      // bag ran empty, the loaded one recounts it tight. So compare the property, not the number: both bound the first non-empty bag,
+      // and the loaded one is exactly it.
+      const first = Array.from(a.counts).findIndex((n) => n > 0);
+      const tight = first < 0 ? 0 : first;
+      expect(a.low).toBeLessThanOrEqual(tight);
+      expect(b?.low).toBe(tight);
       expect(b?.entries()).toEqual(a.entries()); // the bags in their order, bag by bag
       expect(t.attacks.indexOf(a.attacker, a.target)).toBe(i);
     });
@@ -48,6 +55,22 @@ describe('attacks and the enclave queue in a snapshot', () => {
     expect(Array.from(t.enclaves.queued)).toEqual(Array.from(s.enclaves.queued));
     expect(Array.from(t.borders.edges)).toEqual(Array.from(s.borders.edges));
     expect(serialize(t)).toEqual(serialize(s));
+  });
+
+  it('terrain debt (negative capture progress, D106) survives a round trip and is bounded on load', () => {
+    const s = matchWithAttacks();
+    const a = s.attacks.list[0];
+    if (a === undefined) throw new Error('need an attack');
+    a.progress = -1500000;
+    const r = deserialize(serialize(s));
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.state.attacks.list[0]?.progress).toBe(-1500000);
+    expect(hashState(r.state)).toBe(hashState(s));
+    a.progress = -PROGRESS_DEBT_MAX;
+    expect(error(serialize(s))).toBe('ok');
+    a.progress = -PROGRESS_DEBT_MAX - 1;
+    expect(error(serialize(s))).toBe('attack-range');
   });
 
   it('every field of every attack, the sequence number and every queued cell is in the hash', () => {

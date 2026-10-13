@@ -38,8 +38,14 @@ describe('OwnershipTexture', () => {
     expect(t.flagsAt(40)).toBe(OWN_FLAG_PLAYABLE); // the flags survive an owner write
     const all = new Uint16Array(W * H);
     for (let i = 0; i < all.length; i++) all[i] = (i * 37) % 300;
+    expect(t.flush(100)).toBe(true); // upload what the writes above left, so that the texture is clean again
+    expect(t.isDirty).toBe(false);
     t.setFromOwners(all);
     for (let i = 0; i < all.length; i++) expect(t.ownerAt(i)).toBe(all[i]);
+    // a whole-array write (the first fill, and the full owner array after an outbox overflow) marks the texture dirty and the next flush uploads it
+    expect(t.isDirty).toBe(true);
+    expect(t.flush(200)).toBe(true);
+    expect(t.isDirty).toBe(false);
   });
 
   it('uploads the whole texture at most once per OWNERSHIP_MIN_UPLOAD_INTERVAL_S of fx time, only when dirty, and counts the uploads', () => {

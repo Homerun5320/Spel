@@ -17,7 +17,7 @@
 import { Attack, AttackTable } from './attacks';
 import { EnclaveQueues, enclaveBucket } from './enclaveQueue';
 import { FNV_OFFSET, finishHash, foldBytes, foldU16, foldU32, foldWord } from './hash';
-import { D_MAX_CELLS, ENCLAVE_FLIP_TICKS, MICRO_CELLS_PER_CELL, MICRO_QT_PER_QT, MILLI_QT_PER_QT } from './rules';
+import { D_MAX_CELLS, ENCLAVE_FLIP_TICKS, MICRO_CELLS_PER_CELL, MICRO_QT_PER_QT, MILLI_QT_PER_QT, PROGRESS_DEBT_MAX } from './rules';
 import {
   ENGINE_VERSION,
   MAX_SEATS,
@@ -202,7 +202,7 @@ export function serialize(state: GameState): Uint8Array {
     v.setUint32(p + 8, a.target, true);
     v.setUint32(p + 12, a.troops, true);
     v.setUint32(p + 16, a.costFrac, true);
-    v.setUint32(p + 20, a.progress, true);
+    v.setInt32(p + 20, a.progress, true);
     v.setUint32(p + 24, a.compactAt, true);
     v.setUint32(p + 28, a.picks, true);
     v.setUint32(p + 32, bagsOf(a), true);
@@ -319,14 +319,14 @@ export function deserialize(bytes: Uint8Array): DeserializeResult {
     const target = v.getUint32(p + 8, true);
     const a = new Attack(id, attacker, target, v.getUint32(p + 12, true));
     a.costFrac = v.getUint32(p + 16, true);
-    a.progress = v.getUint32(p + 20, true);
+    a.progress = v.getInt32(p + 20, true);
     a.compactAt = v.getUint32(p + 24, true);
     a.picks = v.getUint32(p + 28, true);
     const bagCount = v.getUint32(p + 32, true);
     p += BYTES_PER_ATTACK;
     if (id <= lastId || id > attacks.seq || attacker < 1 || attacker > seats || target > seats || target === attacker) return fail('attack-range');
     if (attacks.slotOf[attacker * slots + target] !== -1) return fail('attack-range');
-    if (a.costFrac >= MILLI_QT_PER_QT || a.progress >= MICRO_CELLS_PER_CELL || a.compactAt < 1) return fail('attack-range');
+    if (a.costFrac >= MILLI_QT_PER_QT || a.progress >= MICRO_CELLS_PER_CELL || a.progress < -PROGRESS_DEBT_MAX || a.compactAt < 1) return fail('attack-range');
     if (bagCount > D_MAX_CELLS + 1 || bagCount * BYTES_PER_BAG > end - p) return fail('attack-range');
     let lastDepth = -1;
     for (let k2 = 0; k2 < bagCount; k2++) {

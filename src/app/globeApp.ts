@@ -19,9 +19,8 @@ import { mountStartScreen, type StartScreen } from '../ui/startScreen';
 import { PHASE_IMMUNITY, PHASE_SPAWN } from '../sim/flow';
 import { REJECT_NOT_SPAWNED } from '../sim/intents';
 import { seatToOwner } from '../sim/state';
-import { isPlayableClass } from '../sim/terrain';
 import type { IntentBody } from '../sim/intents';
-import { resolveClickCell } from './clickTarget';
+import { clickMeaning, resolveClickCell } from './clickTarget';
 import { LOCAL_SEAT, MatchSession } from './match';
 import { matchKeyAction } from './matchKeys';
 import type { AppParams, AppState, SceneParams } from './params';
@@ -246,7 +245,6 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     if (pick === null) return;
     const v = sess.view;
     const cell = resolveClickCell(pick, v.terrainClass, v.width, v.height);
-    const cls = v.terrainClass[cell] as number;
     const spawned = (v.stats.capital[LOCAL_SEAT] as number) !== 0;
     if (v.phase === PHASE_SPAWN) {
       if (!spawned) sess.spawnAt(cell); // anything else is the sim's to refuse (sea, Peak, Ice, owned) and the toast says why
@@ -256,13 +254,9 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       hud?.toast(rejectText(REJECT_NOT_SPAWNED), fxNow());
       return;
     }
-    if (!isPlayableClass(cls)) {
-      hud?.toast(notConquerableText(), fxNow());
-      return;
-    }
-    const target = v.owner[cell] as number;
-    if (target === sess.localOwner) return; // your own land: nothing to attack
-    sess.attack(target);
+    const meaning = clickMeaning(cell, v.terrainClass, v.owner, sess.localOwner);
+    if (meaning.kind === 'unplayable') hud?.toast(notConquerableText(), fxNow());
+    else if (meaning.kind === 'attack') sess.attack(meaning.target); // your own land (kind 'own') does nothing
   };
 
   // --- Overlay (F3) -----------------------------------------------------------------------------------------------

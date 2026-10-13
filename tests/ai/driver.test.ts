@@ -102,7 +102,7 @@ describe('the AI driver in the host', () => {
     expect(mirror.stats.cells[1]).toBe(0);
     host.runTicks(1);
     expect(mirror.stats.cells[1]).toBe(START_DISC_CELLS);
-    // One seat every 3 ticks, the nations first, then the tribes: the last of the 25 (slot 72) is down 2 ticks after it was sent.
+    // One seat every tick, the nations first, then the tribes: the last of the 25 (slot 24) is down 2 ticks after it was sent.
     host.runTicks(80);
     for (let seat = 1; seat < SEATS; seat++) expect(mirror.stats.cells[seat], `seat ${seat}`).toBeGreaterThanOrEqual(START_DISC_CELLS);
     expect(state.rejects).toBe(0);
@@ -152,6 +152,60 @@ describe('the AI driver in the host', () => {
       expect(near, `seed ${seed}`).toBeGreaterThanOrEqual(3);
       const nearestNation = Math.min(...[1, 2, 3, 4, 5].map(dist));
       expect(nearestNation, `seed ${seed}`).toBeLessThanOrEqual(90);
+    }
+  });
+
+  it('a human who reads the banner first still gets the nations around them: a Spawn 14 s into the phase (tick 140, after the old 11 s limit) leaves the nearest nation within 90 cells, with no refused intent', async () => {
+    const world = await loadRealWorld();
+    const spots: Array<[string, number]> = [
+      ['Europe', HUMAN_CELL],
+      ['Brazil', cellAt(-10, -52)],
+      ['US midwest', cellAt(40, -98)],
+      ['Australia', cellAt(-25, 135)],
+    ];
+    for (const [name, cell] of spots) {
+      for (const seed of [1, 2, 3, 4, 5, 6]) {
+        const state = matchState(world, seed);
+        const host = new MainThreadHost(state, { driver: new AiDriver(seed) });
+        host.runTicks(140);
+        host.submitIntent({ kind: 'Spawn', seat: 0, cell });
+        host.runTicks(SPAWN_PHASE_TICKS - 140);
+        const view = new StateView(state);
+        const dist = (seat: number): number => {
+          const c = (view.stats.capital[seat] as number) - 1;
+          const dx = Math.abs((c % 1024) - (cell % 1024));
+          return Math.max(Math.min(dx, 1024 - dx), Math.abs(Math.floor(c / 1024) - Math.floor(cell / 1024)));
+        };
+        for (let seat = 1; seat < SEATS; seat++) expect(view.stats.cells[seat], `${name}, seed ${seed}, seat ${seat}`).toBe(START_DISC_CELLS);
+        const nearestNation = Math.min(...[1, 2, 3, 4, 5].map(dist));
+        expect(nearestNation, `${name}, seed ${seed}`).toBeLessThanOrEqual(90);
+        expect(state.rejects, `${name}, seed ${seed}`).toBe(0);
+      }
+    }
+  });
+
+  it('Spawns that are on their way are known to the seats that follow on the next tick: 25 seats Spawn on 25 consecutive ticks, no two capitals within the clearance, no refusal', async () => {
+    const world = await loadRealWorld();
+    for (const seed of [1, 2, 3]) {
+      const state = matchState(world, seed);
+      const host = new MainThreadHost(state, { driver: new AiDriver(seed) });
+      host.submitIntent({ kind: 'Spawn', seat: 0, cell: HUMAN_CELL });
+      host.runTicks(SPAWN_PHASE_TICKS);
+      const view = new StateView(state);
+      const caps: Array<[number, number]> = [];
+      for (let seat = 0; seat < SEATS; seat++) {
+        const c = (view.stats.capital[seat] as number) - 1;
+        caps.push([c % 1024, Math.floor(c / 1024)]);
+      }
+      for (let a = 0; a < caps.length; a++) {
+        for (let b = a + 1; b < caps.length; b++) {
+          const dx = Math.abs((caps[a] as [number, number])[0] - (caps[b] as [number, number])[0]);
+          const d = Math.max(Math.min(dx, 1024 - dx), Math.abs((caps[a] as [number, number])[1] - (caps[b] as [number, number])[1]));
+          expect(d, `seed ${seed}: capitals of seats ${a} and ${b}`).toBeGreaterThanOrEqual(10); // the clearance never drops below the disc radius + 2
+        }
+      }
+      for (let seat = 0; seat < SEATS; seat++) expect(view.stats.cells[seat], `seed ${seed}, seat ${seat}`).toBe(START_DISC_CELLS);
+      expect(state.rejects, `seed ${seed}`).toBe(0);
     }
   });
 

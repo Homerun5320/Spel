@@ -1,6 +1,8 @@
 import { NearestFilter, LinearFilter, NoColorSpace, RedFormat, UnsignedByteType } from 'three';
 import { describe, expect, it } from 'vitest';
-import { createWorldTextures, makeR8Texture, textureBytes } from '../../src/render/textures';
+import { createWorldTextures, makeR8Texture, rgbaTextureBytes, textureBytes } from '../../src/render/textures';
+import { OwnershipTexture } from '../../src/render/ownership';
+import { createOwnerPaletteTexture } from '../../src/render/ownerPalette';
 import { worldLoader } from '../helpers/dataFiles';
 
 describe('data textures', () => {
@@ -30,6 +32,11 @@ describe('data textures', () => {
     expect(t.terrainClass.magFilter).toBe(NearestFilter);
     expect(t.height.magFilter).toBe(LinearFilter);
     expect(textureBytes(t.height) + textureBytes(t.bathy) + textureBytes(t.country) + textureBytes(t.terrainClass)).toBe(8388608 + 2097152 + 8388608 + 524288);
+  });
+
+  it('the RGBA8 textures of the match are counted at four bytes a texel: the 1024x512 ownership texture is 2 MiB and the owner palette 1 KiB', () => {
+    expect(rgbaTextureBytes(new OwnershipTexture(1024, 512, new Uint8Array(1024 * 512)).texture)).toBe(2 * 1024 * 1024);
+    expect(rgbaTextureBytes(createOwnerPaletteTexture())).toBe(256 * 4);
   });
 
   it('rejects data of the wrong size', () => {

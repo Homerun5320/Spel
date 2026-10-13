@@ -1,6 +1,6 @@
 # Balans (BALANCE)
 
-**Sammanfattning (svenska).** Alla spelsiffror ligger i en enda fil, `src/sim/rules.ts`, och varje konstant har en rad i tabellen nedan (ett test kontrollerar att filen och tabellen stämmer överens). Siffrorna är otestade startvärden: de flesta kommer från planen ("plan"), några är egna val ("eget val") och märkta som sådana. Planens regler är skrivna för ett 512x256-rutnät; spelet kör 1024x512, så en std-cell är 2x2 simceller (avstånd x2, areor x4, hastigheter x2). Trupper räknas i kvartstruppar (4 = 1 trupp) och guld i tusendels guld, så att inga flyttal behövs. Erövringen (M04 del B) använder samma tabell: fångsthastigheten `CAPTURE_K_MILLI` är kalibrerad mot en ensam expanderare på riktiga världen (80 i planen, 103 efter två justeringsvarv: ca 2 420 celler efter 5 minuter och ca 5 170 efter 10; bandet står i `tools/sim/bands.ts` och gäller referensboten, som startar om sin attack först när trupperna är slut, inte en spelare som avbryter och startar om hela tiden), kostnaden per cell är terrängens procent gånger uppförsbacke gånger (1 + djup/40), där djupet följer cellen (`exposure`) och därför inte kan nollställas genom att avbryta och starta om, och enklaver upp till 64 celler byter ägare gratis. Förändrar du ett värde: räkna upp `ENGINE_VERSION`, uppdatera raden här och kör testerna (golden-hasharna ändras).
+**Sammanfattning (svenska).** Alla spelsiffror ligger i en enda fil, `src/sim/rules.ts`, och varje konstant har en rad i tabellen nedan (ett test kontrollerar att filen och tabellen stämmer överens). Siffrorna är otestade startvärden: de flesta kommer från planen ("plan"), några är egna val ("eget val") och märkta som sådana. Planens regler är skrivna för ett 512x256-rutnät; spelet kör 1024x512, så en std-cell är 2x2 simceller (avstånd x2, areor x4, hastigheter x2). Trupper räknas i kvartstruppar (4 = 1 trupp) och guld i tusendels guld, så att inga flyttal behövs. Erövringen (M04 del B) använder samma tabell: fångsthastigheten `CAPTURE_K_MILLI` är kalibrerad mot en ensam expanderare på riktiga världen (80 i planen, 103 efter två justeringsvarv och 123 sedan terrängen började bromsa erövringen (berg tar 2,5 gånger så lång tid som slätt, D106): ca 2 430 celler efter 5 minuter och ca 5 100 efter 10; bandet står i `tools/sim/bands.ts` och gäller referensboten, som startar om sin attack först när trupperna är slut, inte en spelare som avbryter och startar om hela tiden), kostnaden per cell är terrängens procent gånger uppförsbacke gånger (1 + djup/40), där djupet följer cellen (`exposure`) och därför inte kan nollställas genom att avbryta och starta om, och enklaver upp till 64 celler byter ägare gratis. Förändrar du ett värde: räkna upp `ENGINE_VERSION`, uppdatera raden här och kör testerna (golden-hasharna ändras).
 
 Below, everything is in English. See `docs/DECISIONS.md` D73 to D80 for how the units were chosen and D82 to D88 for the conquest (what d and dh mean, the calibration rounds).
 
@@ -45,7 +45,7 @@ Below, everything is in English. See `docs/DECISIONS.md` D73 to D80 for how the 
 
 | Constant | Value | Unit | Source | Note |
 |----------|-------|------|--------|------|
-| `TERRAIN_COST_PCT` | [0, 0, 100, 130, 160, 250, 0, 0] | % of a Plains cell, by class (DeepSea, Shallows, Plains, Forest, Hills, Mountain, Peak, Ice) | plan | 0 = unplayable and impassable (sea, Shallows, Peak, Ice). Cost multipliers 1.0 / 1.3 / 1.6 / 2.5 are used by the conquest (part B); the zeros already decide which cells can be owned. |
+| `TERRAIN_COST_PCT` | [0, 0, 100, 130, 160, 250, 0, 0] | % of a Plains cell, by class (DeepSea, Shallows, Plains, Forest, Hills, Mountain, Peak, Ice) | plan | 0 = unplayable and impassable (sea, Shallows, Peak, Ice). Cost multipliers 1.0 / 1.3 / 1.6 / 2.5 are used by the conquest twice (D106): the PRICE of a cell in troops, and its SPEED (a cell of class c takes this percent of a Plains cell's capture progress, so a Mountain front is 2.5 times slower than a Plains front, Hills 1.6, Forest 1.3); the zeros decide which cells can be owned. |
 
 ## Start, troops and gold (M04 part A)
 
@@ -76,7 +76,7 @@ Below, everything is in English. See `docs/DECISIONS.md` D73 to D80 for how the 
 
 | Constant | Value | Unit | Source | Note |
 |----------|-------|------|--------|------|
-| `CAPTURE_K_MILLI` | 103 | thousandths | plan | Capture speed = K * sqrt(L) * 2F / (F + Td) in std-cells per second. The plan's start value was 80 (0.08); the solo calibration (D88) moved it to 103 (0.103, inside the plan's 0.06 to 0.15). |
+| `CAPTURE_K_MILLI` | 123 | thousandths | plan | Capture speed = K * sqrt(L) * 2F / (F + Td) in std-cells per second. The plan's start value was 80 (0.08); the solo calibration (D88) moved it to 103 (0.103); when terrain started to slow the capture (D106: a Mountain cell takes 2.5 cells' worth of progress) it was raised to 123 (0.123, still inside the plan's 0.06 to 0.15) so that the reference expander stays in its band (about 2 430 cells after 5 minutes and 5 100 after 10). |
 | `BASE_COST_TROOPS` | 3 | troops per std-cell | plan | Before terrain, height and depth multipliers. |
 | `BASE_COST_QT_PER_SIM_CELL` | 3 | QT per sim cell | plan | Derived: BASE_COST_TROOPS * QT_PER_TROOP / STD_CELL_AREA. |
 | `D_MAX_STD` | 40 | std-cells | plan | Depth limit of the defender term (the plan says: proposal 40). |
@@ -89,6 +89,7 @@ Below, everything is in English. See `docs/DECISIONS.md` D73 to D80 for how the 
 | `UPHILL_MAX_PCT` | 200 | % | plan | Uphill factor capped at x2; downhill is 1. |
 | `ENCLAVE_FLIP_TICKS` | 20 | ticks | plan | Enclave flip every 20th tick, offset by hash(id): the enclave candidates are spread over 20 buckets by a hash of the cell and a tick checks the bucket `tick % 20` (D86). |
 | `MICRO_CELLS_PER_CELL` | 1000000 | micro-cells per cell | eget val | Unit of the capture progress an attack carries from tick to tick. |
+| `PROGRESS_DEBT_MAX` | 1000000000 | micro-cells | eget val | The most terrain debt an attack can owe (progress goes negative after a slow cell, D106): 1000 cells' worth; also the range check of deserialize. |
 | `MILLI_QT_PER_QT` | 1000 | milli-QT per QT | eget val | Unit of the price of one cell; the unpaid part of a QT is carried in the attack. |
 | `BASE_COST_MILLI_QT_PER_SIM_CELL` | 3000 | milli-QT per sim cell | plan | Derived: BASE_COST_QT_PER_SIM_CELL * MILLI_QT_PER_QT. |
 | `CAPTURE_SQRT_SCALE` | 500000 | scale | eget val | Derived: 10^6 / STD_CELL_SIDE; sqrt(L in std-cells) * 1000 = isqrt(L in sim cells * this). |
@@ -115,15 +116,15 @@ The AI only emits intents (`src/ai`, read through `src/sim/public.ts`); these va
 | `AI_THINK_PERIOD_TICKS` | 10 | ticks | eget val | One thought per seat per second. |
 | `AI_THINK_STAGGER_TICKS` | 3 | ticks per seat | eget val | Seat s thinks when (tick + s * 3) is a multiple of the period, so the seats do not all think on one tick. |
 | `AI_ANCHOR_SEAT` | 0 | seat | eget val | The seat the AI places its capitals around: the human's. |
-| `AI_SPAWN_WAIT_TICKS` | 110 | ticks | eget val | The AI seats wait for the human's Spawn so that the world fills in around the player (D104); if the human has not spawned by tick 110 (11 s of the 20 s phase) they go ahead with places spread over the whole map. |
-| `AI_SPAWN_SPACING_TICKS` | 3 | ticks | eget val | From the release the AI seats Spawn one by one, the nations first, this far apart: a Spawn runs 2 ticks after it was sent, so each seat sees the capital of the one before it and picks another place. 25 seats take 72 ticks, so the last one is down before the phase ends at tick 200. |
+| `AI_SPAWN_WAIT_TICKS` | 150 | ticks | eget val | The AI seats wait for the human's Spawn so that the world fills in around the player (D104); if the human has not spawned by tick 150 (15 s of the 20 s phase, D109) they go ahead with places spread over the whole map. The last seat (slot 24) is down at tick 150 + 24 + 2 = 176, with room for a few retries before the phase ends at tick 200. |
+| `AI_SPAWN_SPACING_TICKS` | 1 | ticks | eget val | From the release the AI seats Spawn one by one, the nations first, this far apart. A Spawn runs 2 ticks after it was sent, so the driver (`src/host/aiDriver.ts`) hands every seat the list of Spawns still in flight and `pickSpawnCell` keeps its clearance from them (D109): seats may Spawn on consecutive ticks and still never meet. 25 seats take 24 ticks. |
 | `AI_SPAWN_RETRY_TICKS` | 6 | ticks | eget val | A Spawn runs 2 ticks after it was sent; if the capital is still missing after this many, another place is tried. |
 | `AI_NATION_CLEARANCE_CELLS` | 28 | sim cells | eget val | A nation's capital is at least this far from every owned cell (about 1100 km at the equator). |
 | `AI_TRIBE_CLEARANCE_CELLS` | 14 | sim cells | eget val | The same for a tribe. |
 | `AI_NATION_REACH_CELLS` | 90 | sim cells | eget val | A nation's capital is at most this far from the human's (a square, x wrapping; about 3500 km at the equator). Measured with a scripted human expander: first contact with a nation after 2 to 6 minutes, with a tribe after about a minute (D104). |
 | `AI_TRIBE_REACH_CELLS` | 90 | sim cells | eget val | The same for a tribe. |
 | `AI_SPAWN_TRIES` | 400 | places | eget val | Random places tried for one Spawn; the clearance is halved after every quarter of them, and the second half ignores the reach. |
-| `AI_EXPAND_TROOP_PCT` | 50 | % of the cap | plan | "Expands when troops are at least 50 % of the cap." |
+| `AI_EXPAND_TROOP_PCT` | 40 | % of the cap | eget val | An AI seat expands when its troops are at least this share of the cap. The plan said 50; with the slower capture in rough terrain (D106) 40 keeps the nations' growth where D104 measured it (mean about 1 250 cells after 5 minutes, the weakest of eight seeds above 690). |
 | `AI_EXPAND_COMMIT_PCT` | 70 | % of troops | eget val | Share of its troops a nation commits to an Attack on unowned land. |
 | `AI_WAR_COMMIT_PCT` | 50 | % of troops | eget val | Share of its troops a nation commits to an Attack on a neighbour. |
 | `AI_WAR_MIN_RATIO_PCT` | 130 | % | eget val | A nation attacks a neighbour only with at least 1.3 times its troops. |

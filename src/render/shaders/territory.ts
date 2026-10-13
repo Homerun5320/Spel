@@ -7,6 +7,11 @@
 // amplitude OWNER_WARP_AMP cells) so that the borders between cells wiggle instead of following the grid. The noise is an
 // INTEGER hash (no sin, no fract(sin) tricks: it gives the same value on every GPU) and periodic across the antimeridian.
 //
+// NIGHT (D108): the tint is multiplied by the lighting, so on the night side a territory would vanish. `applyTerritory` therefore also
+// leaves an EMISSIVE term in the global `territoryGlow` (display colour in rgb, weight at full night in a) that terrain.ts mixes into the lit land
+// after the lighting, scaled by how dark the pixel is: the interior keeps about a third of the owner's colour, the border line turns
+// into a bright rim of that colour (it is dark by day) and a thin halo lights the unowned land just outside the border.
+//
 // The albedo is only changed here; the caller blends land and water with the land mask afterwards, so a territory is drawn
 // only where the height texture says land. A sim cell that is water while the 10 km render raster is land (a coast) takes the
 // owner of its nearest land neighbour, and a border is never drawn against sea.
@@ -17,6 +22,8 @@ uniform sampler2D uOwnerPalette;
 uniform ivec2 uOwnerSize;
 uniform vec4 uOwnerStyle; // x tint, y inner glow, z line strength, w line width in pixels
 uniform vec2 uOwnerWarp;  // x warp amplitude in cells, y line darkening factor
+uniform vec4 uOwnerNight; // x interior weight, y rim weight, z halo weight, w halo width in pixels
+uniform float uOwnerNightLevel; // brightness (linear) of the owner colour where the weight is 1
 
 float ownerHash(ivec2 i, int periodX) {
   uint x = uint(i.x & (periodX - 1));
@@ -98,8 +105,11 @@ float territoryEdge(vec2 pw, vec2 dx, vec2 dy, int id) {
   return n * 0.25;
 }
 
-// Tints the land albedo (display space) with the territory under the uv. Must be called from uniform control flow (derivatives); landMask is the land fraction of the pixel (0 = open sea skips all the work).
+// Tints the land albedo (display space) with the territory under the uv and leaves the night glow in territoryGlow. Must be called from uniform control flow (derivatives); landMask is the land fraction of the pixel (0 = open sea skips all the work).
+// (the glow is a file-scope variable, not an output parameter: the shader source test forbids our own declarations of that kind)
+vec4 territoryGlow = vec4(0.0);
 vec3 applyTerritory(vec3 albedo, vec2 uv, float landMask) {
+  territoryGlow = vec4(0.0);
   vec2 p0 = uv * vec2(uOwnerSize);
   vec2 dx = dFdx(p0);
   vec2 dy = dFdy(p0);
@@ -113,13 +123,32 @@ vec3 applyTerritory(vec3 albedo, vec2 uv, float landMask) {
   vec2 pw = ownerWarp(p0);
   bool sea;
   int id = territoryOwner(pw, sea);
-  if (id == 0) return albedo;
+  if (id == 0) {
+    // Unowned land: a thin halo of the colour of a territory within uOwnerNight.w pixels, visible at night only.
+    vec2 hx = dx * uOwnerNight.w;
+    vec2 hy = dy * uOwnerNight.w;
+    bool s2;
+    int a = territoryOwner(pw + hx, s2);
+    int b = territoryOwner(pw - hx, s2);
+    int c = territoryOwner(pw + hy, s2);
+    int d = territoryOwner(pw - hy, s2);
+    int near = a != 0 ? a : (b != 0 ? b : (c != 0 ? c : d));
+    if (near != 0) {
+      float cnt = float(a != 0) + float(b != 0) + float(c != 0) + float(d != 0);
+      territoryGlow = vec4(texelFetch(uOwnerPalette, ivec2(near & 255, 0), 0).rgb, uOwnerNight.z * clamp(cnt * 0.5, 0.0, 1.0));
+    }
+    return albedo;
+  }
   float line = territoryEdge(pw, dx * (0.5 * uOwnerStyle.w), dy * (0.5 * uOwnerStyle.w), id);
   float inner = 0.5 * (territoryEdge(pw, dx * 2.5, dy * 2.5, id) + territoryEdge(pw, dx * 5.0, dy * 5.0, id));
   vec3 col = texelFetch(uOwnerPalette, ivec2(id & 255, 0), 0).rgb;
   float fill = uOwnerStyle.x + uOwnerStyle.y * inner;
   vec3 outAlbedo = mix(albedo, col, fill);
-  outAlbedo = mix(outAlbedo, col * uOwnerWarp.y, clamp(line * 3.0, 0.0, 1.0) * uOwnerStyle.z);
+  float lineW = clamp(line * 3.0, 0.0, 1.0) * uOwnerStyle.z;
+  outAlbedo = mix(outAlbedo, col * uOwnerWarp.y, lineW);
+  // night: interior colour, with a bright rim on the border line (a lightened owner colour)
+  vec3 rim = mix(col, vec3(1.0), 0.45);
+  territoryGlow = vec4(mix(col, rim, lineW), mix(uOwnerNight.x * (0.8 + 0.5 * inner), uOwnerNight.y, lineW));
   return outAlbedo;
 }
 `;

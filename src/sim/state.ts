@@ -13,7 +13,7 @@ import { WEIGHT_ONE } from './rules';
 import { WorkCounters } from './work';
 
 /** Bumped whenever a rule, a constant in rules.ts or the meaning of a state array changes. Part of the match header. 2: M04 (economy, Spawn, owner arrays). 3: M04 conquest (attacks, enclaves, calibrated constants). 4: M04 fix pass (the exposure array, the enclave candidate rule). */
-export const ENGINE_VERSION = 4;
+export const ENGINE_VERSION = 5;
 
 // Structural limits (not tunables): a seat is one byte on the wire (intents), so 255 seats at most; ownerId is a Uint16
 // (room for tribes after the players), a cell index must stay below 2^22.
