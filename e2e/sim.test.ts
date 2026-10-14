@@ -4,7 +4,7 @@
 import fs from 'node:fs';
 import type { Browser, Page } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
-import { launchBrowser } from '../scripts/shot.mjs';
+import { launchBrowser, newTestPage } from '../scripts/shot.mjs';
 import { hex32 } from '../src/sim/hash';
 import { GOLDEN_TICKS, scenarioHashes } from '../src/sim/scenario';
 import { readGolden } from '../tests/helpers/simGolden';
@@ -23,7 +23,7 @@ interface Hooks {
 }
 
 async function openSim(browser: Browser, baseUrl: string, suffix = ''): Promise<{ page: Page; hooks: Hooks; messages: string[] }> {
-  const page = await browser.newPage({ viewport: { width: 800, height: 400 }, deviceScaleFactor: 1 });
+  const page = await newTestPage(browser, { width: 800, height: 400 });
   page.setDefaultTimeout(20_000);
   const messages: string[] = [];
   page.on('console', (m) => {

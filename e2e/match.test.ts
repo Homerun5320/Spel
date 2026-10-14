@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { Browser, Page } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
-import { OUT_DIR, analyzeImage, decodePng, launchBrowser, luma, openPage } from '../scripts/shot.mjs';
+import { OUT_DIR, analyzeImage, decodePng, launchBrowser, newTestPage, luma, openPage } from '../scripts/shot.mjs';
 import { deltaE76, rgbToLab } from '../src/render/color';
 import { timeForSubsolarLon } from '../src/render/geo';
 import { REJECT_IMMUNE, REJECT_PCT, REJECT_PHASE, REJECT_SELF, REJECT_TERRAIN } from '../src/sim/intents';
@@ -651,7 +651,7 @@ describe('the Dev panel', () => {
 
 describe('the live page (no test mode): start screen, Play, a click spawns, the loop runs the sim', () => {
   it('opens on the start screen with a Play button; Play shows the HUD; a click on land spawns; the frame loop advances ticks and logs the host advance cost', async () => {
-    const page = await browser.newPage({ viewport: { width: 960, height: 540 }, deviceScaleFactor: 1 });
+    const page = await newTestPage(browser, { width: 960, height: 540 });
     const messages: Array<{ type: string; text: string }> = [];
     page.on('console', (m) => {
       if (m.type() === 'error' || m.type() === 'warning') messages.push({ type: m.type(), text: m.text() });

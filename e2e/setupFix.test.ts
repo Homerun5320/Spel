@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { Browser, Page } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
-import { OUT_DIR, launchBrowser, openPage } from '../scripts/shot.mjs';
+import { OUT_DIR, launchBrowser, newTestPage, openPage } from '../scripts/shot.mjs';
 import { countryEligibility } from '../src/app/eligibility';
 import type { PreparedWorld } from '../src/app/matchWorld';
 import { TABLES } from '../src/ui/i18n';
@@ -235,7 +235,7 @@ describe('a custom nation and the names of real countries', () => {
 
 describe('the language is remembered (the live page, no test mode)', () => {
   async function live(hash: string): Promise<{ page: Page; messages: string[] }> {
-    const page = await browser.newPage({ viewport: { width: 960, height: 540 }, deviceScaleFactor: 1 });
+    const page = await newTestPage(browser, { width: 960, height: 540 });
     const messages: string[] = [];
     page.on('console', (m) => {
       // The Vite dev client logs "Failed to fetch" when a document is left in the middle of its own ping; that is the dev server, not the game.
@@ -286,7 +286,7 @@ describe('the language is remembered (the live page, no test mode)', () => {
   });
 
   it('with localStorage blocked the page still works, and the language lasts for the page (the memory fallback)', async () => {
-    const page = await browser.newPage({ viewport: { width: 960, height: 540 }, deviceScaleFactor: 1 });
+    const page = await newTestPage(browser, { width: 960, height: 540 });
     const messages: string[] = [];
     page.on('pageerror', (e) => messages.push(`pageerror: ${e.message}`));
     await page.addInitScript(() => {

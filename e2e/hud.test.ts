@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { Browser, Page } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
-import { OUT_DIR, decodePng, heapDelta, launchBrowser, luma, openPage } from '../scripts/shot.mjs';
+import { OUT_DIR, decodePng, heapDelta, launchBrowser, newTestPage, luma, openPage, waitFrames } from '../scripts/shot.mjs';
 import { timeForSubsolarLon } from '../src/render/geo';
 import { CLASS_FOREST, CLASS_HILLS, CLASS_PLAINS } from '../src/sim/terrain';
 import { TABLES, placeholdersOf } from '../src/ui/i18n';
@@ -34,8 +34,8 @@ afterAll(async () => {
   await browser?.close();
 });
 
-async function open(query: string, viewport = { width: 960, height: 540 }): Promise<{ page: Page; messages: Array<{ type: string; text: string }> }> {
-  const { page, consoleMessages } = await openPage(browser, baseUrl, query, viewport);
+async function open(query: string, viewport = { width: 960, height: 540 }, options?: { isolated?: boolean }): Promise<{ page: Page; messages: Array<{ type: string; text: string }> }> {
+  const { page, consoleMessages } = await openPage(browser, baseUrl, query, viewport, options);
   return { page, messages: consoleMessages };
 }
 
@@ -531,7 +531,7 @@ describe('i18n in the browser', () => {
 
 describe('the HUD does no work when nothing changed', () => {
   it('500 refreshes of an unchanged state cause no DOM mutation; the cost per refresh is logged', async () => {
-    const { page, messages } = await open('test=1&seed=7&hud=1&ai=0');
+    const { page, messages } = await open('test=1&seed=7&hud=1&ai=0', undefined, { isolated: true }); // a heap measurement: a page of its own context
     try {
       await view(page, VIEW);
       await clickAt(page, START.lat, START.lon);
@@ -563,7 +563,7 @@ describe('the HUD does no work when nothing changed', () => {
 
 describe('the live page: the start screen first, Play, language, Dev', () => {
   async function live(hash: string, viewport = { width: 960, height: 540 }): Promise<{ page: Page; messages: string[] }> {
-    const page = await browser.newPage({ viewport, deviceScaleFactor: 1 });
+    const page = await newTestPage(browser, viewport);
     const messages: string[] = [];
     page.on('console', (m) => {
       if (m.type() === 'error' || m.type() === 'warning') messages.push(`${m.type()}: ${m.text()}`);
@@ -590,7 +590,7 @@ describe('the live page: the start screen first, Play, language, Dev', () => {
       expect(await page.locator('[data-testid="play"]').textContent()).toBe('Spela');
       expect(await page.locator('[data-testid="start-title"]').textContent()).toBe('Erövra jorden');
       expect(await page.evaluate(() => document.activeElement?.getAttribute('data-testid'))).toBe('play'); // Enter starts
-      await page.waitForTimeout(800);
+      await waitFrames(page, 2); // the globe behind the start card has drawn (a frame count, not a sleep)
       fs.writeFileSync(path.join(SHOT_DIR, 'start-sv.png'), await page.screenshot({ type: 'png' }));
       expect(messages).toEqual([]);
     } finally {
@@ -680,7 +680,7 @@ describe('the live page: the start screen first, Play, language, Dev', () => {
       await page.screenshot({ path: path.join(SHOT_DIR, 'm390-01-banner.png') });
       await page.mouse.click(195, 470);
       await page.waitForFunction(() => Number(document.querySelector('[data-testid="troops"]')?.getAttribute('data-value') ?? 0) > 100, undefined, { timeout: 30_000 });
-      await page.waitForTimeout(500);
+      await page.waitForFunction(() => (document.querySelector('[data-testid="phase-text"]')?.textContent ?? '').includes('Startplats vald'), undefined, { timeout: 30_000 });
       await check('after the click');
       expect(await page.locator('[data-testid="phase-text"]').textContent()).toContain('Startplats vald');
       fs.writeFileSync(path.join(SHOT_DIR, 'm390-02-after-click.png'), await page.screenshot({ type: 'png' }));

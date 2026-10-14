@@ -100,6 +100,12 @@ export interface TerrainStateInfo {
 export interface GlobeTestHooks {
   /** Renders one frame; `dt` (default 0) first steps the fx clock, which also moves camera inertia and the sun. */
   render(dt?: number): void;
+  /**
+   * `n` frames of `dt` seconds each, of which only the last is drawn: exactly the state `n` calls of `render(dt)` leave behind (the fx clock,
+   * flights, camera inertia, chunk LOD hysteresis, the HUD and the frame counter all see every frame), at the cost of one GL draw. For waits
+   * in which nobody looks at the intermediate pictures (D144).
+   */
+  settle(dt: number, n: number): void;
   info(): GlobeTestInfo;
   /**
    * Sets the camera (and the fx clock when `time` is given). Does not render. M07a: with `altAglM` the camera is put that many metres
@@ -284,10 +290,10 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
 
   let firstFrameMs: number | null = null;
   let frames = 0;
-  const renderFrame = (): void => {
-    globe.render();
+  const renderFrame = (draw = true): void => {
+    globe.render(draw);
     frames++;
-    if (firstFrameMs === null) firstFrameMs = performance.now();
+    if (draw && firstFrameMs === null) firstFrameMs = performance.now();
   };
 
   // --- The match (M05, M06) -----------------------------------------------------------------------------------------------
@@ -755,6 +761,17 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
         globe.finish(); // no frame is presented between the calls of a test: wait for the commands (see Globe.finish)
         if (!overlay.hidden) refreshOverlay();
         perf?.update();
+      },
+      settle(dt: number, n: number): void {
+        for (let i = 0; i < n - 1; i++) {
+          advanceFx(dt);
+          refreshHud();
+          updateMarker();
+          renderFrame(false);
+          if (!overlay.hidden) refreshOverlay();
+          perf?.update();
+        }
+        hooks.render(dt);
       },
       info(): GlobeTestInfo {
         return { ...globe.info(), firstFrameMs, frames, testMode: true, fx: fxNow() };

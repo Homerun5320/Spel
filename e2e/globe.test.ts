@@ -256,7 +256,7 @@ describe('globe scene: camera by mouse', () => {
       await page.mouse.move(cx, cy);
       await page.mouse.wheel(0, -700);
       await page.evaluate(() => {
-        for (let i = 0; i < 30; i++) (window as any).__test.render(0.1);
+        (window as any).__test.settle(0.1, 30); // 30 frames of state, one draw
       });
       const after = await page.evaluate(([x, y]) => (window as any).__test.pick(x as number, y as number), [cx, cy] as const);
       const view = await page.evaluate(() => (window as any).__test.view());
@@ -268,7 +268,7 @@ describe('globe scene: camera by mouse', () => {
       // limits
       for (let i = 0; i < 12; i++) await page.mouse.wheel(0, -3000);
       await page.evaluate(() => {
-        for (let i = 0; i < 40; i++) (window as any).__test.render(0.5);
+        (window as any).__test.settle(0.5, 40);
       });
       // M07a: the chunk terrain can be zoomed to about 1 km above the ground (docs/DECISIONS.md D135); the fixed 220 km minimum is the fixed mesh's
       const aglAfterZoom = await page.evaluate(() => (window as any).__test.cameraAglM());
@@ -277,7 +277,7 @@ describe('globe scene: camera by mouse', () => {
       expect((await page.evaluate(() => (window as any).__test.view())).distKm).toBeLessThan(DIST_MIN_KM);
       for (let i = 0; i < 12; i++) await page.mouse.wheel(0, 3000);
       await page.evaluate(() => {
-        for (let i = 0; i < 80; i++) (window as any).__test.render(0.5);
+        (window as any).__test.settle(0.5, 80);
       });
       expect((await page.evaluate(() => (window as any).__test.view())).distKm).toBe(DIST_MAX_KM);
       expect(messages).toEqual([]);
@@ -294,7 +294,7 @@ describe('globe scene: camera by mouse', () => {
       await page.mouse.move(480, 270);
       await page.mouse.down();
       for (let i = 1; i <= 8; i++) await page.mouse.move(480 + i * 15, 270 - i * 3);
-      await page.waitForTimeout(150); // a pause before the release: no fling
+      await page.evaluate(() => (window as any).__test.advance(0.2)); // a pause before the release (in fx time, the clock the camera reads): no fling
       await page.mouse.up();
       await page.evaluate(() => (window as any).__test.render());
       const under = await page.evaluate(() => (window as any).__test.pick(600, 246));
@@ -353,6 +353,39 @@ describe('globe scene: camera by mouse', () => {
 });
 
 describe('globe scene: the fx clock', () => {
+  it('settle(dt, n) leaves exactly the state and the picture of n render(dt) calls (it draws only the last frame; D144)', async () => {
+    const run = async (useSettle: boolean): Promise<{ view: unknown; fx: number; frames: number; sha: string; terrain: unknown }> => {
+      const { page, messages } = await openGlobe();
+      try {
+        await page.evaluate(() => (window as any).__test.setView({ lat: 30, lon: 12, distKm: 5000, heading: 20, tilt: 10, time: 100 }));
+        await page.mouse.move(480, 270);
+        await page.mouse.wheel(0, -900); // a zoom target the camera eases towards over the frames: the state evolves with every frame
+        await page.evaluate((settle) => {
+          const t = (window as any).__test;
+          if (settle) t.settle(0.25, 8);
+          else for (let i = 0; i < 8; i++) t.render(0.25);
+        }, useSettle);
+        const png = await page.screenshot({ type: 'png' });
+        const out = await page.evaluate(() => {
+          const t = (window as any).__test;
+          return { view: t.view(), fx: t.info().fx as number, frames: t.info().frames as number, terrain: t.terrain() };
+        });
+        expect(messages).toEqual([]);
+        return { ...out, sha: sha(png) };
+      } finally {
+        await page.close();
+      }
+    };
+    const a = await run(false);
+    const b = await run(true);
+    expect((a.view as { distKm: number }).distKm).toBeLessThan(5000); // the wheel moved the camera, so the comparison is not vacuous
+    expect(b.view).toEqual(a.view);
+    expect(b.fx).toBe(a.fx);
+    expect(b.frames).toBe(a.frames); // every frame is counted, drawn or not
+    expect(b.terrain).toEqual(a.terrain);
+    expect(b.sha).toBe(a.sha);
+  });
+
   it('is frozen in test mode: no rAF loop, no drift; only render(dt), advance(dt) and setView({time}) step it', async () => {
     const { page, messages } = await openGlobe();
     try {

@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { Browser, Page } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
-import { HANG_GUARD_MS, OUT_DIR, guard, launchBrowser } from '../scripts/shot.mjs';
+import { HANG_GUARD_MS, OUT_DIR, guard, launchBrowser, newTestPage } from '../scripts/shot.mjs';
 
 let browser: Browser;
 const baseUrl = inject('baseUrl');
@@ -22,7 +22,7 @@ interface Opened {
 }
 
 async function open(path: string, opts: { viewport?: { width: number; height: number }; init?: () => void; waitTest?: boolean } = {}): Promise<Opened> {
-  const page = await browser.newPage({ viewport: opts.viewport ?? { width: 960, height: 540 }, deviceScaleFactor: 1 });
+  const page = await newTestPage(browser, opts.viewport ?? { width: 960, height: 540 });
   page.setDefaultTimeout(HANG_GUARD_MS);
   const messages: Array<{ type: string; text: string }> = [];
   page.on('console', (m) => {

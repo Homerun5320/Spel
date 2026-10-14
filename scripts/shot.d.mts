@@ -92,13 +92,16 @@ export function openPage(
   baseUrl: string,
   query: string,
   viewport?: { width: number; height: number },
+  options?: { isolated?: boolean },
 ): Promise<{ page: Page; consoleMessages: ConsoleMessage[]; loadMs: number }>;
+export function newTestPage(browser: Browser, viewport?: { width: number; height: number }, options?: { isolated?: boolean }): Promise<Page>;
 export function takeShot(
   browser: Browser,
   baseUrl: string,
   opts?: { query?: string; viewport?: { width: number; height: number } },
 ): Promise<ShotResult>;
 export function renderAndCapture(page: Page): Promise<Buffer>;
+export function waitFrames(page: Page, n?: number): Promise<void>;
 
 export interface GoldenResult {
   status: 'updated' | 'match' | 'missing-warn' | 'mismatch-warn';

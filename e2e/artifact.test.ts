@@ -7,7 +7,7 @@ import path from 'node:path';
 import type { Browser } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ALLOWED_EXT, pack } from '../scripts/artifact-pack.mjs';
-import { analyzeImage, checkShot, decodePng, launchBrowser, takeShot } from '../scripts/shot.mjs';
+import { analyzeImage, checkShot, decodePng, launchBrowser, takeShot, waitFrames } from '../scripts/shot.mjs';
 import { REPO, buildDistTo, makeTmp } from '../tests/helpers/buildDist';
 import { readGolden } from '../tests/helpers/simGolden';
 
@@ -146,7 +146,7 @@ describe('artifact build served from /x/y/', () => {
     try {
       await page.goto(`${served.url}/`, { waitUntil: 'load' });
       await page.waitForSelector('canvas');
-      await page.waitForTimeout(600); // a few animation frames
+      await waitFrames(page, 3); // a few animation frames have drawn
       const image = decodePng(await page.screenshot({ type: 'png' }));
       const m = analyzeImage(image);
       expect(m.distinctColors).toBeGreaterThanOrEqual(50);
@@ -186,7 +186,7 @@ describe('artifact build served from /x/y/', () => {
         await page.click('[data-testid="setup-start"]');
         await page.waitForSelector('[data-testid="match-hud"]', { timeout: 60_000 });
         expect(await page.locator('[data-testid="nation-name"]').textContent()).toBe('Sverige');
-        await page.waitForTimeout(500);
+        await waitFrames(page, 3); // the first frames of the new match have run: any late console error is in `messages`
       } finally {
         await page.close();
       }

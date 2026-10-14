@@ -4,13 +4,13 @@ import path from 'node:path';
 import type { Browser, Page } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
 import { CLASS_COLORS } from '../src/app/debugPalette';
-import { OUT_DIR, analyzeImage, compareGolden, decodePng, launchBrowser } from '../scripts/shot.mjs';
+import { OUT_DIR, analyzeImage, compareGolden, decodePng, launchBrowser, newTestPage } from '../scripts/shot.mjs';
 import { budgetMs } from '../tests/perfguard';
 
 const VIEWPORT = { width: 1100, height: 700 };
 
 async function openData(browser: Browser, baseUrl: string, suffix: string): Promise<{ page: Page; messages: string[] }> {
-  const page = await browser.newPage({ viewport: VIEWPORT, deviceScaleFactor: 1 });
+  const page = await newTestPage(browser, VIEWPORT);
   page.setDefaultTimeout(20_000);
   const messages: string[] = [];
   page.on('console', (m) => {
@@ -148,7 +148,7 @@ describe('debug/data.html', () => {
   });
 
   it('index.html has the relative debug link row', async () => {
-    const page = await browser.newPage({ viewport: { width: 960, height: 540 }, deviceScaleFactor: 1 });
+    const page = await newTestPage(browser, { width: 960, height: 540 });
     try {
       await page.goto(`${baseUrl}/`, { waitUntil: 'load' });
       await page.waitForSelector('canvas');

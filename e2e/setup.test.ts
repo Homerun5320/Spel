@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { Browser, BrowserContext, Page } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
-import { OUT_DIR, decodePng, launchBrowser, openPage } from '../scripts/shot.mjs';
+import { OUT_DIR, decodePng, launchBrowser, newTestPage, openPage } from '../scripts/shot.mjs';
 import { deltaE76Rgb } from '../src/render/color';
 import { isPlayableClass } from '../src/sim/terrain';
 import { START_DISC_CELLS } from '../src/sim/rules';
@@ -46,7 +46,7 @@ async function open(query: string, viewport = { width: 960, height: 540 }): Prom
 const settle = (page: Page, seconds = 3.2, step = 0.25): Promise<void> =>
   page.evaluate(([s, dt]) => {
     const t = (window as any).__test;
-    for (let i = 0; i < Math.max(1, Math.round(s / dt)); i++) t.render(dt);
+    t.settle(dt, Math.max(1, Math.round(s / dt))); // every frame's state, one draw (D144)
   }, [seconds, step] as const);
 
 async function shot(page: Page, name: string): Promise<Buffer> {
@@ -720,7 +720,7 @@ describe('the two link chips of the start page never cover the setup panel (non-
     { width: 390, height: 844 },
   ]) {
     it(`at ${viewport.width}x${viewport.height} the primary button answers at all four corners, the chips are gone, and Back brings them back`, async () => {
-      const page = await browser.newPage({ viewport, deviceScaleFactor: 1 });
+      const page = await newTestPage(browser, viewport);
       const messages: Msg[] = [];
       page.on('console', (m) => {
         if (m.type() === 'error' || m.type() === 'warning') messages.push({ type: m.type(), text: m.text() });
@@ -734,7 +734,10 @@ describe('the two link chips of the start page never cover the setup panel (non-
         await page.click(tid('start-setup'));
         await page.waitForSelector(tid('setup-screen'), { timeout: 60_000 });
         await page.locator(tid('setup-row')).first().click(); // a country is chosen (the panel with its longest content)
-        await page.waitForTimeout(400);
+        // The condition the next lines assert (no sleep): both chips are gone and the primary button has its country.
+        await page.waitForFunction(
+          () => ['probe-link', 'debug-links'].every((i) => (document.getElementById(i) as HTMLElement).hidden) && document.querySelector('[data-testid="setup-start"]')?.getAttribute('data-ready') === '1',
+        );
         expect([await chip('probe-link'), await chip('debug-links')]).toEqual([false, false]);
         const start = page.locator(tid('setup-start'));
         await start.scrollIntoViewIfNeeded();

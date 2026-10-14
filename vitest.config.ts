@@ -1,4 +1,9 @@
 import { defineConfig } from 'vitest/config';
+import { e2eWorkerCount } from './scripts/localGpu.mjs';
+
+// e2e workers: E2E_WORKERS, or floor(cores / 2) (at most 4) with LOCAL_GPU=1, else the default below (docs/DECISIONS.md D144).
+const E2E_DEFAULT_WORKERS = 1;
+const e2eWorkers = e2eWorkerCount(process.env, undefined, E2E_DEFAULT_WORKERS);
 
 // Three projects: unit (fast, pure), perf (CPU budgets, strictly serial), e2e (headless Chromium).
 // verify runs them as separate invocations, never a bare `vitest run`.
@@ -39,8 +44,8 @@ export default defineConfig({
           environment: 'node',
           globalSetup: ['e2e/globalSetup.ts'],
           pool: 'forks',
-          fileParallelism: false,
-          maxWorkers: 1,
+          fileParallelism: e2eWorkers > 1,
+          maxWorkers: e2eWorkers,
           testTimeout: 60_000,
           hookTimeout: 60_000,
         },

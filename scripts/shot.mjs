@@ -9,6 +9,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { chromium } from 'playwright-core';
 import { PNG } from 'pngjs';
 import pixelmatch from 'pixelmatch';
+import { SWIFTSHADER_ARGS, chromiumArgs, goldenCompareMode, isLocalGpu, resolveLocalBrowserPath } from './localGpu.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const REPO_ROOT = path.resolve(here, '..');
@@ -23,14 +24,7 @@ export const HANG_GUARD_MS = 20_000;
  * own argument (inside --js-flags it is ignored, usedJSHeapSize is quantised and heapDelta returns 0).
  * No `--no-sandbox` here: Playwright adds it itself when chromiumSandbox is false (the default).
  */
-export const CHROMIUM_ARGS = [
-  '--enable-unsafe-swiftshader',
-  '--ignore-gpu-blocklist',
-  '--use-angle=swiftshader',
-  '--force-color-profile=srgb',
-  '--js-flags=--expose-gc',
-  '--enable-precise-memory-info',
-];
+export const CHROMIUM_ARGS = SWIFTSHADER_ARGS;
 
 /**
  * Console warnings that are known harmless and may be ignored. Exact full-text match, this one place only,
@@ -55,6 +49,10 @@ export const THRESHOLDS = {
 };
 
 export function resolveChromiumPath(env = process.env) {
+  // LOCAL_GPU=1 (docs/LOCAL.md): CHROME_PATH, an installed Chrome / Edge or Playwright's own browser.
+  if (isLocalGpu(env)) {
+    return resolveLocalBrowserPath({ env, exists: (p) => fs.existsSync(p), playwrightPath: () => chromium.executablePath() });
+  }
   if (env.CHROMIUM_PATH) return env.CHROMIUM_PATH;
   const cloud = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
   if (fs.existsSync(cloud)) return cloud;
@@ -210,15 +208,62 @@ export function assertShotOk(shot, thresholds = THRESHOLDS) {
 export async function launchBrowser(options = {}) {
   const executablePath = options.executablePath ?? resolveChromiumPath();
   const browser = await guard(
-    chromium.launch({ executablePath, headless: true, args: [...CHROMIUM_ARGS] }),
+    chromium.launch({ executablePath, headless: true, args: chromiumArgs() }),
     'chromium.launch',
   );
   return { browser, executablePath, version: browser.version() };
 }
 
+/**
+ * One browser context per browser and viewport, shared by the pages a test file opens. Closing a page of a shared context costs
+ * milliseconds (closing a `browser.newPage()` page tears its whole context down, about 0.3 to 0.7 s under SwiftShader) and the
+ * HTTP cache of the context serves the modules and packs to the next page (docs/DECISIONS.md D144).
+ */
+const sharedContexts = new WeakMap();
+
+/** Every new tab starts with empty localStorage (a fresh `browser.newPage()` did), but a reload keeps it: sessionStorage marks the tab. */
+const FRESH_TAB_SCRIPT = () => {
+  try {
+    if (!sessionStorage.getItem('__fresh_tab')) {
+      sessionStorage.setItem('__fresh_tab', '1');
+      localStorage.clear();
+    }
+  } catch {
+    /* storage blocked: nothing to clear */
+  }
+};
+
+async function sharedContext(browser, viewport) {
+  let byViewport = sharedContexts.get(browser);
+  if (!byViewport) {
+    byViewport = new Map();
+    sharedContexts.set(browser, byViewport);
+  }
+  const key = `${viewport.width}x${viewport.height}`;
+  let pending = byViewport.get(key);
+  if (!pending) {
+    pending = browser.newContext({ viewport, deviceScaleFactor: 1 }).then(async (context) => {
+      await context.addInitScript(FRESH_TAB_SCRIPT);
+      return context;
+    });
+    byViewport.set(key, pending);
+  }
+  return pending;
+}
+
+/**
+ * A page for a test: a tab of the shared context for its viewport (default), or with `{ isolated: true }` a page of its own
+ * context like `browser.newPage()` (leak and heap tests, which must not see another page's process).
+ */
+export async function newTestPage(browser, viewport = { width: 960, height: 540 }, options = {}) {
+  if (options.isolated) return browser.newPage({ viewport, deviceScaleFactor: 1 });
+  const context = await sharedContext(browser, viewport);
+  return context.newPage();
+}
+
 /** Opens `${baseUrl}/?${query}` in a fresh page, collecting console errors/warnings and page errors. */
-export async function openPage(browser, baseUrl, query, viewport = { width: 960, height: 540 }) {
-  const page = await browser.newPage({ viewport, deviceScaleFactor: 1 });
+export async function openPage(browser, baseUrl, query, viewport = { width: 960, height: 540 }, options = {}) {
+  const page = await newTestPage(browser, viewport, options);
   page.setDefaultTimeout(HANG_GUARD_MS);
   const consoleMessages = [];
   page.on('console', (msg) => {
@@ -253,6 +298,29 @@ export async function takeShot(browser, baseUrl, opts = {}) {
   }
 }
 
+/**
+ * Resolves after `n` animation frames of the page have run: a condition for "a few frames have drawn" on a live (non-test) page,
+ * where `page.waitForTimeout` would be a guess. In test mode there is no rAF loop; use window.__test.render() there.
+ */
+export function waitFrames(page, n = 2) {
+  return guard(
+    page.evaluate(
+      (count) =>
+        new Promise((resolve) => {
+          let left = count;
+          const tick = () => {
+            left -= 1;
+            if (left <= 0) resolve(undefined);
+            else requestAnimationFrame(tick);
+          };
+          requestAnimationFrame(tick);
+        }),
+      n,
+    ),
+    `waitFrames(${n})`,
+  );
+}
+
 /** Renders again on an already-open page and returns the PNG bytes (for byte-identity checks). */
 export async function renderAndCapture(page) {
   await guard(page.evaluate(() => window.__test.render()), 'window.__test.render()');
@@ -268,17 +336,22 @@ export const GOLDEN_MISSING_TEXT = 'kör UPDATE_GOLDENS=1 och committa e2e/golde
 /**
  * Compares a PNG with e2e/goldens/<name>.png using pixelmatch (threshold 0.1) and a maximum fraction of
  * differing pixels (GOLDEN_MAX_DIFF, default 0.002 = 0.2 %).
- * UPDATE_GOLDENS=1 writes the golden. GOLDEN_COMPARE=warn logs mismatches and writes actual/diff without failing.
+ * UPDATE_GOLDENS=1 writes the golden. GOLDEN_COMPARE=warn logs mismatches and writes actual/diff without failing
+ * (LOCAL_GPU=1 implies warn unless GOLDEN_COMPARE=fail; see scripts/localGpu.mjs).
  */
 export function compareGolden(actualPng, name, options = {}) {
   const env = options.env ?? process.env;
   const goldenDir = options.goldenDir ?? GOLDEN_DIR;
   const outDir = options.outDir ?? path.join(OUT_DIR, 'golden');
   const maxDiff = Number(env.GOLDEN_MAX_DIFF ?? '0.002');
-  const warnOnly = env.GOLDEN_COMPARE === 'warn';
+  const warnOnly = goldenCompareMode(env) === 'warn';
   const goldenPath = path.join(goldenDir, `${name}.png`);
 
   if (env.UPDATE_GOLDENS === '1') {
+    if (isLocalGpu(env)) {
+      // The committed goldens are SwiftShader renders (the cloud session's verify is authoritative): never overwrite them from a real GPU.
+      throw new Error('UPDATE_GOLDENS=1 is refused with LOCAL_GPU=1: goldens are SwiftShader renders, update them in the cloud session');
+    }
     fs.mkdirSync(goldenDir, { recursive: true });
     fs.writeFileSync(goldenPath, actualPng);
     console.log(`[golden] updated ${path.relative(REPO_ROOT, goldenPath)}`);
@@ -392,7 +465,7 @@ export async function main(argv = process.argv.slice(2)) {
   const name = argv[1] ?? 'smoke';
   const vite = await startViteServer();
   const { browser, executablePath, version } = await launchBrowser();
-  console.log(`[shot] chromium ${version} (${executablePath})`);
+  console.log(`[shot] chromium ${version} (${executablePath})${isLocalGpu() ? ' LOCAL_GPU=1 (no SwiftShader switches)' : ''}`);
   try {
     const shot = await takeShot(browser, vite.url, { query });
     fs.writeFileSync(path.join(outDir, `${name}.png`), shot.png);

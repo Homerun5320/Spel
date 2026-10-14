@@ -57,7 +57,7 @@ describe('leak-test: spike render', () => {
   it('60 render calls (3 rounds x 20) at 320x180 retain less than 5 MB (median of 3)', async () => {
     const { browser } = await launchBrowser();
     try {
-      const { page, consoleMessages } = await openPage(browser, inject('baseUrl'), 'test=1&w=320&h=180', { width: 320, height: 180 });
+      const { page, consoleMessages } = await openPage(browser, inject('baseUrl'), 'test=1&w=320&h=180', { width: 320, height: 180 }, { isolated: true });
       // Warm-up outside the measurement: shader compile and first-use allocations are not leaks.
       await page.evaluate(() => {
         for (let i = 0; i < 20; i++) window.__test?.render();

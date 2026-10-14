@@ -55,8 +55,8 @@ afterAll(async () => {
   await browser?.close();
 });
 
-async function open(query = 'test=1&ai=0', viewport = { width: W, height: H }): Promise<{ page: Page; messages: Array<{ type: string; text: string }> }> {
-  const { page, consoleMessages } = await openPage(browser, baseUrl, query, viewport);
+async function open(query = 'test=1&ai=0', viewport = { width: W, height: H }, options?: { isolated?: boolean }): Promise<{ page: Page; messages: Array<{ type: string; text: string }> }> {
+  const { page, consoleMessages } = await openPage(browser, baseUrl, query, viewport, options);
   return { page, messages: consoleMessages };
 }
 
@@ -446,7 +446,7 @@ describe('the chunk terrain at orbit looks like the old globe and costs less', (
 
 describe('leak-test: chunk terrain', () => {
   it('60 render calls (3 rounds x 20) at 320x180 over a moving camera retain less than 5 MB (median of 3)', async () => {
-    const { page, messages } = await open('test=1&ai=0&w=320&h=180', { width: 320, height: 180 });
+    const { page, messages } = await open('test=1&ai=0&w=320&h=180', { width: 320, height: 180 }, { isolated: true }); // a leak test: a page of its own context
     try {
       // One render per evaluate: ANGLE warns "running out of reserved queue serials" when dozens of instance-buffer uploads pile up in ONE
       // JavaScript task (a page presents a frame per task, so only a test that renders in a loop meets it; the selection changes every frame here).

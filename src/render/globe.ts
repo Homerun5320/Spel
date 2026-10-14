@@ -305,8 +305,11 @@ export class Globe {
     (this.starsMaterial.uniforms.uPixelRatio as { value: number }).value = dpr;
   }
 
-  /** Renders one frame at the current fx time (camera inertia and the sun follow the fx clock). */
-  render(): void {
+  /**
+   * Renders one frame at the current fx time (camera inertia and the sun follow the fx clock). `draw` false runs every state update of the
+   * frame (ownership flush, flight, camera, chunk LOD) but skips the GL draw: test hooks use it for frames nobody looks at.
+   */
+  render(draw = true): void {
     const now = fxNow();
     this.ownership.flush(now); // the one place that schedules the (throttled) full upload
     this.flight.update(now);
@@ -333,7 +336,7 @@ export class Globe {
     c.lookAt(p.target[0], p.target[1], p.target[2]);
     c.updateMatrixWorld();
     this.chunkTerrain?.update(p);
-    this.renderer.render(this.scene, c);
+    if (draw) this.renderer.render(this.scene, c);
   }
 
   /**
