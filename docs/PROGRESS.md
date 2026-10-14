@@ -31,7 +31,9 @@ GÖR
 - [x] 4d. A custom nation name equal to a real country or to an AI nation name of the same match is refused with a reason (sv, en) or auto-suffixed
 - [x] 4e. The refusal text for a too-small land mass starts with a capital letter and a subject, sv and en
 - [x] 5. BACKLOG: unfixed finds, and the verify time note (about 8.5 minutes, shard e2e into a CI job matrix when it passes 10 minutes)
-- [ ] 6. Docs (ARCHITECTURE index, DECISIONS, PREVIEW.md if visible behaviour changes), `npm run verify` green TWICE in a row, `npm run build && npm run artifact:pack`, local commit
+- [x] 6. Docs (ARCHITECTURE index, DECISIONS, PREVIEW.md if visible behaviour changes), `npm run verify` green TWICE in a row, `npm run build && npm run artifact:pack`, local commit
+
+Result of M06fix (this sandbox): `npm run verify` GREEN TWICE in a row (569 s and 580 s; typecheck, lint, 116 unit files / 1352 tests, perf 6 files / 18 tests, e2e 15 files / 127 tests), then `npm run build && npm run artifact:pack` (24 files, 15.55 MB, container png). The HUD heap test: 40 of 40 runs in separate processes passed, heap retained by 3000 refreshes (gc, median of 3) 14 840 to 14 864 bytes against the 1 MB limit (no HUD allocation to fix). New tests: `tests/app/mapIdentity.test.ts` (11), `tests/app/nameTaken.test.ts` (7), `tests/app/langPref.test.ts` (8), `tests/i18nPlural.test.ts` (5), `tests/rawHeap.test.ts` (2), `e2e/setupFix.test.ts` (10); mutants killed: cut-out keeps the pack hash (two variants), Enter on a disabled row, no Escape handler, singular text, lower-case reason, no language restore. Two earlier assertions changed because the TEXT they pin changed on purpose (D131 point 5). No golden moved. Nothing is pushed, no pull request opened, no Artifact published (the packed folder artifact is ready for the orchestrator).
 
 ACCEPTANS
 - [x] The HUD heap test passes 40 of 40 runs in separate processes and uses `heapDelta`
@@ -40,7 +42,7 @@ ACCEPTANS
 - [x] A test fails if a cut-out keeps the pack's map hash, or two regions share one
 - [x] Each of 4a to 4e has a test or an e2e assertion that fails without the fix
 - [x] BACKLOG has the verify-time note
-- [ ] `npm run verify` green twice in a row; build and pack done
+- [x] `npm run verify` green twice in a row; build and pack done
 
 ### M06 Meny: riktigt land eller eget land - ALL ITEMS TICKED (Part A: sim and pure logic; Part B and the finish: menu DOM, flyTo, outline, flags in the HUD, wiring, Playwright, docs, `npm run verify`, build and pack). The orchestrator owns pushing, the pull request and the Artifact publication.
 
