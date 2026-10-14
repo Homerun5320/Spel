@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
 import { OUT_DIR, decodePng, launchBrowser, luma, openPage, readUsedHeap } from '../scripts/shot.mjs';
 import { timeForSubsolarLon } from '../src/render/geo';
 import { CLASS_FOREST, CLASS_HILLS, CLASS_PLAINS } from '../src/sim/terrain';
-import { TABLES } from '../src/ui/i18n';
+import { TABLES, placeholdersOf } from '../src/ui/i18n';
 import { TARGET_MIN_PX } from '../src/ui/uiConfig';
 import { worldLoader } from '../tests/helpers/dataFiles';
 
@@ -461,13 +461,15 @@ describe('i18n in the browser', () => {
         }
       });
       expect(err).toMatch(/i18n: key "hud.noSuchKey" is missing/);
-      const keys = Object.keys(TABLES.sv);
+      // every key gets a value for each of ITS placeholders (read from the Swedish text; the English table has the same ones, a unit test
+      // states it): a key that still throws is missing from a table. (Before M06 one fixed set of five names was enough.)
+      const keys = Object.keys(TABLES.sv).map((k) => [k, Object.fromEntries(placeholdersOf(TABLES.sv[k] as string).map((p) => [p, 1]))] as const);
       const bad = await page.evaluate((ks) => {
         const t = (window as any).__test;
         const out: string[] = [];
-        for (const k of ks) {
+        for (const [k, params] of ks) {
           try {
-            t.text(k, { n: 1, rate: '1', cap: '1', s: 1, code: 1, message: 'x' });
+            t.text(k, params);
           } catch (e) {
             out.push(`${k}: ${(e as Error).message}`);
           }

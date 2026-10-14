@@ -48,27 +48,27 @@ Notes for Part B (read before starting; what Part A built and how to use it)
 - CLARIFICATIONS I TOOK (the orchestrator could not be asked): home land only in real-country matches (D113); the land mass counts playable cells only, Peak included in the exclusion (D112); Greenland is not selectable (D112); the playable mask is a terrain overlay, not a new state array (D114); `flyTo` goes in `src/render/flyTo.ts` (later, Part B); East Asia holds 10 countries so the menu must clamp the AI count.
 - THE START DISC "within 2 cells of Stockholm" (Part B's Playwright check): the capital of Sweden is the city cell of Stockholm itself (meta cell 89651), and the disc is built around it, so the capital cell IS Stockholm's cell and the disc reaches at most 13 cells away (a coast stretches it); check the capital cell and that the disc holds it.
 
-GÖR, Part B (next session: menu DOM and what the user sees)
-- [ ] B1. `flyTo(lat, lon, distKm)` in `src/render/flyTo.ts` (later; NOT in a `camera/` folder as the prompt says: `src/render/camera.ts` is a file), timed by `fxNow()`, unit test that the end position is reached
-- [ ] B2. Main menu and setup screen (DOM, `data-testid`, all strings through `t()` in sv and en): real country (search list or click on the globe), custom nation (name, colour, procedural flag, free start click with a reason on an invalid click), match options (World or Skirmish region, number of AI nations, tribes, difficulty, seed, neutral mode), the neutral disclaimer; works without any URL parameter and with localStorage blocked
-- [ ] B3. Border highlight of the chosen country (id raster in the shader) and the neutral mode that draws no borders or country names
-- [ ] B4. Flags and country names in the leaderboard and the HUD (the label provider), the Dev panel seed field wired to the match options
-- [ ] B5. `MatchSession` and `globeApp` build the match through `createMatch` (the standard M05 match stays reachable for the existing tests), the sim hashes of `e2e/ai.test.ts` and the like checked
-- [ ] B6. Playwright: search "Sweden", the camera flies there with the border marked (screenshot), start, the start disc within 2 cells of Stockholm, 60 s fast-forward without errors; custom nation spawns exactly where clicked and invalid clicks show a reason; Skirmish: no cell outside the mask is ever owned; same config + seed gives the same hash in Node and Chromium
+GÖR, Part B - DONE (the menu DOM and what the user sees; nothing pushed, no PR, no Artifact publication)
+- [x] B1. `flyTo(lat, lon, distKm)` in `src/render/flyTo.ts` (NOT in a folder named camera as the prompt says: `src/render/camera.ts` is a file, D120), timed by `fxNow()`, unit test that the end position is reached (`tests/render/flyTo.test.ts`, 12 tests)
+- [x] B2. Main menu and setup screen (DOM, `data-testid`, all strings through `t()` in sv and en): real country (search list or click on the globe), custom nation (name, colour, procedural flag with a live preview, free start click with a reason on an invalid click), match options (area, AI nations, tribes, difficulty, seed, neutral mode), the neutral disclaimer; works without any URL parameter and with localStorage blocked (D121)
+- [x] B3. Outline of the chosen country (id raster, a 256-entry table, D122) and the neutral mode that draws no country lines or names (D125)
+- [x] B4. Flags and country names in the leaderboard and the HUD (the label provider, D124), the Dev panel seed field is the address seed that the setup uses as its default (D121)
+- [x] B5. `MatchSession.fromMatch` and `globeApp` build the match through `createMatch` (the standard M05 match stays: Play button, `?test=1` without `menu=1`); the M05 e2e files are unchanged
+- [x] B6. Playwright (`e2e/setup.test.ts`, 13 tests, D126): search "Sweden", the flight with the outline (screenshot), start, the capital is Stockholm's cell, 60 s fast-forward without errors; a custom nation spawns exactly where clicked and invalid clicks show a reason; Skirmish with no cell outside the mask for 4 minutes; same hashes as Node
 
-GÖR, finish (last session)
-- [ ] F1. Goldens re-pinned ONCE with the reason in `docs/DECISIONS.md` (only if a sim hash changed), `docs/PREVIEW.md` (Swedish) updated for the menu, DECISIONS (fair-start rule, masks, trait mapping, neutral mode), BALANCE, ARCHITECTURE
-- [ ] F2. `npm run verify` green, `npm run build && npm run artifact:pack`, committed locally (no push, no PR, no Artifact publication)
+GÖR, finish - DONE
+- [x] F1. Goldens: NOTHING re-pinned (no sim rule changed in part B; `e2e/goldens/sim-hashes.json` and `e2e/goldens/match-hashes.json` equal in Node and Chromium; no PNG golden moved). `docs/PREVIEW.md` (Swedish, section 5c) written; DECISIONS D120 to D126; ARCHITECTURE; BACKLOG; BALANCE unchanged (part B adds no sim number: the UI numbers are in `src/ui/uiConfig.ts`, the outline numbers in `src/render/config.ts`)
+- [x] F2. `npm run verify` green, `npm run build && npm run artifact:pack` (the sizes are in the result below), committed locally (no push, no PR, no Artifact publication)
 
 ACCEPTANS (the part that owns each item is in brackets)
-- [ ] [A + B] Equal start over 20 country choices: 5 with fewer than 400 own cells (land mass >= K, the first 5 in id order) and 15 seeded samples: troops, gold and start disc (exactly K cells, contiguous) identical; in a default match with 12 AI nations every seat has exactly K cells at tick 0 (tribes included, they are placed at tick 0 too)
-- [x] [A] Negative: every country with land mass < K or < 8 cells is disabled with a reason and `createMatch` refuses it; a custom start click on a land mass that is too small is refused with a reason
+- [x] [A + B] Equal start over 20 country choices: 5 with fewer than 400 own cells (land mass >= K, the first 5 in id order) and 15 seeded samples: troops, gold and start disc (exactly K cells, contiguous) identical; in a default match with 12 AI nations every seat has exactly K cells at tick 0 (tribes included, they are placed at tick 0 too) (Node: `tests/app/matchSetup.test.ts`, `tests/app/fairStartAll.test.ts`; Chromium: the Sweden test checks 13 seats of 197 cells)
+- [x] [A] Negative: every country with land mass < K or < 8 cells is disabled with a reason and `createMatch` refuses it; a custom start click on a land mass that is too small is refused with a reason (also in Chromium: the island click and the disabled rows)
 - [x] [A] The home-land discount applies to the owner and to home-land cells only (unit tests); the trait cap is never exceeded
-- [ ] [A + B] Flags: deterministic per seed (golden hash on the spec), >= 45 distinct images among 50 seeds, the custom nation's flag is drawn with >= 2 dominant colours within dE 10 of spec.colors and the emblem area differs from the background pattern
-- [ ] [A + B] Search: "Sverige" and "Sweden" both find Sweden; flyTo reaches its end position (unit test, fx clock)
-- [ ] [B] Playwright: search "Sweden", the camera flies there with the border marked (screenshot), start, the start disc within 2 cells of Stockholm, 60 s fast-forward without errors; a custom nation spawns exactly where clicked and invalid clicks show a reason
-- [ ] [A + B] Skirmish region: no cell outside the mask is ever owned; the page works with localStorage blocked (unit test of prefs.ts: memory fallback when storage throws)
-- [ ] [A + B] Same config + seed gives the same initial state hash (Node and Chromium); `npm run verify` green
+- [x] [A + B] Flags: deterministic per seed (golden hash on the spec), >= 45 distinct images among 50 seeds, the custom nation's flag is drawn with >= 2 dominant colours within dE 10 of spec.colors and the emblem area differs from the background pattern (Node: `tests/ui/flag.test.ts`; Chromium: the flag preview of the setup read from real canvas pixels)
+- [x] [A + B] Search: "Sverige" and "Sweden" both find Sweden; flyTo reaches its end position (unit test, fx clock)
+- [x] [B] Playwright: search "Sweden", the camera flies there with the border marked (screenshot `test-results/shots/setup-sweden-1-flown.png`), start, the start disc within 2 cells of Stockholm (the capital IS Stockholm's cell), 60 s fast-forward without errors; a custom nation spawns exactly where clicked and invalid clicks show a reason
+- [x] [A + B] Skirmish region: no cell outside the mask is ever owned (4 minutes in Chromium, 3000 ticks x 4 regions in Node); the page works with localStorage blocked (unit test of prefs.ts: memory fallback when storage throws, and the whole flow in Chromium with a throwing `localStorage`)
+- [x] [A + B] Same config + seed gives the same initial state hash (Node and Chromium: the four golden matches at tick 0 and after 600 ticks); `npm run verify` green
 
 ### M05fix: the over-cap troop regression of the audit round (be1db76) and the flake hunt over every property test (focused follow-up, no redesign of M05)
 

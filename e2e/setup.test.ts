@@ -43,11 +43,11 @@ async function open(query: string, viewport = { width: 960, height: 540 }): Prom
 }
 
 /** Steps the FX clock and renders `seconds` of frames in one call (flights, markers and the picture follow). */
-const settle = (page: Page, seconds = 3.2): Promise<void> =>
-  page.evaluate((s) => {
+const settle = (page: Page, seconds = 3.2, step = 0.1): Promise<void> =>
+  page.evaluate(([s, dt]) => {
     const t = (window as any).__test;
-    for (let i = 0; i < Math.round(s / 0.1); i++) t.render(0.1);
-  }, seconds);
+    for (let i = 0; i < Math.max(1, Math.round(s / dt)); i++) t.render(dt);
+  }, [seconds, step] as const);
 
 async function shot(page: Page, name: string): Promise<Buffer> {
   await page.evaluate(() => (window as any).__test.render());
@@ -59,10 +59,10 @@ async function shot(page: Page, name: string): Promise<Buffer> {
 const tid = (id: string): string => `[data-testid="${id}"]`;
 const text = (page: Page, id: string): Promise<string> => page.locator(tid(id)).first().textContent().then((x) => x ?? '');
 
-async function openSetup(page: Page): Promise<void> {
+async function openSetup(page: Page, step = 0.1): Promise<void> {
   await page.click(tid('start-setup'));
   await page.waitForSelector(tid('setup-screen'), { timeout: 30_000 });
-  await settle(page, 1.5);
+  await settle(page, 1.5, step);
 }
 
 /** Pixels of a screenshot whose colour is the selection outline's (bright amber); counted outside the panel. */
@@ -590,6 +590,109 @@ describe('the same config and seed give the same state in Node and in Chromium',
       const r = await page.evaluate((id) => (window as any).__test.buildHash({ seed: 1, region: 'world', player: { kind: 'real', countryId: id }, aiNations: 12, tribes: true, difficulty: 'normal', neutral: false, humanSeat: 0, spawnPhase: true, debugIntents: false }, 0), small.id);
       expect(r.ok).toBe(false);
       expect(r.code).toBe('notSelectable');
+      expect(messages).toEqual([]);
+    } finally {
+      await page.close();
+    }
+  });
+});
+
+describe('layouts and the way back', () => {
+  it('Back returns to the menu, the outline goes away, and the setup opens again with the same choice (preferences)', async () => {
+    const { page, messages } = await open('test=1&menu=1&hud=1');
+    try {
+      await openSetup(page);
+      await page.fill('#setup-search', 'Sweden');
+      await page.locator(tid('setup-row')).first().click();
+      await settle(page, 3.5);
+      const withOutline = amberPixels(await shot(page, 'back-0-outline'), 380);
+      expect(withOutline).toBeGreaterThan(400);
+      await page.click(tid('setup-back'));
+      await settle(page, 0.3);
+      expect(await page.locator(tid('setup-screen')).count()).toBe(0);
+      expect(await page.locator(tid('start-screen')).isVisible()).toBe(true);
+      expect(amberPixels(await shot(page, 'back-1-menu'), 0)).toBeLessThan(50);
+      await page.click(tid('start-setup'));
+      await page.waitForSelector(tid('setup-screen'));
+      await settle(page, 3.5);
+      expect(await page.locator(`${tid('setup-row')}[data-selected="1"]`).getAttribute('data-a3')).toBe('SWE');
+      expect(amberPixels(await shot(page, 'back-2-again'), 380)).toBeGreaterThan(400);
+      expect(messages).toEqual([]);
+    } finally {
+      await page.close();
+    }
+  });
+
+  it('on a 390x844 phone the setup is a bottom sheet, the country is flown into the free part above it, and the HUD of a built match keeps banner, leaderboard and Dev button apart', async () => {
+    const { page, messages } = await open('test=1&menu=1&hud=1&devbtn=1&w=390&h=844', { width: 390, height: 844 });
+    try {
+      await openSetup(page);
+      const panel = (await page.locator(tid('setup-panel')).boundingBox())!;
+      expect(panel.x).toBeLessThanOrEqual(1);
+      expect(panel.x + panel.width).toBeGreaterThanOrEqual(389);
+      expect(panel.y).toBeGreaterThan(844 * 0.35); // the globe keeps the upper part of the screen
+      expect(panel.y + panel.height).toBeLessThanOrEqual(845);
+      await page.fill('#setup-search', 'Japan');
+      await page.locator(tid('setup-row')).first().click();
+      await settle(page, 3.5);
+      const japan = world.countries.find((c) => c.a3 === 'JPN')!;
+      const at = latLonOfCell(japan.capitalCell, 1024, 512);
+      const p = await page.evaluate(([la, lo]) => (window as any).__test.project(la, lo), [at.lat, at.lon] as const);
+      expect(p.inView && p.facing).toBe(true);
+      expect(p.y).toBeLessThan(panel.y); // above the sheet
+      await shot(page, 'phone-japan');
+      // the standard targets: every control of the sheet is at least 44 px tall
+      for (const id of ['setup-start', 'setup-back', 'setup-language', 'setup-tab-real', 'setup-tab-custom']) {
+        const b = (await page.locator(tid(id)).boundingBox())!;
+        expect(b.height, id).toBeGreaterThanOrEqual(TARGET_MIN_PX - 1);
+      }
+      await page.click(tid('setup-start'));
+      await page.waitForSelector(tid('match-hud'), { timeout: 30_000 });
+      await settle(page, 3);
+      const box = async (sel: string): Promise<{ x: number; y: number; width: number; height: number }> => {
+        const b = await page.locator(sel).first().boundingBox();
+        if (b === null) throw new Error(`${sel} has no box`);
+        return b;
+      };
+      const banner = await box(tid('phase'));
+      const board = await box(tid('leaderboard'));
+      const dev = await box('[data-dev-button]');
+      const overlap = (a: typeof banner, b: typeof banner): boolean => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+      expect(overlap(banner, board)).toBe(false);
+      expect(overlap(banner, dev)).toBe(false);
+      expect(overlap(board, dev)).toBe(false);
+      expect(board.x + board.width).toBeLessThanOrEqual(390);
+      expect(board.x).toBeGreaterThanOrEqual(0);
+      await shot(page, 'phone-hud');
+      expect(messages).toEqual([]);
+    } finally {
+      await page.close();
+    }
+  });
+
+  it('at 1920x1080 the panel fits, its targets are large and the HUD with names and flags is readable (screenshots)', async () => {
+    const { page, messages } = await open('test=1&menu=1&hud=1&w=1920&h=1080', { width: 1920, height: 1080 });
+    try {
+      await openSetup(page, 0.75);
+      const panel = (await page.locator(tid('setup-panel')).boundingBox())!;
+      expect(panel.y).toBeGreaterThanOrEqual(0);
+      expect(panel.y + panel.height).toBeLessThanOrEqual(1080);
+      expect(panel.width).toBeLessThan(1920 * 0.35);
+      await page.fill('#setup-search', 'Germany');
+      await page.locator(tid('setup-row')).first().click();
+      await settle(page, 3.5, 0.5);
+      await shot(page, 'hd-germany');
+      await page.click(tid('setup-start'));
+      await page.waitForSelector(tid('match-hud'), { timeout: 30_000 });
+      await settle(page, 3, 0.5);
+      await page.evaluate(() => (window as any).__test.run(20));
+      await shot(page, 'hd-hud');
+      for (const id of ['status', 'leaderboard', 'controls', 'nation']) {
+        const b = (await page.locator(tid(id)).boundingBox())!;
+        expect(b.x).toBeGreaterThanOrEqual(0);
+        expect(b.x + b.width).toBeLessThanOrEqual(1920);
+        expect(b.y + b.height).toBeLessThanOrEqual(1080);
+      }
       expect(messages).toEqual([]);
     } finally {
       await page.close();

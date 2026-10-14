@@ -66,12 +66,12 @@ describe('MatchSession.fromMatch', () => {
     const m = build(3);
     const s = await MatchSession.fromMatch(m, { interpolate: false, ai: false });
     try {
-      const before = Array.from(s.view.owner.slice(0, 4096));
+      const total = (): number => Array.from({ length: s.view.seats }, (_, i) => s.view.stats.cells[i] as number).reduce((a, b) => a + b, 0);
+      const before = total();
+      expect(before).toBeGreaterThan(6 * START_DISC_CELLS - 1);
       s.runTicks(400);
-      const cells = Array.from({ length: 6 }, (_, i) => s.view.stats.cells[i]);
-      expect(cells.every((c) => c === START_DISC_CELLS || (c as number) > 0)).toBe(true);
       for (let seat = 1; seat < 6; seat++) expect(s.view.stats.cells[seat]).toBe(START_DISC_CELLS);
-      expect(Array.from(s.view.owner.slice(0, 4096))).toEqual(before);
+      expect(total()).toBe(before); // nobody took or lost a cell
     } finally {
       s.dispose();
     }

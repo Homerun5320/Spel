@@ -129,15 +129,18 @@ class BoardRow {
   readonly root = el('div', 'hud-row', 'leader-row');
   private readonly rank = el('span', 'hud-rank');
   private readonly swatch = el('span', 'hud-swatch');
-  private readonly flag = flagCanvas('hud-flag');
+  /** The flag canvas: only a match with names and flags has one (the standard match keeps the single canvas of the globe on the page). */
+  private readonly flag: HTMLCanvasElement | null;
   private readonly name = el('span', 'hud-name');
   private readonly share = el('span', 'hud-share');
   private seat = -2;
   private rankNo = -2;
   private shareQ15 = -2;
   private lang = -1;
-  constructor() {
-    this.root.append(this.rank, this.swatch, this.flag, this.name, this.share);
+  constructor(withFlag: boolean) {
+    this.flag = withFlag ? flagCanvas('hud-flag') : null;
+    if (this.flag !== null) this.root.append(this.rank, this.swatch, this.flag, this.name, this.share);
+    else this.root.append(this.rank, this.swatch, this.name, this.share);
     this.root.hidden = true;
   }
   hide(): void {
@@ -150,8 +153,10 @@ class BoardRow {
     if (seat !== this.seat || lv !== this.lang) {
       if (labels !== null) {
         this.name.textContent = labels.name(seat);
-        if (seat !== this.seat) paintFlag(this.flag, labels.flag(seat));
-        this.root.dataset.flag = this.flag.hidden ? '0' : '1';
+        if (this.flag !== null) {
+          if (seat !== this.seat) paintFlag(this.flag, labels.flag(seat));
+          this.root.dataset.flag = this.flag.hidden ? '0' : '1';
+        }
       } else {
         const nm = seatName(seat, players, localSeat);
         this.name.textContent = t(nm.key, { n: nm.n });
@@ -204,9 +209,10 @@ export function createMatchHud(parent: HTMLElement, actions: MatchHudActions, op
   // --- Status: gold, troops with the cap bar, land share, time ---
   const status = el('div', 'hud-panel hud-status', 'status');
   const nationBox = el('div', 'hud-nation', 'nation');
-  const nationFlag = flagCanvas('hud-flag');
+  const nationFlag = labels === null ? null : flagCanvas('hud-flag');
   const nationName = el('span', 'hud-nation-name', 'nation-name');
-  nationBox.append(nationFlag, nationName);
+  if (nationFlag !== null) nationBox.append(nationFlag);
+  nationBox.append(nationName);
   nationBox.hidden = labels === null;
   let nationLang = -1;
   const goldLabel = cell(label('hud-label', 'hud.gold'));
@@ -251,7 +257,7 @@ export function createMatchHud(parent: HTMLElement, actions: MatchHudActions, op
   const rows: BoardRow[] = [];
   board.append(boardTitle.el, boardEmpty.el);
   for (let i = 0; i <= LEADERBOARD_ROWS; i++) {
-    const r = new BoardRow();
+    const r = new BoardRow(labels !== null);
     rows.push(r);
     board.append(r.root);
   }
@@ -358,7 +364,7 @@ export function createMatchHud(parent: HTMLElement, actions: MatchHudActions, op
       if (labels !== null) {
         const nl = languageVersion();
         if (nl !== nationLang) {
-          if (nationLang < 0) paintFlag(nationFlag, labels.flag(L)); // the flag does not change with the language
+          if (nationLang < 0 && nationFlag !== null) paintFlag(nationFlag, labels.flag(L)); // the flag does not change with the language
           nationLang = nl;
           nationName.textContent = labels.name(L);
         }
