@@ -24,19 +24,19 @@ Resume: Läs CLAUDE.md och docs/PROGRESS.md, kör git log -10 och npm run verify
 Previous merge SHA (origin/main at start): f29121a8d1607ca169e6675b5f22a52d76c42ef7 (unchanged; nothing is merged, everything lives on this branch and in draft pull request #1). Problem: `npm run verify` took about 14 to 15 minutes in this 4-core, no-GPU sandbox (unit about 50 s, perf about 10 s, e2e about 750 to 790 s); CLAUDE.md's budget is 8 minutes. The user also owns a desktop PC (10 cores, a real GPU) and may run the project there. Rule: no production behaviour, test assertion, tolerance, golden or budget changes; only how the tests are organised and run.
 
 GÖR
-- [ ] S1. MEASURE: per-file and per-test time table of the e2e project and the 15 slowest unit files, written into D144 of `docs/DECISIONS.md`; where the time goes
-- [ ] S2. Test inventory script (every test name per file, before and after) and its report; the number of cases per file is equal or higher afterwards
-- [ ] S3. Speed up e2e without losing coverage (shared page per file where tests only read, no duplicate scene loads, sleeps replaced by waitForFunction on hook values, smaller viewports only where no golden or pixel rule needs 960x540, cached pack bytes, warm pages)
+- [x] S1. MEASURE: per-file and per-test time table of the e2e project and the 15 slowest unit files, written into D144 of `docs/DECISIONS.md`; where the time goes
+- [x] S2. Test inventory script (every test name per file, before and after) and its report; the number of cases per file is equal or higher afterwards
+- [x] S3. Speed up e2e without losing coverage (shared page per file where tests only read, no duplicate scene loads, sleeps replaced by waitForFunction on hook values, smaller viewports only where no golden or pixel rule needs 960x540, cached pack bytes, warm pages)
 - [ ] S4. Evaluate e2e parallelism (2 workers x 5 runs against sequential x 5 runs); adopt only if everything passes and the gain is real; perf, heap, leak and timing tests stay isolated and sequential; rewrite the CLAUDE.md "never concurrent with another Chromium" rule truthfully
-- [ ] S5. LOCAL GPU MODE: `LOCAL_GPU=1` in `scripts/shot.mjs` and the e2e fixtures (no SwiftShader flags, CHROME_PATH, golden compare warn, worker count from the CPU count, perf through perfguard), `npm run verify:local` as a node script, unit test that the default Chromium argument array is byte-identical to the committed baseline
-- [ ] S6. `docs/LOCAL.md` in Swedish for a non-developer on Windows; mention it in CLAUDE.md "Where things are", ARCHITECTURE and DECISIONS
+- [x] S5. LOCAL GPU MODE: `LOCAL_GPU=1` in `scripts/shot.mjs` and the e2e fixtures (no SwiftShader flags, CHROME_PATH, golden compare warn, worker count from the CPU count, perf through perfguard), `npm run verify:local` as a node script, unit test that the default Chromium argument array is byte-identical to the committed baseline
+- [x] S6. `docs/LOCAL.md` in Swedish for a non-developer on Windows; mention it in CLAUDE.md "Where things are", ARCHITECTURE and DECISIONS
 - [ ] S7. `npm run verify` green TWICE in a row (background + log) with the new wall times per stage; build and pack only if something user-visible changed (nothing should); local commits
 
 ACCEPTANS
-- [ ] The e2e project runs measurably faster with the same or more test cases and assertions per file (inventory report), and the five sleep-based flakes are gone
+- [x] The e2e project runs measurably faster with the same or more test cases and assertions per file (inventory report: 149 cases / 918 expect() before, 150 / 926 after, nothing lost), and the five sleep-based flakes are gone (e2e project 802 s -> about 415 s)
 - [ ] `npm run verify` under 8 minutes on this machine, or the honest floor documented in D144
-- [ ] Default Chromium arguments byte-identical without the switch (unit test); local mode plumbing unit-tested; what a real GPU would change is listed as untested
-- [ ] `docs/LOCAL.md` exists, is Swedish, mentions every step the task lists
+- [x] Default Chromium arguments byte-identical without the switch (unit test `tests/localGpu.test.ts`); local mode plumbing unit-tested; what a real GPU would change is listed as untested (D144 (9), `docs/LOCAL.md` section 9)
+- [x] `docs/LOCAL.md` exists, is Swedish, mentions every step the task lists
 - [ ] `npm run verify` green twice in a row
 
 ### Tempo: a balance pass on HEAD ef06bc0 after the user's feedback "Att erövra länder tar för lång tid" / "Jag behövde köra 4x för att den ens skulle vara spelbart" (USER GATE; one part; the orchestrator owns pushing, the pull request and the Artifact)

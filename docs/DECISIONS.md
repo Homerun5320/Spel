@@ -594,3 +594,116 @@ An audit of D142 found nine major problems. Every one was re-reproduced first; w
 (4) THE GUARD RAILS, THE PACE TESTS AND THE TOOL (findings 4, 5, 7, 11). `tests/sim/pace.test.ts` now asserts the contested pace the user complained about (nothing but the golden hashes guarded it): POL at troop parity, 100 %, passive: the disc in 45 to 90 s (55.2), 500 cells of a country in 90 to 180 s (108.8), 40 % with re-clicks within 120 s (70.5), one 40 % click within 300 s (216.7), a counter-attacking defender at least three times as slow or never; the five-location table: the medians of the acceptance bullet, ten rows of five locations. Checked by mutation: country goal replaced by 250 cells, the re-click interval 150 -> 1500, the counter-attack 60 % -> 6 %, `topAiShare` including the human, the solo minute index off by one, the passive guard sampling another minute, `CONQUEST_LOCATIONS` shortened and the human bot's ratio 150 -> 100 each fail a test now (one equivalent mutant: on POL the country defender has exactly 500 cells, so "goal = the defender's cells" gives the same number there). `tests/sim/calibration.test.ts` pins `SOLO_BAND` to the literal values and to the measured 8 063 / 10 786 times 0.7 and 1.3 within 1 % (the upper bound 14 000 is 0.16 % under 1.3 x 10 786: the D142 text "rounded outwards" was wrong for that one number; it is left as it is). `sim:pace` now plays 25 minutes by default (the late-share guard reads minutes 15, 20, 25), has the East Asia setup `asia` on request and, in the solo part, the gold income per second and the earliest minute an expander that buys nothing could pay each price of `--prices` (finding 11: RUS 11 / 24 / 36 / 58 / 80 gold per second at minutes 1 / 2 / 3 / 5 / 10, 30 252 gold in all after 10 minutes, 2 400 gold after 2.3 minutes, 7 000 after 4.2).
 (5) TESTS CHANGED, each with its reason (none deleted, no tolerance loosened): `tests/ai/think.test.ts` (`twoNations` default gap 16 -> 14 and the "weakest" test discs 16 apart -> 14: at 16 columns the discs touch along ONE cell, which is exactly the sliver the AI no longer starts a war over; every assertion is unchanged; the cap test now starts a real attack in the sim, because a Cancel of an attack that does not exist is the bug; the sliver-expansion world got land out of reach at x >= 70, because the start disc alone was above the 20 % expansion cap there; seven new tests: refused Cancel, retaliation, expansion cap, human seat, sliver of contact, cap Cancel), `tests/sim/pace.test.ts` (the default of `--minutes` 15 -> 25; the "guard rails pass" test uses a whole 25-minute run and expects five guards instead of three), `tests/ai/boundary.test.ts` (the pinned export list gained `AI_EXPAND_MAX_SHARE_PCT`, `AI_WAR_HUMAN_START_TICKS`, `AI_WAR_MIN_CONTACT_LENGTH`), the SimView stub of `tests/sim/pace.test.ts` (`attackRunning`).
 (6) NOT FIXED here (documented): findings 9 to 11 are about the prompts of M09, M12a, M14 and M19, which are not in the repository; their content is carried into BACKLOG ("Tempo pass audit: carry into M16 to M19" and "carry into M09 to M14") so that the sessions that build those milestones read it, and the tool now prints the income table they need.
+
+## TestSpeed: an infrastructure pass on HEAD 78beb97 (no game change; the Artifact is NOT republished)
+
+### D144 TestSpeed: where `verify` spent 14 minutes, what was done about it, the parallel e2e project, the serial project and the local GPU mode (`scripts/shot.mjs`, `scripts/localGpu.mjs`, `scripts/verify.mjs`, `scripts/test-inventory.mjs`, `vitest.config.ts`, `src/app/globeApp.ts`, `src/render/globe.ts`, `e2e/*`, `docs/LOCAL.md`)
+Nothing the game does changed, no test assertion, tolerance, golden or budget changed; only how the tests are organised and run. The one production-side change is a test seam: `Globe.render(draw)` and the test hook `settle(dt, n)` (below).
+
+(1) THE PROBLEM. `npm run verify` took 14 to 15 minutes in this 4-core, no-GPU sandbox (unit about 50 to 64 s, perf about 10 s, e2e 802 s and 778 s in two measured runs) and it runs about five times per milestone. CLAUDE.md's budget is 8 minutes.
+
+(2) MEASURED (HEAD 78beb97, vitest verbose and json reporters, plus a temporary Playwright call profiler that was NOT committed). E2E per file, seconds (sum of the test durations of the file; `baseline` = HEAD, `seq` = after the speed-ups with one worker, `2w` = the final suite with two workers; the 2w column has the seven serial tests moved out, they run in the e2e-serial project):
+| file | tests | baseline s | seq s | 2w s |
+|---|---|---|---|---|
+| setup.test.ts | 18 | 195 | 102 | 139 |
+| globe.test.ts | 11 | 97 | 50 | 77 |
+| terrain.test.ts | 14 | 91 | 82 | 120 |
+| hud.test.ts | 20 | 72 | 61 | 83 |
+| terrainViews.test.ts | 8 | 72 | 65 | 91 |
+| looks.test.ts | 10 | 51 | 41 | 56 |
+| artifact.test.ts | 9 | 44 | 45 | 59 |
+| match.test.ts | 15 | 42 | 35 | 47 |
+| devpanel.test.ts | 10 | 39 | 31 | 46 |
+| setupFix.test.ts | 10 | 32 | 29 | 36 |
+| ai.test.ts | 4 | 17 | 15 | 20 |
+| debugData.test.ts | 4 | 13 | 14 | 17 |
+| determinism.test.ts | 3 | 5 | 5 | 7 |
+| smoke.test.ts | 2 | 5 | 4 | 6 |
+| heap.test.ts | 4 | 4 | 4 | moved |
+| sim.test.ts | 6 | 3 | 3 | 4 |
+| negative.test.ts | 1 | 2 | 2 | 2 |
+| wall | 149 | 802 | 605 | 419 |
+The 25 slowest e2e tests at HEAD (seconds, sequential):
+| s | file | test |
+|---|---|---|
+| 53.9 | globe.test.ts | wheel zoom is anchored at the cursor and the zoom limits hold |
+| 36.1 | setup.test.ts | at 1920x1080 the panel fits, its targets are large and the HUD with names and flags is rea |
+| 29.0 | artifact.test.ts | M06: the setup screen works from the sub-folder with no address parameter at all (override |
+| 28.1 | setup.test.ts | Back returns to the menu, the outline goes away, and the setup opens again with the same c |
+| 22.7 | setup.test.ts | search "Sweden" (and "Sverige", "sverige") finds Sweden; the camera flies there; its borde |
+| 19.0 | setup.test.ts | at 390x844 the primary button answers at all four corners, the chips are gone, and Back br |
+| 17.1 | setup.test.ts | at 960x540 the primary button answers at all four corners, the chips are gone, and Back br |
+| 15.4 | terrainViews.test.ts | norway: three heights, plain and with ?chunks=1; two renders in one browser launch are byt |
+| 14.8 | setupFix.test.ts | Swedish at first; English after the language button and after a reload; the address langua |
+| 14.5 | setup.test.ts | "No real borders": no country lines or names, invented names for the AI nations, no countr |
+| 14.1 | terrainViews.test.ts | himalaya: three heights, plain and with ?chunks=1; two renders in one browser launch are b |
+| 14.0 | terrainViews.test.ts | alps: three heights, plain and with ?chunks=1; two renders in one browser launch are byte- |
+| 13.8 | looks.test.ts | two renders in one browser start are byte-identical, and each view matches its golden (pix |
+| 13.5 | setup.test.ts | on a 390x844 phone the setup is a bottom sheet, the country is flown into the free part ab |
+| 12.2 | terrain.test.ts | the high tier (chunk density of ?quality=high, headless through chunktier) draws 100k to 1 |
+| 11.6 | looks.test.ts | are weak lines between two different land ids only: the border strength switch changes onl |
+| 10.9 | globe.test.ts | is stable at both poles for every heading and tilt (rendered, not blank, no console errors |
+| 10.5 | artifact.test.ts | runs the animated (non test) page from the sub-folder and follows the probe link |
+| 10.5 | hud.test.ts | 1920x1080: panels do not overlap each other or the Dev button, targets are large, text sta |
+| 10.2 | globe.test.ts | are not blank, pairwise different, Himalaya relief adds luminance variance over a flat con |
+| 9.5 | terrain.test.ts | the detector can fail on the real renderer: with the skirts off a view with different LOD  |
+| 9.2 | setup.test.ts | invalid clicks give a reason (sea, ice, a land mass that is too small); a valid click is w |
+| 9.2 | hud.test.ts | #lang-en opens the start screen in English; Play shows the HUD, a click spawns, the perf r |
+| 9.1 | terrain.test.ts | a camera looking straight down (a skirt that only hangs down is edge-on to it) has no hole |
+| 8.9 | setup.test.ts | the choices are remembered (preferences) and come back after a reload; the seed of the add |
+The 15 slowest unit files (seconds, whole file, 4 workers; 135 files and 1 528 tests, 64 s alone):
+| s | tests | file |
+|---|---|---|
+| 12.7 | 11 | tests/ai/driver.test.ts |
+| 8.2 | 2 | tests/app/fairStartAll.test.ts |
+| 8.1 | 30 | tests/sim/pace.test.ts |
+| 7.8 | 4 | tests/sim/enclaveMatch.test.ts |
+| 6.7 | 16 | tests/render/quadtree.test.ts |
+| 5.6 | 69 | tests/sim/frontier.test.ts |
+| 5.3 | 32 | tests/app/matchSetup.test.ts |
+| 5.3 | 32 | tests/artifactPack.test.ts |
+| 4.4 | 17 | tests/ui/flag.test.ts |
+| 4.0 | 5 | tests/sim/scenario.test.ts |
+| 3.8 | 8 | tests/bake/pipeline.test.ts |
+| 3.5 | 19 | tests/data/world.test.ts |
+| 3.4 | 11 | tests/sim/detmath.test.ts |
+| 3.0 | 21 | tests/host/resume.test.ts |
+| 2.8 | 25 | tests/sim/serialize.test.ts |
+
+(3) WHERE THE E2E TIME WENT (the profiler wrapped every Playwright call of the 149 tests; sums over the whole run, sequential):
+| call | seconds | calls |
+|------|---------|-------|
+| `page.screenshot` | 296 | 217 |
+| `page.evaluate` | 89 | 1 786 |
+| `page.waitForFunction` (mostly the wait for `window.__test` after every page load) | 70 | 181 |
+| `page.goto` | 69 | 179 |
+| `page.waitForSelector` | 44 | 82 |
+| `mouse.wheel` | 42 | 25 |
+| `page.click` | 34 | 72 |
+| `page.close` | 23 | 83 |
+| `page.waitForTimeout` (the fixed sleeps) | 4 | 9 |
+The picture: a draw is ASYNCHRONOUS. `__test.render()` returns in a few milliseconds; the SwiftShader work (the GPU process uses about three of the four cores) is paid at the next screenshot, readback, wheel event or page close. A frame costs about 0.55 s at 960x540, 0.2 s at 480x270, 0.1 s at 320x180 and 0.04 s at 160x90 (a fixed 0.04 s plus about 1 microsecond per pixel: the terrain fragment shader), whatever the camera. The first draw of a page costs 0.45 s more (shader compile and texture upload; a warm browser does NOT remove it, only the first page of a browser start is slower). So: `screenshot` is 38 % because it is where the frames are paid; the 984 draws of the baseline run (counted with a temporary `__frames` counter) are the cost, and about 500 of them were frames nobody looked at (the wheel-zoom test alone drew 150 frames for 54 s; the `settle` loops of the setup tests about 140); after the changes 480 draws remain. Live (non-test) pages run a rAF loop, so every Playwright wait that is paced by animation frames (`click` waits two frames for "stable", `waitForSelector` and `waitForFunction` poll once per frame) costs one to three frames, 0.5 to 2 s each. A page opened with `browser.newPage()` costs 0.3 to 0.7 s to close (its whole context is torn down). The fixed sleeps are 4 s in all; they are removed because they were flaky, not because they were slow.
+
+(4) WHAT WAS DONE (every item keeps every assertion; the inventory script below proves the case and `expect(` counts):
+- `settle(dt, n)` test hook plus `Globe.render(draw = true)`: n frames of state, one draw. Used by the wheel-zoom test (150 draws to 1: 54 s to 4 s) and by the `settle` helper of the setup tests. A new e2e test (`e2e/globe.test.ts`, "settle(dt, n) leaves exactly the state and the picture of n render(dt) calls") proves it: after a wheel zoom and 8 frames the view, the fx clock, the frame counter, the terrain numbers and the screenshot bytes are identical to 8 `render(dt)` calls.
+- `openPage` / `newTestPage` open a tab of ONE browser context per file and viewport (closing costs 5 ms instead of 0.3 to 0.7 s; the HTTP cache of the context serves modules and packs). A fresh `browser.newPage()` had empty localStorage, so every new tab clears localStorage once (an init script guarded by a sessionStorage flag, so a reload keeps it). `{ isolated: true }` gives the old page-with-its-own-context for heap and leak tests. The artifact test keeps `browser.newPage` (it counts requests per server).
+- The sleeps: `e2e/setup.test.ts` (400 ms: a `waitForFunction` on the chips being hidden and the primary button ready), `e2e/hud.test.ts` (800 ms: `waitFrames(page, 2)`; 500 ms: a `waitForFunction` on the phase text the next line asserts), `e2e/artifact.test.ts` (600 and 500 ms: `waitFrames(page, 3)`), `e2e/globe.test.ts` (150 ms "pause before the release": the camera reads the fx clock, which a wall-clock sleep never moved, so the pause is now `__test.advance(0.2)` and really is a pause). One sleep stays: `e2e/globe.test.ts` "nothing renders by itself" asserts that nothing happens during 400 ms of wall clock, which cannot be a condition.
+- Live pages: `fastClick` (a real mouse click at the element's centre, no two-frame stable wait), `waitVisible` and `polling: 50` instead of one poll per animation frame (`LIVE_POLL_MS`), in the live-page tests of `hud`, `setup` (the chips), `setupFix`, `match` and the Artifact M06 test. A click on a live page went from about 2 s to 0.05 s.
+- `guard()` logs every browser call that needed more than half of the 20 s hang guard (`[guard] slow call`), so a parallel run that comes near the guard shows it before it trips. The guard itself is unchanged.
+- verify as one Node script (`scripts/verify.mjs`): typecheck, lint and unit run side by side (unit 64 s alone, 71 s together, so about 10 s saved), then perf alone, then e2e, then e2e-serial; a timing table at the end; stops at the first failing group.
+- Not done, on purpose: lowering the viewport. Every test that renders at 960x540 either compares with a golden, applies a pixel rule, or asserts a layout that depends on the size; none was left over. Caching the pack bytes: measured and rejected (a `context.route` cache made every load 0.8 s SLOWER than the browser's own HTTP cache, 1.9 s against 1.1 s). A warm page does not remove the shader compile (measured: the first page of a browser start is 0.8 s slower, later pages are equal). The ideas that remain are in BACKLOG "TestSpeed ideas not built".
+
+(5) THE INVENTORY (`scripts/test-inventory.mjs`, unit test `tests/testInventory.test.ts`): `--out inv.json report.json...` lists every test name and the number of `expect(` calls per file of a finished run (vitest json reports; `vitest list` is NOT used because loops and async collection make it disagree with the run: it said 158 e2e cases where 149 run), `--compare before.json after.json` fails when a case or an `expect(` count was lost; a moved case is reported as moved. Before (HEAD, the baseline run): 17 files, 149 cases, 918 `expect(` calls. After (e2e plus e2e-serial of the final suite): 20 files, 150 cases, 926 `expect(` calls; result "OK: nothing lost". Moved to `*.serial.test.ts` files with their code unchanged: the debug-data load budget test, the HUD heap test, the chunk-terrain leak test. Added: the `settle` equivalence test. The unit project only gained files (`tests/localGpu.test.ts`, `tests/verifyScript.test.ts`, `tests/testInventory.test.ts`) and two entries in the file lists of `tests/docs.test.ts`.
+
+(6) THE E2E-SERIAL PROJECT. Heap, leak and wall-clock tests must not share the machine with another Chromium: `vitest.config.ts` has the project `e2e-serial` (`e2e/**/*.serial.test.ts` plus `e2e/heap.test.ts`, whose name `tests/rawHeap.test.ts` pins), pool forks, one file at a time; `verify` runs it after the e2e project, when nothing else runs. Heap and leak tests open their pages with `{ isolated: true }`.
+
+(7) PARALLEL E2E: the evaluation. `E2E_WORKERS` (default floor(cores / 2) up to 2; with LOCAL_GPU up to 4) files side by side, per-test timeout 120 s instead of 60 s when parallel (the 20 s hang guard of every browser call is unchanged). The CPU is the limit: with 2 workers the machine is 90 to 96 % busy and every frame takes about 1.6 times as long, so the gain is real but small.
+@@PAR_TABLE@@
+A first attempt on the unoptimised suite with two workers failed four tests within four minutes (the 54 s wheel test hit the 60 s limit); after the speed-ups two workers passed, three workers failed the Artifact M06 test (a 120 s limit was not yet in place) and saved only 8 % more. Two workers were adopted because @@PAR_VERDICT@@. CLAUDE.md's rule "never concurrent with another Chromium" now reads: in the e2e project at most `E2E_WORKERS` (2 here) Chromium instances side by side; none during unit, perf or e2e-serial; and a session never starts a second Chromium command while `verify` runs.
+
+(8) THE RESULT. `npm run verify` on this machine, per stage (the five evaluation runs and the two final runs are in PROGRESS):
+@@RESULT_TABLE@@
+@@FLOOR@@
+
+(9) LOCAL GPU MODE (`docs/LOCAL.md`, Swedish, for the user's Windows PC). `LOCAL_GPU=1` is read by `scripts/localGpu.mjs` (pure functions, no bash): the Chromium switches lose `--enable-unsafe-swiftshader` and `--use-angle=swiftshader` (ANGLE picks the GPU: D3D11 on Windows), `CHROMIUM_PATH`, `CHROME_PATH`, an installed Chrome or Edge, or Playwright's own Chromium is the browser, golden image comparison only warns and writes `*.actual.png` and `*.diff.png` to `test-results/golden` (the committed goldens are SwiftShader renders; the pixel RULES such as luma and border contrast keep asserting), `UPDATE_GOLDENS=1` is refused (it would overwrite SwiftShader goldens with GPU renders), the e2e worker count is floor(cores / 2) up to 4, perf budgets still go through perfguard (clamped to 0.5 to 4). `npm run verify:local` is `node scripts/verify.mjs --local`: a GPU check first (the shot CLI; the renderer string goes into the report, a software renderer is flagged), every stage runs even after a failure, `test-results/local-report.txt` is what the user sends back. Without the switch nothing changes: `tests/localGpu.test.ts` compares `chromiumArgs({})`, `CHROMIUM_ARGS` and the cloud array with a committed copy of the baseline array byte by byte, and checks that `package.json` has no bash-only syntax. `.gitattributes` now forces LF at checkout (`* text=auto eol=lf`, binaries marked) so that checksums of text files hold on Windows.
+UNTESTED (no GPU here, no Windows here): that Chromium really uses the GPU with these switches in headless mode, that `chromium.launch` finds Chrome/Edge at the listed Windows paths, that the pixel rules, the byte-identity of two renders in one launch and the cross-engine hashes hold on a real GPU, that the Windows paths and the Git line endings work for every test, and that 4 workers are sensible on 10 cores. The plumbing (argument arrays, path choice, worker count, golden warn mode, the refusal of UPDATE_GOLDENS, the stage order) is unit-tested.

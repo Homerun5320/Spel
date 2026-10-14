@@ -23,6 +23,8 @@ export default defineConfig({
           include: ['tests/**/*.test.ts', 'tools/**/*.test.ts'],
           exclude: ['tests/**/*.perf.test.ts', 'node_modules/**'],
           environment: 'node',
+          // All cores (the default is cores - 1): the unit project is CPU-bound and nothing else runs next to it except typecheck and lint (D144).
+          maxWorkers: os.availableParallelism(),
           testTimeout: 30_000,
           hookTimeout: 60_000,
         },
