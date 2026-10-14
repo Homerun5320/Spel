@@ -273,7 +273,10 @@ export function mountSetupScreen(parent: HTMLElement, world: PreparedWorld, init
   };
 
   const updateAiMax = (): void => {
-    if (!check.ok) {
+    // The whole world has far more countries than the slider's end (and building a match to count them would freeze the page for a moment
+    // at every choice); a cut-out can run short, so there the real number is counted (once per area and player). A world match that still
+    // runs short is refused by `createMatch` with the number that exists, and the Start handler lowers the slider to it.
+    if (!check.ok || draft.region === 'world') {
       aiMax = SETUP_AI_NATIONS_MAX;
       return;
     }

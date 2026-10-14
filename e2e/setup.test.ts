@@ -42,8 +42,8 @@ async function open(query: string, viewport = { width: 960, height: 540 }): Prom
   return { page, messages: consoleMessages as Msg[] };
 }
 
-/** Steps the FX clock and renders `seconds` of frames in one call (flights, markers and the picture follow). */
-const settle = (page: Page, seconds = 3.2, step = 0.1): Promise<void> =>
+/** Steps the FX clock and renders `seconds` of frames in one call (flights, markers and the picture follow; a coarse step keeps the software renderer's time down, a flight ends exactly on its time whatever the step). */
+const settle = (page: Page, seconds = 3.2, step = 0.25): Promise<void> =>
   page.evaluate(([s, dt]) => {
     const t = (window as any).__test;
     for (let i = 0; i < Math.max(1, Math.round(s / dt)); i++) t.render(dt);
@@ -59,7 +59,7 @@ async function shot(page: Page, name: string): Promise<Buffer> {
 const tid = (id: string): string => `[data-testid="${id}"]`;
 const text = (page: Page, id: string): Promise<string> => page.locator(tid(id)).first().textContent().then((x) => x ?? '');
 
-async function openSetup(page: Page, step = 0.1): Promise<void> {
+async function openSetup(page: Page, step = 0.25): Promise<void> {
   await page.click(tid('start-setup'));
   await page.waitForSelector(tid('setup-screen'), { timeout: 30_000 });
   await settle(page, 1.5, step);

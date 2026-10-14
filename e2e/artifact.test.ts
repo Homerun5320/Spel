@@ -164,6 +164,37 @@ describe('artifact build served from /x/y/', () => {
     expect(served.notFound).toEqual([]);
   });
 
+  it('M06: the setup screen works from the sub-folder with no address parameter at all (overrides.json is fetched, the list fills, Start builds a match), for both containers', async () => {
+    for (const srv of [served, servedB64]) {
+      srv.notFound.length = 0;
+      srv.requests.length = 0;
+      const page = await browser.newPage({ viewport: { width: 960, height: 540 }, deviceScaleFactor: 1 });
+      const messages: string[] = [];
+      page.on('console', (m) => {
+        if (m.type() === 'error' || m.type() === 'warning') messages.push(`${m.type()}: ${m.text()}`);
+      });
+      page.on('pageerror', (e) => messages.push(`pageerror: ${e.message}`));
+      try {
+        await page.goto(`${srv.url}/`, { waitUntil: 'load' });
+        await page.waitForSelector('[data-testid="start-setup"]', { timeout: 60_000 });
+        await page.click('[data-testid="start-setup"]');
+        await page.waitForSelector('[data-testid="setup-screen"]', { timeout: 60_000 });
+        expect(await page.locator('[data-testid="setup-row"]').count()).toBeGreaterThan(200);
+        expect(srv.requests.some((r) => r === '200 /x/y/data/overrides.json')).toBe(true);
+        await page.fill('#setup-search', 'sverige');
+        await page.locator('[data-testid="setup-row"]').first().click();
+        await page.click('[data-testid="setup-start"]');
+        await page.waitForSelector('[data-testid="match-hud"]', { timeout: 60_000 });
+        expect(await page.locator('[data-testid="nation-name"]').textContent()).toBe('Sverige');
+        await page.waitForTimeout(500);
+      } finally {
+        await page.close();
+      }
+      expect(messages).toEqual([]);
+      expect(srv.notFound).toEqual([]);
+    }
+  });
+
   it('probe page: containers, worker, WebGL2, hash and search all work from the sub-folder', async () => {
     served.notFound.length = 0;
     const page = await browser.newPage({ viewport: { width: 960, height: 540 }, deviceScaleFactor: 1 });
