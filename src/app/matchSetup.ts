@@ -37,7 +37,7 @@ import { countDisc } from '../sim/spawn';
 import type { GameState } from '../sim/state';
 import { StateView } from '../sim/view';
 import { createWorldState } from '../sim/world';
-import { FLAG_PALETTE, makeFlagSpec, type FlagSpec } from '../ui/flag';
+import { makeFlagSpec, type FlagSpec } from '../ui/flag';
 import type { TextKey } from '../ui/i18n';
 import { createSeatLabels, type SeatIdentity, type SeatLabels } from '../ui/seatLabels';
 import { CUSTOM_NAME_MAX_CHARS } from '../ui/uiConfig';
@@ -402,5 +402,16 @@ export function maxAiNations(world: PreparedWorld, config: MatchSetupConfig): nu
   return r.match.seats.filter((s) => s.kind === 'ai' && s.capitalCell >= 0).length;
 }
 
-/** The flag colours the palette offers a custom nation as its own colour (the menu's colour swatches): the palette without white and black. */
-export const CUSTOM_COLORS: readonly number[] = FLAG_PALETTE.filter((c) => c !== 0xffffff && c !== 0x111111);
+/**
+ * The colours a custom nation can choose as its own (the menu's swatches). Not the whole flag palette: a territory must be readable on
+ * the globe, so every swatch is at least 38 dE76 from the sea and land colours (no blue, green, teal, brown, grey or sand; D108), and
+ * the owner palette keeps every other seat at least OWN_SEPARATION_DE away from the chosen one (tests/render/ownerPalette.test.ts).
+ */
+export const CUSTOM_COLORS: readonly number[] = Object.freeze([
+  0xc8102e, // red
+  0xf26b21, // orange
+  0xfcd116, // yellow
+  0xd1318f, // magenta
+  0x6a2d91, // purple
+  0xf08aa8, // pink
+]);

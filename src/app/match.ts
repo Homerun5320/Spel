@@ -8,8 +8,12 @@ import { ViewMirror } from '../host/viewMirror';
 import type { IntentBody } from '../sim/intents';
 import { MATCH_AI_NATIONS, MATCH_TRIBES, TICK_MS } from '../sim/rules';
 import { seatToOwner } from '../sim/state';
+import { hex32 } from '../sim/hash';
+import { hashState } from '../sim/serialize';
 import { scheduledTurn } from '../sim/time';
 import { createSimWorld, createWorldState, type SimWorldInput } from '../sim/world';
+import type { SeatLabels } from '../ui/seatLabels';
+import type { BuiltMatch } from './matchSetup';
 import { COMMIT_DEFAULT_PCT, COMMIT_MAX_PCT, COMMIT_MIN_PCT, COMMIT_STEP_PCT, SPEED_STEPS } from '../ui/uiConfig';
 import { StatInterpolator } from '../ui/hudValues';
 
@@ -28,8 +32,21 @@ export interface MatchOptions {
   readonly ai?: boolean;
 }
 
+/** The options of a match built by the setup screen (`createMatch`): the state is already placed, so only the live-page switches remain. */
+export interface BuiltMatchOptions {
+  readonly interpolate?: boolean;
+  /** The AI nations and the tribes act (default true). */
+  readonly ai?: boolean;
+}
+
 export class MatchSession {
-  readonly localOwner = seatToOwner(LOCAL_SEAT);
+  /** Your seat (seat 0 in the standard match; the human seat of a match built by the setup screen). */
+  readonly localSeat: number;
+  readonly localOwner: number;
+  /** Names and flags of the seats when the match came from the setup screen (null in the standard match: the HUD uses its numbered names). */
+  readonly labels: SeatLabels | null;
+  /** The match built by the setup screen, or null for the standard match. */
+  readonly built: BuiltMatch | null;
   /** The speed the player chose; `paused` stops the host without forgetting it. */
   private chosenSpeed: 1 | 2 | 4 = 1;
   private paused = false;
@@ -52,7 +69,12 @@ export class MatchSession {
     readonly view: ViewMirror,
     stop: () => void,
     private readonly interpolate: boolean,
+    built: BuiltMatch | null = null,
   ) {
+    this.built = built;
+    this.localSeat = built === null ? LOCAL_SEAT : built.humanSeat;
+    this.localOwner = seatToOwner(this.localSeat);
+    this.labels = built === null ? null : built.labels;
     this.stopMirror = stop;
     this.stats = new StatInterpolator(view.seats);
     this.stats.push(view.packedStats);
@@ -75,6 +97,17 @@ export class MatchSession {
     const host = new MainThreadHost(state, { speed: 1, driver });
     const { mirror, stop } = await ViewMirror.attach(host);
     return new MatchSession(host, mirror, stop, options.interpolate !== false);
+  }
+
+  /**
+   * Starts a match that `createMatch` built (the setup screen's path, M06): the state at tick 0 already holds every nation and tribe on a
+   * whole start disc, so nothing is spawned here. The AI plays every seat but the human one, with its own stream per seat (the config's seed).
+   */
+  static async fromMatch(match: BuiltMatch, options: BuiltMatchOptions = {}): Promise<MatchSession> {
+    const driver = options.ai === false ? undefined : new AiDriver(match.config.seed, { humanSeats: [match.humanSeat] });
+    const host = new MainThreadHost(match.state, { speed: 1, driver });
+    const { mirror, stop } = await ViewMirror.attach(host);
+    return new MatchSession(host, mirror, stop, options.interpolate !== false, match);
   }
 
   get speed(): Speed {
@@ -110,12 +143,12 @@ export class MatchSession {
   }
 
   spawnAt(cell: number): void {
-    this.submit({ kind: 'Spawn', seat: LOCAL_SEAT, cell });
+    this.submit({ kind: 'Spawn', seat: this.localSeat, cell });
   }
 
   /** Attacks the land of `target` (an ownerId, 0 = unowned) with the chosen share of the troops. */
   attack(target: number): void {
-    this.submit({ kind: 'Attack', seat: LOCAL_SEAT, target, pct: this.commitPct });
+    this.submit({ kind: 'Attack', seat: this.localSeat, target, pct: this.commitPct });
   }
 
   setCommit(pct: number): void {
@@ -179,4 +212,17 @@ export class MatchSession {
     this.stopMirror();
     this.host.dispose();
   }
+}
+
+/**
+ * The state hash of a match the setup built, at tick 0 and after `ticks` ticks played with the AI (the test hook behind "the same config and
+ * seed give the same hash in Node and in the browser"). Consumes the match: its state is stepped.
+ */
+export function hashBuiltMatch(match: BuiltMatch, ticks: number): { initial: string; after: string } {
+  const initial = hashState(match.state);
+  const host = new MainThreadHost(match.state, { speed: 1, driver: new AiDriver(match.config.seed, { humanSeats: [match.humanSeat] }) });
+  host.runTicks(ticks);
+  const after = hashState(match.state);
+  host.dispose();
+  return { initial: hex32(initial), after: hex32(after) };
 }

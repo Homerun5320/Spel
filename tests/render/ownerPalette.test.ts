@@ -1,6 +1,8 @@
 // Territory colours: the own colour is far from every other colour, and the colour maths behind that statement is right.
 import { describe, expect, it } from 'vitest';
 import { deltaE76, deltaE76Rgb, labToRgb, rgbToLab } from '../../src/render/color';
+import { CUSTOM_COLORS } from '../../src/app/matchSetup';
+import { rgbOfHex } from '../../src/ui/flag';
 import { buildOwnerPalette, DISTINCT_COLORS, OWN_SEPARATION_DE, OWNER_PALETTE_SIZE, PLAYER_COLORS } from '../../src/render/ownerPalette';
 
 const colour = (p: Uint8Array, id: number): [number, number, number] => [p[id * 4] as number, p[id * 4 + 1] as number, p[id * 4 + 2] as number];
@@ -76,5 +78,43 @@ describe('owner palette', () => {
 
   it('is deterministic (two builds are byte-identical)', () => {
     expect(Array.from(buildOwnerPalette())).toEqual(Array.from(p));
+  });
+});
+
+describe('owner palette with a custom own colour (M06)', () => {
+  const nature: Array<[number, number, number]> = [[60, 130, 170], [30, 90, 150], [12, 40, 90], [110, 150, 70], [60, 105, 55], [205, 180, 125], [125, 105, 85], [235, 240, 250]];
+
+  it('the default call is the palette of M05 (owner 1 magenta) and passing the default colour changes nothing', () => {
+    expect(Array.from(buildOwnerPalette(PLAYER_COLORS[0]))).toEqual(Array.from(buildOwnerPalette()));
+  });
+
+  it('every swatch a custom nation can choose is readable on the globe (dE76 >= 38 from sea and land) and in the palette it is >= 25 from every other seat', () => {
+    expect(CUSTOM_COLORS.length).toBeGreaterThanOrEqual(5);
+    for (const hex of CUSTOM_COLORS) {
+      const own = rgbOfHex(hex);
+      for (const n of nature) expect(deltaE76Rgb(own, n), `swatch ${hex.toString(16)} against ${n.join(',')}`).toBeGreaterThanOrEqual(38);
+      const p = buildOwnerPalette(own);
+      expect(colour(p, 1)).toEqual(own);
+      let worst = Infinity;
+      for (let id = 2; id < OWNER_PALETTE_SIZE; id++) worst = Math.min(worst, deltaE76Rgb(own, colour(p, id)));
+      expect(worst, `swatch ${hex.toString(16)}`).toBeGreaterThanOrEqual(25);
+      // the 26 seats of a match stay distinct from each other as well
+      let seats = Infinity;
+      for (let a = 1; a <= 26; a++) for (let b = a + 1; b <= 26; b++) seats = Math.min(seats, deltaE76Rgb(colour(p, a), colour(p, b)));
+      expect(seats, `swatch ${hex.toString(16)} seats`).toBeGreaterThanOrEqual(12);
+      expect(Array.from(buildOwnerPalette(own))).toEqual(Array.from(p)); // deterministic
+    }
+  });
+
+  it('an AI colour that clashes with the chosen colour is replaced, the others keep their hand-picked colour', () => {
+    const red = rgbOfHex(0xc8102e);
+    const p = buildOwnerPalette(red);
+    const base = buildOwnerPalette();
+    // owner 2 is the hand-picked red of the standard palette: too close to a red own colour, so it must have changed
+    expect(colour(base, 2)).toEqual(PLAYER_COLORS[1]);
+    expect(deltaE76Rgb(colour(p, 2), red)).toBeGreaterThanOrEqual(OWN_SEPARATION_DE);
+    expect(colour(p, 2)).not.toEqual(PLAYER_COLORS[1]);
+    // yellow (owner 3) is far from red and keeps its colour
+    expect(colour(p, 3)).toEqual(PLAYER_COLORS[2]);
   });
 });

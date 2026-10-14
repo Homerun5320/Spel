@@ -40,31 +40,52 @@ function candidates(): Array<{ lab: Lab; rgb: Rgb8 }> {
   return out;
 }
 
-/** RGBA bytes of the table (256 entries, alpha 255 except owner 0). */
-export function buildOwnerPalette(): Uint8Array {
+/** The pool candidate whose nearest chosen colour is the farthest away (ties: the first in the fixed pool order). */
+function farthestFirst(pool: ReadonlyArray<{ lab: Lab; rgb: Rgb8 }>, chosen: readonly Lab[]): { lab: Lab; rgb: Rgb8 } {
+  let best = -1;
+  let bestD = -1;
+  for (let k = 0; k < pool.length; k++) {
+    const lab = (pool[k] as { lab: Lab }).lab;
+    let nearest = Infinity;
+    for (const q of chosen) nearest = Math.min(nearest, deltaE76(lab, q));
+    if (nearest > bestD + 1e-9) {
+      bestD = nearest;
+      best = k;
+    }
+  }
+  return pool[best] as { lab: Lab; rgb: Rgb8 };
+}
+
+/**
+ * RGBA bytes of the table (256 entries, alpha 255 except owner 0). `own` is the colour of owner 1 (default: the magenta of
+ * PLAYER_COLORS): a custom nation's chosen colour (M06). A hand-picked AI colour that is closer than OWN_SEPARATION_DE to it is
+ * replaced by the pool colour farthest from all the others, so the own colour stays distinct from every other territory.
+ */
+export function buildOwnerPalette(own: Rgb8 = PLAYER_COLORS[0] as Rgb8): Uint8Array {
   const out = new Uint8Array(OWNER_PALETTE_SIZE * 4);
   const chosen: Lab[] = [];
-  const own = PLAYER_COLORS[0] as Rgb8;
   const ownLab = rgbToLab(own[0], own[1], own[2]);
-  PLAYER_COLORS.forEach((c, i) => {
-    out.set([c[0], c[1], c[2], 255], (i + 1) * 4);
-    chosen.push(rgbToLab(c[0], c[1], c[2]));
-  });
   const pool = candidates().filter((c) => deltaE76(c.lab, ownLab) >= OWN_SEPARATION_DE);
-  for (let id = PLAYER_COLORS.length + 1; id <= DISTINCT_COLORS; id++) {
-    // farthest-first: the candidate whose nearest chosen colour is the farthest away (ties: the first in the fixed pool order)
-    let best = -1;
-    let bestD = -1;
-    for (let k = 0; k < pool.length; k++) {
-      const lab = (pool[k] as { lab: Lab }).lab;
-      let nearest = Infinity;
-      for (const q of chosen) nearest = Math.min(nearest, deltaE76(lab, q));
-      if (nearest > bestD + 1e-9) {
-        bestD = nearest;
-        best = k;
-      }
+  out.set([own[0], own[1], own[2], 255], 4);
+  chosen.push(ownLab);
+  const clash: number[] = [];
+  PLAYER_COLORS.forEach((c, i) => {
+    if (i === 0) return;
+    const lab = rgbToLab(c[0], c[1], c[2]);
+    if (deltaE76(lab, ownLab) < OWN_SEPARATION_DE) {
+      clash.push(i);
+      return;
     }
-    const pick = pool[best] as { lab: Lab; rgb: Rgb8 };
+    out.set([c[0], c[1], c[2], 255], (i + 1) * 4);
+    chosen.push(lab);
+  });
+  for (const i of clash) {
+    const pick = farthestFirst(pool, chosen);
+    chosen.push(pick.lab);
+    out.set([pick.rgb[0], pick.rgb[1], pick.rgb[2], 255], (i + 1) * 4);
+  }
+  for (let id = PLAYER_COLORS.length + 1; id <= DISTINCT_COLORS; id++) {
+    const pick = farthestFirst(pool, chosen);
     chosen.push(pick.lab);
     out.set([pick.rgb[0], pick.rgb[1], pick.rgb[2], 255], id * 4);
   }

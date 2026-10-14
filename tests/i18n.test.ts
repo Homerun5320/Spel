@@ -189,7 +189,7 @@ function stripComments(text: string): string {
 
 describe('no Swedish text hides in the player-facing code', () => {
   // The Dev panel, the perf overlay and its report, the report modal and the debug pages are developer tools, Swedish only (D98).
-  const PLAYER_FACING = ['ui/matchHud.ts', 'ui/startScreen.ts', 'ui/hudLogic.ts', 'ui/hudStyle.ts', 'ui/clickTracker.ts', 'ui/hudValues.ts', 'app/tooltip.ts', 'app/globeApp.ts', 'app/match.ts', 'app/matchKeys.ts', 'app/clickTarget.ts', 'app/main.ts', 'app/eligibility.ts', 'app/matchSetup.ts', 'app/matchWorld.ts', 'app/countrySearch.ts', 'app/landmass.ts', 'app/inventedNames.ts', 'ui/seatLabels.ts', 'ui/flag.ts'];
+  const PLAYER_FACING = ['ui/matchHud.ts', 'ui/startScreen.ts', 'ui/hudLogic.ts', 'ui/hudStyle.ts', 'ui/clickTracker.ts', 'ui/hudValues.ts', 'app/tooltip.ts', 'app/globeApp.ts', 'app/match.ts', 'app/matchKeys.ts', 'app/clickTarget.ts', 'app/main.ts', 'app/eligibility.ts', 'app/matchSetup.ts', 'app/matchWorld.ts', 'app/countrySearch.ts', 'app/landmass.ts', 'app/inventedNames.ts', 'ui/seatLabels.ts', 'ui/flag.ts', 'app/setupScreen.ts', 'app/setupModel.ts', 'app/countryGeo.ts', 'app/cellGeo.ts', 'ui/uiConfig.ts'];
 
   it('the files exist and hold no string literal with å, ä or ö', () => {
     const offenders: string[] = [];

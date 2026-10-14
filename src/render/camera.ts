@@ -104,6 +104,11 @@ export class CameraRig {
     return { ...this.s };
   }
 
+  /** The viewport in pixels. */
+  get viewport(): { width: number; height: number } {
+    return { width: this.width, height: this.height };
+  }
+
   /** True while inertia or a zoom animation is still moving the camera. */
   get moving(): boolean {
     return this.velRate > 1e-4 || this.anchor !== null || Math.abs(Math.log(this.targetDistKm / this.s.distKm)) > 1e-4;

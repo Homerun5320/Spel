@@ -5,6 +5,9 @@ import { type City, type RenderPack, type SimGrid, type WorldMeta } from '../dat
 import { CameraRig, type ViewState } from './camera';
 import { ATMOSPHERE_TOP, HEIGHT_EXAGGERATION, OCEAN_WAVE_SPEED } from './config';
 import { fxNow } from './clock';
+import { CameraFlight, type FlyOptions } from './flyTo';
+import { BORDER_STRENGTH, COUNTRY_TINT } from './config';
+import { selectionBytes } from './selection';
 import { describeAt, type GlobePick } from './describe';
 import { sunDirectionAt, type Vec3 } from './geo';
 import { buildGlobeGeometry } from './globeMesh';
@@ -73,6 +76,8 @@ export interface ScreenHit {
 
 export class Globe {
   readonly rig: CameraRig;
+  /** Camera flights (`flyTo`), stepped by `render` on the FX clock. */
+  readonly flight: CameraFlight;
   readonly field: HeightField;
   /** Who owns each sim cell (RGBA8 texture, throttled full upload); the match writes into it. */
   readonly ownership: OwnershipTexture;
@@ -110,6 +115,7 @@ export class Globe {
     this.renderer.setClearColor(new Color(0x000000), 1);
 
     this.rig = new CameraRig(o.width, o.height);
+    this.flight = new CameraFlight(this.rig);
     this.camera = new PerspectiveCamera(30, o.width / o.height, 0.01, 100);
     this.field = new HeightField({
       height8: o.world.render.height8,
@@ -160,7 +166,42 @@ export class Globe {
   }
 
   setView(v: Partial<ViewState>): void {
+    this.flight.cancel();
     this.rig.setView(v);
+  }
+
+  /** Flies the camera to a place (great circle, eased, timed by the FX clock; see src/render/flyTo.ts). */
+  flyTo(lat: number, lon: number, distKm: number, options?: FlyOptions): void {
+    this.flight.flyTo(lat, lon, distKm, options);
+  }
+
+  /** Stops a flight under way (any grab of the camera does). */
+  cancelFlight(): void {
+    this.flight.cancel();
+  }
+
+  /**
+   * Outlines a country on the globe (the setup screen): `ids` are the country ids of the id raster that make up the selection (a
+   * country and the territories merged into it); an empty list clears it.
+   */
+  setSelection(ids: readonly number[]): void {
+    const tex = (this.material.uniforms.uSelTex as { value: { image: { data: Uint8Array }; needsUpdate: boolean } }).value;
+    selectionBytes(ids, tex.image.data);
+    tex.needsUpdate = true;
+    (this.material.uniforms.uSelActive as { value: number }).value = ids.length > 0 ? 1 : 0;
+  }
+
+  /** The "no real borders" mode (M06): no country border lines and no country tint; the territories of the match stay. */
+  setCountryLines(on: boolean): void {
+    (this.material.uniforms.uBorderStrength as { value: number }).value = on ? BORDER_STRENGTH : 0;
+    (this.material.uniforms.uCountryTint as { value: number }).value = on ? COUNTRY_TINT : 0;
+  }
+
+  /** Replaces the owner colour table (256 RGBA entries from `buildOwnerPalette`), for a custom nation's own colour. */
+  setOwnerPalette(rgba: Uint8Array): void {
+    const tex = (this.material.uniforms.uOwnerPalette as { value: { image: { data: Uint8Array }; needsUpdate: boolean } }).value;
+    tex.image.data.set(rgba);
+    tex.needsUpdate = true;
   }
 
   resize(width: number, height: number, dpr: number): void {
@@ -177,6 +218,7 @@ export class Globe {
   render(): void {
     const now = fxNow();
     this.ownership.flush(now); // the one place that schedules the (throttled) full upload
+    this.flight.update(now);
     this.rig.update(now);
     const sun = sunDirectionAt(now);
     this.sun.set(sun[0], sun[1], sun[2]);
@@ -271,6 +313,7 @@ export class Globe {
     disposeLookTextures(this.look);
     this.ownership.dispose();
     (this.material.uniforms.uOwnerPalette as { value: { dispose(): void } }).value.dispose();
+    (this.material.uniforms.uSelTex as { value: { dispose(): void } }).value.dispose();
     this.renderer.dispose();
     this.renderer.forceContextLoss(); // free the GL context: the app restarts the scene on hashchange
   }

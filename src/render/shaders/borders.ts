@@ -8,6 +8,13 @@ uniform sampler2D uPalette;
 uniform ivec2 uCountrySize;
 uniform float uBorderStrength;
 uniform float uCountryTint;
+// Selection of a country on the setup screen (M06): a 256 x 1 table of the country ids that make up the selected country (R = 1),
+// the style numbers (x outline px, y glow px, z outline strength, w glow strength) and the colour; uSelActive is 0 with no selection.
+uniform sampler2D uSelTex;
+uniform float uSelActive;
+uniform float uSelDim;
+uniform vec4 uSelStyle;
+uniform vec3 uSelColor;
 
 int countryAt(vec3 d) {
   vec2 uv = dirToUv(d);
@@ -19,6 +26,33 @@ int countryAt(vec3 d) {
 
 vec3 paletteColor(int id) {
   return texelFetch(uPalette, ivec2(id, 0), 0).rgb;
+}
+
+float selectedAt(vec3 d) {
+  return texelFetch(uSelTex, ivec2(countryAt(d), 0), 0).r;
+}
+
+// The outline of the selected country in x (0..1, a band uSelStyle.x pixels either side of the edge, coast against sea included) and its
+// glow in y (0..1, within uSelStyle.y pixels of the edge); z is 1 inside the selected country, 0 outside. Needs uniform control flow.
+vec3 selectionMask(vec3 dir, float inside) {
+  vec3 dx = dFdx(dir);
+  vec3 dy = dFdy(dir);
+  float lw = uSelStyle.x;
+  float gw = uSelStyle.y;
+  float e = 0.0;
+  e += abs(selectedAt(normalize(dir + dx * lw)) - inside);
+  e += abs(selectedAt(normalize(dir - dx * lw)) - inside);
+  e += abs(selectedAt(normalize(dir + dy * lw)) - inside);
+  e += abs(selectedAt(normalize(dir - dy * lw)) - inside);
+  float g = 0.0;
+  for (int k = 1; k <= 2; k++) {
+    float r = gw * float(k) * 0.5;
+    g += abs(selectedAt(normalize(dir + dx * r)) - inside);
+    g += abs(selectedAt(normalize(dir - dx * r)) - inside);
+    g += abs(selectedAt(normalize(dir + dy * r)) - inside);
+    g += abs(selectedAt(normalize(dir - dy * r)) - inside);
+  }
+  return vec3(clamp(e * 0.5, 0.0, 1.0), clamp(g * 0.25, 0.0, 1.0), inside);
 }
 
 // 0..1: how much of the pixel lies on a land border (between two different non-zero ids).

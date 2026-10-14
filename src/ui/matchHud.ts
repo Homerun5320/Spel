@@ -8,11 +8,13 @@
 // bar moves with a transform, the leaderboard is re-ranked once per tick into a preallocated array. `data-testid` ids are the
 // hooks of the e2e tests and `data-value` carries the raw number behind a formatted text.
 import type { SimView } from '../sim/view';
+import { drawFlag, type FlagSpec } from './flag';
+import type { SeatLabels } from './seatLabels';
 import { TICK_HZ } from './hudCodes';
 import { bannerState, phaseName, rankOf, rankTop, rejectKey, seatName, shareHundredths, troopBar } from './hudLogic';
 import { formatClock, formatFixed, formatInt, languageVersion, t, type TextKey } from './i18n';
 import { mountHudStyle } from './hudStyle';
-import { COMMIT_MAX_PCT, COMMIT_MIN_PCT, COMMIT_STEP_PCT, LEADERBOARD_INCLUDES_TRIBES, LEADERBOARD_ROWS, PLAY_HINT_SECONDS, TOAST_SECONDS, TROOP_WARNING_FRACTION } from './uiConfig';
+import { COMMIT_MAX_PCT, COMMIT_MIN_PCT, COMMIT_STEP_PCT, FLAG_ROW_H, FLAG_ROW_W, LEADERBOARD_INCLUDES_TRIBES, LEADERBOARD_ROWS, PLAY_HINT_SECONDS, TOAST_SECONDS, TROOP_WARNING_FRACTION } from './uiConfig';
 
 export interface MatchHudActions {
   setCommit(pct: number): void;
@@ -23,6 +25,8 @@ export interface MatchHudActions {
 export interface MatchHudOptions {
   /** CSS colour of a seat (the territory colour on the globe), for the swatches of the leaderboard. */
   seatColor?: (seat: number) => string;
+  /** Names and flags of the seats (a match built by the setup screen, M06); without it the HUD names the seats Nation n / Tribe n and draws no flags. */
+  labels?: SeatLabels | null;
 }
 
 export interface MatchHudModel {
@@ -34,6 +38,8 @@ export interface MatchHudModel {
   /** HUD values already interpolated for this frame (troops in whole troops, gold in whole gold). */
   readonly troops: number;
   readonly gold: number;
+  /** Every nation was placed before the match began (a match from the setup screen): the banner says so instead of "starting place chosen". */
+  readonly preplaced?: boolean;
 }
 
 export interface MatchHud {
@@ -55,7 +61,7 @@ export function notConquerableText(): string {
 }
 
 /** The banner texts by index (a TextCell holds numbers, so the key travels as an index). */
-const BANNER_KEYS: readonly TextKey[] = ['phase.spawnPick', 'phase.spawnDone', 'phase.spawnMissed', 'phase.immunity', 'phase.play'];
+const BANNER_KEYS: readonly TextKey[] = ['phase.spawnPick', 'phase.spawnDone', 'phase.spawnMissed', 'phase.immunity', 'phase.play', 'phase.preplaced'];
 
 type Make = (a: number, b: number) => string;
 
@@ -92,12 +98,38 @@ function label(className: string, key: TextKey, testid?: string): TextCell {
   return new TextCell(el('span', className, testid), () => t(key));
 }
 
+/** A small canvas for a flag, drawn at twice its CSS size. Hidden until a flag is drawn into it. */
+function flagCanvas(className: string): HTMLCanvasElement {
+  const c = document.createElement('canvas');
+  c.className = className;
+  c.width = FLAG_ROW_W * 2;
+  c.height = FLAG_ROW_H * 2;
+  c.style.width = `${FLAG_ROW_W}px`;
+  c.style.height = `${FLAG_ROW_H}px`;
+  c.setAttribute('aria-hidden', 'true');
+  c.hidden = true;
+  return c;
+}
+
+/** Draws `spec` into a flag canvas (or hides it when there is none). Called when the seat shown there changes, never per frame. */
+function paintFlag(c: HTMLCanvasElement, spec: FlagSpec | null): void {
+  if (spec === null) {
+    c.hidden = true;
+    return;
+  }
+  const ctx = c.getContext('2d');
+  if (ctx === null) return;
+  drawFlag(ctx, spec, c.width, c.height);
+  c.hidden = false;
+}
+
 const percentText = (hundredths: number): string => t('hud.percent', { n: formatFixed(hundredths / 100, 2) });
 
 class BoardRow {
   readonly root = el('div', 'hud-row', 'leader-row');
   private readonly rank = el('span', 'hud-rank');
   private readonly swatch = el('span', 'hud-swatch');
+  private readonly flag = flagCanvas('hud-flag');
   private readonly name = el('span', 'hud-name');
   private readonly share = el('span', 'hud-share');
   private seat = -2;
@@ -105,19 +137,25 @@ class BoardRow {
   private shareQ15 = -2;
   private lang = -1;
   constructor() {
-    this.root.append(this.rank, this.swatch, this.name, this.share);
+    this.root.append(this.rank, this.swatch, this.flag, this.name, this.share);
     this.root.hidden = true;
   }
   hide(): void {
     if (!this.root.hidden) this.root.hidden = true;
     this.seat = -2;
   }
-  set(seat: number, rankNo: number, shareQ15: number, players: number, localSeat: number, color: string): void {
+  set(seat: number, rankNo: number, shareQ15: number, players: number, localSeat: number, color: string, labels: SeatLabels | null): void {
     const lv = languageVersion();
     if (this.root.hidden) this.root.hidden = false;
     if (seat !== this.seat || lv !== this.lang) {
-      const nm = seatName(seat, players, localSeat);
-      this.name.textContent = t(nm.key, { n: nm.n });
+      if (labels !== null) {
+        this.name.textContent = labels.name(seat);
+        if (seat !== this.seat) paintFlag(this.flag, labels.flag(seat));
+        this.root.dataset.flag = this.flag.hidden ? '0' : '1';
+      } else {
+        const nm = seatName(seat, players, localSeat);
+        this.name.textContent = t(nm.key, { n: nm.n });
+      }
       this.swatch.style.background = color;
       this.root.dataset.seat = String(seat);
       this.root.dataset.you = seat === localSeat ? '1' : '0';
@@ -139,6 +177,7 @@ class BoardRow {
 
 export function createMatchHud(parent: HTMLElement, actions: MatchHudActions, options: MatchHudOptions = {}): MatchHud {
   const seatColor = options.seatColor ?? ((): string => '#888888');
+  const labels = options.labels ?? null;
   const root = el('div', 'hud-root', 'match-hud');
   root.append(mountHudStyle(root));
   /** Texts that only depend on the language: rebuilt (cheaply, cached) by every update. */
@@ -164,6 +203,12 @@ export function createMatchHud(parent: HTMLElement, actions: MatchHudActions, op
 
   // --- Status: gold, troops with the cap bar, land share, time ---
   const status = el('div', 'hud-panel hud-status', 'status');
+  const nationBox = el('div', 'hud-nation', 'nation');
+  const nationFlag = flagCanvas('hud-flag');
+  const nationName = el('span', 'hud-nation-name', 'nation-name');
+  nationBox.append(nationFlag, nationName);
+  nationBox.hidden = labels === null;
+  let nationLang = -1;
   const goldLabel = cell(label('hud-label', 'hud.gold'));
   const goldRow = el('span', 'hud-right');
   const goldNum = dyn(new TextCell(el('span', 'hud-num hud-gold', 'gold'), (a) => formatInt(a), true));
@@ -195,11 +240,12 @@ export function createMatchHud(parent: HTMLElement, actions: MatchHudActions, op
   timerText.el.style.marginLeft = '0.4em';
   timerBox.append(timerLabel.el, timerText.el);
   meta.append(shareBox, timerBox);
-  status.append(goldLabel.el, goldRow, troopsLabel.el, troopsRow, bar, warn.el, meta);
+  status.append(nationBox, goldLabel.el, goldRow, troopsLabel.el, troopsRow, bar, warn.el, meta);
   warn.el.style.gridColumn = '1 / -1';
 
   // --- Leaderboard ---
   const board = el('div', 'hud-panel hud-board', 'leaderboard');
+  board.dataset.labels = labels === null ? '0' : '1'; // names and flags need a wider board
   const boardTitle = cell(label('hud-board-title', 'hud.leaderboard'));
   const boardEmpty = cell(new TextCell(el('div', 'hud-empty', 'leaderboard-empty'), () => t('hud.leaderboardEmpty')));
   const rows: BoardRow[] = [];
@@ -284,7 +330,7 @@ export function createMatchHud(parent: HTMLElement, actions: MatchHudActions, op
       const spawned = (st.capital[L] as number) !== 0;
 
       // Banner
-      const ban = bannerState(v.phase, v.phaseTicksLeft, spawned);
+      const ban = bannerState(v.phase, v.phaseTicksLeft, spawned, m.preplaced === true);
       if (ban.tone === 'play') {
         if (playSince < 0) playSince = fxNow;
       } else {
@@ -309,6 +355,14 @@ export function createMatchHud(parent: HTMLElement, actions: MatchHudActions, op
       if (badge.hidden === paused) badge.hidden = !paused;
 
       // Status
+      if (labels !== null) {
+        const nl = languageVersion();
+        if (nl !== nationLang) {
+          if (nationLang < 0) paintFlag(nationFlag, labels.flag(L)); // the flag does not change with the language
+          nationLang = nl;
+          nationName.textContent = labels.name(L);
+        }
+      }
       const capTroops = Math.floor((st.capQt[L] as number) / 4);
       goldNum.set(Math.floor(m.gold));
       goldRate.set(st.goldPerSecMilli[L] as number);
@@ -347,10 +401,10 @@ export function createMatchHud(parent: HTMLElement, actions: MatchHudActions, op
         for (let i = 0; i < n; i++) {
           const seat = top[i] as number;
           if (seat === L) youShown = true;
-          (rows[used++] as BoardRow).set(seat, i + 1, st.landShareQ15[seat] as number, v.players, L, seatColor(seat));
+          (rows[used++] as BoardRow).set(seat, i + 1, st.landShareQ15[seat] as number, v.players, L, seatColor(seat), labels);
         }
         if (!youShown && localCells > 0) {
-          (rows[used++] as BoardRow).set(L, rankOf(st, seatCount, L), st.landShareQ15[L] as number, v.players, L, seatColor(L));
+          (rows[used++] as BoardRow).set(L, rankOf(st, seatCount, L), st.landShareQ15[L] as number, v.players, L, seatColor(L), labels);
         }
         for (let i = used; i < rows.length; i++) (rows[i] as BoardRow).hide();
         const empty = used === 0;

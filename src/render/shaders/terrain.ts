@@ -243,6 +243,15 @@ void main() {
   float detail = mix(1.0, 0.2 + 1.6 * speck * speck, 1.0 - smoothstep(0.4, 1.6, cellsPerPixel));
   col += uLightsColor.rgb * (uLightsColor.a * lightTex * lightTex * detail * nightF * land);
 
+  // Country selection (setup screen): the rest of the world is dimmed a little, the selected country gets a bright outline and a glow.
+  if (uSelActive > 0.5) {
+    float inside = selectedAt(dir);
+    vec3 sm = selectionMask(dir, inside);
+    col = mix(col * (1.0 - uSelDim), col, inside);
+    col += uSelColor * (sm.y * uSelStyle.w * (inside > 0.5 ? 0.55 : 0.35));
+    col = mix(col, uSelColor * 1.6, sm.x * uSelStyle.z);
+  }
+
   // Atmosphere: haze and glow between the camera and this surface point (in linear light).
   vec3 toSurf = vPos - cameraPosition;
   float distSurf = length(toSurf);

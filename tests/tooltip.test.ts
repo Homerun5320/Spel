@@ -266,3 +266,13 @@ describe('describe.ts helpers', () => {
     expect(nearestSimCell(sim, 10, 10, true, 2)?.countryId).toBe(5);
   });
 });
+
+describe('the "no real borders" tooltip (M06)', () => {
+  it('names no country on land (just the ground), and the sea as always', () => {
+    const names = new Map([[3, 'Sverige']]);
+    const land = { classId: TerrainClass.Plains, countryId: 3, elevationM: 120 };
+    expect(tooltipText(land, names)).toBe('Sverige · Slätt · 120 m');
+    expect(tooltipText(land, names, true)).toBe('Mark · Slätt · 120 m');
+    expect(tooltipText({ classId: TerrainClass.DeepSea, countryId: 0, elevationM: -3000 }, names, true)).toMatch(/^Hav · /);
+  });
+});

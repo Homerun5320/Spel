@@ -87,6 +87,17 @@ export const BORDER_STRENGTH = 0.34;
 /** Share of the country palette colour mixed into the land albedo (a faint political tint). */
 export const COUNTRY_TINT = 0.06;
 
+// --- Country selection (M06): the outline of the country chosen on the setup screen ------------------------------------------
+/** Width in screen pixels of the bright outline and of the soft glow on both sides of it. */
+export const SELECT_LINE_PX = 1.3;
+export const SELECT_GLOW_PX = 6;
+/** Strength of the outline (0..1), of the glow, and how much the rest of the world is dimmed while a country is selected. */
+export const SELECT_LINE_STRENGTH = 0.95;
+export const SELECT_GLOW_STRENGTH = 0.45;
+export const SELECT_DIM = 0.3;
+/** Colour of the outline and the glow (linear light). */
+export const SELECT_COLOR: readonly [number, number, number] = [1.0, 0.74, 0.12];
+
 // --- Territory (M05): ownership texture, tint and borders ---------------------------------------------------------------
 /** The ownership texture is re-uploaded at most this often (FX seconds), whatever the sim speed. */
 export const OWNERSHIP_MIN_UPLOAD_INTERVAL_S = 0.1;

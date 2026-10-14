@@ -30,6 +30,8 @@ export interface CountryInfo {
   readonly continent: string;
   /** Cells of the country (meta.json). */
   readonly cells: number;
+  /** Area in km2 (meta.json, the cos-latitude weighted cell area): the menu sizes the camera flight with it. */
+  readonly areaKm2: number;
   /** The capital cell, or -1 when the country has none. */
   readonly capitalCell: number;
   /** Left out of the choice on purpose: the overrides' unplayable list, a merged territory, Antarctica, or a country meta.json calls unplayable. */
@@ -109,6 +111,7 @@ export function prepareWorld(data: WorldData): PreparedWorld {
       nameSv: data.overrides.neutralNames[c.a3]?.sv ?? c.name_sv,
       continent: c.continent,
       cells: c.cells,
+      areaKm2: c.weightedAreaKm2,
       capitalCell: typeof cap === 'number' && cap >= 0 && cap < n ? cap : -1,
       excluded: unplayable.has(c.a3) || parent !== undefined || c.continent === 'Antarctica' || c.playable === false,
       coastPermille: permille(coast.get(c.id) ?? 0, land.get(c.id) ?? 0),

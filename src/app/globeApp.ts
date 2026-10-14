@@ -1,27 +1,37 @@
 // The stylised Earth scene (M02): loads the packs through the data layer, builds the Globe, wires mouse input, hover
 // tooltip, the F3 overlay and the `?test=1` hooks. The only code in `src` that drives the fx clock from real frames.
-import { createWorldLoader } from '../data';
+import { createWorldLoader, type WorldLoad } from '../data';
 import { advanceFx, fxNow, setFxTime } from '../render/clock';
 import { wrapLon } from '../render/geo';
 import { buildOwnerPalette } from '../render/ownerPalette';
+import { rgbOfHex } from '../ui/flag';
 import type { ViewState } from '../render/camera';
 import { Globe, type GlobeInfo, type GlobePick, type ScreenHit, type WorldData } from '../render/globe';
 import type { WorldTextureName } from '../render/textures';
 import { DEFAULT_START_TIME, DEFAULT_START_VIEW } from '../render/views';
 import { resolveQuality } from '../render/quality';
 import { FrameStats } from '../ui/frameStats';
+import { latLonOfCell } from './cellGeo';
 import { createPerfOverlay, type PerfOverlay } from '../ui/perfOverlay';
 import { ClickTracker } from '../ui/clickTracker';
 import { createMatchHud, notConquerableText, rejectText, type MatchHud, type MatchHudModel } from '../ui/matchHud';
 import { getLanguage, languageOf, onLanguageChange, setLanguage, setStrictI18n, t, type TextKey } from '../ui/i18n';
-import { START_SPIN_DEG_PER_S } from '../ui/uiConfig';
+import { START_FLY_KM, START_SPIN_DEG_PER_S, SETUP_IDLE_DIST_KM } from '../ui/uiConfig';
 import { mountStartScreen, type StartScreen } from '../ui/startScreen';
+import { getPref, setPref } from './prefs';
+import { createMatch, type BuiltMatch, type MatchSetupConfig } from './matchSetup';
+import { countryEligibility } from './eligibility';
+import { regionMask, type RegionId } from '../data/regions';
+import { prepareWorld, type PreparedWorld } from './matchWorld';
+import { mountSetupScreen, type SetupScreen } from './setupScreen';
+import { SETUP_PREF_KEY, defaultDraft, draftFromStored, isStoredSetup, parseSeed, storedOf, type SetupDraft, type StoredSetup } from './setupModel';
+import { hashBuiltMatch } from './match';
 import { PHASE_IMMUNITY, PHASE_SPAWN } from '../sim/flow';
 import { REJECT_NOT_SPAWNED } from '../sim/intents';
 import { seatToOwner } from '../sim/state';
 import type { IntentBody } from '../sim/intents';
 import { clickMeaning, resolveClickCell } from './clickTarget';
-import { LOCAL_SEAT, MatchSession } from './match';
+import { MatchSession } from './match';
 import { matchKeyAction } from './matchKeys';
 import type { AppParams, AppState, SceneParams } from './params';
 import { siteUrl } from './paths';
@@ -109,6 +119,27 @@ export interface GlobeTestHooks {
   view(): ViewState;
   /** Text of the hover tooltip for a pick, as the page shows it. */
   tooltip(x: number, y: number): string | null;
+  /** M06: the countries of the setup as the page sees them in a region (eligibility included), prepared on first use. */
+  setupCountries(region?: RegionId): Promise<SetupCountryInfo[]>;
+  /** M06: builds a match from a config with the page's own `createMatch` and returns its state hash at tick 0 and after `ticks` ticks with the AI (nothing is started). */
+  buildHash(config: MatchSetupConfig, ticks: number): Promise<{ ok: true; initial: string; after: string; seats: number } | { ok: false; code: string; key: string }>;
+  /** M06: how many cells outside the playable mask of a region are owned right now (must always be 0 in a match of that region). */
+  ownedOutside(region: RegionId): number;
+  /** M06: how many cells each seat owns right now (index = seat) and, per seat, the capital cell (-1 when none); null before the match started. */
+  seatCells(): { cells: number[]; capitals: number[] } | null;
+}
+
+/** One country of `setupCountries`. */
+export interface SetupCountryInfo {
+  id: number;
+  a3: string;
+  nameEn: string;
+  nameSv: string;
+  cells: number;
+  ok: boolean;
+  reasonKey: string | null;
+  landmass: number;
+  capitalCell: number;
 }
 
 async function readBytes(url: string): Promise<Uint8Array> {
@@ -118,16 +149,43 @@ async function readBytes(url: string): Promise<Uint8Array> {
 }
 
 // The packs are loaded once per page: a restart of the mode (hashchange) reuses them.
+let loaderCache: WorldLoad | null = null;
+function getLoader(): WorldLoad {
+  loaderCache ??= createWorldLoader({ manifestUrl: siteUrl('data/manifest.json'), readBytes });
+  return loaderCache;
+}
 let worldCache: Promise<WorldData> | null = null;
 function loadWorld(): Promise<WorldData> {
   if (!worldCache) {
-    const loader = createWorldLoader({ manifestUrl: siteUrl('data/manifest.json'), readBytes });
+    const loader = getLoader();
     worldCache = Promise.all([loader.loadRender(), loader.loadSim(), loader.loadMeta(), loader.loadCities()]).then(([render, sim, meta, cities]) => ({ render, sim, meta, cities }));
     worldCache.catch(() => {
       worldCache = null;
     });
   }
   return worldCache;
+}
+
+// The match setup's view of the world (M06): the packs plus the overrides (merged territories, neutral names), analysed once per page.
+let preparedCache: Promise<PreparedWorld> | null = null;
+function loadPrepared(world: WorldData): Promise<PreparedWorld> {
+  if (!preparedCache) {
+    preparedCache = getLoader()
+      .loadOverrides()
+      .then((overrides) =>
+        prepareWorld({
+          sim: { width: world.sim.width, height: world.sim.height, terrainClass: world.sim.terrainClass, meanElev: world.sim.meanElev, cosQ15: world.meta.sim.cosQ15 },
+          country: world.sim.country,
+          coast: world.sim.coast,
+          meta: world.meta,
+          overrides,
+        }),
+      );
+    preparedCache.catch(() => {
+      preparedCache = null;
+    });
+  }
+  return preparedCache;
 }
 
 /** Boots the globe scene; the promise resolves to a function that stops it (listeners, frame loop, GL resources, DOM). */
@@ -185,19 +243,46 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     if (firstFrameMs === null) firstFrameMs = performance.now();
   };
 
-  // --- The match (M05) ----------------------------------------------------------------------------------------------------
-  // A session is the sim behind its host plus the page's read-only mirror of it. Test mode starts one at once (no start screen);
-  // the normal page starts it when Play is pressed. The UI below only sends intents (`session.submit`) and reads `session.view`.
+  // --- The match (M05, M06) -----------------------------------------------------------------------------------------------
+  // A session is the sim behind its host plus the page's read-only mirror of it. Test mode starts one at once (no start screen, unless
+  // `#menu` asks for the menus); the normal page starts it when Play is pressed (the standard M05 match: click to spawn) or when the setup
+  // screen's Start has built a match with `createMatch`. The UI below only sends intents (`session.submit`) and reads `session.view`.
   let session = null as MatchSession | null;
   let hud = null as MatchHud | null;
   let startScreen = null as StartScreen | null;
-  const ownerPalette = buildOwnerPalette();
+  let setupScreen = null as SetupScreen | null;
   const ownerCss: string[] = [];
-  for (let id = 0; id < ownerPalette.length / 4; id++) ownerCss.push(`rgb(${ownerPalette[id * 4]}, ${ownerPalette[id * 4 + 1]}, ${ownerPalette[id * 4 + 2]})`);
+  /** (Re)builds the CSS colour of every owner; `own` is a custom nation's chosen colour (0xRRGGBB) or null for the magenta of the standard match. */
+  const setOwnerColors = (own: number | null): void => {
+    const palette = buildOwnerPalette(own === null ? undefined : rgbOfHex(own));
+    globe.setOwnerPalette(palette);
+    ownerCss.length = 0;
+    for (let id = 0; id < palette.length / 4; id++) ownerCss.push(`rgb(${palette[id * 4]}, ${palette[id * 4 + 1]}, ${palette[id * 4 + 2]})`);
+  };
+  setOwnerColors(null);
   /** CSS colour of a seat: the colour its territory has on the globe (ownerId = seat + 1). */
   const seatColor = (seat: number): string => ownerCss[seatToOwner(seat)] ?? '#888888';
   const hostAdvance = new FrameStats(240); // ms per frame that ran ticks: the cost of the sim stepping in the browser
   const hudCost = new FrameStats(240); // ms per frame of the HUD refresh (live loop only)
+  let neutralNames = false;
+  /** Everything that follows a started session (the globe shows its ownership, the HUD is built and filled before its first frame). */
+  const attachSession = (s: MatchSession): void => {
+    session = s;
+    globe.ownership.setFromOwners(s.view.owner);
+    s.view.onFrame((m, d) => {
+      if (d.fullOwner !== null) globe.ownership.setFromOwners(m.owner);
+      else globe.ownership.applyCells(d.cells, d.owners);
+    });
+    hud = createMatchHud(wrapper, { setCommit: (p) => s.setCommit(p), setSpeed: (sp) => s.setSpeed(sp), togglePause: () => s.togglePause() }, { seatColor, labels: s.labels });
+    hud.setVisible(!params.test || ctx.state.raw.hud === '1'); // test mode hides it (the globe goldens), `#hud` / `?hud=1` shows it
+    // The two link chips of the start page sit above the HUD (they are outside the wrapper); the Dev panel lists the same pages.
+    for (const id of ['probe-link', 'debug-links']) {
+      const chip = document.getElementById(id);
+      if (chip) chip.hidden = true;
+    }
+    refreshHud(); // the HUD is filled before its first frame is drawn
+  };
+  /** The standard match of M05: you + 5 AI nations + 20 tribes, click anywhere to spawn. */
   const startMatch = async (): Promise<void> => {
     if (session !== null) return;
     const s = await MatchSession.create(
@@ -208,44 +293,72 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       s.dispose();
       return;
     }
-    session = s;
-    globe.ownership.setFromOwners(s.view.owner);
-    s.view.onFrame((m, d) => {
-      if (d.fullOwner !== null) globe.ownership.setFromOwners(m.owner);
-      else globe.ownership.applyCells(d.cells, d.owners);
-    });
-    hud = createMatchHud(wrapper, { setCommit: (p) => s.setCommit(p), setSpeed: (sp) => s.setSpeed(sp), togglePause: () => s.togglePause() }, { seatColor });
-    hud.setVisible(!params.test || ctx.state.raw.hud === '1'); // test mode hides it (the globe goldens), `#hud` / `?hud=1` shows it
-    // The two link chips of the start page sit above the HUD (they are outside the wrapper); the Dev panel lists the same pages.
-    for (const id of ['probe-link', 'debug-links']) {
-      const chip = document.getElementById(id);
-      if (chip) chip.hidden = true;
+    attachSession(s);
+  };
+  /** A match the setup screen built: every nation already stands on its start disc; the camera flies to yours. */
+  const startBuilt = async (match: BuiltMatch): Promise<void> => {
+    if (session !== null) return;
+    const s = await MatchSession.fromMatch(match, { interpolate: !params.test, ai: ctx.state.raw.ai !== '0' });
+    if (!alive) {
+      s.dispose();
+      return;
     }
-    refreshHud(); // the HUD is filled before its first frame is drawn
+    setOwnerColors(match.humanColor);
+    globe.setCountryLines(!match.config.neutral);
+    globe.setSelection([]);
+    neutralNames = match.config.neutral;
+    attachSession(s);
+    const cap = match.seats[match.humanSeat]?.capitalCell ?? -1;
+    if (cap >= 0) {
+      const at = latLonOfCell(cap, world.sim.width, world.sim.height);
+      globe.flyTo(at.lat, at.lon, START_FLY_KM);
+    }
   };
   /** The one model object the HUD reads each frame (rewritten in place: nothing is allocated per frame). */
   let model: { -readonly [K in keyof MatchHudModel]: MatchHudModel[K] } | null = null;
   const refreshHud = (): void => {
     if (session === null || hud === null) return;
     const alpha = session.alpha();
-    model ??= { view: session.view, localSeat: LOCAL_SEAT, commitPct: 0, speed: 0, troops: 0, gold: 0 };
+    const L = session.localSeat;
+    model ??= { view: session.view, localSeat: L, commitPct: 0, speed: 0, troops: 0, gold: 0, preplaced: session.built !== null };
     model.commitPct = session.commitPct;
     model.speed = session.speed;
-    model.troops = session.stats.value('troopsQt', LOCAL_SEAT, alpha) / 4;
-    model.gold = session.stats.value('goldMilli', LOCAL_SEAT, alpha) / 1000;
+    model.troops = session.stats.value('troopsQt', L, alpha) / 4;
+    model.gold = session.stats.value('goldMilli', L, alpha) / 1000;
     hud.update(model, fxNow());
     const refused = session.takeNewReject();
     if (refused !== 0) hud.toast(rejectText(refused), fxNow());
   };
+
+  // --- The start marker of the setup screen: a ring on the chosen start place, kept on it every frame --------------------------
+  let markerCell = -1;
+  let markerEl: HTMLElement | null = null;
+  const updateMarker = (): void => {
+    if (markerEl === null) return;
+    if (markerCell < 0) {
+      markerEl.hidden = true;
+      return;
+    }
+    const at = latLonOfCell(markerCell, world.sim.width, world.sim.height);
+    const p = globe.project(at.lat, at.lon);
+    const visible = p.facing && p.inView;
+    markerEl.hidden = !visible;
+    if (visible) markerEl.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px)`;
+  };
   /** One click on the globe: spawn in the spawn phase, otherwise attack the land under the cursor. */
   const onGlobeClick = (x: number, y: number): void => {
+    const pick = globe.pick(x, y);
+    if (setupScreen !== null) {
+      if (pick !== null) setupScreen.globeClick(pick);
+      return;
+    }
     const sess = session;
     if (sess === null) return;
-    const pick = globe.pick(x, y);
     if (pick === null) return;
     const v = sess.view;
+    const L = sess.localSeat;
     const cell = resolveClickCell(pick, v.terrainClass, v.width, v.height);
-    const spawned = (v.stats.capital[LOCAL_SEAT] as number) !== 0;
+    const spawned = (v.stats.capital[L] as number) !== 0;
     if (v.phase === PHASE_SPAWN) {
       if (!spawned) sess.spawnAt(cell); // anything else is the sim's to refuse (sea, Peak, Ice, owned) and the toast says why
       return;
@@ -322,6 +435,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     perf?.dispose();
     hud?.dispose();
     startScreen?.dispose();
+    setupScreen?.dispose();
     stopNames();
     session?.dispose();
     tip.remove();
@@ -332,7 +446,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   // --- Mouse ------------------------------------------------------------------------------------------------------
   const tipFor = (x: number, y: number): string | null => {
     const p = globe.pick(x, y);
-    return p ? tooltipText(p, names) : null;
+    return p ? tooltipText(p, names, neutralNames) : null;
   };
   const showTip = (x: number, y: number): void => {
     const text = tipFor(x, y);
@@ -359,6 +473,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     lastX = p.x;
     lastY = p.y;
     tip.style.display = 'none';
+    globe.cancelFlight(); // any grab of the camera ends a flight
     if (e.button === 2 || e.ctrlKey || e.shiftKey) {
       mode = 'rotate';
     } else if (e.button === 0) {
@@ -400,6 +515,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     'wheel',
     (e: WheelEvent) => {
       e.preventDefault();
+      globe.cancelFlight();
       const p = local(e);
       const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
       globe.rig.zoomAt(p.x, p.y, e.deltaY * unit);
@@ -407,13 +523,127 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     { passive: false },
   );
 
+  // --- The menus: the start screen (Play = the standard match, or the setup) and the setup screen ----------------------------------
+  // Building a match takes a moment on the main thread: let the button show "loading" first (two frames), then start.
+  const nextPaint = (): Promise<void> => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+  const closeSetup = (): void => {
+    setupScreen?.dispose();
+    setupScreen = null;
+    markerEl = null;
+    markerCell = -1;
+  };
+  /** Back to the plain globe of the start screen: no outline, country lines and names as usual. */
+  const leaveSetup = (): void => {
+    closeSetup();
+    globe.setSelection([]);
+    globe.setCountryLines(true);
+    neutralNames = false;
+    startScreen?.setHidden(false);
+    startScreen?.playButton.focus({ preventScroll: true });
+  };
+  const openSetup = async (): Promise<void> => {
+    if (setupScreen !== null || session !== null) return;
+    const btn = startScreen?.setupButton ?? null;
+    if (btn !== null) {
+      btn.disabled = true;
+      btn.textContent = t('setup.loading');
+    }
+    await nextPaint();
+    let prepared: PreparedWorld;
+    try {
+      prepared = await loadPrepared(world);
+      prepared.analyse('world');
+    } catch (err) {
+      console.error(err);
+      if (btn !== null) {
+        btn.disabled = false;
+        btn.textContent = t('start.setup');
+      }
+      return;
+    }
+    if (!alive || session !== null) return;
+    if (btn !== null) {
+      btn.disabled = false;
+      btn.textContent = t('start.setup');
+    }
+    // The seed: the address wins (the Dev panel's seed field writes `seed-N` there), else the stored choice, else 1.
+    const addressSeed = ctx.state.raw.seed !== undefined && parseSeed(ctx.state.raw.seed) !== null ? params.seed : null;
+    const base = defaultDraft(addressSeed ?? 1, t('setup.nation.defaultName'));
+    const stored = getPref<StoredSetup | null>(SETUP_PREF_KEY, null, isStoredSetup as (v: unknown) => v is StoredSetup);
+    let draft = stored === null ? base : draftFromStored(stored, prepared, base);
+    if (addressSeed !== null) draft = { ...draft, seed: String(addressSeed) };
+    const applyNeutralPreview = (d: SetupDraft): void => {
+      const neutral = d.tab === 'custom' && d.neutral;
+      globe.setCountryLines(!neutral);
+      neutralNames = neutral;
+    };
+    const screen = mountSetupScreen(
+      wrapper,
+      prepared,
+      draft,
+      {
+        flyTo: (lat, lon, distKm, shiftX, shiftY) => globe.flyTo(lat, lon, distKm, { shiftX, shiftY }),
+        select: (ids) => globe.setSelection(ids),
+        marker: (cell) => {
+          markerCell = cell === null ? -1 : cell;
+          updateMarker();
+        },
+        changed: (d) => {
+          setPref(SETUP_PREF_KEY, storedOf(d, prepared));
+          applyNeutralPreview(d);
+        },
+        start: async (config) => {
+          await nextPaint();
+          const r = createMatch(prepared, config);
+          if (!r.ok) return r.error;
+          await startBuilt(r.match);
+          if (!alive) return null;
+          closeSetup();
+          startScreen?.dispose();
+          startScreen = null;
+          return null;
+        },
+        back: leaveSetup,
+      },
+      { debugIntents: params.test },
+    );
+    setupScreen = screen;
+    markerEl = document.createElement('div');
+    markerEl.className = 'setup-marker';
+    markerEl.dataset.testid = 'setup-marker';
+    markerEl.hidden = true;
+    screen.root.append(markerEl);
+    startScreen?.setHidden(true);
+    applyNeutralPreview(screen.draft());
+    const d = screen.draft();
+    if ((d.tab === 'real' && d.countryId !== 0) || (d.tab === 'custom' && d.cell >= 0)) screen.refly();
+    else {
+      const v = globe.rig.view;
+      const s = screen.panelShift();
+      globe.flyTo(v.lat, v.lon, SETUP_IDLE_DIST_KM, { shiftX: s.x, shiftY: s.y });
+    }
+    updateMarker();
+  };
+  const mountMenu = (): void => {
+    startScreen = mountStartScreen(
+      wrapper,
+      async () => {
+        await nextPaint();
+        await startMatch();
+        startScreen?.dispose();
+        startScreen = null;
+      },
+      { onSetup: () => void openSetup() },
+    );
+  };
+
   // --- Test hooks or the frame loop ---------------------------------------------------------------------------------
   const matchState = (): MatchStateInfo | null => {
     const sess = session;
     if (sess === null) return null;
     const v = sess.view;
     const st = v.stats;
-    const L = LOCAL_SEAT;
+    const L = sess.localSeat;
     const seats: MatchStateInfo['seats'] = [];
     for (let seat = 0; seat < v.seats; seat++) {
       seats.push({ seat, cells: st.cells[seat] as number, troopsQt: st.troopsQt[seat] as number, goldMilli: st.goldMilli[seat] as number, landShareQ15: st.landShareQ15[seat] as number, alive: st.alive[seat] === 1 });
@@ -423,7 +653,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       phase: v.phase === PHASE_SPAWN ? 'spawn' : v.phase === PHASE_IMMUNITY ? 'immunity' : 'play',
       speed: sess.speed,
       paused: sess.isPaused,
-      seed: params.seed,
+      seed: sess.built?.config.seed ?? params.seed,
       rejects: v.rejects,
       lastRejectReason: v.lastRejectReason,
       commitPct: sess.commitPct,
@@ -446,12 +676,15 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     };
   };
   if (params.test) {
-    await startMatch(); // test mode has no start screen: the match exists from the first line of the test
+    // Test mode has no start screen: the match exists from the first line of the test. `#menu` asks for the menus instead (the setup tests).
+    if (ctx.state.raw.menu === '1') mountMenu();
+    else await startMatch();
     refreshHud();
     const hooks: GlobeTestHooks = {
       render(dt = 0): void {
         advanceFx(dt);
         refreshHud();
+        updateMarker();
         renderFrame();
         if (!overlay.hidden) refreshOverlay();
         perf?.update();
@@ -518,24 +751,52 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       setBorderStrength: (x) => globe.setBorderStrength(x),
       view: () => globe.rig.view,
       tooltip: tipFor,
+      async setupCountries(region = 'world'): Promise<SetupCountryInfo[]> {
+        const prepared = await loadPrepared(world);
+        const analysis = prepared.analyse(region);
+        return prepared.countries.map((c) => {
+          const e = countryEligibility(analysis, c);
+          return { id: c.id, a3: c.a3, nameEn: c.nameEn, nameSv: c.nameSv, cells: c.cells, ok: e.ok, reasonKey: e.key, landmass: e.landmass, capitalCell: c.capitalCell };
+        });
+      },
+      async buildHash(config, ticks) {
+        const prepared = await loadPrepared(world);
+        const r = createMatch(prepared, config);
+        if (!r.ok) return { ok: false, code: r.error.code, key: r.error.key };
+        const seats = r.match.seats.length;
+        const h = hashBuiltMatch(r.match, ticks);
+        return { ok: true, initial: h.initial, after: h.after, seats };
+      },
+      ownedOutside(region): number {
+        if (session === null) return -1;
+        const mask = regionMask(region, world.sim.width, world.sim.height);
+        if (mask === null) return 0;
+        const owner = session.view.owner;
+        let n = 0;
+        for (let i = 0; i < owner.length; i++) if ((owner[i] as number) !== 0 && mask[i] === 0) n++;
+        return n;
+      },
+      seatCells(): { cells: number[]; capitals: number[] } | null {
+        if (session === null) return null;
+        const st = session.view.stats;
+        const cells: number[] = [];
+        const capitals: number[] = [];
+        for (let seat = 0; seat < session.view.seats; seat++) {
+          cells.push(st.cells[seat] as number);
+          capitals.push((st.capital[seat] as number) - 1);
+        }
+        return { cells, capitals };
+      },
     };
     window.__test = hooks;
     return disposeAll; // deterministic mode: no requestAnimationFrame loop
   }
 
   window.addEventListener('resize', () => globe.resize(window.innerWidth, window.innerHeight, Math.min(window.devicePixelRatio || 1, quality.maxDpr)), { signal });
-  // The normal page opens with the start screen; the match begins when Play is pressed.
-  // Building the match takes a moment on the main thread: let the button show "loading" first (two frames), then start.
-  const nextPaint = (): Promise<void> => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
-  startScreen = mountStartScreen(wrapper, async () => {
-    await nextPaint();
-    await startMatch();
-    startScreen?.dispose();
-    startScreen = null;
-  });
+  // The normal page opens with the start screen; the match begins when Play is pressed (or Start on the setup screen).
+  mountMenu();
   let last = performance.now();
   let sinceOverlay = 0;
-  const spinFrom = fxNow();
   const loop = (now: number): void => {
     if (!alive) return;
     const dt = (now - last) / 1000;
@@ -544,7 +805,8 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       fps = fps * 0.9 + (1 / dt) * 0.1;
       stats.push(dt * 1000);
       advanceFx(Math.min(dt, 0.1));
-      if (startScreen !== null) globe.setView({ lon: wrapLon(DEFAULT_START_VIEW.lon + (fxNow() - spinFrom) * START_SPIN_DEG_PER_S) }); // the globe turns slowly behind the start screen
+      if (startScreen !== null && setupScreen === null && session === null) globe.setView({ lon: wrapLon(globe.rig.view.lon + Math.min(dt, 0.1) * START_SPIN_DEG_PER_S) }); // the globe turns slowly behind the start screen
+      updateMarker();
       if (session !== null) {
         const before = session.view.tick;
         const t0 = performance.now();

@@ -8,12 +8,18 @@ import { getLanguage, onLanguageChange, setLanguage, t, type TextKey } from './i
 export interface StartScreen {
   /** The Play button, for the caller that wants to focus or probe it. */
   readonly playButton: HTMLButtonElement;
+  /** The button that opens the setup screen (null when the page offers none). */
+  readonly setupButton: HTMLButtonElement | null;
+  /** Hides or shows the whole screen (the setup screen takes its place while it is open). */
+  setHidden(hidden: boolean): void;
   dispose(): void;
 }
 
 export interface StartScreenOptions {
   /** Called when the Dev button is pressed. The default asks the Dev panel to open (an event on `window`). */
   onDev?: () => void;
+  /** Called when the setup button is pressed (M06: choose a real country or make up a nation); without it the button is not shown. */
+  onSetup?: () => void;
 }
 
 const HELP_KEYS: readonly TextKey[] = ['help.click', 'help.drag', 'help.commit', 'help.speed', 'help.dev'];
@@ -38,6 +44,25 @@ export function mountStartScreen(parent: HTMLElement, onPlay: () => void | Promi
   play.type = 'button';
   play.className = 'start-btn start-play';
   play.dataset.testid = 'play';
+  const playHint = document.createElement('p');
+  playHint.className = 'start-hint';
+  playHint.dataset.testid = 'play-hint';
+  const playBox = document.createElement('div');
+  playBox.className = 'start-choice';
+  playBox.append(play, playHint);
+  let setup: HTMLButtonElement | null = null;
+  let setupHint: HTMLElement | null = null;
+  const setupBox = document.createElement('div');
+  setupBox.className = 'start-choice';
+  if (options.onSetup) {
+    setup = document.createElement('button');
+    setup.type = 'button';
+    setup.className = 'start-btn start-setup';
+    setup.dataset.testid = 'start-setup';
+    setupHint = document.createElement('p');
+    setupHint.className = 'start-hint';
+    setupBox.append(setup, setupHint);
+  }
   const helpTitle = document.createElement('div');
   helpTitle.className = 'start-help-title';
   const help = document.createElement('ul');
@@ -56,7 +81,9 @@ export function mountStartScreen(parent: HTMLElement, onPlay: () => void | Promi
   dev.className = 'start-btn';
   dev.dataset.testid = 'start-dev';
   small.append(lang, dev);
-  card.append(title, tagline, play, helpTitle, help, small);
+  card.append(title, tagline, playBox);
+  if (setup !== null) card.append(setupBox);
+  card.append(helpTitle, help, small);
   root.append(card);
   parent.appendChild(root);
 
@@ -65,6 +92,11 @@ export function mountStartScreen(parent: HTMLElement, onPlay: () => void | Promi
     title.textContent = t('app.title');
     tagline.textContent = t('app.tagline');
     play.textContent = busy ? t('app.loading') : t('start.play');
+    playHint.textContent = t('start.playHint');
+    if (setup !== null && setupHint !== null) {
+      setup.textContent = t('start.setup');
+      setupHint.textContent = t('start.setupHint');
+    }
     helpTitle.textContent = t('start.helpTitle');
     HELP_KEYS.forEach((k, i) => {
       (items[i] as HTMLElement).textContent = t(k);
@@ -89,6 +121,10 @@ export function mountStartScreen(parent: HTMLElement, onPlay: () => void | Promi
       console.error(err);
     });
   });
+  setup?.addEventListener('click', () => {
+    setup?.blur();
+    options.onSetup?.();
+  });
   lang.addEventListener('click', () => {
     setLanguage(getLanguage() === 'sv' ? 'en' : 'sv');
     lang.blur();
@@ -104,6 +140,10 @@ export function mountStartScreen(parent: HTMLElement, onPlay: () => void | Promi
 
   return {
     playButton: play,
+    setupButton: setup,
+    setHidden(hidden: boolean): void {
+      root.hidden = hidden;
+    },
     dispose(): void {
       stopLang();
       root.remove();

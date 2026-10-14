@@ -5,27 +5,18 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { PreparedWorld } from '../../src/app/matchWorld';
-import { createMatch, matchSetupConfig, type MatchSetupConfig } from '../../src/app/matchSetup';
+import { createMatch } from '../../src/app/matchSetup';
 import { AiDriver } from '../../src/host/aiDriver';
 import { MainThreadHost } from '../../src/host/mainThreadHost';
 import { hex32 } from '../../src/sim/hash';
 import { hashState } from '../../src/sim/serialize';
 import { loadPreparedWorld } from '../../tools/sim/realWorld';
+import { goldenConfigs } from '../helpers/matchConfigs';
 
 export const MATCH_GOLDEN_PATH = path.resolve(__dirname, '../../e2e/goldens/match-hashes.json');
 
-const cellAt = (lat: number, lon: number): number => Math.floor(((90 - lat) / 180) * 512) * 1024 + Math.floor(((lon + 180) / 360) * 1024);
-
-/** The golden configs by name; the country is looked up by its a3 code (a data fact, not a name in the UI). */
-function configs(world: PreparedWorld): Record<string, MatchSetupConfig> {
-  const id = (a3: string): number => world.countries.find((c) => c.a3 === a3)?.id as number;
-  return {
-    'sweden-default': matchSetupConfig({ kind: 'real', countryId: id('SWE') }, { seed: 1 }),
-    'custom-central-europe': matchSetupConfig({ kind: 'custom', name: 'Zorland', color: 0xc8102e, flagSeed: 77, cell: cellAt(47, 8) }, { seed: 2 }),
-    'custom-neutral': matchSetupConfig({ kind: 'custom', name: 'Zorland', color: 0x336699, flagSeed: 5, cell: cellAt(47, 8) }, { seed: 3, neutral: true, aiNations: 8 }),
-    'europe-skirmish': matchSetupConfig({ kind: 'real', countryId: id('DEU') }, { seed: 4, region: 'europe', aiNations: 8 }),
-  };
-}
+/** The golden configs by name (shared with the Chromium test in e2e/setup.test.ts). */
+const configs = goldenConfigs;
 
 export interface MatchGolden {
   schema: 1;

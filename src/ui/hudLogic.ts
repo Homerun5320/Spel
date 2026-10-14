@@ -42,10 +42,14 @@ export interface BannerState {
   tone: BannerTone;
 }
 
-/** What the banner on top of the screen says for a phase (`phase` is a PHASE_* code of the sim). */
-export function bannerState(phase: number, ticksLeft: number, spawned: boolean): BannerState {
+/** What the banner on top of the screen says for a phase (`phase` is a PHASE_* code of the sim); `preplaced`: every nation was placed before the match began. */
+export function bannerState(phase: number, ticksLeft: number, spawned: boolean, preplaced = false): BannerState {
   const seconds = ticksLeft > 0 ? Math.ceil(ticksLeft / TICK_HZ) : 0;
-  if (phase === PHASE_SPAWN) return spawned ? { key: 'phase.spawnDone', seconds, tone: 'wait' } : { key: 'phase.spawnPick', seconds, tone: 'prompt' };
+  if (phase === PHASE_SPAWN) {
+    // A match built by the setup screen (M06) has every nation placed at tick 0: there is nothing to choose, only the wait before attacks.
+    if (spawned) return { key: preplaced ? 'phase.preplaced' : 'phase.spawnDone', seconds, tone: 'wait' };
+    return { key: 'phase.spawnPick', seconds, tone: 'prompt' };
+  }
   if (!spawned) return { key: 'phase.spawnMissed', seconds: -1, tone: 'missed' };
   if (phase === PHASE_IMMUNITY) return { key: 'phase.immunity', seconds, tone: 'safe' };
   return { key: 'phase.play', seconds: -1, tone: 'play' };

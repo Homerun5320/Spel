@@ -9,6 +9,7 @@ import { starsFragmentShader, starsVertexShader } from './shaders/stars';
 import { terrainFragmentShader, terrainVertexShader } from './shaders/terrain';
 import { createLookTextures, type LookTextures, type WorldTextures } from './textures';
 import { createOwnerPaletteTexture } from './ownerPalette';
+import { createSelectionTexture } from './selection';
 import type { OwnershipTexture } from './ownership';
 
 export interface TerrainMaterial {
@@ -81,6 +82,12 @@ export function createTerrainMaterial(
       uOwnerWarp: { value: new Vector2(C.OWNER_WARP_AMP, C.OWNER_LINE_DARKEN) },
       uOwnerNight: { value: new Vector4(C.OWNER_NIGHT_INTERIOR, C.OWNER_NIGHT_RIM, C.OWNER_NIGHT_HALO, C.OWNER_NIGHT_HALO_PX) },
       uOwnerNightLevel: { value: C.OWNER_NIGHT_LEVEL },
+      // Country selection of the setup screen (M06): none until `Globe.setSelection` fills the table.
+      uSelTex: { value: createSelectionTexture() },
+      uSelActive: { value: 0 },
+      uSelDim: { value: C.SELECT_DIM },
+      uSelStyle: { value: new Vector4(C.SELECT_LINE_PX, C.SELECT_GLOW_PX, C.SELECT_LINE_STRENGTH, C.SELECT_GLOW_STRENGTH) },
+      uSelColor: { value: v3(C.SELECT_COLOR) },
       // Ocean (the animation time is the fx clock, set by Globe.render).
       uTime: { value: 0 },
       uWaveSlope: { value: C.OCEAN_WAVE_SLOPE },
