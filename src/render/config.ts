@@ -169,6 +169,13 @@ export const CHUNK_FRUSTUM_SLACK = 0.06;
 export const CHUNK_BUDGET_SHRINK = 0.8;
 /** At most this many shrink passes (the last one also stops splitting when the cap is reached). */
 export const CHUNK_BUDGET_PASSES = 8;
+/**
+ * Budget hysteresis: once the detail was shrunk, a finer pass is only tried when the current result uses at most `TRY` of the cap and
+ * only kept when it uses at most `ACCEPT` of it, so a camera that hovers where the wanted detail just fits the cap does not flip the
+ * whole terrain between two detail levels every frame.
+ */
+export const CHUNK_BUDGET_TRY_FINER = 0.8;
+export const CHUNK_BUDGET_KEEP_FINER = 0.9;
 /** Dynamic near plane: this fraction of the camera's height above the ground, never below `CLIP_NEAR_MIN` (Earth radii). */
 export const CLIP_NEAR_FRACTION = 0.1;
 export const CLIP_NEAR_MIN = 2e-7;

@@ -112,10 +112,15 @@ export interface TerrainParams {
   terrain: TerrainName;
   /** `?chunks=1` (`#chunks`): every chunk in its own colour (the chunk terrain only). */
   chunkDebug: boolean;
+  /**
+   * `?chunktier=high` (`#chunktier-high`): the chunk density (cells per chunk, split distances, chunk cap) of that quality tier. Only
+   * test mode reads it: `?test=1` forces the test tier, this lets the tests render the chunk terrain of another tier headless.
+   */
+  chunkTier: string | null;
 }
 
 function terrainParamsOf(q: RawParams): TerrainParams {
-  return { terrain: q.terrain === 'fixed' ? 'fixed' : 'chunks', chunkDebug: q.chunks === '1' };
+  return { terrain: q.terrain === 'fixed' ? 'fixed' : 'chunks', chunkDebug: q.chunks === '1', chunkTier: q.chunktier ?? null };
 }
 
 /** M07a additions, kept apart from `parseSceneParams` (its result shape is pinned by an M02 test). */

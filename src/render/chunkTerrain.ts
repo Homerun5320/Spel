@@ -6,7 +6,7 @@ import { DynamicDrawUsage, InstancedBufferAttribute, InstancedBufferGeometry, Bu
 import type { CameraPose } from './camera';
 import { buildChunkGrid, type ChunkGrid } from './chunkMesh';
 import { chunkGeo, chunkHue, chunkSizeRad, makeChunkGeo } from './chunkMath';
-import { CHUNK_BUDGET_PASSES, CHUNK_BUDGET_SHRINK, CHUNK_FRUSTUM_SLACK, CHUNK_HYSTERESIS, CHUNK_MAX_LEVEL, EARTH_RADIUS_KM } from './config';
+import { CHUNK_BUDGET_KEEP_FINER, CHUNK_BUDGET_PASSES, CHUNK_BUDGET_SHRINK, CHUNK_BUDGET_TRY_FINER, CHUNK_FRUSTUM_SLACK, CHUNK_HYSTERESIS, CHUNK_MAX_LEVEL, EARTH_RADIUS_KM } from './config';
 import { POLE_HEIGHT_U } from './geo';
 import { HeightPyramid } from './heightPyramid';
 import { ChunkQuadtree, makeQuadCamera, type HeightRange, type QuadCamera } from './quadtree';
@@ -80,6 +80,8 @@ export class ChunkTerrain {
       frustumSlack: CHUNK_FRUSTUM_SLACK,
       budgetShrink: CHUNK_BUDGET_SHRINK,
       budgetPasses: CHUNK_BUDGET_PASSES,
+      budgetTryFiner: CHUNK_BUDGET_TRY_FINER,
+      budgetKeepFiner: CHUNK_BUDGET_KEEP_FINER,
       heightRange: (u0, u1, v0, v1, out) => this.heightRange(u0, u1, v0, v1, out),
     });
     const g = new InstancedBufferGeometry();

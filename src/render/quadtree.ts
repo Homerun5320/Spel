@@ -35,6 +35,9 @@ export interface QuadParams {
   /** Shrink factor of the split distances per extra pass over the budget, and the number of passes. */
   budgetShrink: number;
   budgetPasses: number;
+  /** A finer pass is tried when the result uses at most this share of the cap and kept when it uses at most `budgetKeepFiner` of it. */
+  budgetTryFiner: number;
+  budgetKeepFiner: number;
   /**
    * The lowest and highest terrain in the rectangle (u0, u1, v0, v1 of the rasters), in Earth radii above the unit sphere
    * (exaggeration applied), written to `lo` and `hi` of the result object the quadtree passes in (allocation-free).
@@ -133,8 +136,9 @@ export class ChunkQuadtree {
   readonly coarser: Uint8Array;
   /** Nodes whose bounds were evaluated in the last update (all passes): a cost counter, not a result. */
   nodesVisited = 0;
-  /** Selection passes the last update needed (1 = the wanted detail fitted the cap). */
+  /** Selection passes the last result is at (1 = the wanted detail fitted the cap; each further pass has the split distances shrunk once more). */
   passes = 1;
+  private pass = 0;
 
   private readonly maxChunks: number;
   // Frontier of the level being processed and of the next one.
@@ -220,6 +224,7 @@ export class ChunkQuadtree {
   reset(): void {
     this.prevSplit.clear();
     this.curSplit.clear();
+    this.pass = 0;
   }
 
   /** Selects the leaves for a camera. */
@@ -228,15 +233,22 @@ export class ChunkQuadtree {
     this.prepareCamera();
     this.nodesVisited = 0;
     const p = this.params;
-    let ok = false;
-    for (let pass = 0; pass < p.budgetPasses; pass++) {
-      const last = pass === p.budgetPasses - 1;
-      const scale = p.budgetShrink ** pass;
-      ok = this.run(scale, last);
-      this.passes = pass + 1;
-      if (ok) break;
+    const last = p.budgetPasses - 1;
+    const scaleOf = (pass: number): number => p.budgetShrink ** pass;
+    // Start where the last frame ended (so the detail does not flip between two passes), shrink until the result fits the cap.
+    let pass = this.pass;
+    let ok = this.run(scaleOf(pass), pass === last);
+    while (!ok) {
+      pass++;
+      ok = this.run(scaleOf(pass), pass === last);
     }
-    if (!ok) throw new Error('quadtree: the last pass must fit the cap');
+    // Room to spare after a shrink: try one pass finer, keep it only with a margin below the cap (else run the coarser pass again).
+    if (pass > 0 && this.count <= p.budgetTryFiner * this.maxChunks) {
+      if (this.run(scaleOf(pass - 1), false) && this.count <= p.budgetKeepFiner * this.maxChunks) pass--;
+      else if (!this.run(scaleOf(pass), pass === last)) throw new Error('quadtree: the pass that fitted before must fit again');
+    }
+    this.pass = pass;
+    this.passes = pass + 1;
     // Commit the split history of the pass that fit.
     const t = this.prevSplit;
     this.prevSplit = this.curSplit;

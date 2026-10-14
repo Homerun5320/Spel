@@ -109,9 +109,9 @@ export class HeightPyramid {
       return;
     }
     const span = Math.max(xHi - xLo, yHi - yLo) + 1;
-    // The coarsest level at which the rectangle still covers at most 3 texels per axis.
+    // The finest level at which the rectangle covers at most 3 texels per axis (the coarsest level when none does).
     let k = 0;
-    while (k + 1 < this.levels.length && Math.ceil(span / (1 << (k + 1))) + 1 <= 3) k++;
+    while (k + 1 < this.levels.length && Math.ceil(span / (1 << k)) + 1 > 3) k++;
     const lw = this.widths[k] as number;
     const lh = this.heights[k] as number;
     const hi = this.levels[k] as Uint8Array;

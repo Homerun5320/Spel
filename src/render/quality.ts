@@ -45,9 +45,19 @@ export function meshTriangles(s: QualitySettings): number {
   return 2 * s.meshCols * s.meshRows;
 }
 
-/** `?test=1` forces the test tier; otherwise `?quality=` (unknown values fall back to the default). */
-export function resolveQuality(opts: { test: boolean; quality: string | null }): QualitySettings {
-  if (opts.test) return QUALITY.test;
+/**
+ * `?test=1` forces the test tier (MSAA off, DPR 1); otherwise `?quality=` (unknown values fall back to the default). In test mode
+ * `chunkTier` (`?chunktier=high`) swaps in the chunk density of another tier, so that the headless tests can render the chunk terrain
+ * of the high tier without leaving the deterministic test settings.
+ */
+export function resolveQuality(opts: { test: boolean; quality: string | null; chunkTier?: string | null }): QualitySettings {
+  if (opts.test) {
+    if (isQualityTier(opts.chunkTier) && opts.chunkTier !== 'test') {
+      const t = QUALITY[opts.chunkTier];
+      return { ...QUALITY.test, chunkCells: t.chunkCells, chunkMax: t.chunkMax, chunkSplitK: t.chunkSplitK, chunkDeepK: t.chunkDeepK };
+    }
+    return QUALITY.test;
+  }
   return QUALITY[isQualityTier(opts.quality) ? opts.quality : DEFAULT_TIER];
 }
 

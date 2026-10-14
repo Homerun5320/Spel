@@ -244,7 +244,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     return () => undefined; // stopped while loading: build nothing
   }
 
-  const quality = resolveQuality({ test: params.test, quality: ctx.scene.quality });
+  const quality = resolveQuality({ test: params.test, quality: ctx.scene.quality, chunkTier: ctx.state.terrain.chunkTier });
   const dpr = params.test ? 1 : Math.min(window.devicePixelRatio || 1, quality.maxDpr);
   const width = params.test ? params.width : window.innerWidth;
   const height = params.test ? params.height : window.innerHeight;
@@ -418,6 +418,11 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
 
   // --- Overlay (F3) -----------------------------------------------------------------------------------------------
   let fps = 0;
+  const terrainLine = (): string => {
+    const t = globe.terrainInfo();
+    if (t.mode === 'fixed') return `terrain: fixed mesh ${globe.meshTriangleCount} triangles`;
+    return `terrain: ${t.chunkCount} chunks, levels ${t.levels.length > 0 ? `${t.levels[0]}-${t.levels[t.levels.length - 1]}` : '-'}, ${t.triangles} triangles, ${t.passes} pass${t.passes === 1 ? '' : 'es'}`;
+  };
   const refreshOverlay = (): void => {
     const i = globe.info();
     overlay.textContent = [
@@ -426,6 +431,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       `fps: ${fps.toFixed(1)}`,
       `draw calls: ${i.drawCalls}  triangles: ${i.triangles}  textures: ${i.textures}`,
       `${i.width}x${i.height} @${i.dpr}x  tier ${i.tier} (${i.meshCols}x${i.meshRows})`,
+      terrainLine(),
     ].join('\n');
   };
   window.addEventListener(
