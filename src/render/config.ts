@@ -117,10 +117,11 @@ export const OWNER_WARP_AMP = 0.7;
  * Finer octaves of that warp for close views (M07a, D135): wavelengths of 1, 1/2, 1/4, ... 1/32 cell (39 km down to 1.2 km). Each octave
  * is OWNER_WARP_FINE_PERSIST times the amplitude of the one before, the first one is OWNER_WARP_FINE_AMP times OWNER_WARP_AMP. An octave
  * fades in when its wavelength is FADE_FROM to FADE_TO screen pixels long (nothing under three pixels, so it never shimmers), so the
- * orbit view pays for none of them and a border seen from 5 km up wiggles on every scale it shows.
+ * orbit view pays for none of them and a border seen from 5 km up wiggles on every scale it shows. The two numbers are bounded by the
+ * fold test (`tests/render/warpFold.test.ts`): a warp whose slope passes 1 turns the map over and grows islands and slivers on a border.
  */
-export const OWNER_WARP_FINE_AMP = 0.5;
-export const OWNER_WARP_FINE_PERSIST = 0.62;
+export const OWNER_WARP_FINE_AMP = 0.3;
+export const OWNER_WARP_FINE_PERSIST = 0.45;
 export const OWNER_WARP_FINE_FADE_FROM = 3;
 export const OWNER_WARP_FINE_FADE_TO = 8;
 /** How dark the border line is: the owner's colour times this. */

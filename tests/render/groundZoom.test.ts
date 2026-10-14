@@ -130,7 +130,7 @@ describe('the ground below a dragged camera', () => {
       worst = Math.min(worst, agl());
     }
     rig.dragEnd(t + 1);
-    t = settle(rig, t + 1, 3);
+    settle(rig, t + 1, 3);
     worst = Math.min(worst, agl());
     expect(worst).toBeGreaterThan(ZOOM_MIN_AGL_M - 5);
     expect(world.field.surfaceRadius(46.5, 8)).toBeGreaterThan(1); // the Alps are above sea level: the test did climb a ridge
