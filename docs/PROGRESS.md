@@ -49,7 +49,7 @@ ACCEPTANS (all parts; ticked = proven by a test that can fail)
 - [x] Ownership: readback == sim-owner on sampled cells, including cells on both sides of at least one border giving different colours (M05's method) (`e2e/terrainViews.test.ts`: 206 cells, owners 7 | 8, pixel dE76 21.6)
 - [x] Orbit camera: mouse zoom stops at 0.8 to 1.5 km AGL over sea level and over the Himalaya (`tests/render/groundZoom.test.ts`: rests at 1000 m); both `?view=` addresses load (query and hash) with no console errors and show 9 to 11 LOD levels (`e2e/terrainViews.test.ts`)
 - [x] Goldens: new contact sheets committed (two renders in one launch byte-identical); changed M02/M05/M06 goldens regenerated after a visual check and justified; no tolerance raised - Part C
-- [ ] No console errors; `npm run verify` green - the last line of this block says which
+- [x] No console errors (every e2e test asserts an empty console); `npm run verify` green: 130 unit files (1444 tests), perf 8 files (24 tests), e2e 17 files (149 tests, 776 s); `npm run build` and `npm run artifact:pack` done (container png, 24 files, 15.59 MB)
 
 Part A results (measured in this sandbox, SwiftShader, test tier unless said): quadtree update median 0.19 ms and chunk terrain update 0.22 to 0.23 ms per frame on the medium tier (`tests/chunkQuadtree.perf.test.ts`, budget `budgetMs(1)`); an unchanged camera costs 0.3 us; 60 renders at 320x180 retain 0.05 MB; chunk frames cost 1.4 to 1.7 times the fixed mesh in SwiftShader (0.6 against 0.4 s at 900 km). What Part B must know: see the handoff of the report and D133 / D134.
 
@@ -697,7 +697,7 @@ Cloud sandbox, SwiftShader, test tier 960x540 unless said:
 | smallest Jacobian determinant of the border warp, 60 000 positions, all fine octaves on | 0.13 (M05 warp alone 0.48; the first, rougher version -3.5 = folded; limit 0.1) |
 | LOD levels in the two ground views | 9 to 11, chunk count 148 to 150 of 150 (test tier) |
 | contact sheets | 6 files, 1.6 MB, 0 px differ against themselves, byte-identical in one launch |
-| whole e2e project before the new file (17 files, 149 tests) | 796 s |
+| whole e2e project (17 files, 149 tests) | 776 s in `npm run verify`; 796 s before the goldens were regenerated |
 
 ## Usage
 
