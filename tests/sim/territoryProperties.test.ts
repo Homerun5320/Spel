@@ -1,24 +1,20 @@
 // Properties of random matches WITH land: determinism, snapshot-and-resume, intent order, aggregates, economy bounds.
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
+import { freshTerritoryMatch, OVER_CAP_MATCH, REFUND_OVER_CAP_MATCH } from './helpers/overCapMatch';
 import { ownerCapQt } from '../../src/sim/economy';
 import type { Intent } from '../../src/sim/intents';
 import { deserialize, hashState, serialize } from '../../src/sim/serialize';
-import { createState, rebuildAggregates, type GameState } from '../../src/sim/state';
+import { rebuildAggregates, type GameState } from '../../src/sim/state';
 import { step } from '../../src/sim/step';
-import { CLASS_DEEP_SEA, CLASS_FOREST, CLASS_HILLS, CLASS_MOUNTAIN, CLASS_PEAK, CLASS_PLAINS } from '../../src/sim/terrain';
 
 const W = 40;
 const H = 24;
 const SEATS = 5;
-const PLAYERS = 3;
 const RUNS = 150;
-const CLASSES = [CLASS_PLAINS, CLASS_FOREST, CLASS_HILLS, CLASS_MOUNTAIN, CLASS_PEAK, CLASS_DEEP_SEA, CLASS_PLAINS, CLASS_PLAINS];
 
 function fresh(seed: number, debug: boolean): GameState {
-  const terrain = new Uint8Array(W * H);
-  for (let i = 0; i < terrain.length; i++) terrain[i] = CLASSES[(Math.imul(i ^ seed, 2654435761) >>> 20) & 7] as number;
-  return createState({ width: W, height: H, seed, seats: SEATS, players: PLAYERS, config: { debugIntents: debug }, terrain, elevation: new Uint16Array(W * H) });
+  return freshTerritoryMatch(seed, debug);
 }
 
 const intent = fc.oneof(
@@ -99,10 +95,38 @@ describe('territory properties', () => {
   });
 
   it('after any run: the aggregates equal a rebuild, nobody owns an unplayable cell via Spawn, troops stay within bounds, remainders below one QT, mark is clean', () => {
+    // M05fix (D111): troops above the cap are the economy's soft rule, not an error. They arise in exactly two ways: the seat LOSES
+    // land (its cap falls and the troops stay, then decay) and an attack ENDS (its committed troops go back to the seat, which may lift it
+    // above the cap, then decay; D82). So the property is stated per tick: nothing but those two events leaves a seat above
+    // max(cap now, troops the tick before) - the refund of an attack that vanished in this tick counts as allowed slack -
+    // and the strict "troops <= cap" at the end of the run holds for every seat that had neither event.
     fc.assert(
       fc.property(matchArb, ({ seed, turns }) => {
         const s = fresh(seed, false); // no debug paints: only Spawn changes ownership
-        run(s, turns);
+        const surplusPossible: boolean[] = new Array<boolean>(SEATS + 1).fill(false);
+        const prevCap: number[] = new Array<number>(SEATS + 1).fill(0);
+        const prevTroops: number[] = new Array<number>(SEATS + 1).fill(0);
+        const prevHeld: boolean[] = new Array<boolean>(SEATS + 1).fill(false);
+        for (const intents of turns) {
+          const committed = new Map<number, { attacker: number; troops: number }>();
+          for (const a of s.attacks.list) committed.set(a.id, { attacker: a.attacker, troops: a.troops });
+          const r = step(s, { turn: s.tick, intents: intents as Intent[] });
+          if (!r.ok) throw new Error(`step failed: ${r.error}`);
+          const refundSlack: number[] = new Array<number>(SEATS + 1).fill(0);
+          for (const a of s.attacks.list) committed.delete(a.id);
+          for (const gone of committed.values()) refundSlack[gone.attacker] = (refundSlack[gone.attacker] as number) + gone.troops;
+          for (let o = 1; o <= SEATS; o++) {
+            const held = (s.agg.area[o] as number) > 0;
+            const cap = held ? ownerCapQt(s, o) : 0;
+            if (held && prevHeld[o]) {
+              if (cap < (prevCap[o] as number) || (refundSlack[o] as number) > 0) surplusPossible[o] = true;
+              expect(s.troops[o], `owner ${o} at tick ${s.tick}`).toBeLessThanOrEqual(Math.max(cap, (prevTroops[o] as number) + (refundSlack[o] as number)));
+            } else surplusPossible[o] = false; // a new (or wiped) seat starts again
+            prevHeld[o] = held;
+            prevCap[o] = cap;
+            prevTroops[o] = s.troops[o] as number;
+          }
+        }
         const area = Array.from(s.agg.area);
         const warea = Array.from(s.agg.warea);
         rebuildAggregates(s);
@@ -115,13 +139,13 @@ describe('territory properties', () => {
             expect(s.troops[o]).toBe(0);
             expect(s.gold[o]).toBe(0);
           } else {
-            expect(s.troops[o]).toBeLessThanOrEqual(ownerCapQt(s, o));
+            if (!surplusPossible[o]) expect(s.troops[o]).toBeLessThanOrEqual(ownerCapQt(s, o));
             expect(s.capital[o]).toBeGreaterThan(0);
           }
         }
         expect(Array.from(s.scratch.mark).every((m) => m === 0)).toBe(true);
       }),
-      { numRuns: RUNS },
+      { numRuns: RUNS, examples: [[OVER_CAP_MATCH], [REFUND_OVER_CAP_MATCH]] },
     );
   });
 });

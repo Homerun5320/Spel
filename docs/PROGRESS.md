@@ -15,6 +15,25 @@ Resume: Läs CLAUDE.md och docs/PROGRESS.md, kör git log -10 och npm run verify
 
 ## Now
 
+### M05fix: the over-cap troop regression of the audit round (be1db76) and the flake hunt over every property test (focused follow-up, no redesign of M05)
+
+GÖR
+- [x] F1. Reproduced: Spawn(seat 1, cell 554), Spawn(seat 3, cell 0), Attack(seat 1, target 4, pct 66), 7 empty ticks on the 40x24 seed 46939 match: owner 4 ends with 4720 troops against cap 4713. be1db76 is NOT a sim regression: the identical match at 8a29cc4 shows the same 4720 against 4713, two ticks later (tick 12 instead of 10), outside the 10 turns the property runs; be1db76 only moved the capture timing (K 103 to 123, terrain debt)
+- [x] F2. Root cause: the documented economy rule (D73): troops are never clamped when a seat loses land, the surplus above the lower cap decays slowly; the property "troops <= cap" was too strict. The sim is unchanged (no `ENGINE_VERSION` bump, no golden change). The property is stated exactly per tick (D111); its strict form holds for every seat without a cap fall or a refund
+- [x] F3. Both counterexamples pinned as explicit `examples` of the property and in `tests/sim/overCap.test.ts` (helpers in `tests/sim/helpers/overCapMatch.ts`)
+- [x] F4. Flake hunt: all 12 property files run with fresh fast-check seeds (counts below). One more real finding: a cancelled or ended attack refunds its committed troops outside the cap (1 match in about 19 000, found at 200 times the run count): same soft rule, second pinned example
+- [x] F5. Other random sources: no `Math.random` / `Date.now` / unseeded shuffle in any test except deliberate ones (`tests/sim/helpers/nondeterministicStep.ts` and the hostile-globals tests, which assert that they are caught) and `e2e/heap.test.ts` (fills a throw-away array to grow the heap; no assertion depends on the values); the shuffles in `tests/sim/properties.test.ts`, `tests/sim/step.test.ts` and `tests/sim/territoryProperties.test.ts` draw from a fast-check stream (replayable from the printed seed); `tests/sim/helpers/randomMatch.ts` is a pure function of (seed, tick)
+- [x] F6. Docs: DECISIONS D111, ARCHITECTURE test index
+- [ ] F7. `npm run verify` green twice in a row (background, log file), then `npm run build && npm run artifact:pack`, committed locally (no push, no PR, no Artifact publication)
+
+ACCEPTANS
+- [x] The deterministic reproduction no longer fails and is pinned (`tests/sim/overCap.test.ts` and the `examples` of the property)
+- [x] The property test passes on at least 30 runs per file with fresh seeds; counts and counterexamples below
+- [x] Nothing weakened, rewritten or deleted in the existing tests: the one assertion that was too strict is replaced by the exact per-tick form (D111) and keeps its strict form where no cap fall or refund happened; no golden changed
+- [ ] `npm run verify` green twice in a row; build and pack done
+
+Flake hunt (fast-check picks a random seed per run; run counts multiplied through a scratch alias of `fast-check` OUTSIDE the repo, nothing committed): 12 files with `fc.assert` (`tests/sim/codec`, `worker`, `grid`, `step`, `spawn`, `economy`, `properties`, `serialize`, `territoryProperties`, `tests/render/camera`, `geo`, `tests/host/accumulator`): 30 runs each at the committed run counts (360 file runs, 0 failures); 8 runs each at 30 times the counts (all but `codec`, whose test counts its own runs: 0 failures); `properties`, `spawn`, `step`, `serialize`, `economy`, `grid` 4 runs each at 100 times; `territoryProperties` 10 runs at 200 times (1.2 million random matches per test, 0 failures after the fix). Counterexamples: (1) seed 46939, the surplus after a lost cell; (2) seed 0, the refund of a cancelled attack, found at 200 times with the first form of the corrected property.
+
 ### M05 Wow 2: första spelbara erövringen på globen (GATE, i18n) - built over THREE sessions: Part A (items 1, 2, 3, 5), Part B (items 4, 7, i18n), Part C (item 6, AI v0). The orchestrator owns pushing, the pull request and the Artifact.
 
 Previous merge SHA (origin/main at start): f29121a8d1607ca169e6675b5f22a52d76c42ef7 (`git ls-remote origin refs/heads/main` re-checked: still the initial commit; NOTHING of M00 to M04 is merged, it all lives on this branch and in draft pull request #1; the "M02 and M04 are merged" precondition was treated as satisfied by the orchestrator's instruction). `npm ci && npm run verify:fast` was green at the start. The staging rule of the prompt (draft PR with "AI v0 återstår") does not apply: the orchestrator runs the parts in order, so no push, no PR and no Artifact from the building sessions.
