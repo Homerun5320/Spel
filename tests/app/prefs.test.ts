@@ -122,3 +122,39 @@ describe('the shared getPref / setPref of the page', () => {
     expect(getPref('m06.test', null)).toEqual({ a: 1 });
   });
 });
+
+describe('the key prefix', () => {
+  /** A storage that records every key it is asked for. */
+  class Recording extends MemoryStorage {
+    readonly reads: string[] = [];
+    readonly writes: string[] = [];
+    override getItem(key: string): string | null {
+      this.reads.push(key);
+      return super.getItem(key);
+    }
+    override setItem(key: string, value: string): void {
+      this.writes.push(key);
+      super.setItem(key, value);
+    }
+  }
+
+  it('is the literal "spel." and every read and write goes through exactly prefix plus name', () => {
+    expect(PREF_PREFIX).toBe('spel.');
+    const storage = new Recording();
+    const p = new Prefs(() => storage);
+    p.set('lang', 'sv');
+    expect(storage.writes).toEqual(['spel.lang']);
+    expect(p.get('lang', 'en')).toBe('sv');
+    expect(storage.reads).toEqual(['spel.lang']);
+  });
+
+  it('never reads a key of another page that merely has the same name', () => {
+    const storage = new Recording();
+    storage.items.set('lang', '"foreign"');
+    storage.items.set('other.lang', '"foreign"');
+    const p = new Prefs(() => storage);
+    expect(p.get('lang', 'fallback')).toBe('fallback');
+    storage.items.set('spel.lang', '"mine"');
+    expect(p.get('lang', 'fallback')).toBe('mine');
+  });
+});

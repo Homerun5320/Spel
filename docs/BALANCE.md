@@ -54,7 +54,7 @@ Below, everything is in English. See `docs/DECISIONS.md` D73 to D80 for how the 
 | `START_TROOPS` | 1200 | troops | plan | Clamped to the cap. |
 | `START_GOLD` | 500 | gold | plan |  |
 | `START_DISC_RADIUS_CELLS` | 8 | sim cells | plan | Read as SIM cells (D75). In std-cells it would be 16. |
-| `START_DISC_CELLS` | 197 | sim cells | plan | Integer points with dx^2 + dy^2 <= 64; a test recounts it. Cells a Spawn claims. |
+| `START_DISC_CELLS` | 197 | sim cells | plan | Integer points with dx^2 + dy^2 <= 64; a test recounts it. Cells a Spawn claims. "Fair" means this many CELLS for every seat; income, cap and land share are area-weighted, so the same disc is worth less at high latitude (about 1.2 gold/s at 60 N against 2.0 in Japan, D128). |
 | `CAP_BASE_TROOPS` | 2000 | troops | plan | Troop cap = 2000 + 120 * N^0.75 + 800 * cityLevels. |
 | `CAP_N_COEF_TROOPS` | 120 | troops | plan | N = owned area in std-cells (cos-weighted). |
 | `CAP_CITY_LEVEL_TROOPS` | 800 | troops per city level | plan | Cities arrive in M09; the level count is 0 until then. |

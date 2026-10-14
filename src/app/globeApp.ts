@@ -265,6 +265,13 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   const hostAdvance = new FrameStats(240); // ms per frame that ran ticks: the cost of the sim stepping in the browser
   const hudCost = new FrameStats(240); // ms per frame of the HUD refresh (live loop only)
   let neutralNames = false;
+  /** The two fixed link chips of the start page (probe page, debug maps): they must never cover the setup panel or the HUD; test mode never shows them. */
+  const setLinkChipsHidden = (hidden: boolean): void => {
+    for (const id of ['probe-link', 'debug-links']) {
+      const chip = document.getElementById(id);
+      if (chip) chip.hidden = hidden || params.test;
+    }
+  };
   /** Everything that follows a started session (the globe shows its ownership, the HUD is built and filled before its first frame). */
   const attachSession = (s: MatchSession): void => {
     session = s;
@@ -276,10 +283,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     hud = createMatchHud(wrapper, { setCommit: (p) => s.setCommit(p), setSpeed: (sp) => s.setSpeed(sp), togglePause: () => s.togglePause() }, { seatColor, labels: s.labels });
     hud.setVisible(!params.test || ctx.state.raw.hud === '1'); // test mode hides it (the globe goldens), `#hud` / `?hud=1` shows it
     // The two link chips of the start page sit above the HUD (they are outside the wrapper); the Dev panel lists the same pages.
-    for (const id of ['probe-link', 'debug-links']) {
-      const chip = document.getElementById(id);
-      if (chip) chip.hidden = true;
-    }
+    setLinkChipsHidden(true);
     refreshHud(); // the HUD is filled before its first frame is drawn
   };
   /** The standard match of M05: you + 5 AI nations + 20 tribes, click anywhere to spawn. */
@@ -538,6 +542,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     globe.setSelection([]);
     globe.setCountryLines(true);
     neutralNames = false;
+    setLinkChipsHidden(false);
     startScreen?.setHidden(false);
     startScreen?.playButton.focus({ preventScroll: true });
   };
@@ -614,6 +619,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     markerEl.hidden = true;
     screen.root.append(markerEl);
     startScreen?.setHidden(true);
+    setLinkChipsHidden(true); // they sit on the primary button of the panel otherwise (and a click on them would leave the draft)
     applyNeutralPreview(screen.draft());
     const d = screen.draft();
     if ((d.tab === 'real' && d.countryId !== 0) || (d.tab === 'custom' && d.cell >= 0)) screen.refly();

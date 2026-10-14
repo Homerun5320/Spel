@@ -40,7 +40,10 @@ export interface CountryInfo {
   readonly coastPermille: number;
   /** Share of the country's land cells that are Mountain or Peak, in thousandths. */
   readonly mountainPermille: number;
-  /** The country id its cells count for as HOME LAND: its own id, or the id it is merged into by the overrides. */
+  /**
+   * The country id its cells count for as HOME LAND. Always the country's OWN id (D127): a territory the overrides merge into a neighbour for the
+   * baked pack (Lebanon into Syria, Palestine into Israel, ...) is home land of nobody, so no sovereign state gets a discount on another's land.
+   */
   readonly homeId: number;
 }
 
@@ -79,10 +82,7 @@ export function prepareWorld(data: WorldData): PreparedWorld {
   const { width, height } = data.sim;
   const n = width * height;
   if (data.country.length !== n || data.coast.length !== n) throw new RangeError('the country and coast layers must be width * height long');
-  const idByA3 = new Map<string, number>();
-  for (const c of data.meta.countries) idByA3.set(c.a3, c.id);
-  const mergedInto = new Map<string, string>();
-  for (const m of data.overrides.merged) mergedInto.set(m.a3, m.into);
+  const merged = new Set(data.overrides.merged.map((m) => m.a3));
   const unplayable = new Set(data.overrides.unplayable);
 
   // Land cells, coast cells and mountain cells per country in one pass over the pack.
@@ -100,8 +100,6 @@ export function prepareWorld(data: WorldData): PreparedWorld {
   }
 
   const countries: CountryInfo[] = data.meta.countries.map((c) => {
-    const parent = mergedInto.get(c.a3);
-    const parentId = parent === undefined ? undefined : idByA3.get(parent);
     const cap = c.capitalCell;
     return {
       id: c.id,
@@ -113,10 +111,10 @@ export function prepareWorld(data: WorldData): PreparedWorld {
       cells: c.cells,
       areaKm2: c.weightedAreaKm2,
       capitalCell: typeof cap === 'number' && cap >= 0 && cap < n ? cap : -1,
-      excluded: unplayable.has(c.a3) || parent !== undefined || c.continent === 'Antarctica' || c.playable === false,
+      excluded: unplayable.has(c.a3) || merged.has(c.a3) || c.continent === 'Antarctica' || c.playable === false,
       coastPermille: permille(coast.get(c.id) ?? 0, land.get(c.id) ?? 0),
       mountainPermille: permille(mountain.get(c.id) ?? 0, land.get(c.id) ?? 0),
-      homeId: parentId ?? c.id,
+      homeId: c.id,
     };
   });
   const byId = new Map<number, CountryInfo>();

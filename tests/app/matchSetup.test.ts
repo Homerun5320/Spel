@@ -16,8 +16,8 @@ import {
 import { MainThreadHost } from '../../src/host/mainThreadHost';
 import { AiDriver } from '../../src/host/aiDriver';
 import { regionMask } from '../../src/data/regions';
-import { traitMilli, TRAIT_MAX_MILLI, TRAIT_MIN_MILLI } from '../../src/sim/homeRules';
-import { MATCH_TRIBES, SETUP_AI_NATIONS_DEFAULT, SETUP_AI_NATIONS_MAX, SETUP_CAPITAL_MIN_DISTANCE_CELLS, START_DISC_CELLS, START_GOLD_MILLI, START_TROOPS_QT, TRAIT_COAST_GAIN_PCT, TRAIT_COAST_MID_PERMILLE, TRAIT_MOUNTAIN_GAIN_PCT, TRAIT_MOUNTAIN_MID_PERMILLE } from '../../src/sim/rules';
+import { adjustedCostMilliQt, traitMilli, TRAIT_MAX_MILLI, TRAIT_MIN_MILLI } from '../../src/sim/homeRules';
+import { HOME_COST_PCT, MATCH_TRIBES, SETUP_AI_NATIONS_DEFAULT, SETUP_AI_NATIONS_MAX, SETUP_CAPITAL_MIN_DISTANCE_CELLS, START_DISC_CELLS, START_GOLD_MILLI, START_TROOPS_QT, TRAIT_COAST_GAIN_PCT, TRAIT_COAST_MID_PERMILLE, TRAIT_MOUNTAIN_GAIN_PCT, TRAIT_MOUNTAIN_MID_PERMILLE } from '../../src/sim/rules';
 import { ownerCapQt } from '../../src/sim/economy';
 import { deserialize, hashState, serialize } from '../../src/sim/serialize';
 import { applySpawn } from '../../src/sim/spawn';
@@ -370,7 +370,7 @@ describe('home land and traits', () => {
     expect(highest).toBeGreaterThan(1040);
   });
 
-  it('the home land of a country is the country map of the state: cells of the country carry its home id, merged territories count for their parent', () => {
+  it('the home land of a country is the country map of the state: cells of the country carry its own id, a merged territory is home land of nobody else (D127)', () => {
     const m = build(matchSetupConfig(real(byA3('SWE')), { seed: 1, tribes: false, aiNations: 2 }));
     const swe = world.byId.get(byA3('SWE'))!;
     const home = m.state.home!;
@@ -383,11 +383,36 @@ describe('home land and traits', () => {
     }
     expect(wrong).toBe(0);
     expect(n).toBeGreaterThan(300);
+    // every country is its own home land, merged territories included (Lebanon is not Syria's, Palestine not Israel's)
+    for (const c of world.countries) expect(c.homeId, c.a3).toBe(c.id);
+    expect(world.data.overrides.merged.length).toBeGreaterThan(0);
     for (const merged of world.data.overrides.merged) {
       const child = world.countries.find((c) => c.a3 === merged.a3)!;
       const parent = world.countries.find((c) => c.a3 === merged.into)!;
-      expect(child.homeId, merged.a3).toBe(parent.id);
+      expect(child.homeId, merged.a3).not.toBe(parent.id);
+      expect(child.excluded, merged.a3).toBe(true);
     }
+  });
+
+  it('a player of the parent of a merged territory pays full price on that territory: only its own country is discounted', () => {
+    const merged = world.data.overrides.merged.find((x) => world.countries.some((c) => c.a3 === x.into && !c.excluded));
+    expect(merged).toBeDefined();
+    const child = world.countries.find((c) => c.a3 === merged!.a3)!;
+    const parent = world.countries.find((c) => c.a3 === merged!.into)!;
+    const m = build(matchSetupConfig(real(parent.id), { seed: 1, tribes: false, aiNations: 1 }));
+    const home = m.state.home!;
+    let cell = -1;
+    let own = -1;
+    for (let i = 0; i < home.country.length && (cell < 0 || own < 0); i++) {
+      if (cell < 0 && world.data.country[i] === child.id) cell = i;
+      if (own < 0 && world.data.country[i] === parent.id) own = i;
+    }
+    expect(home.country[cell]).toBe(child.id);
+    expect(home.country[own]).toBe(parent.id);
+    const owner = m.seats.find((s) => s.kind === 'human')!.seat + 1;
+    expect(home.homeLand[owner]).toBe(parent.id);
+    expect(adjustedCostMilliQt(home, 1000, cell, owner, 0)).toBe(1000);
+    expect(adjustedCostMilliQt(home, 1000, own, owner, 0)).toBe(HOME_COST_PCT * 10);
   });
 
   it('a custom nation plays on equal footing: no home rules in the match at all', () => {
@@ -538,5 +563,24 @@ describe('tribes', () => {
     const off = build(matchSetupConfig(real(byA3('SWE')), { seed: 2, aiNations: 4, tribes: false }));
     expect(off.state.header.seats).toBe(5);
     expect(off.tribesPlaced).toBe(0);
+  });
+});
+
+describe('what "fair" means (D128): equal cells, not equal income', () => {
+  it('every seat starts with the same number of cells, but the cos-weighted area (income, cap, land share) follows the latitude of the capital', () => {
+    const m = build(matchSetupConfig(real(byA3('SWE')), { seed: 1, tribes: false }));
+    const cells = new Set<number>();
+    let human = 0;
+    let most = 0;
+    for (const seat of m.seats) {
+      const owner = seat.seat + 1;
+      cells.add(m.state.agg.area[owner] as number);
+      const w = m.state.agg.warea[owner] as number;
+      if (seat.kind === 'human') human = w;
+      most = Math.max(most, w);
+    }
+    expect([...cells]).toEqual([START_DISC_CELLS]); // the promise: equal cells
+    expect(human).toBeGreaterThan(0);
+    expect(human).toBeLessThan(most * 0.75); // the documented consequence: a nation at 60 N earns and ranks less per equal disc (BALANCE, D128)
   });
 });

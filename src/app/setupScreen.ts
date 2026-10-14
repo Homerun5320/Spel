@@ -68,9 +68,9 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, te
   return e;
 }
 
-/** The country ids an outline covers: the country and the territories merged into it. */
-function outlineIds(world: PreparedWorld, country: CountryInfo): number[] {
-  return world.countries.filter((c) => c.id === country.id || c.homeId === country.id).map((c) => c.id);
+/** The country ids an outline covers: the country alone (a merged territory is never outlined under a neighbour, D127). */
+function outlineIds(country: CountryInfo): number[] {
+  return [country.id];
 }
 
 /** The next flag seed: a fixed linear congruence, so a new flag is a pure function of the old seed (no unseeded randomness). */
@@ -478,7 +478,7 @@ export function mountSetupScreen(parent: HTMLElement, world: PreparedWorld, init
   const selectCountry = (c: CountryInfo, fly: boolean): void => {
     message = null;
     apply({ countryId: c.id, tab: 'real' });
-    hooks.select(outlineIds(world, c));
+    hooks.select(outlineIds(c));
     if (fly) flyToCountry(c);
     // keep the chosen row in view inside the list
     const row = Array.from(list.children).find((r) => r instanceof HTMLElement && r.dataset.countryId === String(c.id));
@@ -491,7 +491,7 @@ export function mountSetupScreen(parent: HTMLElement, world: PreparedWorld, init
     apply({ tab });
     if (tab === 'real') {
       const c = country();
-      hooks.select(c === null ? [] : outlineIds(world, c));
+      hooks.select(c === null ? [] : outlineIds(c));
       hooks.marker(null);
     } else {
       hooks.select([]);
@@ -587,7 +587,7 @@ export function mountSetupScreen(parent: HTMLElement, world: PreparedWorld, init
   // The initial choices reach the globe (a stored country is outlined again, a stored start place is marked).
   if (draft.tab === 'real') {
     const c = country();
-    hooks.select(c === null ? [] : outlineIds(world, c));
+    hooks.select(c === null ? [] : outlineIds(c));
   } else {
     hooks.marker(draft.cell >= 0 ? draft.cell : null);
   }

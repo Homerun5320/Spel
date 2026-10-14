@@ -706,3 +706,59 @@ describe('layouts and the way back', () => {
     }
   });
 });
+
+describe('the two link chips of the start page never cover the setup panel (non-test page)', () => {
+  /** The element under a point is the button itself or inside it. */
+  const hits = (page: Page, x: number, y: number): Promise<boolean> =>
+    page.evaluate(([px, py]) => {
+      const el = document.elementFromPoint(px as number, py as number);
+      return el !== null && el.closest('[data-testid="setup-start"]') !== null;
+    }, [x, y] as const);
+
+  for (const viewport of [
+    { width: 960, height: 540 },
+    { width: 390, height: 844 },
+  ]) {
+    it(`at ${viewport.width}x${viewport.height} the primary button answers at all four corners, the chips are gone, and Back brings them back`, async () => {
+      const page = await browser.newPage({ viewport, deviceScaleFactor: 1 });
+      const messages: Msg[] = [];
+      page.on('console', (m) => {
+        if (m.type() === 'error' || m.type() === 'warning') messages.push({ type: m.type(), text: m.text() });
+      });
+      page.on('pageerror', (e) => messages.push({ type: 'error', text: `pageerror: ${e.message}` }));
+      try {
+        await page.goto(`${baseUrl}/`, { waitUntil: 'load' }); // no address parameter at all: the plain page the player and the Artifact see
+        await page.waitForSelector(tid('start-setup'), { timeout: 60_000 });
+        const chip = (id: string): Promise<boolean> => page.evaluate((i) => !(document.getElementById(i) as HTMLElement).hidden, id);
+        expect([await chip('probe-link'), await chip('debug-links')]).toEqual([true, true]);
+        await page.click(tid('start-setup'));
+        await page.waitForSelector(tid('setup-screen'), { timeout: 60_000 });
+        await page.locator(tid('setup-row')).first().click(); // a country is chosen (the panel with its longest content)
+        await page.waitForTimeout(400);
+        expect([await chip('probe-link'), await chip('debug-links')]).toEqual([false, false]);
+        const start = page.locator(tid('setup-start'));
+        await start.scrollIntoViewIfNeeded();
+        const b = (await start.boundingBox())!;
+        expect(b.width).toBeGreaterThan(40);
+        const inset = 4; // the button has rounded ends: the corner probes sit one button height in from the left and right edges
+        const side = b.height;
+        for (const [x, y] of [
+          [b.x + side, b.y + inset],
+          [b.x + b.width - side, b.y + inset],
+          [b.x + side, b.y + b.height - inset],
+          [b.x + b.width - side, b.y + b.height - inset],
+          [b.x + b.width / 2, b.y + b.height / 2],
+        ] as const) {
+          expect(await hits(page, x, y), `button ${JSON.stringify(b)} at ${x.toFixed(0)},${y.toFixed(0)}`).toBe(true);
+        }
+        fs.writeFileSync(path.join(SHOT_DIR, `setup-chips-${viewport.width}.png`), await page.screenshot({ type: 'png' }));
+        await page.click(tid('setup-back'));
+        await page.waitForSelector(tid('start-setup'));
+        expect([await chip('probe-link'), await chip('debug-links')]).toEqual([true, true]);
+      } finally {
+        await page.close();
+      }
+      expect(messages).toEqual([]);
+    });
+  }
+});

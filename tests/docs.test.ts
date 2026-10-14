@@ -71,3 +71,31 @@ describe('docs only mention files that exist (or are marked later)', () => {
     });
   }
 });
+
+describe('docs never backtick a gitignored generated folder (a fresh checkout lacks it)', () => {
+  // The check above passes in a sandbox where artifact/ or dist exists and fails in CI; this one does not depend on what is on disk.
+  const ignored = read('.gitignore')
+    .split('\n')
+    .map((l) => l.trim().replace(/\/$/, ''))
+    .filter((l) => l !== '' && !l.startsWith('#') && !l.startsWith('!') && !l.includes('*') && l !== 'node_modules');
+  const files = ['CLAUDE.md', 'README.md', 'docs/ARCHITECTURE.md', 'docs/ASSETS.md', 'docs/BACKLOG.md', 'docs/BALANCE.md', 'docs/DECISIONS.md', 'docs/PROGRESS.md', 'docs/PROMPT_TEMPLATE.md'];
+  it('knows the generated folders', () => {
+    expect(ignored).toEqual(expect.arrayContaining(['dist', '.cache', 'test-results', 'artifact']));
+  });
+  for (const file of files) {
+    it(file, () => {
+      const offenders: string[] = [];
+      for (const line of read(file).split('\n')) {
+        if (/later|fallback|\(only/i.test(line)) continue; // the same lines the existence check skips
+        for (const m of line.matchAll(/`([^`\s]+)`/g)) {
+          const raw = m[1] as string;
+          if (/[*<>{}$|=:?#]|^\.\.|^https?/.test(raw) || /^test-results|hook\.log$/.test(raw)) continue; // the same filters as the existence check
+          if (!/\/|\.(md|ts|mjs|mts|json|yml|sh|html|js)$/.test(raw)) continue;
+          const token = path.normalize(raw).replace(/\/$/, '');
+          if (ignored.some((g) => token === g || token.startsWith(`${g}${path.sep}`))) offenders.push(m[1] as string);
+        }
+      }
+      expect(offenders).toEqual([]);
+    });
+  }
+});
