@@ -20,13 +20,13 @@ export interface QuadParams {
   /** Hard cap on the leaves (the tier's chunk count; never above 400). */
   maxChunks: number;
   maxLevel: number;
-  /** Split distance in chunk sides for chunks whose grid cells are at least four raster texels wide (the orbit levels). */
+  /** Split distance in chunk sides for chunks whose grid cells are at least eight raster texels wide (the orbit levels). */
   splitK: number;
   /**
    * Split distance for chunks whose cells are 1/8 texel or finer. The height raster has no detail below a texel, so the finer levels
    * only reproduce its smooth bilinear shape and need less distance than the coarse ones (the number of chunks per level grows
    * with K squared and a close camera sees a dozen levels; triangles of a few pixels also shade partly empty 2 x 2 pixel quads).
-   * Between four texels and 1/8 texel per cell the factor falls geometrically.
+   * Between eight texels and 1/8 texel per cell the factor falls geometrically.
    */
   deepK: number;
   /** Grid cells per chunk side and the width of one raster texel in radians (they fix which levels are "deep"). */
@@ -214,9 +214,9 @@ export class ChunkQuadtree {
       this.size[l] = chunkSizeRad(l);
       this.halfSin[l] = Math.sin(0.5 * (this.size[l] as number));
       this.halfCos[l] = Math.cos(0.5 * (this.size[l] as number));
-      // 0 at four texels per cell and above, 1 at 1/8 texel and below (five octaves, geometric in between).
+      // 0 at eight texels per cell and above, 1 at 1/8 texel and below (six octaves, geometric in between).
       const cellTexels = (this.size[l] as number) / params.cells / params.texelRad;
-      const deep = Math.min(1, Math.max(0, (2 - Math.log2(cellTexels)) / 5));
+      const deep = Math.min(1, Math.max(0, (3 - Math.log2(cellTexels)) / 6));
       this.levelK[l] = params.splitK * (1 - deep) + params.deepK * deep;
     }
   }

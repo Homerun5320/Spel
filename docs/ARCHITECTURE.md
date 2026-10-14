@@ -164,9 +164,23 @@ Budgets per layer in the test tier (`?test=1`, 960x540, DPR 1). `tests/budgets.t
 | Lager | Test-tier trianglar | Test-tier draw calls | Uppmätt (M02) |
 |-------|---------------------|----------------------|---------------|
 | Glob (hela glob-scenen) | <= 150 000 | <= 30 | 74 560 trianglar, 3 anrop |
-| Jordnät (terräng, hav, kust, gränser, nattljus) | <= 70 000 | <= 1 | 65 536 trianglar, 1 anrop |
+| Jordterräng (chunk-trädet: terräng, hav, kust, gränser, nattljus; `?terrain=fixed` ger det gamla jordnätet, 65 536 trianglar) | <= 100 000 | <= 1 | M07a: 37 184 trianglar i standardvyn, högst 96 000 (taket 150 chunks), 1 anrop |
 | Atmosfärskal (baksides-additiv) | <= 10 000 | <= 1 | 9 024 trianglar, 1 anrop |
 | Stjärnor (punkter) | 0 | <= 1 | 0 trianglar, 1 anrop |
+
+## Chunk-terräng mot det fasta nätet (M07a, `renderer.info`, hela scenen inklusive atmosfärskalets 9 024 trianglar)
+
+Samma fragmentskuggare (pixelarbetet per bildpunkt är detsamma; chunkvarianten lägger bara till en `clamp` för fasetternas vikt). Trianglar och anrop mäts med `renderer.info` i headless Chromium (`?test=1&chunktier=...`, så att varje nivås chunktäthet körs med testlägets fasta inställningar); det fasta nätets tal är nätets `2 x kolumner x rader` plus skalet. Standardnivån är `medium` (M05 gav användaren ett stadigt 30 fps där).
+
+| Vy (testläge, 960x540) | medium: fast nät (M05) | medium: chunk-träd | test: fast nät | test: chunk-träd | low: chunk-träd | high: chunk-träd |
+|------------------------|------------------------|--------------------|----------------|------------------|-----------------|------------------|
+| standardvyn (distKm 21500, rakt ovanifrån) | 271 168 | 110 400 | 74 560 | 37 184 | 37 184 | 285 504 |
+| 6000 km, lutning 40 | 271 168 | 255 552 | 74 560 | 87 744 | 73 024 | 785 472 |
+| 3200 km, lutning 50 | 271 168 | 248 640 | 74 560 | 94 144 | 73 024 | 587 328 |
+| 900 km, lutning 55 | 271 168 | 294 720 | 74 560 | 96 704 | 73 024 | 591 936 |
+| 220 km, lutning 60 | 271 168 | 278 592 | 74 560 | 87 104 | 73 024 | 391 488 |
+
+Det fasta nätet kostar lika mycket i varje vy; chunk-trädet kostar 0,41 gånger så mycket i standardvyn (medelnivån: 110 400 mot 271 168, bara den synliga halvan ritas och nivå 2 har exakt det gamla nätets 0,70 graders ruta), 6 till 8 procent mindre vid 3 200 och 6 000 km och 3 till 9 procent mer när kameran är nära (900 och 220 km). Taken per nivå (`chunkMax` i `src/render/quality.ts`): test 150 chunks (96 000 trianglar), low 100 (64 000), medium 300 (691 200), high 400 (921 600; aldrig över 400 chunks eller 1,5 miljoner trianglar). Den lilla triangeln är priset: en chunkruta är 3 till 7 bildpunkter i nära vyer mot det gamla nätets cirka 80, så fler 2 x 2-rutor skuggas bara till hälften; mät på riktig GPU med `#perf` (terrängraden visar chunks, nivåer, trianglar och om taket stoppade delningar).
 
 ## Roadmap
 
