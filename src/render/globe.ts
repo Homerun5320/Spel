@@ -2,7 +2,7 @@
 // This is the only module (besides the M00 spike and textureProbe) that talks to WebGL.
 import { BufferAttribute, BufferGeometry, Color, Mesh, PerspectiveCamera, Points, Scene, type ShaderMaterial, SphereGeometry, type Vector3, WebGLRenderer } from 'three';
 import { type City, type RenderPack, type SimGrid, type WorldMeta } from '../data';
-import { CameraRig, clipPlanes, setViewAtAgl, type ViewState } from './camera';
+import { CameraRig, clipPlanes, setViewAtAgl, viewFromGroundCamera, type GroundCameraSpec, type ViewState } from './camera';
 import { ATMOSPHERE_TOP, EARTH_RADIUS_KM, HEIGHT_EXAGGERATION, OCEAN_WAVE_SPEED } from './config';
 import { fxNow } from './clock';
 import { CameraFlight, type FlyOptions } from './flyTo';
@@ -141,6 +141,8 @@ export class Globe {
       exaggeration: HEIGHT_EXAGGERATION,
     });
 
+    // The chunk terrain can be zoomed down to about 1 km above the ground (the fixed mesh cannot: it keeps the old minimum distance).
+    if ((o.terrain ?? 'chunks') === 'chunks') this.rig.setGround((lat, lon) => this.field.surfaceRadius(lat, lon));
     this.textures = createWorldTextures(o.world.render, o.world.sim);
     this.look = createLookTextures(o.world.cities ?? []);
     this.ownership = new OwnershipTexture(o.world.sim.width, o.world.sim.height, o.world.sim.terrainClass);
@@ -241,6 +243,12 @@ export class Globe {
   setViewAgl(v: Partial<ViewState>, altAglM: number): void {
     this.flight.cancel();
     setViewAtAgl(this.rig, (lat, lon) => this.field.surfaceRadius(lat, lon), v, altAglM);
+  }
+
+  /** The camera given by its own position, heading and pitch (see `viewFromGroundCamera`); the user's zoom and tilt limits do not apply. */
+  setGroundView(spec: GroundCameraSpec): void {
+    this.flight.cancel();
+    this.rig.setViewUnclamped(viewFromGroundCamera(spec, (lat, lon) => this.field.surfaceRadius(lat, lon)));
   }
 
   /** Strength of the country border lines (0 = none); a test switch for the border acceptance. */

@@ -45,7 +45,7 @@ void main() {
  * per chunk with a darker rim, so the chunks and their levels can be seen); the fixed mesh has no such uniform.
  */
 export function buildTerrainFragmentShader(chunk: boolean): string {
-  const chunkDecl = chunk ? 'uniform float uChunkDebug;\nuniform float uChunkCells;\nvarying vec4 vChunk;\nvarying float vWall;' : '';
+  const chunkDecl = chunk ? 'uniform float uChunkDebug;\nuniform float uChunkCells;\nvarying vec4 vChunk;\nvarying float vWall;\nflat varying vec2 vCellBase;\nvarying vec2 vCellOff;' : '';
   // The facet normal is the stylised flat shading of the mesh. A mesh cell much smaller than a raster texel only shows the texel
   // grid of the bilinear height field (blocky streaks), so the facet weight fades out below four texels per cell (the fixed mesh
   // and the orbit-level chunks have 8 or more and keep the full weight; the slope normal already carries the finer relief).
@@ -66,6 +66,22 @@ export function buildTerrainFragmentShader(chunk: boolean): string {
     gl_FragColor = vec4(mix(chunkCol, chunkCol * 0.35, edge) * (0.75 + 0.25 * max(dot(normalize(vDir), sun), 0.0)), 1.0);
   }`
     : '';
+  // How big a pixel is on the ground, for the country border line and the selection outline: the fixed mesh differentiates the direction;
+  // the chunk terrain differentiates the camera-relative position instead (precise to a fraction of a millimetre, where a float32 direction
+  // has steps of 0.4 m: a line drawn a pixel wide from it would flicker in width when the camera is a few hundred metres up). The radial
+  // part of that difference vanishes in every normalize() the borders module applies.
+  const borders = chunk ? GLSL_BORDERS.replace(/\bdFdx\(dir\)/g, 'dFdx(vRel)').replace(/\bdFdy\(dir\)/g, 'dFdy(vRel)') : GLSL_BORDERS;
+  // Territory: the chunk terrain takes the pixel size in cells from that footprint (cells per radian are the raster's width over 2 pi
+  // and its height over pi, the east-west part divided by the cosine of the latitude).
+  const territoryCall = chunk
+    ? `vec2 ownerCells = vec2(uOwnerSize);
+  float invCos = 1.0 / max(length(dir.xz), 1e-3);
+  vec3 tpx = dFdx(vRel);
+  vec3 tpy = dFdy(vRel);
+  vec2 cpx = vec2(dot(tpx, east) * invCos, -dot(tpx, north)) * ownerCells * vec2(0.5 / PI, 1.0 / PI);
+  vec2 cpy = vec2(dot(tpy, east) * invCos, -dot(tpy, north)) * ownerCells * vec2(0.5 / PI, 1.0 / PI);
+  albedoLand = applyTerritoryAt(albedoLand, ivec2(floor(vCellBase + 0.5)), vCellOff, cpx, cpy, landMask);`
+    : 'albedoLand = applyTerritory(albedoLand, uv, landMask);';
   return /* glsl */ `
 uniform sampler2D uHeight;
 uniform sampler2D uBathy;
@@ -97,7 +113,7 @@ ${GLSL_GEO}
 ${GLSL_TEXELS}
 ${GLSL_ATMOSPHERE}
 ${GLSL_OCEAN}
-${GLSL_BORDERS}
+${borders}
 ${GLSL_TERRITORY}
 
 // Land fraction (bilinear over the binary mask) and the land-only mean height in metres at a position.
@@ -242,7 +258,7 @@ void main() {
   vec3 borderCol = mix(vec3(0.06, 0.05, 0.04), pal * 0.45, 0.35);
   albedoLand = mix(albedoLand, borderCol, border * uBorderStrength * (1.0 - snow * 0.5));
   // Territory of the match: tint, inner glow and a sharp organic border line (src/render/shaders/territory.ts).
-  albedoLand = applyTerritory(albedoLand, uv, landMask);
+  ${territoryCall}
 
   // Lighting (linear space): day factor from the sphere normal, diffuse from the flat normal on land.
   vec3 sun = normalize(uSun);

@@ -270,7 +270,11 @@ describe('globe scene: camera by mouse', () => {
       await page.evaluate(() => {
         for (let i = 0; i < 40; i++) (window as any).__test.render(0.5);
       });
-      expect((await page.evaluate(() => (window as any).__test.view())).distKm).toBe(DIST_MIN_KM);
+      // M07a: the chunk terrain can be zoomed to about 1 km above the ground (docs/DECISIONS.md D135); the fixed 220 km minimum is the fixed mesh's
+      const aglAfterZoom = await page.evaluate(() => (window as any).__test.cameraAglM());
+      expect(aglAfterZoom).toBeGreaterThan(800);
+      expect(aglAfterZoom).toBeLessThan(1500);
+      expect((await page.evaluate(() => (window as any).__test.view())).distKm).toBeLessThan(DIST_MIN_KM);
       for (let i = 0; i < 12; i++) await page.mouse.wheel(0, 3000);
       await page.evaluate(() => {
         for (let i = 0; i < 80; i++) (window as any).__test.render(0.5);

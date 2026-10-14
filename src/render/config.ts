@@ -108,8 +108,21 @@ export const OWNER_EDGE_GLOW = 0.22;
 /** Strength of the sharp border line (0..1) and its width in screen pixels. */
 export const OWNER_LINE_STRENGTH = 1;
 export const OWNER_LINE_PX = 2.4;
+/** Size of the ownership grid (the sim grid: one cell is 0.35 degrees); the chunk shader forms the cell position of a pixel from it. A test keeps it in step with the sim. */
+export const OWNER_GRID_W = 1024;
+export const OWNER_GRID_H = 512;
 /** Domain warp of the cell lookup: amplitude in cells (two octaves, 4 and 2 cells wide) that makes the borders organic. */
 export const OWNER_WARP_AMP = 0.7;
+/**
+ * Finer octaves of that warp for close views (M07a, D135): wavelengths of 1, 1/2, 1/4, ... 1/32 cell (39 km down to 1.2 km). Each octave
+ * is OWNER_WARP_FINE_PERSIST times the amplitude of the one before, the first one is OWNER_WARP_FINE_AMP times OWNER_WARP_AMP. An octave
+ * fades in when its wavelength is FADE_FROM to FADE_TO screen pixels long (nothing under three pixels, so it never shimmers), so the
+ * orbit view pays for none of them and a border seen from 5 km up wiggles on every scale it shows.
+ */
+export const OWNER_WARP_FINE_AMP = 0.5;
+export const OWNER_WARP_FINE_PERSIST = 0.62;
+export const OWNER_WARP_FINE_FADE_FROM = 3;
+export const OWNER_WARP_FINE_FADE_TO = 8;
 /** How dark the border line is: the owner's colour times this. */
 export const OWNER_LINE_DARKEN = 0.3;
 /**
@@ -129,6 +142,13 @@ export const CAMERA_FOV_DEG = 30;
 /** Zoom limits: camera distance to the focus point at sea level, in km. */
 export const DIST_MIN_KM = 220;
 export const DIST_MAX_KM = 42000;
+/**
+ * Terrain-aware zoom (M07a, the chunk terrain): the mouse and `setView` stop the camera this high above the displaced ground under it
+ * (0.8 to 1.5 km is the accepted band), whatever the ground (sea level or the x12 Himalaya), and never closer than DIST_MIN_GROUND_KM to
+ * the focus point.
+ */
+export const ZOOM_MIN_AGL_M = 1000;
+export const DIST_MIN_GROUND_KM = 0.3;
 /** Tilt limit in degrees from straight down (a horizon view is never allowed). */
 export const TILT_MAX_DEG = 72;
 /** Focus latitude limit while the user drags (setView may go to +-90). */

@@ -128,10 +128,26 @@ export function parseTerrainParams(search: string, hash = ''): TerrainParams {
   return terrainParamsOf(parseRaw(search, hash));
 }
 
+/** The named camera starts of M07a (`?view=alps-valley`, `#view-alps-valley`): 2 km above the ground, looking toward the horizon. `src/render/views.ts` holds their numbers. */
+export const GROUND_VIEW_NAMES = ['alps-valley', 'himalaya-valley'] as const;
+export type GroundViewName = (typeof GROUND_VIEW_NAMES)[number];
+
+function groundViewOf(q: RawParams): GroundViewName | null {
+  const v = q.view;
+  return (GROUND_VIEW_NAMES as readonly string[]).includes(v ?? '') ? (v as GroundViewName) : null;
+}
+
+/** M07a addition: the named ground view of the address, or null (an unknown name is ignored). */
+export function parseViewParam(search: string, hash = ''): GroundViewName | null {
+  return groundViewOf(parseRaw(search, hash));
+}
+
 export interface AppState {
   params: AppParams;
   scene: SceneParams;
   terrain: TerrainParams;
+  /** `?view=alps-valley` / `#view-alps-valley` (M07a): the named ground view the page starts in, or null. */
+  view: GroundViewName | null;
   /** `?perf=1` / `#perf`: the performance overlay. */
   perf: boolean;
   /** `?devbtn=1` / `#devbtn`: show the Dev panel corner button also in test mode (it is hidden there so goldens stay clean). */
@@ -143,5 +159,5 @@ export interface AppState {
 /** Everything the app reads from the address, through the one parser. */
 export function parseAppState(search: string, hash = ''): AppState {
   const raw = parseRaw(search, hash);
-  return { params: appParamsOf(raw), scene: sceneParamsOf(raw), terrain: terrainParamsOf(raw), perf: raw.perf === '1', devButton: raw.devbtn === '1', raw };
+  return { params: appParamsOf(raw), scene: sceneParamsOf(raw), terrain: terrainParamsOf(raw), view: groundViewOf(raw), perf: raw.perf === '1', devButton: raw.devbtn === '1', raw };
 }

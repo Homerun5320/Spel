@@ -8,7 +8,7 @@ import { rgbOfHex } from '../ui/flag';
 import type { ViewState } from '../render/camera';
 import { Globe, type GlobeInfo, type GlobePick, type ScreenHit, type WorldData } from '../render/globe';
 import type { WorldTextureName } from '../render/textures';
-import { DEFAULT_START_TIME, DEFAULT_START_VIEW } from '../render/views';
+import { DEFAULT_START_TIME, DEFAULT_START_VIEW, GROUND_VIEWS } from '../render/views';
 import { resolveQuality } from '../render/quality';
 import type { TerrainMode } from '../render/terrainMaterial';
 import { FrameStats } from '../ui/frameStats';
@@ -107,6 +107,11 @@ export interface GlobeTestHooks {
    * follow the height. Every call forgets the chunk LOD hysteresis, so a view does not depend on the path that led to it.
    */
   setView(v: Partial<ViewState> & { time?: number; altAglM?: number }): void;
+  /**
+   * M07a: the camera given by its own position (`lat`, `lon`, `aglM` metres above the displaced ground), `heading` and `pitchDeg` below the
+   * horizon (what `?view=alps-valley` uses); the user's zoom and tilt limits do not apply. `time` (fx seconds) sets the sun. Does not render.
+   */
+  setGroundView(spec: { lat: number; lon: number; heading: number; pitchDeg: number; aglM: number; time?: number }): void;
   /** M07a: the terrain numbers of the last rendered frame (the same object as `state().terrain`, available without a match). */
   terrain(): TerrainStateInfo;
   /** M07a: the chunks of the last rendered frame (level, column, row, levels the four neighbours are coarser); empty in the fixed mode. */
@@ -259,8 +264,10 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
 
   const globe = new Globe({ canvas, width, height, dpr, quality, world, preserveDrawingBuffer: params.test, terrain: ctx.state.terrain.terrain, chunkDebug: ctx.state.terrain.chunkDebug });
   globe.setView(DEFAULT_START_VIEW);
+  const groundView = ctx.state.view !== null && globe.terrainMode === 'chunks' ? GROUND_VIEWS[ctx.state.view] : null; // `?view=alps-valley` (M07a)
+  if (groundView !== null) globe.setGroundView(groundView);
   if (params.blank) canvas.style.visibility = 'hidden'; // debug: the negative e2e test needs an empty picture
-  setFxTime(DEFAULT_START_TIME); // the sun starts 67 degrees west of the default view so that the terminator is visible at once
+  setFxTime(groundView?.time ?? DEFAULT_START_TIME); // the sun starts 67 degrees west of the default view so that the terminator is visible at once
 
   const abort = new AbortController();
   const { signal } = abort;
@@ -759,6 +766,12 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
         else globe.setView(view);
         globe.resetTerrain();
       },
+      setGroundView(spec): void {
+        const { time, ...cam } = spec;
+        if (time !== undefined) setFxTime(time);
+        globe.setGroundView(cam);
+        globe.resetTerrain();
+      },
       terrain: terrainState,
       terrainLeaves: () => globe.chunks?.leaves().map((l) => ({ ...l, coarser: [...l.coarser] })) ?? [],
       setSkirts: (on) => globe.setSkirts(on),
@@ -873,7 +886,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       fps = fps * 0.9 + (1 / dt) * 0.1;
       stats.push(dt * 1000);
       advanceFx(Math.min(dt, 0.1));
-      if (startScreen !== null && setupScreen === null && session === null) globe.setView({ lon: wrapLon(globe.rig.view.lon + Math.min(dt, 0.1) * START_SPIN_DEG_PER_S) }); // the globe turns slowly behind the start screen
+      if (groundView === null && startScreen !== null && setupScreen === null && session === null) globe.setView({ lon: wrapLon(globe.rig.view.lon + Math.min(dt, 0.1) * START_SPIN_DEG_PER_S) }); // the globe turns slowly behind the start screen
       updateMarker();
       if (session !== null) {
         const before = session.view.tick;

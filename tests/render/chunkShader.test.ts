@@ -42,7 +42,7 @@ describe('the chunk vertex shader (GLSL ES 3.00 through ShaderMaterial)', () => 
     const terrain = new ChunkTerrain({ material: tm.material, quality: QUALITY.test, codes: render.height8, width: render.width, height: render.height, maxM: meta.encoding.heightSqrt.maxM, exaggeration: 12 });
     const geo = terrain.mesh.geometry;
     const declared = declaredAttributes(chunkVertexShader).sort();
-    expect(declared).toEqual(['aEast', 'aGeo', 'aNeigh', 'aOrigin', 'aUp']);
+    expect(declared).toEqual(['aCell', 'aEast', 'aGeo', 'aNeigh', 'aOrigin', 'aUp']); // M07a part B added aCell (the territory position)
     for (const name of declared) expect(geo.getAttribute(name), name).toBeDefined();
     expect(Object.keys(geo.attributes).sort()).toEqual([...declared, 'position'].sort());
     terrain.dispose();

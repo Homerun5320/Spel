@@ -14,6 +14,8 @@ export function registerAppModes(): void {
   registerDevMode({ id: 'terrain-chunks', label: 'Terräng: chunk-träd (standard)', params: { terrain: 'chunks' } });
   registerDevMode({ id: 'chunks', label: 'Visa chunkens färger och kanter', params: { chunks: '1' }, toggle: true });
   registerDevMode({ id: 'chunktier-high', label: 'Testläge: chunk-täthet som hög kvalitet', params: { chunktier: 'high' } });
+  registerDevMode({ id: 'view-alps-valley', label: 'Vy: Alpdal, 2 km över marken', params: { view: 'alps-valley' } });
+  registerDevMode({ id: 'view-himalaya-valley', label: 'Vy: Himalayadal, 2 km över marken', params: { view: 'himalaya-valley' } });
   registerDevMode({ id: 'seed-7', label: 'Seed 7', params: { seed: '7' } });
   registerDevMode({ id: 'seed', label: 'Seed', field: { param: 'seed', placeholder: '1', pattern: /^-?\d{1,10}$/ } });
   registerDevMode({ id: 'lang-en', label: 'Språk: English', params: { lang: 'en' } });

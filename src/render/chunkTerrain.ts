@@ -8,7 +8,7 @@ import { BufferAttribute, DynamicDrawUsage, InstancedBufferGeometry, InstancedIn
 import type { CameraPose } from './camera';
 import { buildChunkGrid, type ChunkGrid } from './chunkMesh';
 import { chunkGeo, chunkHue, chunkSizeRad, makeChunkGeo } from './chunkMath';
-import { CHUNK_FRUSTUM_SLACK, CHUNK_HYSTERESIS, CHUNK_MAX_LEVEL, EARTH_RADIUS_KM } from './config';
+import { CHUNK_FRUSTUM_SLACK, CHUNK_HYSTERESIS, CHUNK_MAX_LEVEL, EARTH_RADIUS_KM, OWNER_GRID_H, OWNER_GRID_W } from './config';
 import { POLE_HEIGHT_U } from './geo';
 import { HeightPyramid } from './heightPyramid';
 import { ChunkQuadtree, makeQuadCamera, type HeightRange, type QuadCamera } from './quadtree';
@@ -42,7 +42,7 @@ export interface ChunkStats {
 }
 
 const ATTR_FLOATS = 4; // floats per instance attribute (a vec4)
-const ATTRS = 5;
+const ATTRS = 6;
 const STRIDE = ATTR_FLOATS * ATTRS; // floats per instance: ONE interleaved buffer, one upload per frame
 
 export class ChunkTerrain {
@@ -104,7 +104,7 @@ export class ChunkTerrain {
     this.data = new Float32Array(this.capacity * STRIDE);
     this.buffer = new InstancedInterleavedBuffer(this.data, STRIDE, 1);
     this.buffer.setUsage(DynamicDrawUsage);
-    ['aOrigin', 'aUp', 'aEast', 'aGeo', 'aNeigh'].forEach((name, a) => g.setAttribute(name, new InterleavedBufferAttribute(this.buffer, ATTR_FLOATS, a * ATTR_FLOATS)));
+    ['aOrigin', 'aUp', 'aEast', 'aGeo', 'aNeigh', 'aCell'].forEach((name, a) => g.setAttribute(name, new InterleavedBufferAttribute(this.buffer, ATTR_FLOATS, a * ATTR_FLOATS)));
     g.instanceCount = 0;
     this.geometry = g;
     this.mesh = new Mesh(g, o.material);
@@ -230,6 +230,15 @@ export class ChunkTerrain {
       // 4: how many levels coarser the neighbours are (-1: finer)
       // (a neighbour that is split further is marked -1: the finer chunks there are lower or higher than this edge, so the wall stays deep)
       for (let k = 0; k < 4; k++) d[o + 16 + k] = t.finer[4 * src + k] === 1 ? -1 : (t.coarser[4 * src + k] as number);
+      // 5: the ownership grid cell the centre is in and the position inside it (float64 here, so the shader's territory position is exact to a millimetre)
+      const cellX = (g.lonC / (2 * Math.PI) + 0.5) * OWNER_GRID_W;
+      const cellY = (0.5 - g.latC / Math.PI) * OWNER_GRID_H;
+      const baseX = Math.floor(cellX);
+      const baseY = Math.floor(cellY);
+      d[o + 20] = baseX;
+      d[o + 21] = baseY;
+      d[o + 22] = cellX - baseX;
+      d[o + 23] = cellY - baseY;
       mask |= 1 << level;
     }
     this.buffer.clearUpdateRanges();

@@ -9,6 +9,7 @@
 // enters. The fragment shader gets the same camera-relative position in `vRel` (its derivatives give the flat-shaded normal) and the
 // direction of the point in `vDir` (the texture lookups; a float32 direction is good to about a metre, the rasters are 10 km).
 // Pure maths of the offset lives in chunkMath.ts (`vertexRelFloat32` mirrors this code operation by operation).
+import { OWNER_GRID_H, OWNER_GRID_W } from '../config';
 import { POLE_HEIGHT_U } from '../geo';
 
 function glslFloat(x: number): string {
@@ -32,11 +33,14 @@ attribute vec4 aUp;     // xyz: centre direction (the high part); w: the size of
 attribute vec4 aEast;   // xyz: east at the centre; w: debug hue
 attribute vec4 aGeo;    // x: centre latitude, y: latitude extent, z: longitude extent, w: centre longitude (radians)
 attribute vec4 aNeigh;  // levels the neighbour across the west, east, north, south edge is coarser (0 = same level, -1 = finer)
+attribute vec4 aCell;   // xy: the whole cell of the ownership grid the chunk centre is in, zw: the centre's position inside that cell (float64 on the CPU)
 
 varying vec3 vDir;
 varying vec3 vRel;
 varying vec4 vChunk; // x hue, y level, zw grid position
 varying float vWall;  // 1 on a skirt wall, 0 on the grid
+flat varying vec2 vCellBase; // the territory's position in two parts: the whole cell of the chunk centre (flat: exactly the same everywhere in the chunk) ...
+varying vec2 vCellOff;       // ... and the offset from its corner in cells, small and so precise to a millimetre (a float32 cell coordinate is good to 2.4 m)
 
 const float TWO_PI = 6.283185307179586;
 const float PI_ = 3.141592653589793;
@@ -101,6 +105,8 @@ void main() {
   vRel = rim;
   vWall = wallFlag > 0.5 ? 1.0 : 0.0;
   vChunk = vec4(aEast.w, aOrigin.w, g);
+  vCellBase = aCell.xy;
+  vCellOff = aCell.zw + vec2(dlon * ${glslFloat(OWNER_GRID_W)} / TWO_PI, -dphi * ${glslFloat(OWNER_GRID_H)} / PI_);
   gl_Position = projectionMatrix * vec4(mat3(viewMatrix) * rel, 1.0); // the wall's own displacement moves only where it is drawn
 }
 `;

@@ -87,6 +87,7 @@ export function createTerrainMaterial(
       uOwnerSize: { value: new Vector2(ownership?.width ?? 1, ownership?.height ?? 1) },
       uOwnerStyle: { value: new Vector4(C.OWNER_TINT, C.OWNER_EDGE_GLOW, C.OWNER_LINE_STRENGTH, C.OWNER_LINE_PX) },
       uOwnerWarp: { value: new Vector2(C.OWNER_WARP_AMP, C.OWNER_LINE_DARKEN) },
+      uOwnerFine: { value: new Vector4(C.OWNER_WARP_FINE_AMP, C.OWNER_WARP_FINE_PERSIST, C.OWNER_WARP_FINE_FADE_FROM, C.OWNER_WARP_FINE_FADE_TO) },
       uOwnerNight: { value: new Vector4(C.OWNER_NIGHT_INTERIOR, C.OWNER_NIGHT_RIM, C.OWNER_NIGHT_HALO, C.OWNER_NIGHT_HALO_PX) },
       uOwnerNightLevel: { value: C.OWNER_NIGHT_LEVEL },
       // Country selection of the setup screen (M06): none until `Globe.setSelection` fills the table.
