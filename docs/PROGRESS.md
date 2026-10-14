@@ -53,6 +53,18 @@ ACCEPTANS (all parts; ticked = proven by a test that can fail)
 
 Part A results (measured in this sandbox, SwiftShader, test tier unless said): quadtree update median 0.19 ms and chunk terrain update 0.22 to 0.23 ms per frame on the medium tier (`tests/chunkQuadtree.perf.test.ts`, budget `budgetMs(1)`); an unchanged camera costs 0.3 us; 60 renders at 320x180 retain 0.05 MB; chunk frames cost 1.4 to 1.7 times the fixed mesh in SwiftShader (0.6 against 0.4 s at 900 km). What Part B must know: see the handoff of the report and D133 / D134.
 
+### M07a audit fixes (one session after the audit of M07a; the orchestrator owns pushing, the pull request and the Artifact)
+
+Previous merge SHA (origin/main at start): f29121a8d1607ca169e6675b5f22a52d76c42ef7 (unchanged; nothing is merged). Read D140 and D141 of `docs/DECISIONS.md`.
+
+GÖR / ACCEPTANS
+- [x] F1. LOD stable under a binding cap: stateful two-pass budget in `src/render/quadtree.ts` (pass A re-admits last frame's splits, drop-outs remembered; pass B with a reserve; at most four evictions per frame); tests "the LOD is stable under a binding cap" (+-1 % wobble: at most one level change under the focus in 100 frames on every tier; monotone zoom-in: merges only as evictions)
+- [x] F2. The production `ChunkTerrain` under test: `src/render/quadParams.ts` shared with `tests/helpers/chunkWorld.ts`, `tests/render/chunkTerrainWiring.test.ts` (17 hand mutants killed)
+- [x] F3. Antimeridian and pole views in the neighbour-level brute force (m29 killed); the peak beyond the horizon (n15 killed)
+- [x] F4. E2E mutants of the shaders and of the globe wiring run by hand; survivors got targeted assertions (D141)
+- [x] F5. Rules for layers on the terrain (precision of props, sim against render altitude, budget row 0) in `docs/ARCHITECTURE.md` and BACKLOG
+- [x] F6. Goldens regenerated once (the Himalaya and Norway debug sheets, D141), `npm run verify` green (132 unit files / 1461 tests, perf 8 files / 24 tests, e2e 17 files / 149 tests, 885 s), `npm run build && npm run artifact:pack` done
+
 ### PerfGate: stable burst gate and a faster conquest kernel (focused stabilisation on HEAD 55960a3, no new milestone; one part; the orchestrator owns pushing and the Artifact)
 
 Previous merge SHA (origin/main at start): f29121a8d1607ca169e6675b5f22a52d76c42ef7 (unchanged; nothing is merged, M00 to M06 live on this branch and in draft pull request #1). Why: the M04 acceptance "100 000 cells in one tick, median <= budgetMs(50)" (`tests/conquestBurst.perf.test.ts`) swung between 42 and 65 ms on this 4-core VM against a budget of about 56-58 ms and failed on random `verify` runs. The 50 ms budget, the statistic (median) and the perfguard calibration are NOT changed.
