@@ -22,24 +22,24 @@ Resume: Läs CLAUDE.md och docs/PROGRESS.md, kör git log -10 och npm run verify
 Previous merge SHA (origin/main at start): f29121a8d1607ca169e6675b5f22a52d76c42ef7 (unchanged; nothing is merged, M00 to M06 live on this branch and in draft pull request #1).
 
 GÖR
-- [ ] 1. `e2e/hud.test.ts` "500 refreshes": heap check through `heapDelta` (gc, median of 3), limit 1 MB kept; real allocation fixed if gc does not remove it; 40 runs in separate processes with 0 failures; every other raw heap read in `e2e/` and `tests/` converted or justified
-- [ ] 2. D121 (and every doc line that repeats it) says exactly: `#seed-7` equals the M05 match only with the AI off (`ai=0`, hash 68548039 before and after M06); with the AI on it differs as D118 says
-- [ ] 3. Map identity: a region cut-out gets its own `mapHash`, different from the pack hash and from every other region, stable across runs; tests pin it (mutation checked); code fixed if it does not hold
-- [ ] 4a. Escape in the setup goes Back (blurs the search box first, Back on the second press); Enter in the search box on a disabled first row selects nothing
-- [ ] 4b. Plural-aware cell count key ("1 cell" / "1 cellen" never "1 celler") in both tables wherever the setup shows cells
-- [ ] 4c. The chosen UI language is saved with the prefs and restored on reload
-- [ ] 4d. A custom nation name equal to a real country or to an AI nation name of the same match is refused with a reason (sv, en) or auto-suffixed
-- [ ] 4e. The refusal text for a too-small land mass starts with a capital letter and a subject, sv and en
-- [ ] 5. BACKLOG: unfixed finds, and the verify time note (about 8.5 minutes, shard e2e into a CI job matrix when it passes 10 minutes)
+- [x] 1. `e2e/hud.test.ts` "500 refreshes": heap check through `heapDelta` (gc, median of 3), limit 1 MB kept; real allocation fixed if gc does not remove it; 40 runs in separate processes with 0 failures; every other raw heap read in `e2e/` and `tests/` converted or justified
+- [x] 2. D121 (and every doc line that repeats it) says exactly: `#seed-7` equals the M05 match only with the AI off (`ai=0`, hash 68548039 before and after M06); with the AI on it differs as D118 says
+- [x] 3. Map identity: a region cut-out gets its own `mapHash`, different from the pack hash and from every other region, stable across runs; tests pin it (mutation checked); code fixed if it does not hold
+- [x] 4a. Escape in the setup goes Back (blurs the search box first, Back on the second press); Enter in the search box on a disabled first row selects nothing
+- [x] 4b. Plural-aware cell count key ("1 cell" never "1 celler") in both tables wherever the setup shows cells
+- [x] 4c. The chosen UI language is saved with the prefs and restored on reload
+- [x] 4d. A custom nation name equal to a real country or to an AI nation name of the same match is refused with a reason (sv, en) or auto-suffixed
+- [x] 4e. The refusal text for a too-small land mass starts with a capital letter and a subject, sv and en
+- [x] 5. BACKLOG: unfixed finds, and the verify time note (about 8.5 minutes, shard e2e into a CI job matrix when it passes 10 minutes)
 - [ ] 6. Docs (ARCHITECTURE index, DECISIONS, PREVIEW.md if visible behaviour changes), `npm run verify` green TWICE in a row, `npm run build && npm run artifact:pack`, local commit
 
 ACCEPTANS
-- [ ] The HUD heap test passes 40 of 40 runs in separate processes and uses `heapDelta`
-- [ ] No raw heap read without gc is left in `e2e/` or `tests/` unless justified in a comment
-- [ ] D121 is correct and no other doc claims the unconditional "same match as before M06"
-- [ ] A test fails if a cut-out keeps the pack's map hash, or two regions share one
-- [ ] Each of 4a to 4e has a test or an e2e assertion that fails without the fix
-- [ ] BACKLOG has the verify-time note
+- [x] The HUD heap test passes 40 of 40 runs in separate processes and uses `heapDelta`
+- [x] No raw heap read without gc is left in `e2e/` or `tests/` unless justified in a comment
+- [x] D121 is correct and no other doc claims the unconditional "same match as before M06"
+- [x] A test fails if a cut-out keeps the pack's map hash, or two regions share one
+- [x] Each of 4a to 4e has a test or an e2e assertion that fails without the fix
+- [x] BACKLOG has the verify-time note
 - [ ] `npm run verify` green twice in a row; build and pack done
 
 ### M06 Meny: riktigt land eller eget land - ALL ITEMS TICKED (Part A: sim and pure logic; Part B and the finish: menu DOM, flyTo, outline, flags in the HUD, wiring, Playwright, docs, `npm run verify`, build and pack). The orchestrator owns pushing, the pull request and the Artifact publication.

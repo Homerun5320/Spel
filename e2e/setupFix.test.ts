@@ -215,13 +215,13 @@ describe('a custom nation and the names of real countries', () => {
       for (const [name, lang] of [['Sweden', 'sv'], ['sverige', 'sv']] as const) {
         await page.fill('#setup-name', name);
         expect(await page.locator(tid('setup-status')).getAttribute('data-key'), name).toBe('setup.error.nameTaken');
-        expect(await text(page, 'setup-status'), name).toBe(TABLES[lang]['setup.error.nameTaken'].replace('{name}', name));
+        expect(await text(page, 'setup-status'), name).toBe((TABLES[lang]['setup.error.nameTaken'] as string).replace('{name}', name));
         expect(await page.locator(tid('setup-start')).isDisabled()).toBe(true);
       }
       await shot(page, 'name-taken-sv');
       await page.click(tid('setup-language'));
       await page.fill('#setup-name', 'Sweden');
-      expect(await text(page, 'setup-status')).toBe(TABLES.en['setup.error.nameTaken'].replace('{name}', 'Sweden'));
+      expect(await text(page, 'setup-status')).toBe((TABLES.en['setup.error.nameTaken'] as string).replace('{name}', 'Sweden'));
       await shot(page, 'name-taken-en');
       // an own name is not the reason any more
       await page.fill('#setup-name', 'Zorland');
