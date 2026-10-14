@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "ticks": 600,
+  "hashes": {
+    "sweden-default": {
+      "initial": "cc066346",
+      "after": "dc4b2eeb"
+    },
+    "custom-central-europe": {
+      "initial": "7d50cc6a",
+      "after": "78ff1b16"
+    },
+    "custom-neutral": {
+      "initial": "25adaa14",
+      "after": "761a5413"
+    },
+    "europe-skirmish": {
+      "initial": "15656a69",
+      "after": "905cb0ef"
+    }
+  }
+}

@@ -81,3 +81,6 @@ export const CONTRAST_PAIRS: ReadonlyArray<readonly [keyof typeof UI_COLORS, key
   ['text', 'button'],
   ['text', 'buttonActive'],
 ];
+
+/** The most characters a custom nation's name may have (the setup trims it first; an empty name is refused). */
+export const CUSTOM_NAME_MAX_CHARS = 24;

@@ -216,3 +216,31 @@ export const AI_ATTACK_COOLDOWN_TICKS = 40;
 export const AI_TRIBE_COOLDOWN_TICKS = 100;
 /** A tribe stops expanding at this many cells (three times its capital disc): a tribe is a small, defended prize, not a rival. */
 export const AI_TRIBE_MAX_CELLS = 600;
+
+// ---------------------------------------------------------------------------------------------------------------
+// Match setup, the fair start and the home land (M06, D112 to D118). The sim rules among these (HOME_COST_PCT, the trait cap) apply
+// only to a match whose config has `homeRules`; the others are read by the match setup in src/app and change no step.
+
+/** A country is selectable (as your nation or as an AI nation) only with at least this many cells of its own. */
+export const SETUP_MIN_COUNTRY_CELLS = 8;
+/** Capitals of two nations at the start are at least this many sim cells apart (a Euclidean distance, x wrapping): two capital discs of radius 8 never touch. */
+export const SETUP_CAPITAL_MIN_DISTANCE_CELLS = 17;
+/** AI nations of a new match unless the options say otherwise. */
+export const SETUP_AI_NATIONS_DEFAULT = 12;
+/** The most AI nations the options allow (seats: you + this + the tribes stay far below the 255 seats of the wire format). */
+export const SETUP_AI_NATIONS_MAX = 24;
+/** Conquering a cell of its OWN home country costs the owner of that home land this percent of the normal price (50 = half). Nobody else gets it. */
+export const HOME_COST_PCT = 50;
+/** A trait multiplier (port income, defence) stays within 1000 +- this many thousandths: the +-10 % cap. */
+export const TRAIT_CAP_MILLI = 100;
+/** The neutral value of a trait multiplier in thousandths (x1). */
+export const TRAIT_NEUTRAL_MILLI = 1000;
+/** Coast share (thousandths of a country's land cells that touch water) at which the port income multiplier is x1. */
+export const TRAIT_COAST_MID_PERMILLE = 150;
+/** Port income multiplier change in thousandths per thousandth of coast share, as a percent (50 = 0.5): +200 permille above the middle reaches the cap. */
+export const TRAIT_COAST_GAIN_PCT = 50;
+/** Mountain share (thousandths of a country's land cells that are Mountain or Peak) at which the defence multiplier is x1. */
+export const TRAIT_MOUNTAIN_MID_PERMILLE = 150;
+/** Defence multiplier change in thousandths per thousandth of mountain share, as a percent. A defence multiplier above 1000 makes an attacker pay more. */
+export const TRAIT_MOUNTAIN_GAIN_PCT = 50;
+

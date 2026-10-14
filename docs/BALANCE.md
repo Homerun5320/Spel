@@ -132,3 +132,22 @@ The AI only emits intents (`src/ai`, read through `src/sim/public.ts`); these va
 | `AI_ATTACK_COOLDOWN_TICKS` | 40 | ticks | eget val | A seat does not attack the same target again within 4 s (a second Attack adds troops to the first). |
 | `AI_TRIBE_COOLDOWN_TICKS` | 100 | ticks | eget val | The same for a tribe's expansion (10 s). |
 | `AI_TRIBE_MAX_CELLS` | 600 | sim cells | eget val | A tribe stops expanding at this size (three times its capital disc). |
+
+## Match setup, the fair start and the home land (M06)
+
+The home-land and trait rules live in the sim and apply only to a match whose config has `homeRules` (a match of a real country; D112 to D118). The setup constants are read by the match setup in `src/app`.
+
+| Constant | Value | Unit | Source | Note |
+|----------|-------|------|--------|------|
+| `SETUP_MIN_COUNTRY_CELLS` | 8 | sim cells | plan | A country is selectable only with at least this many cells of its own (the same number as `minPlayableCells` of `public/data/overrides.json`). |
+| `SETUP_CAPITAL_MIN_DISTANCE_CELLS` | 17 | sim cells | plan | Capitals of two nations at the start are at least this far apart (Euclidean, x wrapping): two discs of radius 8 never touch. |
+| `SETUP_AI_NATIONS_DEFAULT` | 12 | nations | plan | AI nations of a new match. |
+| `SETUP_AI_NATIONS_MAX` | 24 | nations | eget val | The options allow at most this many (you + 24 + 20 tribes = 45 seats). |
+| `HOME_COST_PCT` | 50 | % of the price | plan | A cell of the owner's OWN home country costs the owner half to conquer; nobody else gets it and no other cell does. |
+| `TRAIT_CAP_MILLI` | 100 | thousandths | plan | A trait multiplier stays within 1000 +- 100 (the +-10 % cap); the setter clamps and `deserialize` refuses anything outside. |
+| `TRAIT_NEUTRAL_MILLI` | 1000 | thousandths | plan | The neutral multiplier (x1). |
+| `TRAIT_COAST_MID_PERMILLE` | 150 | thousandths of land cells | eget val | Coast share at which the port income multiplier is x1 (the median country has 85, the 90th percentile 434). |
+| `TRAIT_COAST_GAIN_PCT` | 50 | % | eget val | Multiplier thousandths per thousandth of coast share: a share 200 above the middle (350) reaches the cap, a landlocked country gets x0.925. |
+| `TRAIT_MOUNTAIN_MID_PERMILLE` | 150 | thousandths of land cells | eget val | Mountain (and Peak) share at which the defence multiplier is x1 (the median country has 54, the 90th percentile 542). |
+| `TRAIT_MOUNTAIN_GAIN_PCT` | 50 | % | eget val | Multiplier thousandths per thousandth of mountain share. A defence multiplier above 1000 makes an attacker pay more for the nation's land; a flat country gets x0.925, a share of 350 or more the cap x1.1. |
+

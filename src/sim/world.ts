@@ -54,6 +54,8 @@ export interface WorldMatchOptions {
   /** How many seats are players (default: all). */
   readonly players?: number;
   readonly config?: Partial<MatchConfig>;
+  /** The country id of every cell; required exactly when `config.homeRules` is on (M06, D112). */
+  readonly countryMap?: ArrayLike<number>;
 }
 
 /** A state at tick 0 on a world. The world is copied; the state shares nothing with it. */
@@ -65,6 +67,7 @@ export function createWorldState(world: SimWorld, options: WorldMatchOptions): G
     seats: options.seats,
     players: options.players,
     config: options.config,
+    countryMap: options.countryMap,
     terrain: world.terrain,
     elevation: world.elevation,
     rowCos: world.rowCos,

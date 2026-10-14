@@ -14,7 +14,6 @@ import {
   AI_EXPAND_COMMIT_PCT,
   AI_EXPAND_TROOP_PCT,
   AI_MIN_CONTACT_LENGTH,
-  AI_ANCHOR_SEAT,
   AI_NATION_CLEARANCE_CELLS,
   AI_NATION_REACH_CELLS,
   AI_SPAWN_RETRY_TICKS,
@@ -65,7 +64,7 @@ export function think(view: SimView, memory: AiMemory, rng: Uint32Array, inFligh
   if ((stats.capital[seat] as number) === 0) {
     // Not spawned yet.
     if (view.phase !== PHASE_SPAWN) return NONE;
-    const anchor = (stats.capital[AI_ANCHOR_SEAT] as number) - 1; // the human's capital cell, -1 before it exists
+    const anchor = (stats.capital[memory.anchor] as number) - 1; // the human's capital cell, -1 before it exists
     if (memory.release < 0) {
       if (anchor < 0 && tick < AI_SPAWN_WAIT_TICKS) return NONE;
       memory.release = tick;

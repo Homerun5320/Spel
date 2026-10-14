@@ -29,9 +29,11 @@ function before(d2: Uint32Array, h: Uint32Array, cells: Int32Array, a: number, b
 /**
  * Claims the disc around `center` for `owner` (an ownerId), stamping every cell with `stamp`. The caller has checked that
  * `center` is playable and unowned. Returns the number of cells claimed (1..START_DISC_CELLS); the claimed cells are
- * appended to `claimed` in claim order when it is given.
+ * appended to `claimed` in claim order when it is given. With `dry` set nothing is claimed (the walk is the same: the per-cell
+ * mark, not the owner array, keeps a cell from entering the heap twice), which is how the match setup asks "would this Spawn give a
+ * whole disc?" without a second spawn algorithm (`countDisc`).
  */
-export function claimDisc(state: GameState, center: number, owner: number, stamp: number, claimed?: number[]): number {
+export function claimDisc(state: GameState, center: number, owner: number, stamp: number, claimed?: number[], dry = false): number {
   const grid = state.grid;
   const seed = state.header.seed;
   const mark = state.scratch.mark;
@@ -96,7 +98,7 @@ export function claimDisc(state: GameState, center: number, owner: number, stamp
   let taken = 0;
   while (size > 0 && taken < START_DISC_CELLS) {
     const cell = pop();
-    setOwner(state, cell, owner, stamp);
+    if (!dry) setOwner(state, cell, owner, stamp);
     if (claimed !== undefined) claimed.push(cell);
     taken++;
     const count = grid.neighbours(cell, nb);
@@ -107,6 +109,12 @@ export function claimDisc(state: GameState, center: number, owner: number, stamp
   }
   for (let i = 0; i < touchedCount; i++) mark[touched[i] as number] = 0;
   return taken;
+}
+
+/** How many cells a Spawn on `center` would claim right now (1..START_DISC_CELLS; the cell must be playable and unowned, else 0). Changes nothing. */
+export function countDisc(state: GameState, center: number): number {
+  if (center < 0 || center >= state.owner.length || state.grid.playable[center] !== 1 || state.owner[center] !== NO_OWNER) return 0;
+  return claimDisc(state, center, 0, 0, undefined, true);
 }
 
 /**

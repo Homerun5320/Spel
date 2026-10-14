@@ -7,6 +7,7 @@ import { BorderIndex } from './borders';
 import { EnclaveQueues } from './enclaveQueue';
 import { Grid, rowCosFromLut } from './grid';
 import { foldBytes, foldU16, finishHash, FNV_OFFSET } from './hash';
+import { createHomeRules, type HomeRules } from './homeRules';
 import { Outbox } from './outbox';
 import { createRng } from './rng';
 import { WEIGHT_ONE } from './rules';
@@ -50,23 +51,38 @@ export interface MatchConfig {
    * IMMUNITY_TICKS after it an Attack on owned land is refused. Absent / false = the rules of M04 (unlimited Spawn, no immunity).
    */
   readonly spawnPhase?: boolean;
+  /**
+   * Home land and nation traits (M06, D112): the state carries `home` (country per cell, home country and trait multipliers per
+   * seat); the owner of a home land pays half for its own country's cells, an attacker pays an owner's defence multiplier. Absent /
+   * false = the rules of M05, and the state has no `home`, is not serialised with one and hashes as before.
+   */
+  readonly homeRules?: boolean;
 }
 
 export const CONFIG_FLAG_DEBUG_INTENTS = 1;
 /** Bit 2 is left unused on purpose (tests/sim/serialize.test.ts pins it as an unknown bit). */
 export const CONFIG_FLAG_SPAWN_PHASE = 4;
+/** Bit 3 (value 8): the match has home rules (D112). */
+export const CONFIG_FLAG_HOME_RULES = 8;
 /** All flag bits this engine knows; a snapshot with other bits is refused. */
-export const CONFIG_FLAGS_KNOWN = CONFIG_FLAG_DEBUG_INTENTS | CONFIG_FLAG_SPAWN_PHASE;
+export const CONFIG_FLAGS_KNOWN = CONFIG_FLAG_DEBUG_INTENTS | CONFIG_FLAG_SPAWN_PHASE | CONFIG_FLAG_HOME_RULES;
 
 export function configToFlags(config: MatchConfig): number {
-  return (config.debugIntents ? CONFIG_FLAG_DEBUG_INTENTS : 0) | (config.spawnPhase === true ? CONFIG_FLAG_SPAWN_PHASE : 0);
+  return (config.debugIntents ? CONFIG_FLAG_DEBUG_INTENTS : 0) | (config.spawnPhase === true ? CONFIG_FLAG_SPAWN_PHASE : 0) | (config.homeRules === true ? CONFIG_FLAG_HOME_RULES : 0);
+}
+
+/** A config with only the keys that are on (so that an M05 config compares equal to itself after a round trip). */
+export function normalConfig(debugIntents: boolean, spawnPhase: boolean, homeRules: boolean): MatchConfig {
+  const c: { debugIntents: boolean; spawnPhase?: boolean; homeRules?: boolean } = { debugIntents };
+  if (spawnPhase) c.spawnPhase = true;
+  if (homeRules) c.homeRules = true;
+  return c;
 }
 
 /** The config of a flag word, or null when it has unknown bits. A false `spawnPhase` is left out so that M04 configs compare equal. */
 export function flagsToConfig(flags: number): MatchConfig | null {
   if ((flags & ~CONFIG_FLAGS_KNOWN) !== 0) return null;
-  const debugIntents = (flags & CONFIG_FLAG_DEBUG_INTENTS) !== 0;
-  return (flags & CONFIG_FLAG_SPAWN_PHASE) !== 0 ? { debugIntents, spawnPhase: true } : { debugIntents };
+  return normalConfig((flags & CONFIG_FLAG_DEBUG_INTENTS) !== 0, (flags & CONFIG_FLAG_SPAWN_PHASE) !== 0, (flags & CONFIG_FLAG_HOME_RULES) !== 0);
 }
 
 /** The match header: who and what this state belongs to. Part of the serialised form and of the hash. */
@@ -145,6 +161,8 @@ export interface GameState {
   readonly agg: Aggregates;
   /** Derived (see BorderIndex): contact lengths between owners, boundary cells. */
   readonly borders: BorderIndex;
+  /** Home land and nation traits (M06, D112): present exactly when `header.config.homeRules` is on; serialised and hashed then, else null. */
+  readonly home: HomeRules | null;
   /** Diagnostics: cells looked at per tick (see WorkCounters). Not hashed. */
   readonly work: WorkCounters;
   readonly scratch: Scratch;
@@ -204,6 +222,8 @@ export interface CreateStateParams {
   readonly elevation: Uint16Array;
   /** Overrides the computed world hash (for a real match: the checksum of the sim pack). */
   readonly mapHash?: number;
+  /** The country id of every cell, `width * height` long (copied). Required exactly when `config.homeRules` is true (then every seat starts without a home land and with neutral traits). */
+  readonly countryMap?: ArrayLike<number>;
 }
 
 /** Hash of a world (terrain and elevation). */
@@ -247,6 +267,8 @@ export interface StateParts {
   readonly capital: Uint32Array;
   readonly attacks: AttackTable;
   readonly enclaves: EnclaveQueues;
+  /** Present exactly when `header.config.homeRules` is on. */
+  readonly home?: HomeRules | null;
 }
 
 /**
@@ -257,8 +279,11 @@ export interface StateParts {
 export function assembleState(parts: StateParts): GameState {
   const grid = new Grid(parts.width, parts.height, parts.terrain, parts.rowCos);
   const slots = ownerSlots(parts.header.seats);
+  const wantsHome = parts.header.config.homeRules === true;
+  if (wantsHome !== (parts.home !== undefined && parts.home !== null)) throw new RangeError('home rules are present exactly when the config says so');
   const state: GameState = {
     ...parts,
+    home: parts.home ?? null,
     grid,
     agg: { area: new Uint32Array(slots), warea: new Uint32Array(slots) },
     borders: new BorderIndex(grid.cells, slots),
@@ -302,6 +327,9 @@ export function createState(p: CreateStateParams): GameState {
   const n = p.width * p.height;
   if (p.terrain.length !== n || p.elevation.length !== n) throw new RangeError('world arrays must be width * height long');
   if (p.rowCos !== undefined && (p.rowCos.length !== p.height || !validRowCos(p.rowCos))) throw new RangeError('rowCos must be height long with weights 0..WEIGHT_ONE');
+  const homeRules = p.config?.homeRules === true;
+  if (homeRules !== (p.countryMap !== undefined)) throw new RangeError('countryMap is required exactly when config.homeRules is true');
+  if (p.countryMap !== undefined && p.countryMap.length !== n) throw new RangeError('countryMap must be width * height long');
   const terrain = p.terrain.slice();
   const elevation = p.elevation.slice();
   const seed = p.seed >>> 0;
@@ -309,7 +337,7 @@ export function createState(p: CreateStateParams): GameState {
     engineVersion: ENGINE_VERSION,
     mapHash: (p.mapHash ?? hashWorld(terrain, elevation)) >>> 0,
     seed,
-    config: Object.freeze(p.config?.spawnPhase === true ? { debugIntents: p.config?.debugIntents === true, spawnPhase: true } : { debugIntents: p.config?.debugIntents === true }),
+    config: Object.freeze(normalConfig(p.config?.debugIntents === true, p.config?.spawnPhase === true, p.config?.homeRules === true)),
     seats: p.seats,
     players,
   });
@@ -332,6 +360,7 @@ export function createState(p: CreateStateParams): GameState {
     capital: new Uint32Array(ownerSlots(p.seats)),
     attacks: new AttackTable(ownerSlots(p.seats)),
     enclaves: new EnclaveQueues(n),
+    home: p.countryMap !== undefined ? createHomeRules(p.countryMap, ownerSlots(p.seats)) : null,
   });
 }
 

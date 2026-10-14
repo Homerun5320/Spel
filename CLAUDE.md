@@ -40,6 +40,8 @@ Project rules for every session. Keep this file under 200 lines. Constitution: `
 - Ideas go to `docs/BACKLOG.md` instead of being built.
 - `src/ai` imports ONLY `src/sim/public.ts` (ESLint allow-list); a new export there must be added to the pinned export list in `tests/ai/boundary.test.ts`. The AI is on by default, also in `?test=1`; tests that need an empty match open with `ai=0` (`#test_ai-0_seed-7`).
 - Exact dependency pins, no `^` or `~`; never upgrade a dependency mid-milestone. A changed pin is explained in `docs/DECISIONS.md`.
+- Remembered choices (language, menu options, settings) go through `getPref` / `setPref` in `src/app/prefs.ts`, never through `localStorage` directly: the page must work with storage blocked (memory fallback).
+- A match is built by `createMatch(world, config)` in `src/app/matchSetup.ts` (pure and seeded, the fair start of `docs/DECISIONS.md` D112); `e2e/goldens/match-hashes.json` pins four built matches and follows the golden rule below (`UPDATE_GOLDENS=1`).
 - Docs may only mention files that exist or are created now; future files are marked "(later)". Gitignored generated folders (the bake cache, the Artifact pack folder, dist) are written without backticks: `tests/docs.test.ts` checks every backticked path, and a fresh checkout (CI) lacks them.
 - `PROMPTLISTA.md` in the repo root is the user's own prompt list: do not read it, do not change it, do not reference it.
 

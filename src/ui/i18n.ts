@@ -81,6 +81,16 @@ const sv = {
   'class.5': 'Berg',
   'class.6': 'Bergstopp',
   'class.7': 'Is',
+
+  'setup.reason.tooFewCells': 'för få celler för en rättvis start: {cells} av {need} celler',
+  'setup.reason.smallLandmass': 'för liten landmassa för en rättvis start: {cells} av {need} celler',
+  'setup.reason.noCapitalLand': 'huvudstaden ligger inte på spelbar mark',
+  'setup.reason.outsideRegion': 'ligger utanför det valda utsnittet',
+  'setup.reason.excluded': 'inte valbart i spelet',
+  'setup.start.terrain': 'Välj en plats på land (slätt, skog, kullar eller berg).',
+  'setup.error.invalid': 'Ogiltig inställning: {field}.',
+  'setup.error.neutralNeedsCustom': 'Läget utan riktiga gränser kräver en egen nation.',
+  'setup.error.notEnoughCountries': 'Det finns bara {available} lämpliga länder för {wanted} AI-nationer i det här utsnittet.',
 } as const;
 
 export type TextKey = keyof typeof sv;
@@ -156,6 +166,15 @@ const en: Record<TextKey, string> = {
   'class.5': 'Mountains',
   'class.6': 'Peak',
   'class.7': 'Ice',
+  'setup.reason.tooFewCells': 'too few cells for a fair start: {cells} of {need} cells',
+  'setup.reason.smallLandmass': 'land mass too small for a fair start: {cells} of {need} cells',
+  'setup.reason.noCapitalLand': 'the capital is not on playable land',
+  'setup.reason.outsideRegion': 'lies outside the chosen region',
+  'setup.reason.excluded': 'not selectable in the game',
+  'setup.start.terrain': 'Pick a place on land (plains, forest, hills or mountains).',
+  'setup.error.invalid': 'Invalid setting: {field}.',
+  'setup.error.neutralNeedsCustom': 'The mode without real borders needs a custom nation.',
+  'setup.error.notEnoughCountries': 'Only {available} suitable countries exist for {wanted} AI nations in this region.',
 };
 
 /** The two tables, for the parity test and for tools. Treat as read-only. */

@@ -106,16 +106,16 @@ const AI_IMPORTS = {
 // imports step or writes sim arrays"). It may import only these sim modules: the view types and stat helpers, the intent types and
 // constructors, the match flow, the rule constants, the terrain classes and the tick clock, plus from sim/state the two pure seat
 // functions and any TYPE. Everything else (step, serialize, conquest, territory, spawn, attacks, economy, units, world, ...) is an error.
-// The two files that really run or build a sim are named in FRONT_END_SIM_FILES and nowhere else is exempt.
+// The files that really run or build a sim are named in FRONT_END_SIM_FILES and nowhere else is exempt.
 const FRONT_END_FILES = ['src/ui/**/*.ts', 'src/render/**/*.ts', 'src/app/**/*.ts'];
-const FRONT_END_SIM_FILES = ['src/app/debugSim.ts', 'src/app/match.ts'];
+const FRONT_END_SIM_FILES = ['src/app/debugSim.ts', 'src/app/match.ts', 'src/app/matchWorld.ts', 'src/app/matchSetup.ts'];
 const FRONT_END_IMPORTS = {
   patterns: [
     {
       regex: '(^|/)sim(/(?!(view|public|intents|flow|rules|terrain|time|state)$).*)?$',
       allowTypeImports: true,
       message:
-        'src/ui, src/render and src/app may import only sim/view, sim/public, sim/intents, sim/flow, sim/rules, sim/terrain, sim/time and sim/state (seatToOwner / ownerToSeat and types). Never step, serialize, conquest or another mutator. Only src/app/debugSim.ts and src/app/match.ts run a sim.',
+        'src/ui, src/render and src/app may import only sim/view, sim/public, sim/intents, sim/flow, sim/rules, sim/terrain, sim/time and sim/state (seatToOwner / ownerToSeat and types). Never step, serialize, conquest or another mutator. Only src/app/debugSim.ts, src/app/match.ts and the two match setup files (matchWorld.ts, matchSetup.ts, D117) build a sim.',
     },
     {
       group: ['**/sim/state'],

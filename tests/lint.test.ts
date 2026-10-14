@@ -159,6 +159,11 @@ describe('lint self-test: the front end (src/ui, src/render, src/app) reads the 
     const code = "import { step } from '../sim/step';\nimport { hashState } from '../sim/serialize';\nimport { createSimWorld } from '../sim/world';\nexport const a = [step, hashState, createSimWorld];";
     expect(await lint('src/app/debugSim.ts', code)).toEqual([]);
     expect(await lint('src/app/match.ts', code)).toEqual([]);
+    // M06 (D117): the two files that build a match from a config are exempt too, and nothing else in src/app is
+    expect(await lint('src/app/matchWorld.ts', code)).toEqual([]);
+    expect(await lint('src/app/matchSetup.ts', code)).toEqual([]);
+    expect((await lint('src/app/eligibility.ts', code)).length).toBeGreaterThan(0);
+    expect((await lint('src/app/prefs.ts', code)).length).toBeGreaterThan(0);
     expect((await lint('src/app/globeApp.ts', code)).length).toBeGreaterThan(0);
     expect((await lint('src/app/devpanel.ts', code)).length).toBeGreaterThan(0);
   });

@@ -22,9 +22,12 @@
 //   dh  is the rise from the highest attacker cell next to the cell to the cell, in HEIGHT_UNIT_M units; uphill
 //       = 1 + 0.25 * dh / 32 capped at x2, downhill and flat cost nothing extra (D83);
 //   the defender pays no terrain term.
+// HOME RULES (M06, D112 and D113, only when the match config has homeRules): the price is then multiplied by HOME_COST_PCT / 100 for a
+// cell of the attacker's own home country and by the defence multiplier / 1000 of the seat the cell is taken from (see homeRules.ts).
 import type { Attack } from './attacks';
 import { addTroops, deductTroops, isTribe } from './economy';
 import { isqrt } from './detmath';
+import { adjustedCostMilliQt } from './homeRules';
 import { hash2 } from './fixture';
 import {
   BASE_COST_MILLI_QT_PER_SIM_CELL,
@@ -206,6 +209,7 @@ export function advanceAttack(state: GameState, a: Attack, slot: number, n: numb
   const terrain = state.terrain;
   const work = state.work;
   const seed = state.header.seed;
+  const home = state.home;
   let taken = 0;
   while (taken < n) {
     const cell = a.pick(seed);
@@ -227,7 +231,9 @@ export function advanceAttack(state: GameState, a: Attack, slot: number, n: numb
     }
     if (source < 0) continue;
     const depth = a.lastDepth;
-    const cost = captureCostMilliQt(terrain[cell] as number, riseUnits(elevation[cell] as number, source), depth);
+    let cost = captureCostMilliQt(terrain[cell] as number, riseUnits(elevation[cell] as number, source), depth);
+    // Home land (D112) and the defence trait (D113): only a match with homeRules has them; for the others this is one comparison.
+    if (home !== null) cost = adjustedCostMilliQt(home, cost, cell, a.attacker, a.target);
     const owed = a.costFrac + cost;
     const whole = Math.floor(owed / MILLI_QT);
     if (a.troops < whole) {

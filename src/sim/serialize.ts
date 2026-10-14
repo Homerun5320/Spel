@@ -11,11 +11,14 @@
 //      attacks: seq u32, count u32, then per attack id attacker target troops costFrac progress compactAt picks bags (u32 each),
 //               followed by `bags` x (depth u32, count u32, count x cell u32)   (the frontier bags exactly as they are, ascending depth)
 //      enclave queue: ENCLAVE_FLIP_TICKS x (count u32, count x cell u32)
+//      ONLY when config flag 8 (homeRules) is on: country u8 x n, homeLand u8 x (seats+1), portMilli u16 x (seats+1),
+//               defenceMilli u16 x (seats+1)   (D112: a match without the flag is byte-identical to M05, so FORMAT_VERSION stays 5)
 //   end: checksum u32 = hashState(state)                                      (n = width * height)
 // The outbox and the derived parts (grid, aggregates, scratch) are not part of the format. deserialize() never throws:
 // any byte string gives a state or an error result.
 import { Attack, AttackTable } from './attacks';
 import { EnclaveQueues, enclaveBucket } from './enclaveQueue';
+import { TRAIT_MAX_MILLI, TRAIT_MIN_MILLI, type HomeRules } from './homeRules';
 import { FNV_OFFSET, finishHash, foldBytes, foldU16, foldU32, foldWord } from './hash';
 import { D_MAX_CELLS, ENCLAVE_FLIP_TICKS, MICRO_CELLS_PER_CELL, MICRO_QT_PER_QT, MILLI_QT_PER_QT, PROGRESS_DEBT_MAX } from './rules';
 import {
@@ -63,6 +66,7 @@ export type DeserializeError =
   | 'exposure-range'
   | 'attack-range'
   | 'enclave-range'
+  | 'home-range'
   | 'checksum';
 
 export type DeserializeResult =
@@ -81,10 +85,16 @@ function bagsOf(a: Attack): number {
   return n;
 }
 
+/** Bytes of the home rules block (D112): the country map (u8 per cell), then u8 + u16 + u16 per ownerId. */
+function homeBytes(cells: number, seats: number): number {
+  return cells + ownerSlots(seats) * 5;
+}
+
 /** Number of bytes serialize() produces for this state. */
 export function serializedLengthOf(state: GameState): number {
   let n = serializedLength(state.width, state.height, state.header.seats);
   for (const a of state.attacks.list) n += BYTES_PER_ATTACK + a.size * 4 + bagsOf(a) * BYTES_PER_BAG;
+  if (state.home !== null) n += homeBytes(state.width * state.height, state.header.seats);
   return n + state.enclaves.length * 4;
 }
 
@@ -139,6 +149,13 @@ export function hashState(state: GameState): number {
     const list = state.enclaves.buckets[b] as Int32Array;
     x = foldWord(x, n);
     for (let i = 0; i < n; i++) x = foldWord(x, list[i] as number);
+  }
+  const home = state.home;
+  if (home !== null) {
+    x = foldBytes(x, home.country);
+    x = foldBytes(x, home.homeLand);
+    x = foldU16(x, home.portMilli);
+    x = foldU16(x, home.defenceMilli);
   }
   return finishHash(x);
 }
@@ -229,6 +246,15 @@ export function serialize(state: GameState): Uint8Array {
       v.setUint32(p, list[i] as number, true);
       p += 4;
     }
+  }
+  const home = state.home;
+  if (home !== null) {
+    out.set(home.country, p);
+    p += home.country.length;
+    out.set(home.homeLand, p);
+    p += home.homeLand.length;
+    p = putU16s(v, p, home.portMilli);
+    p = putU16s(v, p, home.defenceMilli);
   }
   v.setUint32(p, hashState(state), true);
   return out;
@@ -366,12 +392,34 @@ export function deserialize(bytes: Uint8Array): DeserializeResult {
     enclaves.buckets[b] = list;
     enclaves.counts[b] = count;
   }
+  let home: HomeRules | null = null;
+  if (config.homeRules === true) {
+    if (p + homeBytes(n, seats) > end) return fail('size');
+    const country = new Uint8Array(n);
+    country.set(bytes.subarray(p, p + n));
+    p += n;
+    const homeLand = new Uint8Array(slots);
+    homeLand.set(bytes.subarray(p, p + slots));
+    p += slots;
+    const portMilli = new Uint16Array(slots);
+    p = getU16s(v, p, portMilli);
+    const defenceMilli = new Uint16Array(slots);
+    p = getU16s(v, p, defenceMilli);
+    // The trait cap is a rule of the state, not only of the setter: nothing outside 1000 +- TRAIT_CAP_MILLI is a legal state (D113).
+    if (homeLand[0] !== 0) return fail('home-range');
+    for (let o = 0; o < slots; o++) {
+      const port = portMilli[o] as number;
+      const def = defenceMilli[o] as number;
+      if (port < TRAIT_MIN_MILLI || port > TRAIT_MAX_MILLI || def < TRAIT_MIN_MILLI || def > TRAIT_MAX_MILLI) return fail('home-range');
+    }
+    home = { country, homeLand, portMilli, defenceMilli };
+  }
   if (p !== end) return fail('size');
 
   const header: MatchHeader = Object.freeze({ engineVersion, mapHash, seed, config: Object.freeze(config), seats, players });
   let state: GameState;
   try {
-    state = assembleState({ header, width, height, tick: v.getUint32(36, true), rejects: v.getUint32(40, true), rng, terrain, elevation, owner, stamp, exposure, rowCos, troops, troopFrac, gold, capital, attacks, enclaves });
+    state = assembleState({ header, width, height, tick: v.getUint32(36, true), rejects: v.getUint32(40, true), rng, terrain, elevation, owner, stamp, exposure, rowCos, troops, troopFrac, gold, capital, attacks, enclaves, home });
   } catch {
     return fail('header');
   }
