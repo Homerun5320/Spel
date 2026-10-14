@@ -183,19 +183,19 @@ describe('quadtree: the chunk cap', () => {
     for (const tier of QUALITY_TIERS) {
       const tree = makeTree(world, tier);
       let worst = 0;
-      let passesMax = 0;
+      let cappedFrames = 0;
       for (let i = 0; i < 300; i++) {
         const view = { lat: -85 + 170 * r(), lon: -180 + 360 * r(), heading: 360 * r(), tilt: 89 * r() };
         const alt = 10 ** (2.4 + 5.5 * r()); // 250 m .. 80 000 km (above 3 000 km the camera is in space anyway)
         const pose = poseOf(world, view, Math.min(alt, 30_000_000));
         tree.update(quadCameraOf(pose));
         worst = Math.max(worst, tree.count);
-        passesMax = Math.max(passesMax, tree.passes);
+        if (tree.capped) cappedFrames++;
         expect(tree.count, `${tier} pose ${i}`).toBeLessThanOrEqual(QUALITY[tier].chunkMax);
         expect(tree.count).toBeLessThanOrEqual(CHUNK_ABSOLUTE_MAX);
         expect(tree.count).toBeGreaterThanOrEqual(1);
       }
-      console.log(`[chunk cap] ${tier}: worst ${worst} of ${QUALITY[tier].chunkMax} chunks over 300 poses, at most ${passesMax} passes`);
+      console.log(`[chunk cap] ${tier}: worst ${worst} of ${QUALITY[tier].chunkMax} chunks over 300 poses, the cap refused splits in ${cappedFrames} of them`);
     }
   });
 
@@ -210,14 +210,27 @@ describe('quadtree: the chunk cap', () => {
     }
   });
 
-  it('the detail drops evenly when over budget: a view that needs more than the cap runs more than one pass and keeps its levels connected', () => {
+  it('over budget the detail around the camera wins: a view that needs more than the cap keeps its finest chunks and loses the far field first', () => {
     const v = ALTITUDE_VIEWS[5] as (typeof ALTITUDE_VIEWS)[number];
     const pose = poseOf(world, v.view, v.altAglM);
-    const tree = new ChunkQuadtree(quadParams(world, { ...QUALITY.test, chunkMax: 90 }));
-    tree.update(quadCameraOf(pose));
-    expect(tree.passes).toBeGreaterThan(1);
-    const levels = [...new Set(leavesOf(tree).map((l) => l.level))].sort((a, b) => a - b);
-    for (let i = 1; i < levels.length; i++) expect(levels[i]).toBe((levels[i - 1] as number) + 1);
+    const wanted = new ChunkQuadtree(quadParams(world, { ...QUALITY.test, chunkMax: 400 }));
+    wanted.update(quadCameraOf(pose));
+    expect(wanted.capped).toBe(false);
+    const capped = new ChunkQuadtree(quadParams(world, { ...QUALITY.test, chunkMax: Math.floor(wanted.count / 2) }));
+    capped.update(quadCameraOf(pose));
+    expect(capped.capped).toBe(true);
+    expect(capped.count).toBeLessThanOrEqual(Math.floor(wanted.count / 2));
+    const finest = (t: ChunkQuadtree): number => Math.max(...leavesOf(t).map((l) => l.level));
+    expect(finest(capped)).toBe(finest(wanted)); // the nearest detail is kept
+    expect(Math.min(...leavesOf(capped).map((l) => l.level))).toBeLessThanOrEqual(Math.min(...leavesOf(wanted).map((l) => l.level)) + 1);
+    // and the capped result only left splits undone: each of its chunks is a wanted chunk or an ancestor of wanted chunks
+    const wantedLeaves = leavesOf(wanted);
+    const wantedKeys = new Set(wantedLeaves.map((l) => chunkKey(l.level, l.ix, l.iy)));
+    for (const l of leavesOf(capped)) {
+      const isWanted = wantedKeys.has(chunkKey(l.level, l.ix, l.iy));
+      const isAncestor = wantedLeaves.some((w) => w.level > l.level && w.ix >> (w.level - l.level) === l.ix && w.iy >> (w.level - l.level) === l.iy);
+      expect(isWanted || isAncestor, `capped leaf ${l.level}/${l.ix}/${l.iy}`).toBe(true);
+    }
   });
 });
 
@@ -237,7 +250,7 @@ describe('quadtree: LOD hysteresis', () => {
     let prev = -2;
     for (let f = 0; f < frames; f++) {
       tree.update(quadCameraOf(poseAt(centreAglM * (1 + wobble * Math.sin(f * 0.7)))));
-      expect(tree.passes, 'the path must stay inside the budget').toBe(1);
+      expect(tree.capped, 'the path must stay inside the budget').toBe(false);
       const l = centreLevel(tree);
       expect(l).toBeGreaterThanOrEqual(0);
       if (f > 0 && l !== prev) changes++;
@@ -263,8 +276,27 @@ describe('quadtree: LOD hysteresis', () => {
     return 0.5 * (lo + hi);
   }
 
+  /** Every ring boundary between two altitudes: pairs of altitudes 4 % apart where the level under the centre differs without hysteresis. */
+  function boundaries(): Array<[number, number]> {
+    const t = new ChunkQuadtree(quadParams(world, QUALITY.test, { hysteresis: 0, maxChunks: 400 }));
+    const out: Array<[number, number]> = [];
+    let prevAgl = 2_000;
+    t.update(quadCameraOf(poseAt(prevAgl)));
+    let prev = centreLevel(t);
+    for (let agl = 2_080; agl < 500_000; agl *= 1.04) {
+      t.update(quadCameraOf(poseAt(agl)));
+      const l = centreLevel(t);
+      if (l !== prev) out.push([prevAgl, agl]);
+      prev = l;
+      prevAgl = agl;
+    }
+    return out;
+  }
+
   it('a camera wobbling by +-6 % around a ring boundary changes the chunk under the view centre at most once with hysteresis, and flickers many times without', () => {
-    for (const [lo, hi] of [[30_000, 60_000], [8_000, 16_000], [100_000, 200_000]] as const) {
+    const found = boundaries();
+    expect(found.length).toBeGreaterThanOrEqual(5);
+    for (const [lo, hi] of found.slice(0, 6)) {
       const boundary = ringBoundary(lo, hi);
       const withH = changesOnPath(0.25, 0.06, boundary);
       const without = changesOnPath(0, 0.06, boundary);

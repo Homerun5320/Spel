@@ -19,7 +19,7 @@ interface TerrainState {
   triangles: number;
   drawCalls: number;
   levels: number[];
-  passes: number;
+  capped: boolean;
   finite: boolean;
 }
 interface Hooks {
@@ -160,7 +160,7 @@ describe('cracks and bounds at six altitudes over the Alps (magenta clear colour
         const bad = magentaInRegion(s.img, mask);
         const colours = distinctColours(s.img, mask);
         const regionPx = mask.reduce((n, m) => n + m, 0);
-        rows.push(`${v.name}: ${s.terrain.chunkCount} chunks, levels ${s.terrain.levels.join(',')}, ${s.terrain.triangles} tris, ${colours} colours, ${bad} magenta of ${regionPx} px, passes ${s.terrain.passes}`);
+        rows.push(`${v.name}: ${s.terrain.chunkCount} chunks, levels ${s.terrain.levels.join(',')}, ${s.terrain.triangles} tris, ${colours} colours, ${bad} magenta of ${regionPx} px, capped ${s.terrain.capped}`);
         expect(Math.abs(((await page.evaluate(() => (window as any).__test.cameraAglM())) as number) / v.altAglM - 1), `${v.name}: the camera is at the wanted height above the ground`).toBeLessThan(1e-4);
         expect(regionPx, `${v.name}: the planet fills part of the view`).toBeGreaterThan(5000);
         expect(bad, `${v.name}: holes in the terrain`).toBe(0);
@@ -441,14 +441,18 @@ describe('leak-test: chunk terrain', () => {
   it('60 render calls (3 rounds x 20) at 320x180 over a moving camera retain less than 5 MB (median of 3)', async () => {
     const { page, messages } = await open('test=1&ai=0&w=320&h=180', { width: 320, height: 180 });
     try {
-      const frames = (n: number): Promise<void> =>
-        page.evaluate((count) => {
-          const h = (window as any).__test as Hooks;
-          for (let i = 0; i < count; i++) {
-            h.setView({ lat: 43.4 + 0.01 * i, lon: 7.4, heading: 3 * i, tilt: 70, altAglM: 20_000 * (1 + 0.02 * i) });
+      // One render per evaluate: ANGLE warns "running out of reserved queue serials" when dozens of instance-buffer uploads pile up in ONE
+      // JavaScript task (a page presents a frame per task, so only a test that renders in a loop meets it; the selection changes every frame here).
+      let step = 0;
+      const frames = async (n: number): Promise<void> => {
+        for (let i = 0; i < n; i++, step++) {
+          await page.evaluate((k) => {
+            const h = (window as any).__test as Hooks;
+            h.setView({ lat: 43.4 + 0.01 * k, lon: 7.4, heading: 3 * k, tilt: 70, altAglM: 20_000 * (1 + 0.02 * (k % 20)) });
             h.render();
-          }
-        }, n);
+          }, step);
+        }
+      };
       await frames(20); // warm-up outside the measurement: shader compile and first-use allocations are not leaks
       const delta = await heapDelta(page, async () => {
         for (let round = 0; round < 3; round++) await frames(20);

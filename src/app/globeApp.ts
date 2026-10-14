@@ -91,8 +91,8 @@ export interface TerrainStateInfo {
   drawCalls: number;
   /** The levels themselves, ascending. */
   levels: number[];
-  /** Selection passes the update needed (1 = the wanted detail fitted the tier's cap). */
-  passes: number;
+  /** True when the tier's chunk cap refused splits the camera distance asked for (the far detail is lower than wanted). */
+  capped: boolean;
   /** Every float of the instance data is finite. */
   finite: boolean;
 }
@@ -421,7 +421,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   const terrainLine = (): string => {
     const t = globe.terrainInfo();
     if (t.mode === 'fixed') return `terrain: fixed mesh ${globe.meshTriangleCount} triangles`;
-    return `terrain: ${t.chunkCount} chunks, levels ${t.levels.length > 0 ? `${t.levels[0]}-${t.levels[t.levels.length - 1]}` : '-'}, ${t.triangles} triangles, ${t.passes} pass${t.passes === 1 ? '' : 'es'}`;
+    return `terrain: ${t.chunkCount} chunks, levels ${t.levels.length > 0 ? `${t.levels[0]}-${t.levels[t.levels.length - 1]}` : '-'}, ${t.triangles} triangles, ${t.capped ? 'capped' : 'uncapped'}`;
   };
   const refreshOverlay = (): void => {
     const i = globe.info();
@@ -693,7 +693,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   // --- Test hooks or the frame loop ---------------------------------------------------------------------------------
   const terrainState = (): TerrainStateInfo => {
     const t = globe.terrainInfo();
-    return { chunkCount: t.chunkCount, lodLevels: t.lodLevels, triangles: t.triangles, drawCalls: t.drawCalls, levels: t.levels, passes: t.passes, finite: globe.chunks?.allFinite() ?? true };
+    return { chunkCount: t.chunkCount, lodLevels: t.lodLevels, triangles: t.triangles, drawCalls: t.drawCalls, levels: t.levels, capped: t.capped, finite: globe.chunks?.allFinite() ?? true };
   };
   const matchState = (): MatchStateInfo | null => {
     const sess = session;

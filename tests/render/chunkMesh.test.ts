@@ -3,10 +3,10 @@ import { buildChunkGrid } from '../../src/render/chunkMesh';
 import { CHUNK_ABSOLUTE_MAX, QUALITY, QUALITY_TIERS, chunkTriangleBudget, chunkTriangles } from '../../src/render/quality';
 
 describe('the shared chunk grid mesh', () => {
-  it('32 cells: 33 x 33 grid vertices, skirt vertices on the 128 edge points, 2048 grid and 256 skirt triangles', () => {
+  it('32 cells: 33 x 33 grid vertices, a bottom and a top wall vertex on each of the 128 rim points, 2048 grid and 256 skirt triangles', () => {
     const g = buildChunkGrid(32);
     expect(g.gridVertices).toBe(33 * 33);
-    expect(g.position.length / 3).toBe(33 * 33 + 128);
+    expect(g.position.length / 3).toBe(33 * 33 + 2 * 128);
     expect(g.triangles).toBe(2 * 32 * 32 + 8 * 32);
     expect(g.skirtTriangles).toBe(8 * 32);
     expect(g.triangles).toBe(chunkTriangles({ chunkCells: 32 }));
@@ -19,7 +19,7 @@ describe('the shared chunk grid mesh', () => {
     expect(g.triangles).toBe(chunkTriangles(QUALITY.test));
   });
 
-  it('every index is a vertex and fits 16 bits; grid vertices carry (gx, gy, 0), skirt vertices (gx, gy, 1) at an edge point', () => {
+  it('every index is a vertex and fits 16 bits; grid vertices carry (gx, gy, 0), wall vertices (gx, gy, 1 for the bottom, 2 for the top) at a rim point, one of each per rim point', () => {
     const g = buildChunkGrid(32);
     const n = g.position.length / 3;
     for (const i of g.index) expect(i).toBeLessThan(n);
@@ -31,16 +31,18 @@ describe('the shared chunk grid mesh', () => {
       expect(gy).toBeLessThanOrEqual(1);
       if (v < g.gridVertices) expect(s).toBe(0);
       else {
-        expect(s).toBe(1);
+        expect([1, 2]).toContain(s);
         expect(gx === 0 || gx === 1 || gy === 0 || gy === 1).toBe(true);
       }
     }
+    const count = (flag: number): number => Array.from({ length: n }, (_, v) => g.position[3 * v + 2]).filter((s) => s === flag).length;
+    expect([count(1), count(2)]).toEqual([128, 128]);
   });
 
   it('grid triangles face up and skirt triangles face OUTWARD from the chunk (checked on the normals in grid space: x east, up, z south)', () => {
     const g = buildChunkGrid(8);
     const depth = 0.25;
-    const P = (v: number): [number, number, number] => [g.position[3 * v] as number, -(g.position[3 * v + 2] as number) * depth, g.position[3 * v + 1] as number];
+    const P = (v: number): [number, number, number] => [g.position[3 * v] as number, g.position[3 * v + 2] === 1 ? -depth : 0, g.position[3 * v + 1] as number];
     const gridTris = g.triangles - g.skirtTriangles;
     for (let t = 0; t < g.triangles; t++) {
       const [a, b, c] = [g.index[3 * t] as number, g.index[3 * t + 1] as number, g.index[3 * t + 2] as number].map(P) as [[number, number, number], [number, number, number], [number, number, number]];

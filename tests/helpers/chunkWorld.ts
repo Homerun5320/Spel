@@ -1,7 +1,7 @@
 // Shared setup of the chunk terrain tests: the real height raster, its pyramid, the height field (picking / CPU heights), a quadtree
 // of a quality tier and the camera of a view as the quadtree wants it. Loaded once per test file.
 import { CameraRig, setViewAtAgl, type CameraPose, type ViewState } from '../../src/render/camera';
-import { CHUNK_BUDGET_KEEP_FINER, CHUNK_BUDGET_PASSES, CHUNK_BUDGET_SHRINK, CHUNK_BUDGET_TRY_FINER, CHUNK_FRUSTUM_SLACK, CHUNK_HYSTERESIS, CHUNK_MAX_LEVEL, EARTH_RADIUS_KM, HEIGHT_EXAGGERATION } from '../../src/render/config';
+import { CHUNK_FRUSTUM_SLACK, CHUNK_HYSTERESIS, CHUNK_MAX_LEVEL, EARTH_RADIUS_KM, HEIGHT_EXAGGERATION } from '../../src/render/config';
 import { HeightField } from '../../src/render/heightField';
 import { HeightPyramid } from '../../src/render/heightPyramid';
 import { QUALITY, type QualitySettings, type QualityTier } from '../../src/render/quality';
@@ -47,10 +47,6 @@ export function quadParams(world: ChunkWorld, q: QualitySettings, over: Partial<
     texelRad: (2 * Math.PI) / world.width,
     hysteresis: CHUNK_HYSTERESIS,
     frustumSlack: CHUNK_FRUSTUM_SLACK,
-    budgetShrink: CHUNK_BUDGET_SHRINK,
-    budgetPasses: CHUNK_BUDGET_PASSES,
-    budgetTryFiner: CHUNK_BUDGET_TRY_FINER,
-    budgetKeepFiner: CHUNK_BUDGET_KEEP_FINER,
     heightRange: (u0, u1, v0, v1, out) => {
       world.pyramid.range(u0, u1, v0, v1);
       const lo = world.pyramid.minCode / 255;

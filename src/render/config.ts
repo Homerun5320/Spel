@@ -156,26 +156,15 @@ export const CHUNK_HYSTERESIS = 0.25;
  * Skirt depth in grid cells of the chunk's own level; it is multiplied by 2^d on an edge whose neighbour is d levels coarser (the
  * crack to cover grows with the coarse cell). Also covers the float rounding hairlines between equal-level neighbours.
  */
-export const CHUNK_SKIRT_CELLS = 1.5;
+export const CHUNK_SKIRT_CELLS = 1.25;
 /**
  * How far the skirt leans OUTWARD from its chunk (grid cells of the chunk's own level, times 2^d like the depth). A wall that only hangs
  * straight down is edge-on to a camera looking straight down, so a hairline gap between two chunks (float rounding of their separately
  * computed edge vertices) would show the background there; a wall that leans outward is seen from above and covers it.
  */
-export const CHUNK_SKIRT_OUT_CELLS = 0.75;
+export const CHUNK_SKIRT_OUT_CELLS = 0.5;
 /** Frustum culling slack: the half field of view is widened by this fraction so a chunk never pops in at the screen edge. */
 export const CHUNK_FRUSTUM_SLACK = 0.06;
-/** When more chunks than the tier allows are wanted, the split distances shrink by this factor and the selection is run again. */
-export const CHUNK_BUDGET_SHRINK = 0.8;
-/** At most this many shrink passes (the last one also stops splitting when the cap is reached). */
-export const CHUNK_BUDGET_PASSES = 8;
-/**
- * Budget hysteresis: once the detail was shrunk, a finer pass is only tried when the current result uses at most `TRY` of the cap and
- * only kept when it uses at most `ACCEPT` of it, so a camera that hovers where the wanted detail just fits the cap does not flip the
- * whole terrain between two detail levels every frame.
- */
-export const CHUNK_BUDGET_TRY_FINER = 0.8;
-export const CHUNK_BUDGET_KEEP_FINER = 0.9;
 /** Dynamic near plane: this fraction of the camera's height above the ground, never below `CLIP_NEAR_MIN` (Earth radii). */
 export const CLIP_NEAR_FRACTION = 0.1;
 export const CLIP_NEAR_MIN = 2e-7;

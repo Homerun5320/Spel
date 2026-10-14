@@ -1,15 +1,17 @@
 // The one grid mesh every terrain chunk instance is drawn with (pure arrays; chunkTerrain.ts wraps them in a three geometry).
 //
-// Vertices: (cells + 1)^2 grid points with (gx, gy, 0), gx west to east and gy north to south in 0..1 (the same orientation as the
-// rasters), followed by one skirt vertex per edge grid point with (gx, gy, 1): the vertex shader pushes those straight down (toward
-// the planet centre) by the skirt depth of the instance, so the wall hangs under the rim of the chunk. The skirt triangles are
-// wound so that each wall faces outward from its chunk (a crack is always seen through the open side of the chunk that is higher).
+// Vertices: (cells + 1)^2 grid points with (gx, gy, 0), then for every point on the rim two wall vertices: the BOTTOM (gx, gy, 1) that the
+// vertex shader pushes straight down (toward the planet centre) and outward by the skirt depth of the instance, and the TOP (gx, gy, 2)
+// that stays at the rim. The wall is its own set of vertices, flagged, so that the fragment shader can shade the whole wall like level
+// ground (a wall seen through a hairline between two chunks must not show up as a dark line); the top vertices compute the same
+// position as the grid vertex of that rim point (same formulas, same bits), so nothing opens between wall and grid. The wall triangles
+// are wound so that each wall faces outward from its chunk (a crack is always seen through the open side of the chunk that is higher).
 //
 // The grid triangles use the winding of the old globe mesh (counter-clockwise seen from outside).
 
 export interface ChunkGrid {
   cells: number;
-  /** gx, gy, skirt flag per vertex. */
+  /** gx, gy, wall flag per vertex: 0 grid, 1 wall bottom, 2 wall top. */
   position: Float32Array;
   index: Uint16Array;
   gridVertices: number;
@@ -21,11 +23,18 @@ export function buildChunkGrid(cells: number): ChunkGrid {
   if (!Number.isInteger(cells) || cells < 1 || cells > 64) throw new Error(`chunk grid of ${cells} cells is not supported`);
   const n = cells + 1;
   const gridVertices = n * n;
-  const skirtVertexOf = new Int32Array(gridVertices).fill(-1);
-  let skirtCount = 0;
+  const bottomOf = new Int32Array(gridVertices).fill(-1);
+  const topOf = new Int32Array(gridVertices).fill(-1);
+  let wallCount = 0;
   const isEdge = (i: number, j: number): boolean => i === 0 || j === 0 || i === cells || j === cells;
-  for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) if (isEdge(i, j)) skirtVertexOf[j * n + i] = gridVertices + skirtCount++;
-  const total = gridVertices + skirtCount;
+  for (let j = 0; j < n; j++) {
+    for (let i = 0; i < n; i++) {
+      if (!isEdge(i, j)) continue;
+      bottomOf[j * n + i] = gridVertices + wallCount++;
+      topOf[j * n + i] = gridVertices + wallCount++;
+    }
+  }
+  const total = gridVertices + wallCount;
   const position = new Float32Array(total * 3);
   for (let j = 0; j < n; j++) {
     for (let i = 0; i < n; i++) {
@@ -33,11 +42,15 @@ export function buildChunkGrid(cells: number): ChunkGrid {
       position[v * 3] = i / cells;
       position[v * 3 + 1] = j / cells;
       position[v * 3 + 2] = 0;
-      const s = skirtVertexOf[v] as number;
-      if (s >= 0) {
-        position[s * 3] = i / cells;
-        position[s * 3 + 1] = j / cells;
-        position[s * 3 + 2] = 1;
+      const b = bottomOf[v] as number;
+      if (b >= 0) {
+        position[b * 3] = i / cells;
+        position[b * 3 + 1] = j / cells;
+        position[b * 3 + 2] = 1;
+        const t = topOf[v] as number;
+        position[t * 3] = i / cells;
+        position[t * 3 + 1] = j / cells;
+        position[t * 3 + 2] = 2;
       }
     }
   }
@@ -55,9 +68,11 @@ export function buildChunkGrid(cells: number): ChunkGrid {
   // Skirt quads along the four edges, wound to face outward from the chunk (tests/render/chunkMesh.test.ts checks the normals).
   const wall = (p0: number, p1: number): void => {
     // p0 -> p1 is the edge walked clockwise around the chunk seen from above (north-west to north-east to south-east ...).
-    const s0 = skirtVertexOf[p0] as number;
-    const s1 = skirtVertexOf[p1] as number;
-    idx.push(p0, s1, s0, p0, p1, s1);
+    const b0 = bottomOf[p0] as number;
+    const b1 = bottomOf[p1] as number;
+    const t0 = topOf[p0] as number;
+    const t1 = topOf[p1] as number;
+    idx.push(t0, b1, b0, t0, t1, b1);
   };
   for (let i = 0; i < cells; i++) {
     wall(i, i + 1); // north edge, west to east

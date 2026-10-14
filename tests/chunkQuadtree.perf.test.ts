@@ -3,7 +3,8 @@
 // altitudes of the crack test (orbit, 3000 km, 500 km, 60 km, 8 km, 300 m AGL; the camera moves a little every update, so no call is
 // the cheap "camera unchanged" return and the hysteresis state is live). Two things are timed on the medium tier (the default): the
 // bare quadtree selection (`ChunkQuadtree.update`) and the whole per-frame CPU path of the chunk terrain (`ChunkTerrain.update`: the
-// selection plus the refill of the five instance buffers; the GL upload is not CPU work of ours).
+// selection, the comparison with what the instance buffer holds and, when the selection changed, the refill of the buffer; the GL
+// upload is not CPU work of ours). A second measurement forces the refill every call (`reset()` first): the worst frame.
 import { describe, expect, it } from 'vitest';
 import type { RenderPack, SimGrid, WorldMeta } from '../src/data';
 import { ChunkTerrain } from '../src/render/chunkTerrain';
@@ -55,11 +56,15 @@ describe('terrain chunk update: CPU cost per frame (medium tier)', () => {
     expect(med).toBeLessThanOrEqual(budgetMs(1));
   });
 
-  it('ChunkTerrain.update (selection + instance refill): median of 15 sweeps (mean ms per update) after 3 warm-ups is at most budgetMs(1)', async () => {
+  async function terrainOf(): Promise<ChunkTerrain> {
     const w = worldLoader();
     const [render, sim, meta]: [RenderPack, SimGrid, WorldMeta] = await Promise.all([w.loadRender(), w.loadSim(), w.loadMeta()]);
     const tm = createTerrainMaterial(createWorldTextures(render, sim), render, sim, meta, undefined, undefined, 'chunks', QUALITY.medium.chunkCells);
-    const terrain = new ChunkTerrain({ material: tm.material, quality: QUALITY.medium, codes: render.height8, width: render.width, height: render.height, maxM: meta.encoding.heightSqrt.maxM, exaggeration: 12 });
+    return new ChunkTerrain({ material: tm.material, quality: QUALITY.medium, codes: render.height8, width: render.width, height: render.height, maxM: meta.encoding.heightSqrt.maxM, exaggeration: 12 });
+  }
+
+  it('ChunkTerrain.update (selection, comparison, refill when it changed): median of 15 sweeps (mean ms per update) after 3 warm-ups is at most budgetMs(1)', async () => {
+    const terrain = await terrainOf();
     const poses = await sweepPoses();
     const samples: number[] = [];
     for (let m = 0; m < WARMUPS + MEASUREMENTS; m++) {
@@ -72,17 +77,33 @@ describe('terrain chunk update: CPU cost per frame (medium tier)', () => {
       if (m >= WARMUPS) samples.push(per);
     }
     const med = median(samples);
-    console.log(`[chunk perf] chunk terrain update (selection + refill): median ${(med * 1000).toFixed(0)} us over ${MEASUREMENTS} sweeps (p95 ${(percentile(samples, 95) * 1000).toFixed(0)} us)`);
+    console.log(`[chunk perf] chunk terrain update: median ${(med * 1000).toFixed(0)} us over ${MEASUREMENTS} sweeps (p95 ${(percentile(samples, 95) * 1000).toFixed(0)} us)`);
     expect(med).toBeLessThanOrEqual(budgetMs(1));
     expect(terrain.getStats().chunkCount).toBeGreaterThan(0);
     terrain.dispose();
   });
 
+  it('ChunkTerrain.update with the refill forced every call (the worst frame): median of 15 sweeps (mean ms per update) after 3 warm-ups is at most budgetMs(1)', async () => {
+    const terrain = await terrainOf();
+    const poses = await sweepPoses();
+    const samples: number[] = [];
+    for (let m = 0; m < WARMUPS + MEASUREMENTS; m++) {
+      const t0 = performance.now();
+      for (const p of poses) {
+        terrain.reset(); // forgets the hysteresis too: every node is decided by the split distance alone, and the instance buffer is refilled
+        terrain.update(p);
+      }
+      const per = (performance.now() - t0) / poses.length;
+      if (m >= WARMUPS) samples.push(per);
+    }
+    const med = median(samples);
+    console.log(`[chunk perf] chunk terrain update with refill: median ${(med * 1000).toFixed(0)} us over ${MEASUREMENTS} sweeps (p95 ${(percentile(samples, 95) * 1000).toFixed(0)} us)`);
+    expect(med).toBeLessThanOrEqual(budgetMs(1));
+    terrain.dispose();
+  });
+
   it('the unchanged-camera frame costs next to nothing: median of 15 measurements of 200 repeated updates is at most budgetMs(0.01) per update', async () => {
-    const w = worldLoader();
-    const [render, sim, meta]: [RenderPack, SimGrid, WorldMeta] = await Promise.all([w.loadRender(), w.loadSim(), w.loadMeta()]);
-    const tm = createTerrainMaterial(createWorldTextures(render, sim), render, sim, meta, undefined, undefined, 'chunks', QUALITY.medium.chunkCells);
-    const terrain = new ChunkTerrain({ material: tm.material, quality: QUALITY.medium, codes: render.height8, width: render.width, height: render.height, maxM: meta.encoding.heightSqrt.maxM, exaggeration: 12 });
+    const terrain = await terrainOf();
     const pose = (await sweepPoses())[20] as CameraPose;
     terrain.update(pose);
     const samples: number[] = [];

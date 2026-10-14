@@ -1,6 +1,6 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
-import { chunkGeo, chunkHue, chunkKey, chunkSizeRad, levelCols, levelRows, makeChunkGeo, vertexOffsetExact, vertexRelExact, vertexRelFloat32, ROOT_COLS, ROOT_ROWS } from '../../src/render/chunkMath';
+import { chunkGeo, chunkHue, chunkKey, chunkSizeRad, levelCols, levelRows, makeChunkGeo, originRelFloat32, vertexOffsetExact, vertexRelExact, vertexRelFloat32, ROOT_COLS, ROOT_ROWS } from '../../src/render/chunkMath';
 import { EARTH_RADIUS_KM } from '../../src/render/config';
 import { eastAt, latLonToVec, northAt, DEG } from '../../src/render/geo';
 import { ALTITUDE_VIEWS, loadChunkWorld, makeTree, poseOf, quadCameraOf, rng } from '../helpers/chunkWorld';
@@ -112,7 +112,7 @@ describe('precision: float32 chunk-relative vertex positions against the float64
       tree.update(quadCameraOf(pose));
       for (let i = 0; i < tree.count; i++) {
         chunkGeo(tree.level[i] as number, tree.ix[i] as number, tree.iy[i] as number, g);
-        const originRel: [number, number, number] = [Math.fround(g.cx - pose.position[0]), Math.fround(g.cy - pose.position[1]), Math.fround(g.cz - pose.position[2])];
+        const originRel = originRelFloat32(g, pose.position);
         const near = Math.hypot(...originRel) * R_M < 50_000;
         if (!near) continue;
         for (const [gx, gy] of [[0, 0], [1, 0], [0.5, 0.5], [0, 1], [1, 1], [0.3, 0.8], [0.9, 0.1]] as const) {

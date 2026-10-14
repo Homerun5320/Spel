@@ -22,9 +22,10 @@ describe('the chunk vertex shader (GLSL ES 3.00 through ShaderMaterial)', () => 
     expect(chunkVertexShader).not.toMatch(/cameraPosition/);
   });
 
-  it('forms the vertex as originRel + offset * r + up * h with the half-angle form of the offset (no subtraction of absolute coordinates)', () => {
-    expect(chunkVertexShader).toContain('vec3 rel = aOrigin.xyz + off * r + up * h;');
-    expect(chunkVertexShader).toContain('float on = sin(dphi) + 2.0 * cphi * sinC * sdl * sdl;');
+  it('forms the vertex as originRel + offset * r + up * h, originRel from the high and low parts of chunk and camera, and the offset in half-angle form (no subtraction of absolute coordinates)', () => {
+    expect(chunkVertexShader).toContain('vec3 originRel = (aUp.xyz - uCamHi) + (aOrigin.xyz - uCamLo);');
+    expect(chunkVertexShader).toContain('vec3 rel = originRel + off * r + up * h;');
+    expect(chunkVertexShader).toContain('float on = sdphi + 2.0 * cphi * sinC * sdl * sdl;');
     expect(chunkVertexShader).toContain('float ou = 2.0 * (sdp * sdp + cphi * cosC * sdl * sdl);');
     expect(chunkVertexShader).toContain('vec3 off = east * oe + north * on - up * ou;');
   });

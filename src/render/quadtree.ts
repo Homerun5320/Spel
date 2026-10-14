@@ -1,13 +1,16 @@
 // The terrain quadtree: which chunks to draw for a camera. Pure (no three, no DOM) and allocation-free per call.
 //
-// 8 roots (4 x 2, 90 x 90 degrees). A node splits into its four children while the camera is closer than K times its side
-// (the distance runs to the node's bounding sphere, which includes the tallest terrain under it, so the camera at 300 m above a
-// 60 km high mountain top is "inside" the chunk). Hysteresis: a node that was split last frame merges back only when the camera is
-// (1 + hysteresis) times farther than the split distance, so a camera wobbling around a ring boundary never makes a chunk flicker.
-// Nodes outside the view frustum or behind the horizon are dropped (and not split). The result is a hard-capped list of leaves:
-// when the wanted split distances need more chunks than the tier allows, ALL split distances shrink by a fixed factor and the
-// selection runs again (the quality drops evenly, never "far chunks keep their detail and the near ones starve"); the last pass
-// also refuses splits (nearest first) once the cap is reached, so the cap holds for every camera pose.
+// 8 roots (4 x 2, 90 x 90 degrees). A node splits into its four children while the camera is closer than K times its side (the
+// distance runs to the patch between the node's lowest and highest terrain; K is larger for the coarse levels that give the globe its
+// shape at orbit and smaller for the fine ones, see `deepK`). Hysteresis: a node that was split last frame merges back only when the
+// camera is (1 + hysteresis) times farther than the split distance, so a camera wobbling around a ring boundary never makes a chunk
+// flicker. Nodes outside the view frustum or behind the horizon are dropped (and not split).
+//
+// The result is a hard-capped list of leaves. The refinement is BEST FIRST: every node that wants a split is queued with its urgency
+// (its distance in units of its own split distance, 0 = the camera is inside it) and the most urgent are split first until no node
+// wants a split or the next split would not fit the cap. Under the cap that is exactly "split everything that wants to"; over it the
+// detail right around the camera wins and the far field stays coarse (the budget is spent where the player looks), and the cap holds
+// for every camera pose.
 //
 // Per leaf the result also holds, for each of its four edges, how many levels COARSER the neighbouring leaf is (0 = same level,
 // finer, or not drawn): the skirt of the finer chunk has to cover the crack to the coarser one.
@@ -17,12 +20,13 @@ export interface QuadParams {
   /** Hard cap on the leaves (the tier's chunk count; never above 400). */
   maxChunks: number;
   maxLevel: number;
-  /** Split distance in chunk sides for chunks whose grid cells are at least one raster texel wide. */
+  /** Split distance in chunk sides for chunks whose grid cells are at least four raster texels wide (the orbit levels). */
   splitK: number;
   /**
-   * Split distance for chunks whose cells are 1/8 texel or finer. The height raster has no detail below a texel, so the finest levels
+   * Split distance for chunks whose cells are 1/8 texel or finer. The height raster has no detail below a texel, so the finer levels
    * only reproduce its smooth bilinear shape and need less distance than the coarse ones (the number of chunks per level grows
-   * with K squared and a close camera sees a dozen levels). Between one texel and 1/8 texel the factor falls geometrically.
+   * with K squared and a close camera sees a dozen levels; triangles of a few pixels also shade partly empty 2 x 2 pixel quads).
+   * Between four texels and 1/8 texel per cell the factor falls geometrically.
    */
   deepK: number;
   /** Grid cells per chunk side and the width of one raster texel in radians (they fix which levels are "deep"). */
@@ -32,12 +36,6 @@ export interface QuadParams {
   hysteresis: number;
   /** The half field of view is widened by this fraction before culling. */
   frustumSlack: number;
-  /** Shrink factor of the split distances per extra pass over the budget, and the number of passes. */
-  budgetShrink: number;
-  budgetPasses: number;
-  /** A finer pass is tried when the result uses at most this share of the cap and kept when it uses at most `budgetKeepFiner` of it. */
-  budgetTryFiner: number;
-  budgetKeepFiner: number;
   /**
    * The lowest and highest terrain in the rectangle (u0, u1, v0, v1 of the rasters), in Earth radii above the unit sphere
    * (exaggeration applied), written to `lo` and `hi` of the result object the quadtree passes in (allocation-free).
@@ -136,27 +134,26 @@ export class ChunkQuadtree {
   readonly coarser: Uint8Array;
   /** Nodes whose bounds were evaluated in the last update (all passes): a cost counter, not a result. */
   nodesVisited = 0;
-  /** Selection passes the last result is at (1 = the wanted detail fitted the cap; each further pass has the split distances shrunk once more). */
-  passes = 1;
-  private pass = 0;
+  /** True when the cap refused at least one split the last update wanted (the far detail is lower than asked for). */
+  capped = false;
 
   private readonly maxChunks: number;
-  // Frontier of the level being processed and of the next one.
-  private curIx: Int32Array;
-  private curIy: Int32Array;
-  private curD: Float64Array;
-  private nextIx: Int32Array;
-  private nextIy: Int32Array;
-  private nextD: Float64Array;
+  // The nodes of the refinement (leaves and the nodes that were split) and the heap of those that want a split.
+  private readonly nLevel: Uint8Array;
+  private readonly nIx: Int32Array;
+  private readonly nIy: Int32Array;
+  private readonly nD: Float64Array;
+  private readonly nSplit: Uint8Array;
+  private readonly heapNode: Int32Array;
+  private readonly heapKey: Float64Array;
+  private heapN = 0;
   private readonly range: HeightRange = { lo: 0, hi: 0 };
-  private readonly candIdx: Int32Array;
-  private readonly candD: Float64Array;
   private readonly childIx = new Int32Array(4);
   private readonly childIy = new Int32Array(4);
   private readonly childD = new Float64Array(4);
-  private prevSplit = new KeySet(4096);
-  private curSplit = new KeySet(4096);
-  private readonly leafSet = new KeySet(4096);
+  private prevSplit = new KeySet(16384);
+  private curSplit = new KeySet(16384);
+  private readonly leafSet = new KeySet(16384);
 
   // Per-level constants.
   private readonly size: Float64Array;
@@ -195,15 +192,16 @@ export class ChunkQuadtree {
     this.ix = new Int32Array(cap);
     this.iy = new Int32Array(cap);
     this.coarser = new Uint8Array(4 * cap);
-    const f = 2 * params.maxChunks + 32;
-    this.curIx = new Int32Array(f);
-    this.curIy = new Int32Array(f);
-    this.curD = new Float64Array(f);
-    this.nextIx = new Int32Array(f);
-    this.nextIy = new Int32Array(f);
-    this.nextD = new Float64Array(f);
-    this.candIdx = new Int32Array(f);
-    this.candD = new Float64Array(f);
+    // Every split adds at most 4 nodes; a split that keeps the number of leaves (one visible child) can repeat down a branch, so at most
+    // one split per leaf per level.
+    const nodes = 8 + 4 * params.maxChunks * (params.maxLevel + 1);
+    this.nLevel = new Uint8Array(nodes);
+    this.nIx = new Int32Array(nodes);
+    this.nIy = new Int32Array(nodes);
+    this.nD = new Float64Array(nodes);
+    this.nSplit = new Uint8Array(nodes);
+    this.heapNode = new Int32Array(nodes);
+    this.heapKey = new Float64Array(nodes);
     const levels = params.maxLevel + 1;
     this.size = new Float64Array(levels);
     this.halfSin = new Float64Array(levels);
@@ -213,9 +211,9 @@ export class ChunkQuadtree {
       this.size[l] = chunkSizeRad(l);
       this.halfSin[l] = Math.sin(0.5 * (this.size[l] as number));
       this.halfCos[l] = Math.cos(0.5 * (this.size[l] as number));
-      // 0 at one texel per cell and above, 1 at 1/8 texel and below.
+      // 0 at four texels per cell and above, 1 at 1/8 texel and below (five octaves, geometric in between).
       const cellTexels = (this.size[l] as number) / params.cells / params.texelRad;
-      const deep = Math.min(1, Math.max(0, -Math.log2(cellTexels) / 3));
+      const deep = Math.min(1, Math.max(0, (2 - Math.log2(cellTexels)) / 5));
       this.levelK[l] = params.splitK * (1 - deep) + params.deepK * deep;
     }
   }
@@ -224,7 +222,6 @@ export class ChunkQuadtree {
   reset(): void {
     this.prevSplit.clear();
     this.curSplit.clear();
-    this.pass = 0;
   }
 
   /** Selects the leaves for a camera. */
@@ -232,24 +229,8 @@ export class ChunkQuadtree {
     this.cam = cam;
     this.prepareCamera();
     this.nodesVisited = 0;
-    const p = this.params;
-    const last = p.budgetPasses - 1;
-    const scaleOf = (pass: number): number => p.budgetShrink ** pass;
-    // Start where the last frame ended (so the detail does not flip between two passes), shrink until the result fits the cap.
-    let pass = this.pass;
-    let ok = this.run(scaleOf(pass), pass === last);
-    while (!ok) {
-      pass++;
-      ok = this.run(scaleOf(pass), pass === last);
-    }
-    // Room to spare after a shrink: try one pass finer, keep it only with a margin below the cap (else run the coarser pass again).
-    if (pass > 0 && this.count <= p.budgetTryFiner * this.maxChunks) {
-      if (this.run(scaleOf(pass - 1), false) && this.count <= p.budgetKeepFiner * this.maxChunks) pass--;
-      else if (!this.run(scaleOf(pass), pass === last)) throw new Error('quadtree: the pass that fitted before must fit again');
-    }
-    this.pass = pass;
-    this.passes = pass + 1;
-    // Commit the split history of the pass that fit.
+    this.refine();
+    // Commit the split history.
     const t = this.prevSplit;
     this.prevSplit = this.curSplit;
     this.curSplit = t;
@@ -361,112 +342,120 @@ export class ChunkQuadtree {
     return true;
   }
 
-  private run(scale: number, enforce: boolean): boolean {
-    const p = this.params;
-    const max = this.maxChunks;
-    this.curSplit.clear();
-    let emitted = 0;
-    let curN = 0;
-    for (let iy = 0; iy < ROOT_ROWS; iy++) {
-      for (let ix = 0; ix < ROOT_COLS; ix++) {
-        if (this.bounds(0, ix, iy)) {
-          this.curIx[curN] = ix;
-          this.curIy[curN] = iy;
-          this.curD[curN] = this.bD;
-          curN++;
-        }
-      }
+  /** Pushes node `n` on the heap of the nodes that want a split, most urgent (smallest key) on top. */
+  private heapPush(n: number, key: number): void {
+    let i = this.heapN++;
+    while (i > 0) {
+      const parent = (i - 1) >> 1;
+      if ((this.heapKey[parent] as number) <= key) break;
+      this.heapNode[i] = this.heapNode[parent] as number;
+      this.heapKey[i] = this.heapKey[parent] as number;
+      i = parent;
     }
-    for (let level = 0; curN > 0; level++) {
-      let nextN = 0;
-      let candN = 0;
-      const w = this.size[level] as number;
-      const splitDist = (this.levelK[level] as number) * scale * w;
-      const mergeDist = splitDist * (1 + p.hysteresis);
-      for (let i = 0; i < curN; i++) {
-        const d = this.curD[i] as number;
-        let split = false;
-        if (level < p.maxLevel) {
-          const was = this.prevSplit.has(chunkKey(level, this.curIx[i] as number, this.curIy[i] as number));
-          split = d < (was ? mergeDist : splitDist);
-        }
-        if (split) {
-          this.candIdx[candN] = i;
-          this.candD[candN] = d;
-          candN++;
-        } else {
-          if (emitted >= max) return false;
-          this.level[emitted] = level;
-          this.ix[emitted] = this.curIx[i] as number;
-          this.iy[emitted] = this.curIy[i] as number;
-          emitted++;
-        }
-      }
-      if (enforce && candN > 1) this.sortCandidates(candN);
-      for (let j = 0; j < candN; j++) {
-        const i = this.candIdx[j] as number;
-        const ix = this.curIx[i] as number;
-        const iy = this.curIy[i] as number;
-        // Bounds of the four children: how many of them are visible decides what the split costs.
-        let vc = 0;
-        for (let k = 0; k < 4; k++) {
-          const cix = 2 * ix + (k & 1);
-          const ciy = 2 * iy + (k >> 1);
-          if (this.bounds(level + 1, cix, ciy)) {
-            this.childIx[vc] = cix;
-            this.childIy[vc] = ciy;
-            this.childD[vc] = this.bD;
-            vc++;
-          }
-        }
-        const pendingAfter = emitted + (candN - j - 1) + nextN + vc;
-        if (pendingAfter > max) {
-          if (!enforce) return false;
-          // Cap reached: this node stays a leaf.
-          this.level[emitted] = level;
-          this.ix[emitted] = ix;
-          this.iy[emitted] = iy;
-          emitted++;
-          continue;
-        }
-        this.curSplit.add(chunkKey(level, ix, iy));
-        for (let k = 0; k < vc; k++) {
-          this.nextIx[nextN] = this.childIx[k] as number;
-          this.nextIy[nextN] = this.childIy[k] as number;
-          this.nextD[nextN] = this.childD[k] as number;
-          nextN++;
-        }
-      }
-      // The next level becomes the current one.
-      let t: Int32Array = this.curIx;
-      this.curIx = this.nextIx;
-      this.nextIx = t;
-      t = this.curIy;
-      this.curIy = this.nextIy;
-      this.nextIy = t;
-      const td = this.curD;
-      this.curD = this.nextD;
-      this.nextD = td;
-      curN = nextN;
-    }
-    this.count = emitted;
-    return true;
+    this.heapNode[i] = n;
+    this.heapKey[i] = key;
   }
 
-  /** Insertion sort of the candidates by distance, nearest first (the candidate lists are short). */
-  private sortCandidates(n: number): void {
-    for (let a = 1; a < n; a++) {
-      const d = this.candD[a] as number;
-      const idx = this.candIdx[a] as number;
-      let b = a - 1;
-      while (b >= 0 && (this.candD[b] as number) > d) {
-        this.candD[b + 1] = this.candD[b] as number;
-        this.candIdx[b + 1] = this.candIdx[b] as number;
-        b--;
+  /** Removes and returns the most urgent node. */
+  private heapPop(): number {
+    const top = this.heapNode[0] as number;
+    const n = --this.heapN;
+    if (n > 0) {
+      const node = this.heapNode[n] as number;
+      const key = this.heapKey[n] as number;
+      let i = 0;
+      for (;;) {
+        let c = 2 * i + 1;
+        if (c >= n) break;
+        if (c + 1 < n && (this.heapKey[c + 1] as number) < (this.heapKey[c] as number)) c++;
+        if ((this.heapKey[c] as number) >= key) break;
+        this.heapNode[i] = this.heapNode[c] as number;
+        this.heapKey[i] = this.heapKey[c] as number;
+        i = c;
       }
-      this.candD[b + 1] = d;
-      this.candIdx[b + 1] = idx;
+      this.heapNode[i] = node;
+      this.heapKey[i] = key;
     }
+    return top;
+  }
+
+  /**
+   * Queues node `n` when it wants a split: its distance is under its split distance (the merge distance when it was split last
+   * frame). The key is the distance in units of that distance, so the nodes the camera is deepest inside come first.
+   */
+  private queue(n: number): void {
+    const level = this.nLevel[n] as number;
+    if (level >= this.params.maxLevel) return;
+    const was = this.prevSplit.has(chunkKey(level, this.nIx[n] as number, this.nIy[n] as number));
+    const dist = (this.levelK[level] as number) * (was ? 1 + this.params.hysteresis : 1) * (this.size[level] as number);
+    const d = this.nD[n] as number;
+    if (d < dist) this.heapPush(n, d / dist);
+  }
+
+  private refine(): void {
+    const max = this.maxChunks;
+    this.curSplit.clear();
+    this.heapN = 0;
+    this.capped = false;
+    let nodes = 0;
+    let leaves = 0;
+    for (let iy = 0; iy < ROOT_ROWS; iy++) {
+      for (let ix = 0; ix < ROOT_COLS; ix++) {
+        if (!this.bounds(0, ix, iy)) continue;
+        this.nLevel[nodes] = 0;
+        this.nIx[nodes] = ix;
+        this.nIy[nodes] = iy;
+        this.nD[nodes] = this.bD;
+        this.nSplit[nodes] = 0;
+        this.queue(nodes);
+        nodes++;
+        leaves++;
+      }
+    }
+    while (this.heapN > 0) {
+      const n = this.heapPop();
+      const level = this.nLevel[n] as number;
+      const ix = this.nIx[n] as number;
+      const iy = this.nIy[n] as number;
+      // The four children: how many of them are visible decides what the split costs in leaves.
+      let vc = 0;
+      for (let k = 0; k < 4; k++) {
+        const cix = 2 * ix + (k & 1);
+        const ciy = 2 * iy + (k >> 1);
+        if (this.bounds(level + 1, cix, ciy)) {
+          this.childIx[vc] = cix;
+          this.childIy[vc] = ciy;
+          this.childD[vc] = this.bD;
+          vc++;
+        }
+      }
+      if (leaves - 1 + vc > max) {
+        this.capped = true; // stays a leaf; a cheaper split (fewer visible children) may still fit
+        continue;
+      }
+      this.nSplit[n] = 1;
+      this.curSplit.add(chunkKey(level, ix, iy));
+      leaves += vc - 1;
+      for (let k = 0; k < vc; k++) {
+        this.nLevel[nodes] = level + 1;
+        this.nIx[nodes] = this.childIx[k] as number;
+        this.nIy[nodes] = this.childIy[k] as number;
+        this.nD[nodes] = this.childD[k] as number;
+        this.nSplit[nodes] = 0;
+        this.queue(nodes);
+        nodes++;
+      }
+    }
+    // The leaves: every node that was not split, finest last (nodes are created coarse to fine along every branch).
+    let count = 0;
+    for (let n = 0; n < nodes; n++) {
+      if (this.nSplit[n] === 1) continue;
+      this.level[count] = this.nLevel[n] as number;
+      this.ix[count] = this.nIx[n] as number;
+      this.iy[count] = this.nIy[n] as number;
+      count++;
+    }
+    this.count = count;
   }
 
   /** For each leaf and edge (west, east, north, south): how many levels coarser the leaf across the edge is. */

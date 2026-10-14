@@ -1,12 +1,14 @@
 // The chunk terrain: the quadtree (quadtree.ts) feeding ONE instanced draw of a shared grid mesh (chunkMesh.ts) through the chunk
-// vertex shader (shaders/chunk.ts). Owns the instance buffers, refilled each frame from the camera: per chunk the camera-relative
-// origin (a float64 difference stored as float32), the tangent basis, the lat/lon extent, the level, the skirt depth, the
-// neighbour levels and a debug hue. The only three.js user of the chunk code besides the material.
+// vertex shader (shaders/chunk.ts). Owns the instance buffer: per chunk the centre direction as a high and a low float32 part (so
+// the shader forms "chunk minus camera" in two parts and the instance data does NOT depend on the camera), the tangent basis, the
+// lat/lon extent, the level, the size of a cell, the neighbour levels and a debug hue. The buffer is refilled and uploaded only when
+// the selection of chunks changes, not whenever the camera moves; the camera goes to the shader as two vec3 uniforms (hi, lo).
+// The only three.js user of the chunk code besides the material.
 import { BufferAttribute, DynamicDrawUsage, InstancedBufferGeometry, InstancedInterleavedBuffer, InterleavedBufferAttribute, Mesh, type ShaderMaterial } from 'three';
 import type { CameraPose } from './camera';
 import { buildChunkGrid, type ChunkGrid } from './chunkMesh';
 import { chunkGeo, chunkHue, chunkSizeRad, makeChunkGeo } from './chunkMath';
-import { CHUNK_BUDGET_KEEP_FINER, CHUNK_BUDGET_PASSES, CHUNK_BUDGET_SHRINK, CHUNK_BUDGET_TRY_FINER, CHUNK_FRUSTUM_SLACK, CHUNK_HYSTERESIS, CHUNK_MAX_LEVEL, EARTH_RADIUS_KM } from './config';
+import { CHUNK_FRUSTUM_SLACK, CHUNK_HYSTERESIS, CHUNK_MAX_LEVEL, EARTH_RADIUS_KM } from './config';
 import { POLE_HEIGHT_U } from './geo';
 import { HeightPyramid } from './heightPyramid';
 import { ChunkQuadtree, makeQuadCamera, type HeightRange, type QuadCamera } from './quadtree';
@@ -35,8 +37,8 @@ export interface ChunkStats {
   /** Triangles drawn (chunks times the triangles of one instance, skirts included). */
   triangles: number;
   drawCalls: number;
-  /** Selection passes the last update needed (1 = the wanted detail fitted the tier's chunk cap). */
-  passes: number;
+  /** True when the tier's chunk cap refused splits the camera distance asked for (the far detail is lower than wanted). */
+  capped: boolean;
 }
 
 const ATTR_FLOATS = 4; // floats per instance attribute (a vec4)
@@ -58,6 +60,14 @@ export class ChunkTerrain {
   private exag: number;
   private readonly maxM: number;
   private lastKey = new Float64Array(16).fill(NaN);
+  // The leaves the instance buffer holds (to see whether a new selection differs from it).
+  private heldCount = -1;
+  private readonly heldLevel: Uint8Array;
+  private readonly heldIx: Int32Array;
+  private readonly heldIy: Int32Array;
+  private readonly heldCoarser: Uint8Array;
+  private readonly camHi: { value: { set(x: number, y: number, z: number): unknown } };
+  private readonly camLo: { value: { set(x: number, y: number, z: number): unknown } };
   private levelMask = 0;
   private readonly trianglesPerChunk: number;
 
@@ -79,15 +89,18 @@ export class ChunkTerrain {
       texelRad: (2 * Math.PI) / o.width,
       hysteresis: CHUNK_HYSTERESIS,
       frustumSlack: CHUNK_FRUSTUM_SLACK,
-      budgetShrink: CHUNK_BUDGET_SHRINK,
-      budgetPasses: CHUNK_BUDGET_PASSES,
-      budgetTryFiner: CHUNK_BUDGET_TRY_FINER,
-      budgetKeepFiner: CHUNK_BUDGET_KEEP_FINER,
       heightRange: (u0, u1, v0, v1, out) => this.heightRange(u0, u1, v0, v1, out),
     });
     const g = new InstancedBufferGeometry();
     g.setAttribute('position', new BufferAttribute(this.grid.position, 3));
     g.setIndex(new BufferAttribute(this.grid.index, 1));
+    this.heldLevel = new Uint8Array(this.capacity);
+    this.heldIx = new Int32Array(this.capacity);
+    this.heldIy = new Int32Array(this.capacity);
+    this.heldCoarser = new Uint8Array(4 * this.capacity);
+    this.camHi = o.material.uniforms.uCamHi as typeof this.camHi;
+    this.camLo = o.material.uniforms.uCamLo as typeof this.camLo;
+    if (!this.camHi || !this.camLo) throw new Error('the chunk material must carry uCamHi and uCamLo');
     this.data = new Float32Array(this.capacity * STRIDE);
     this.buffer = new InstancedInterleavedBuffer(this.data, STRIDE, 1);
     this.buffer.setUsage(DynamicDrawUsage);
@@ -109,6 +122,7 @@ export class ChunkTerrain {
   reset(): void {
     this.tree.reset();
     this.lastKey.fill(NaN);
+    this.heldCount = -1;
   }
 
   private heightRange(u0: number, u1: number, v0: number, v1: number, out: HeightRange): void {
@@ -157,30 +171,52 @@ export class ChunkTerrain {
     c.tanY = Math.tan((pose.fovDeg * Math.PI) / 360);
     c.aspect = pose.aspect;
     this.tree.update(c);
-    this.fill();
+    // The camera for the shader as a high and a low part: chunk minus camera is formed there as (hi - hi) + (lo - lo).
+    const hx = Math.fround(c.px);
+    const hy = Math.fround(c.py);
+    const hz = Math.fround(c.pz);
+    this.camHi.value.set(hx, hy, hz);
+    this.camLo.value.set(c.px - hx, c.py - hy, c.pz - hz);
+    if (this.selectionChanged()) this.fill();
+  }
+
+  /** True when the tree's leaves (or their neighbour levels) differ from what the instance buffer holds. */
+  private selectionChanged(): boolean {
+    const t = this.tree;
+    const n = t.count;
+    if (n !== this.heldCount) return true;
+    for (let i = 0; i < n; i++) {
+      if (t.level[i] !== this.heldLevel[i] || t.ix[i] !== this.heldIx[i] || t.iy[i] !== this.heldIy[i]) return true;
+      const o = 4 * i;
+      if (t.coarser[o] !== this.heldCoarser[o] || t.coarser[o + 1] !== this.heldCoarser[o + 1] || t.coarser[o + 2] !== this.heldCoarser[o + 2] || t.coarser[o + 3] !== this.heldCoarser[o + 3]) return true;
+    }
+    return false;
   }
 
   private fill(): void {
     const t = this.tree;
     const n = t.count;
-    const c = this.cam;
     const g = this.geo;
     const d = this.data;
     let mask = 0;
+    // The quadtree emits its leaves coarse level first; the finest chunks are the ones nearest to the camera, so drawing them in the
+    // reverse order is (nearly) front to back: the early depth test then rejects the far chunks and the skirts behind them before the
+    // expensive fragment shader runs (the instances are drawn in the order of the buffer).
     for (let i = 0; i < n; i++) {
-      const level = t.level[i] as number;
-      chunkGeo(level, t.ix[i] as number, t.iy[i] as number, g);
+      const src = n - 1 - i;
+      const level = t.level[src] as number;
+      chunkGeo(level, t.ix[src] as number, t.iy[src] as number, g);
       const o = i * STRIDE;
-      // 0: origin relative to the camera (float64 difference, rounded once to float32) and the level
-      d[o] = g.cx - c.px;
-      d[o + 1] = g.cy - c.py;
-      d[o + 2] = g.cz - c.pz;
-      d[o + 3] = level;
-      // 1: centre direction and the size of one grid cell
+      // 1: centre direction (the high part, a float32) and the size of one grid cell
       d[o + 4] = g.cx;
       d[o + 5] = g.cy;
       d[o + 6] = g.cz;
       d[o + 7] = chunkSizeRad(level) / this.cells;
+      // 0: the low part of the centre direction (what the float32 above left out, exact in float32) and the level
+      d[o] = g.cx - (d[o + 4] as number);
+      d[o + 1] = g.cy - (d[o + 5] as number);
+      d[o + 2] = g.cz - (d[o + 6] as number);
+      d[o + 3] = level;
       // 2: east and the debug hue
       d[o + 8] = g.ex;
       d[o + 9] = 0;
@@ -192,10 +228,10 @@ export class ChunkTerrain {
       d[o + 14] = g.dLon;
       d[o + 15] = g.lonC;
       // 4: how many levels coarser the neighbours are
-      d[o + 16] = t.coarser[4 * i] as number;
-      d[o + 17] = t.coarser[4 * i + 1] as number;
-      d[o + 18] = t.coarser[4 * i + 2] as number;
-      d[o + 19] = t.coarser[4 * i + 3] as number;
+      d[o + 16] = t.coarser[4 * src] as number;
+      d[o + 17] = t.coarser[4 * src + 1] as number;
+      d[o + 18] = t.coarser[4 * src + 2] as number;
+      d[o + 19] = t.coarser[4 * src + 3] as number;
       mask |= 1 << level;
     }
     this.buffer.clearUpdateRanges();
@@ -204,6 +240,14 @@ export class ChunkTerrain {
     this.geometry.instanceCount = n;
     this.mesh.visible = n > 0;
     this.levelMask = mask;
+    // Remember what the buffer holds.
+    this.heldCount = n;
+    for (let i = 0; i < n; i++) {
+      this.heldLevel[i] = t.level[i] as number;
+      this.heldIx[i] = t.ix[i] as number;
+      this.heldIy[i] = t.iy[i] as number;
+      for (let k = 0; k < 4; k++) this.heldCoarser[4 * i + k] = t.coarser[4 * i + k] as number;
+    }
   }
 
   /** The numbers of the last update (allocates; for tests, the perf overlay and `__test.state()`, not for the frame loop). */
@@ -211,7 +255,7 @@ export class ChunkTerrain {
     const levels: number[] = [];
     for (let l = 0; l <= CHUNK_MAX_LEVEL; l++) if ((this.levelMask & (1 << l)) !== 0) levels.push(l);
     const n = this.tree.count;
-    return { chunkCount: n, lodLevels: levels.length, levels, triangles: n * this.trianglesPerChunk, drawCalls: n > 0 ? 1 : 0, passes: this.tree.passes };
+    return { chunkCount: n, lodLevels: levels.length, levels, triangles: n * this.trianglesPerChunk, drawCalls: n > 0 ? 1 : 0, capped: this.tree.capped };
   }
 
   /** True when every float of the instance data of the drawn chunks is finite (the NaN check of the jitter test). */

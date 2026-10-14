@@ -102,23 +102,43 @@ export function vertexOffsetExact(g: ChunkGeo, gx: number, gy: number): [number,
 const f = Math.fround;
 
 /**
+ * The chunk centre minus the camera as the vertex shader forms it from the high and low float32 parts of both (the instance carries the
+ * centre as `hi` and `lo`, the uniforms the camera as `hi` and `lo`): `(centreHi - camHi) + (centreLo - camLo)`, every operation in float32.
+ */
+export function originRelFloat32(g: ChunkGeo, cam: readonly [number, number, number]): [number, number, number] {
+  const c = [g.cx, g.cy, g.cz] as const;
+  const out: [number, number, number] = [0, 0, 0];
+  for (let i = 0; i < 3; i++) {
+    const cHi = f(c[i] as number);
+    const cLo = f((c[i] as number) - cHi);
+    const kHi = f(cam[i] as number);
+    const kLo = f((cam[i] as number) - kHi);
+    out[i] = f(f(cHi - kHi) + f(cLo - kLo));
+  }
+  return out;
+}
+
+/**
  * The same offset as the vertex shader forms it, with every operation rounded to float32 (the small-angle-safe form: no
  * subtraction of two nearly equal absolute coordinates). `height` is the radial displacement in Earth radii. Returns the position
  * relative to the camera given the chunk origin relative to the camera (`originRel`, float32 of a float64 difference).
  */
 export function vertexRelFloat32(g: ChunkGeo, gx: number, gy: number, height: number, originRel: readonly [number, number, number]): [number, number, number] {
-  const latC = f(g.latC);
   const dLat = f(g.dLat);
   const dLon = f(g.dLon);
   const dlon = f(f(gx - 0.5) * dLon);
   const dphi = f(f(0.5 - gy) * dLat);
-  const phi = f(latC + dphi);
-  const cphi = f(Math.cos(phi));
   const sdl = f(Math.sin(f(0.5 * dlon)));
   const sdp = f(Math.sin(f(0.5 * dphi)));
-  const e = f(cphi * f(Math.sin(dlon)));
-  const n = f(f(Math.sin(dphi)) + f(f(2 * cphi) * f(f(Math.sin(latC)) * f(sdl * sdl))));
-  const u = f(2 * f(f(sdp * sdp) + f(f(cphi * f(Math.cos(latC))) * f(sdl * sdl))));
+  const cdl = f(Math.sqrt(Math.max(f(1 - f(sdl * sdl)), 0)));
+  const cdp = f(Math.sqrt(Math.max(f(1 - f(sdp * sdp)), 0)));
+  const sinC = f(g.cy);
+  const cosC = f(Math.sqrt(f(f(f(g.cx) * f(g.cx)) + f(f(g.cz) * f(g.cz)))));
+  const sdphi = f(f(2 * sdp) * cdp);
+  const cphi = f(f(cosC * f(1 - f(f(2 * sdp) * sdp))) - f(sinC * sdphi));
+  const e = f(cphi * f(f(2 * sdl) * cdl));
+  const n = f(sdphi + f(f(2 * cphi) * f(sinC * f(sdl * sdl))));
+  const u = f(2 * f(f(sdp * sdp) + f(f(cphi * cosC) * f(sdl * sdl))));
   const ex = f(g.ex);
   const ez = f(g.ez);
   const nx = f(g.nx);

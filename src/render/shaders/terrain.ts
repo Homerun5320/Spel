@@ -45,13 +45,17 @@ void main() {
  * per chunk with a darker rim, so the chunks and their levels can be seen); the fixed mesh has no such uniform.
  */
 export function buildTerrainFragmentShader(chunk: boolean): string {
-  const chunkDecl = chunk ? 'uniform float uChunkDebug;\nuniform float uChunkCells;\nvarying vec4 vChunk;' : '';
+  const chunkDecl = chunk ? 'uniform float uChunkDebug;\nuniform float uChunkCells;\nvarying vec4 vChunk;\nvarying float vWall;' : '';
   // The facet normal is the stylised flat shading of the mesh. A mesh cell much smaller than a raster texel only shows the texel
   // grid of the bilinear height field (blocky streaks), so the facet weight fades out below four texels per cell (the fixed mesh
   // and the orbit-level chunks have 8 or more and keep the full weight; the slope normal already carries the finer relief).
   const facetWeight = chunk
     ? `float cellTexels = (1.5707963 / exp2(vChunk.y) / uChunkCells) / (2.0 * PI / float(uHeightSize.x));
-  float facetW = uFacet * clamp(cellTexels * 0.25, 0.0, 1.0);`
+  // (the east-west width of a cell shrinks with the cosine of the latitude: near a pole the cells are slivers a hundredth of a texel wide)
+  float facetW = uFacet * clamp(cellTexels * length(dir.xz) * 0.25, 0.0, 1.0);
+  // A skirt wall (seen through a hairline between two chunks, or a crack between two LOD levels) is shaded like level ground: it only
+  // hides a gap, it is not a face of the terrain.
+  if (vWall > 0.5) flatN = dir;`
     : 'float facetW = uFacet;';
   const chunkDebug = chunk
     ? `  if (uChunkDebug > 0.5) {

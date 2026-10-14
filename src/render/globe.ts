@@ -213,7 +213,7 @@ export class Globe {
   /** The chunk terrain's numbers (mode, chunk count, distinct levels, triangles, draw calls); all zero in the fixed mode except the mesh. */
   terrainInfo(): TerrainInfo {
     if (this.chunkTerrain) return { mode: 'chunks', ...this.chunkTerrain.getStats() };
-    return { mode: 'fixed', chunkCount: 0, lodLevels: 0, levels: [], triangles: this.meshTriangleCount, drawCalls: 1, passes: 1 };
+    return { mode: 'fixed', chunkCount: 0, lodLevels: 0, levels: [], triangles: this.meshTriangleCount, drawCalls: 1, capped: false };
   }
 
   /** The chunk terrain itself (tests); null in the fixed mode. */
