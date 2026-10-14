@@ -212,6 +212,12 @@ export const AI_WAR_MIN_RATIO_PCT = 130;
 export const AI_WAR_START_TICKS = 2000;
 /** An AI nation that owns this share of all land (percent, cos-weighted) attacks no neighbour any more: nobody runs away with the match, the leader sits on its land. */
 export const AI_WAR_MAX_SHARE_PCT = 15;
+/** A nation starts a war on a neighbour only with at least this much contact (adjacencies, sim cells): a single cell of contact is gone (or the target eaten by another nation) before the intent runs 2 ticks later, which the sim refuses (D143). */
+export const AI_WAR_MIN_CONTACT_LENGTH = 2;
+/** An AI nation that owns this share of all land (percent, cos-weighted) expands into no more unowned land and calls off its expansion attack (D143: the war cap alone let a nation run on through free land to 26 to 29 % after 15 minutes). A nation between the two caps still answers a neighbour that attacks it. */
+export const AI_EXPAND_MAX_SHARE_PCT = 20;
+/** No AI nation STARTS a war on a human seat before this tick (D143: a passive player was dead 25 to 170 s after the general grace in a 12-AI Skirmish). A human who attacks is answered at once, whatever the tick. */
+export const AI_WAR_HUMAN_START_TICKS = 3600;
 /** An AI seat expands into unowned land only when its contact length with it (adjacencies, sim cells) is at least this: a sliver of one or two cells is usually gone (taken by the running attack or by another seat) by the time the intent runs 2 ticks later, which the sim would refuse. */
 export const AI_MIN_CONTACT_LENGTH = 4;
 /** Ticks before a seat attacks the same target again (a second Attack on a target adds troops to the running one). */

@@ -9,7 +9,7 @@ import { MAX_INTENTS_PER_TURN } from '../sim/rules';
 import { deserialize, hashState, serialize } from '../sim/serialize';
 import { step, type StepFn } from '../sim/step';
 import { MAX_SEATS, type GameState } from '../sim/state';
-import { StateView, fillSeatStats, statsLength, type SimView } from '../sim/view';
+import { StateView, attackPairs, fillSeatStats, statsLength, type SimView } from '../sim/view';
 import { scheduledTurn } from '../sim/time';
 import { FixedStepAccumulator } from './accumulator';
 import {
@@ -204,6 +204,7 @@ export class MainThreadHost implements SimHost {
       flow: s.header.config.spawnPhase === true,
       debugIntents: s.header.config.debugIntents,
       stats: this.statsScratch.slice(),
+      attacks: attackPairs(s),
       owner: full ? s.owner.slice() : null,
       terrain: full ? s.terrain.slice() : null,
     };

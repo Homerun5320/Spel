@@ -38,6 +38,9 @@ export class ViewMirror implements SimView {
   /** Contact lengths per pair of owners (countContacts), rebuilt on demand when the owners changed since. */
   private contacts: Int32Array | null = null;
   private contactsVersion = -1;
+  /** Attacks running, one flag per (attacker, target) pair of owner ids (index attacker * slots + target); rebuilt from every frame's snapshot. */
+  private readonly attackFlags: Uint8Array;
+  private readonly slots: number;
 
   private constructor(v: ViewSnapshot) {
     if (v.owner === null || v.terrain === null) throw new Error('a mirror needs the full view (requestView)');
@@ -55,6 +58,20 @@ export class ViewMirror implements SimView {
     this.terrain = v.terrain.slice();
     this.packed = v.stats.slice();
     this.stats = statsViewOf(v.seats, this.packed);
+    this.slots = ownerSlots(v.seats);
+    this.attackFlags = new Uint8Array(this.slots * this.slots);
+    this.setAttacks(v.attacks);
+  }
+
+  private setAttacks(pairs: Uint16Array): void {
+    const flags = this.attackFlags;
+    flags.fill(0);
+    for (let i = 0; i + 1 < pairs.length; i += 2) flags[(pairs[i] as number) * this.slots + (pairs[i + 1] as number)] = 1;
+  }
+
+  attackRunning(attacker: number, target: number): boolean {
+    if (attacker < 0 || target < 0 || attacker >= this.slots || target >= this.slots) return false;
+    return this.attackFlags[attacker * this.slots + target] === 1;
   }
 
   /** Subscribes to `host`, asks for the full view and resolves with a mirror that is current. `stop` ends the subscription. */
@@ -134,6 +151,7 @@ export class ViewMirror implements SimView {
     this.lastRejectReason = d.view.lastRejectReason;
     this.lastRejectTick = d.view.lastRejectTick;
     this.packed.set(d.view.stats);
+    this.setAttacks(d.view.attacks);
     this.frames++;
     for (const l of this.listeners) l(this, d);
   }

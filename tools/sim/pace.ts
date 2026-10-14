@@ -2,9 +2,10 @@
 //
 //   npm run sim:pace                                   all three parts, 5 seeds
 //   npm run sim:pace -- --part solo|conquest|match     one part (comma separated)
-//   npm run sim:pace -- --seeds 1,2,3 --minutes 15 --setup play,skirmish --json
+//   npm run sim:pace -- --seeds 1,2,3 --minutes 25 --setup play,skirmish,asia --prices 2400,7000 --json
 //
-// Part "solo": one free-land expander (the calibration scenario of tools/sim/scenario.ts) on several capitals: land cells per minute.
+// Part "solo": one free-land expander (the calibration scenario of tools/sim/scenario.ts) on several capitals: land cells per minute, the
+//   gold income per second and the earliest minute at which it could pay each price of --prices (D143: later milestones price things in gold).
 // Part "conquest": two seats on a real border at TROOP PARITY (the attacker's troops are set equal to the defender's before the attack).
 //   "disc"    both seats own their 197-cell start disc, 17 cells apart (the closest a match ever places two capitals); the attacker
 //             commits 100 % or 40 % at tick 0; the number is the seconds until the defender owns nothing.
@@ -16,7 +17,7 @@
 // Part "match": the default Play match (you + 5 AI nations + 20 tribes, the world) and a Skirmish (you + 12 AI + 20 tribes, Europe)
 //   built through createMatch and played at 1x with the real AiDriver and a scripted sane human (tools/sim/humanBot.ts); per seed and as
 //   the median of the seeds: the land share of the biggest nation, of the human, the nations and tribes alive and the free land share at
-//   minutes 1, 3, 6, 10, 15; then a PASSIVE human (nobody plays seat 0) for 3 minutes. The guard rails of paceMath.ts are checked.
+//   minutes 1, 3, 6, 10, 15, 20, 25; then a PASSIVE human (nobody plays seat 0) for GUARD_PASSIVE_MINUTE minutes. The guard rails of paceMath.ts are checked.
 // The sim is stepped directly (conquest part) or through MainThreadHost (match part, like the page); no clock, no Math.random.
 import { pathToFileURL } from 'node:url';
 import { createMatch, matchSetupConfig } from '../../src/app/matchSetup';
@@ -30,14 +31,18 @@ import { countDisc } from '../../src/sim/spawn';
 import { seatToOwner, type GameState } from '../../src/sim/state';
 import { step } from '../../src/sim/step';
 import { ownerCapQt } from '../../src/sim/economy';
+import { StateView } from '../../src/sim/view';
 import { createWorldState, type SimWorld } from '../../src/sim/world';
 import { CompositeDriver, DEFAULT_HUMAN_BOT, HumanBot } from './humanBot';
 import {
+  DEFAULT_PRICE_MARKS,
+  GUARD_PASSIVE_MINUTE,
   evaluateMatchGuards,
   evaluatePassiveGuard,
   formatTable,
   median,
   medianOrNull,
+  minuteReaching,
   parseArgs,
   secondsText,
   secondsToReach,
@@ -61,11 +66,12 @@ export const SOLO_MINUTES: readonly number[] = [1, 2, 3, 5, 10];
 /** Cells the "country" goal asks for. */
 export const COUNTRY_CELLS = 500;
 /** Sampled minutes printed by the match part. */
-export const MATCH_PRINT_MINUTES: readonly number[] = [1, 3, 6, 10, 15];
+export const MATCH_PRINT_MINUTES: readonly number[] = [1, 3, 6, 10, 15, 20, 25];
 /** The countries the human plays in the match part (by seed index). */
 export const HUMAN_COUNTRIES: Record<MatchSetupName, readonly string[]> = {
   play: ['SWE', 'DEU', 'BRA', 'IND', 'USA', 'FRA', 'JPN'],
   skirmish: ['DEU', 'SWE', 'FRA', 'POL', 'ESP', 'ITA', 'GBR'],
+  asia: ['CHN', 'JPN', 'KOR', 'VNM', 'THA', 'MNG', 'LAO'],
 };
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -75,23 +81,44 @@ export interface SoloRow {
   readonly country: string;
   /** Land cells at SOLO_MINUTES. */
   readonly cells: readonly number[];
+  /** Gold per second at the end of minutes 1 to 10 (whole gold), and the gold stock then if nothing is ever bought (D143: land arrives sooner, so every gold-priced timing of later milestones moves with it). */
+  readonly goldPerSec: readonly number[];
+  readonly goldStock: readonly number[];
 }
 
-export async function runSolo(): Promise<SoloRow[]> {
+export async function runSolo(countries: readonly string[] = SOLO_COUNTRIES): Promise<SoloRow[]> {
   const rows: SoloRow[] = [];
   const last = SOLO_MINUTES[SOLO_MINUTES.length - 1] as number;
-  for (const country of SOLO_COUNTRIES) {
-    const { report } = await runScenario(parseScenarioArgs(['--solo', '--minutes', String(last), '--country', country, '--seed', '1']));
-    rows.push({ country, cells: SOLO_MINUTES.map((m) => (report.rows[m - 1]?.cells[0] as number)) });
+  for (const country of countries) {
+    const perSec: number[] = [];
+    const stock: number[] = [];
+    let view: StateView | null = null;
+    const { report } = await runScenario(parseScenarioArgs(['--solo', '--minutes', String(last), '--country', country, '--seed', '1']), (state) => {
+      if (state.tick === 0 || state.tick % (60 * TICK_HZ) !== 0) return;
+      view ??= new StateView(state);
+      view.refresh();
+      perSec.push(Math.round((view.stats.goldPerSecMilli[0] as number) / 1000));
+      stock.push(Math.round((view.stats.goldMilli[0] as number) / 1000));
+    });
+    rows.push({ country, cells: SOLO_MINUTES.map((m) => (report.rows[m - 1]?.cells[0] as number)), goldPerSec: perSec, goldStock: stock });
   }
   return rows;
 }
 
-export function formatSolo(rows: readonly SoloRow[]): string {
+export function formatSolo(rows: readonly SoloRow[], prices: readonly number[] = DEFAULT_PRICE_MARKS): string {
   const header = ['solo (land cells)', ...SOLO_MINUTES.map((m) => `min ${m}`)];
   const body = rows.map((r) => [r.country, ...r.cells.map(String)]);
   const med = SOLO_MINUTES.map((_, i) => String(median(rows.map((r) => r.cells[i] as number))));
-  return formatTable(header, [...body, ['median', ...med]]);
+  const land = formatTable(header, [...body, ['median', ...med]]);
+  const income = formatTable(
+    ['solo income (gold/s)', ...SOLO_MINUTES.map((m) => `min ${m}`)],
+    rows.map((r) => [r.country, ...SOLO_MINUTES.map((m) => String(r.goldPerSec[m - 1] ?? '-'))]),
+  );
+  const marks = formatTable(
+    ['earliest minute with the gold if nothing is bought', ...prices.map((p) => `${p} gold`)],
+    rows.map((r) => [r.country, ...prices.map((p) => String(minuteReaching(r.goldStock, p) ?? '>10'))]),
+  );
+  return `${land}\n\n${income}\n\n${marks}`;
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -120,6 +147,8 @@ export interface ConquestResult {
   /** Troops (whole) of the attacker and the defender when the attack began (parity: equal unless the attacker's cap is lower). */
   readonly attackerTroops: number;
   readonly defenderTroops: number;
+  /** Cells the defender has to lose for the run to count: its whole disc ('disc') or COUNTRY_CELLS ('country'). */
+  readonly goal: number;
 }
 
 /** The attacker clicks again every 15 s (an Attack on a target that is already attacked adds the commitment to the running attack). */
@@ -213,7 +242,7 @@ export async function runConquest(spec: ConquestSpec, trace?: (line: string) => 
     if ((n + 1) % 5 === 0 || lost >= goal) series.push({ t: (state.tick - start) / TICK_HZ, v: lost });
     if (lost >= goal) break;
   }
-  return { spec, seconds: secondsToReach(series, goal), defenderCells, contact: contactAtStart, attackerTroops, defenderTroops };
+  return { spec, seconds: secondsToReach(series, goal), defenderCells, contact: contactAtStart, attackerTroops, defenderTroops, goal };
 }
 
 export interface ConquestRow {
@@ -277,12 +306,19 @@ function countryId(world: Awaited<ReturnType<typeof loadPreparedWorld>>, a3: str
   return c.id;
 }
 
-/** Plays one match at 1x and samples it at every whole minute. `passive`: nobody plays the human seat (3 minutes are enough then). */
+/** The match options of each setup. */
+export const MATCH_OPTIONS: Record<MatchSetupName, (seed: number) => { seed: number; aiNations: number; region?: 'europe' | 'eastAsia' }> = {
+  play: (seed) => ({ seed, aiNations: 5 }),
+  skirmish: (seed) => ({ seed, aiNations: 12, region: 'europe' }),
+  asia: (seed) => ({ seed, aiNations: 5, region: 'eastAsia' }),
+};
+
+/** Plays one match at 1x for `minutes` and samples it at every whole minute. `passive`: nobody plays the human seat. */
 export async function runMatch(setup: MatchSetupName, seed: number, minutes: number, passive: boolean): Promise<MatchRun> {
   const world = await loadPreparedWorld();
   const list = HUMAN_COUNTRIES[setup];
   const human = list[Math.abs(seed) % list.length] as string;
-  const options = setup === 'play' ? { seed, aiNations: 5 } : { seed, aiNations: 12, region: 'europe' as const };
+  const options = MATCH_OPTIONS[setup](seed);
   const built = createMatch(world, matchSetupConfig({ kind: 'real', countryId: countryId(world, human) }, options));
   if (!built.ok) throw new Error(`${setup} seed ${seed} (${human}): ${built.error.code}`);
   const match = built.match;
@@ -293,7 +329,7 @@ export async function runMatch(setup: MatchSetupName, seed: number, minutes: num
   const total = state.grid.totalWeight;
   const nations = match.players - 1;
   const samples: MatchSample[] = [];
-  const run = passive ? 3 : minutes;
+  const run = minutes;
   for (let minute = 1; minute <= run; minute++) {
     host.runTicks(60 * TICK_HZ);
     let top = 0;
@@ -329,6 +365,11 @@ export async function runMatch(setup: MatchSetupName, seed: number, minutes: num
   return { setup, seed, human, passive, samples };
 }
 
+/** True when the passive human of a run still owns land at GUARD_PASSIVE_MINUTE (false when that minute was not sampled). */
+export function passiveAlive(run: MatchRun): boolean {
+  return run.samples.find((s) => s.minute === GUARD_PASSIVE_MINUTE)?.humanAlive ?? false;
+}
+
 export function formatMatch(setup: MatchSetupName, runs: readonly MatchRun[]): string {
   const lines: string[] = [];
   const header = [`${setup}: seed (human)`, ...MATCH_PRINT_MINUTES.map((m) => `min ${m}`)];
@@ -362,7 +403,7 @@ export async function runPace(args: PaceArgs, log: (line: string) => void = cons
   if (args.parts.includes('solo')) {
     const rows = await runSolo();
     report.solo = rows;
-    if (!args.json) log(`${formatSolo(rows)}\n`);
+    if (!args.json) log(`${formatSolo(rows, args.prices)}\n`);
   }
   if (args.parts.includes('conquest')) {
     report.conquest = [];
@@ -379,9 +420,9 @@ export async function runPace(args: PaceArgs, log: (line: string) => void = cons
       const passive: MatchRun[] = [];
       for (const seed of args.seeds) {
         runs.push(await runMatch(setup, seed, args.minutes, false));
-        passive.push(await runMatch(setup, seed, 3, true));
+        passive.push(await runMatch(setup, seed, GUARD_PASSIVE_MINUTE, true));
       }
-      const guards = [...evaluateMatchGuards(runs.map((r) => r.samples)), evaluatePassiveGuard(passive.map((r) => r.samples.find((s) => s.minute === 2)?.humanAlive ?? false))];
+      const guards = [...evaluateMatchGuards(runs.map((r) => r.samples)), evaluatePassiveGuard(passive.map(passiveAlive))];
       report.matches.push({ setup, runs, passive, guards });
       if (!args.json) log(`${formatMatch(setup, runs)}\n${formatGuards(`guard rails (${setup})`, guards)}\n`);
     }

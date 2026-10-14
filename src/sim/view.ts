@@ -86,6 +86,12 @@ export interface SimView {
    * once per ownerVersion.
    */
   contactLength(a: number, b: number): number;
+  /**
+   * Whether `attacker` has an attack running on `target` right now (owner ids; owner 0 = unowned land). An attack ends silently when
+   * its troops or its front run out, so a seat that wants to call one off (CancelAttack) or to answer one asks first: the sim refuses
+   * a CancelAttack of an attack that does not exist (D143).
+   */
+  attackRunning(attacker: number, target: number): boolean;
 }
 
 /**
@@ -122,6 +128,18 @@ export function countContacts(width: number, height: number, owner: ReadonlyNumb
       }
     }
   }
+}
+
+/** The attacks running as pairs (attacker ownerId, target ownerId), one pair per attack in creation order; what a ViewMirror answers `attackRunning` from. */
+export function attackPairs(state: GameState): Uint16Array {
+  const list = state.attacks.list;
+  const out = new Uint16Array(list.length * 2);
+  for (let i = 0; i < list.length; i++) {
+    const a = list[i] as { attacker: number; target: number };
+    out[2 * i] = a.attacker;
+    out[2 * i + 1] = a.target;
+  }
+  return out;
 }
 
 /** Packed statistics of a state, written into `out` (statsLength(seats) long). No allocation. */
@@ -238,5 +256,10 @@ export class StateView implements SimView {
   }
   contactLength(a: number, b: number): number {
     return this.state.borders.contact(a, b);
+  }
+  attackRunning(attacker: number, target: number): boolean {
+    const slots = this.state.attacks.slots;
+    if (attacker < 0 || target < 0 || attacker >= slots || target >= slots) return false;
+    return this.state.attacks.find(attacker, target) !== null;
   }
 }

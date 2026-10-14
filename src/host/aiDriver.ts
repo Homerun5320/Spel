@@ -75,7 +75,7 @@ export class AiDriver implements TickDriver {
           this.rngs.push(new Uint32Array(0));
           continue;
         }
-        this.memories.push(createAiMemory(view, seat, { anchor: this.anchor, order: order++ }));
+        this.memories.push(createAiMemory(view, seat, { anchor: this.anchor, order: order++, humanSeats: [...this.humans] }));
         this.rngs.push(createRng(aiSeatSeed(this.seed, seat)));
       }
     }

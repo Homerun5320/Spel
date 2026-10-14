@@ -78,6 +78,8 @@ export interface ViewSnapshot {
   readonly flow: boolean;
   readonly debugIntents: boolean;
   readonly stats: Uint32Array;
+  /** The attacks running, as pairs (attacker ownerId, target ownerId) one after the other in creation order: `attacks[2 i]`, `attacks[2 i + 1]` (D143). */
+  readonly attacks: Uint16Array;
   readonly owner: Uint16Array | null;
   readonly terrain: Uint8Array | null;
 }
@@ -101,7 +103,7 @@ export function cloneEvent(e: HostEvent): HostEvent {
 
 /** A deep copy of a view snapshot. */
 export function cloneView(v: ViewSnapshot): ViewSnapshot {
-  return { ...v, stats: v.stats.slice(), owner: v.owner === null ? null : v.owner.slice(), terrain: v.terrain === null ? null : v.terrain.slice() };
+  return { ...v, stats: v.stats.slice(), attacks: v.attacks.slice(), owner: v.owner === null ? null : v.owner.slice(), terrain: v.terrain === null ? null : v.terrain.slice() };
 }
 
 export type HostListener = (event: HostEvent) => void;

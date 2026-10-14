@@ -9,12 +9,14 @@
 //  - After that, once per second on its own tick (staggered by seat), a seat with troops of at least AI_EXPAND_TROOP_PCT of its
 //    cap acts: a nation first attacks the WEAKEST neighbour it outnumbers (AI_WAR_MIN_RATIO_PCT), else expands into unowned
 //    land it touches. A tribe only expands. A seat does not attack the same target again within a cooldown.
-//  - Tempo pass (D142): a nation starts no war before AI_WAR_START_TICKS (the land grab comes first), and a nation that owns
-//    AI_WAR_MAX_SHARE_PCT of all land starts none and calls off the ones it has with one CancelAttack per neighbour (only a
-//    neighbour it still touches, so the sim never refuses it).
+//  - Tempo pass (D142, D143): a nation starts no war before AI_WAR_START_TICKS (the land grab comes first) and none on a human seat
+//    before AI_WAR_HUMAN_START_TICKS; a nation that owns AI_WAR_MAX_SHARE_PCT of all land starts none, calls off the ones it has
+//    (only the attacks that still run, asked of the view, so the sim never refuses a Cancel) but answers a neighbour that attacks
+//    it; one that owns AI_EXPAND_MAX_SHARE_PCT also expands no further.
 import {
   AI_ATTACK_COOLDOWN_TICKS,
   AI_EXPAND_COMMIT_PCT,
+  AI_EXPAND_MAX_SHARE_PCT,
   AI_EXPAND_TROOP_PCT,
   AI_MIN_CONTACT_LENGTH,
   AI_NATION_CLEARANCE_CELLS,
@@ -27,6 +29,8 @@ import {
   AI_TRIBE_COOLDOWN_TICKS,
   AI_TRIBE_MAX_CELLS,
   AI_WAR_COMMIT_PCT,
+  AI_WAR_HUMAN_START_TICKS,
+  AI_WAR_MIN_CONTACT_LENGTH,
   AI_WAR_MAX_SHARE_PCT,
   AI_WAR_MIN_RATIO_PCT,
   AI_WAR_START_TICKS,
@@ -86,40 +90,62 @@ export function think(view: SimView, memory: AiMemory, rng: Uint32Array, inFligh
   if (view.phase === PHASE_SPAWN || (tick + memory.phase) % AI_THINK_PERIOD_TICKS !== 0) return NONE;
   if ((stats.alive[seat] as number) === 0) return NONE;
   const owner = seatToOwner(seat);
-  // A nation that owns AI_WAR_MAX_SHARE_PCT of all land calls off the wars it has started (one Cancel per target it attacked, once) and starts none.
-  const atWarCap = !memory.tribe && (stats.landShareQ15[seat] as number) * 100 >= AI_WAR_MAX_SHARE_PCT * WEIGHT_ONE;
-  if (atWarCap) {
+  const share = (stats.landShareQ15[seat] as number) * 100;
+  const atWarCap = !memory.tribe && share >= AI_WAR_MAX_SHARE_PCT * WEIGHT_ONE;
+  const atExpandCap = !memory.tribe && share >= AI_EXPAND_MAX_SHARE_PCT * WEIGHT_ONE;
+  if (atWarCap || atExpandCap) {
+    // At a cap the nation calls off what it started, once: its wars at the war cap, its expansion at the expansion cap. Only an
+    // attack that still runs is cancelled (an attack that ran dry, or that a head-on clash used up, is gone from the sim, and a
+    // Cancel of it would be refused, D143).
     let cancels: IntentBody[] | null = null;
-    for (let o = 1; o <= view.seats; o++) {
-      if (o === owner || (memory.lastAttack[o] as number) < 0) continue;
-      memory.lastAttack[o] = -1;
-      // An attack needs contact; a target that is no neighbour any more has none running (a Cancel would only be refused).
-      if (view.contactLength(owner, o) > 0) (cancels ??= []).push(cancelAttackBody(seat, o));
+    if (atWarCap) {
+      for (let o = 1; o <= view.seats; o++) {
+        if (o === owner || (memory.lastAttack[o] as number) < 0) continue;
+        memory.lastAttack[o] = -1;
+        if (view.attackRunning(owner, o)) (cancels ??= []).push(cancelAttackBody(seat, o));
+      }
+    }
+    if (atExpandCap && view.attackRunning(owner, NO_OWNER)) {
+      memory.lastAttack[NO_OWNER] = -1;
+      (cancels ??= []).push(cancelAttackBody(seat, NO_OWNER));
     }
     if (cancels !== null) return cancels;
   }
   if ((stats.troopsQt[seat] as number) * 100 < (stats.capQt[seat] as number) * AI_EXPAND_TROOP_PCT) return NONE;
   if (memory.tribe && (stats.cells[seat] as number) >= AI_TRIBE_MAX_CELLS) return NONE;
 
-  // War comes after the land grab (AI_WAR_START_TICKS).
-  if (!memory.tribe && !atWarCap && view.phase === PHASE_PLAY && tick >= AI_WAR_START_TICKS) {
-    // War: the weakest neighbour (fewest troops; the lower ownerId on a tie) that we outnumber by the margin.
-    let best = NO_OWNER;
-    let bestTroops = 0;
-    const mine = stats.troopsQt[seat] as number;
-    for (let o = 1; o <= view.seats; o++) {
-      if (o === owner || view.contactLength(owner, o) === 0 || coolingDown(memory, o, tick, AI_ATTACK_COOLDOWN_TICKS)) continue;
-      const theirs = stats.troopsQt[o - 1] as number;
-      if (best === NO_OWNER || theirs < bestTroops) {
-        best = o;
-        bestTroops = theirs;
+  if (!memory.tribe && view.phase === PHASE_PLAY) {
+    if (atWarCap) {
+      // Retaliation: a nation at the war cap starts no war, but it answers the first neighbour that attacks it. The sim sets the
+      // two forces against each other (a mutual attack, D85: both lose the smaller one), so the answer holds the aggressor's troops back.
+      for (let o = 1; o <= view.seats; o++) {
+        if (o === owner || !view.attackRunning(o, owner) || coolingDown(memory, o, tick, AI_ATTACK_COOLDOWN_TICKS)) continue;
+        memory.lastAttack[o] = tick;
+        return [attackBody(seat, o, jittered(AI_WAR_COMMIT_PCT, rng))];
+      }
+    } else if (tick >= AI_WAR_START_TICKS) {
+      // War comes after the land grab (AI_WAR_START_TICKS): the weakest neighbour (fewest troops; the lower ownerId on a tie) that we
+      // outnumber by the margin. A human seat is left alone until AI_WAR_HUMAN_START_TICKS unless it attacks us.
+      let best = NO_OWNER;
+      let bestTroops = 0;
+      const mine = stats.troopsQt[seat] as number;
+      for (let o = 1; o <= view.seats; o++) {
+        // A sliver (a single cell of contact, or a target left with fewer cells than AI_MIN_CONTACT_LENGTH) is gone before the intent runs, 2 ticks later.
+        if (o === owner || view.contactLength(owner, o) < AI_WAR_MIN_CONTACT_LENGTH || (stats.cells[o - 1] as number) < AI_MIN_CONTACT_LENGTH || coolingDown(memory, o, tick, AI_ATTACK_COOLDOWN_TICKS)) continue;
+        if (tick < AI_WAR_HUMAN_START_TICKS && memory.human[o - 1] === 1 && !view.attackRunning(o, owner)) continue;
+        const theirs = stats.troopsQt[o - 1] as number;
+        if (best === NO_OWNER || theirs < bestTroops) {
+          best = o;
+          bestTroops = theirs;
+        }
+      }
+      if (best !== NO_OWNER && mine * 100 >= bestTroops * AI_WAR_MIN_RATIO_PCT) {
+        memory.lastAttack[best] = tick;
+        return [attackBody(seat, best, jittered(AI_WAR_COMMIT_PCT, rng))];
       }
     }
-    if (best !== NO_OWNER && mine * 100 >= bestTroops * AI_WAR_MIN_RATIO_PCT) {
-      memory.lastAttack[best] = tick;
-      return [attackBody(seat, best, jittered(AI_WAR_COMMIT_PCT, rng))];
-    }
   }
+  if (atExpandCap) return NONE;
   // Expansion: unowned land that touches ours along at least AI_MIN_CONTACT_LENGTH (a sliver is gone before the intent runs, 2 ticks later).
   const cooldown = memory.tribe ? AI_TRIBE_COOLDOWN_TICKS : AI_ATTACK_COOLDOWN_TICKS;
   if (view.contactLength(owner, NO_OWNER) >= AI_MIN_CONTACT_LENGTH && !coolingDown(memory, NO_OWNER, tick, cooldown)) {

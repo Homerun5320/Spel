@@ -15,6 +15,7 @@ Resume: Läs CLAUDE.md och docs/PROGRESS.md, kör git log -10 och npm run verify
 | M05 | (set after the squash merge) | Wow 2, the first playable conquest on the globe: SimView and snapshots, ownership texture, spawn phase and click-to-attack, HUD with i18n (sv, en), start screen, AI v0 (5 nations) and 20 tribes. Published in the Artifact as version 5 (version 4 was the early Part A build). GATE: the user played it and reported "Stadiga 30 fps" (steady 30 fps on a real GPU at the default medium quality) and no other complaint; M07 onwards must not regress the FPS at the default quality. Previous merge SHA (origin/main at start): f29121a8d1607ca169e6675b5f22a52d76c42ef7 (nothing is merged yet) |
 | M06 | (set after the squash merge) | Menu: real country or own nation with a procedural flag, fair start (exactly K = 197 cells for every nation), Skirmish regions, search in two languages, flyTo, home land and traits, prefs, createMatch. Published in the Artifact as version 6. Previous merge SHA (origin/main at start): f29121a8d1607ca169e6675b5f22a52d76c42ef7 (nothing is merged yet) |
 | M07a | (set after the squash merge) | Terrain LOD A (user gate): the terrain is a quadtree of instanced chunks with skirts (one draw call, hard chunk cap per tier), the territory and the selection outline on it with finer organic border warp, a terrain-aware orbit zoom down to 1 km above the ground, `#view-alps-valley` and `#view-himalaya-valley`, six contact-sheet goldens. Previous merge SHA (origin/main at start): f29121a8d1607ca169e6675b5f22a52d76c42ef7 (nothing is merged; M00 to M06 live on this branch and in draft pull request #1) Published in the Artifact as version 7. |
+| Tempo | (set after the squash merge) | Pace pass after the user's feedback ("too slow", "needed 4x"): conquest K 123 to 420, troop regeneration about 3x, AI war grace and share cap, `npm run sim:pace` report tool, ENGINE_VERSION 6, solo band moved with the reason "user feedback: too slow". 1x now feels like the old 4x (a 197-cell disc in about 55 s, 500 cells in about 106 s at troop parity and 100 % commitment). Published in the Artifact as version 8. |
 
 ## Now
 
@@ -40,6 +41,24 @@ ACCEPTANS
 - [x] Ratio tests pass unchanged (4:1 troops >= 1.4x speed, mountain >= 2.2x price, uphill dearer than downhill); the sim is deterministic with integer arithmetic only
 - [x] Browser side: advance cost per frame at 4x within the existing budgets, texture uploads <= 10 per fx second at 4x, HUD sane
 - [x] Goldens re-pinned once and justified; `npm run verify` green twice in a row; build and pack done
+
+### Tempo audit fixes (one session after the audit of the tempo pass; the orchestrator owns pushing, the pull request and the Artifact)
+
+Previous merge SHA (origin/main at start): f29121a8d1607ca169e6675b5f22a52d76c42ef7 (unchanged; nothing is merged). Read D143 of `docs/DECISIONS.md`. No conquest or economy constant changed; the pace of D142 stands.
+
+GÖR
+- [x] F1. `SimView.attackRunning` (StateView, ViewMirror through `ViewSnapshot.attacks`), the AI cancels only attacks that still run; contact and sliver rules so the AI sends no refused intent (Skirmish seeds 1 to 12: 0 refusals)
+- [x] F2. AI caps: `AI_EXPAND_MAX_SHARE_PCT` 20 (expansion cap), retaliation at the war cap, `AI_WAR_HUMAN_START_TICKS` 3600 (no war on a human before 360 s), `AI_WAR_MIN_CONTACT_LENGTH` 2; BALANCE rows, public.ts exports, pinned list
+- [x] F3. Guard rails: top share at minutes 15, 20, 25, frozen-board check, passive player at minute 5; `sim:pace` plays 25 minutes, `asia` setup on request, solo income and `--prices`
+- [x] F4. Tests: contested pace (POL disc and country, 40 %, counter-attacker, the five-location table), `SOLO_BAND` pin, the pace tool (country goal, re-click interval, counter-attacker, top AI share without the human, solo minute index, passive minute, locations, human bot ratio), the AI (refused Cancel, retaliation, expansion cap, human seat, sliver), driver seeds 1 to 6, mirror equals sim for `attackRunning`
+- [x] F5. Docs: D143, BACKLOG carry-over for M09 to M19 (income table, M09 bullet, M12a beachhead, caps), PREVIEW 17j and 17v, ARCHITECTURE, BALANCE
+- [x] F6. `npm run verify:fast`, `npm run verify` (background, log), `npm run build && npm run artifact:pack`, local commit
+
+ACCEPTANS
+- [x] No refused intent in the Skirmish seeds 1 to 6 (and none ever a `REJECT_NO_ATTACK`); the new tests fail on the old behaviour (mutation checked)
+- [x] Guard rails over seeds 1 to 5 of Play, Skirmish and East Asia: all PASS (top AI share at most 20.1 % at minutes 15 to 25, passive player alive at minute 5)
+- [x] The contested pace is asserted by a test that fails when it falls back to the old pace
+- [ ] `npm run verify` green; build and pack done
 
 ### M07a Terrain LOD A: quadtree chunks and geometry (USER GATE) - three sessions: Part A (items 1, 2, 3, 5, 6 and their tests; DONE, see below), Part B (items 4, 7), Part C (item 8, goldens, finish). The orchestrator owns pushing, the pull request and the Artifact.
 

@@ -6,6 +6,7 @@ import { ownerCapQt } from '../../src/sim/economy';
 import {
   AI_ATTACK_COOLDOWN_TICKS,
   AI_EXPAND_COMMIT_PCT,
+  AI_EXPAND_MAX_SHARE_PCT,
   AI_EXPAND_TROOP_PCT,
   AI_MIN_CONTACT_LENGTH,
   AI_NATION_CLEARANCE_CELLS,
@@ -18,7 +19,9 @@ import {
   AI_TRIBE_COOLDOWN_TICKS,
   AI_TRIBE_MAX_CELLS,
   AI_WAR_COMMIT_PCT,
+  AI_WAR_HUMAN_START_TICKS,
   AI_WAR_MAX_SHARE_PCT,
+  AI_WAR_MIN_CONTACT_LENGTH,
   AI_WAR_START_TICKS,
   START_DISC_RADIUS_CELLS,
 } from '../../src/sim/rules';
@@ -278,7 +281,7 @@ describe('think: the spawn', () => {
 });
 
 /** Two AI nations side by side (their discs touch) plus a human seat 0 that never acts; both spawned at tick 2. Returns the state and the views. */
-function twoNations(gapX = 16): { state: GameState; view: StateView; a: AiMemory; b: AiMemory; rng: Uint32Array } {
+function twoNations(gapX = 14): { state: GameState; view: StateView; a: AiMemory; b: AiMemory; rng: Uint32Array } {
   const state = world(120, 64, { seats: 3, players: 3 });
   const view = new StateView(state);
   const rng = createRng(3);
@@ -371,21 +374,31 @@ describe('think: expansion and war', () => {
     expect((think(later.view, later.a, later.rng)[0] as { target: number }).target).toBe(theirs);
   });
 
-  it('a nation at AI_WAR_MAX_SHARE_PCT of all land starts no war and calls off the ones it has (one Cancel per neighbour it attacked, once)', () => {
-    // A 48 x 24 world: two capital discs (197 cells each, 17 % of the 1152 cells) 17 columns apart, so they touch and each is above the cap.
-    const state = world(48, 24, { seats: 2, players: 2 });
+  /** A 48 x 34 world: two capital discs (197 cells each, about 17.7 % of the land when weighted by latitude) 17 columns apart, so they touch and each is above the war cap (15 %) and below the expansion cap (20 %). */
+  function capWorld(): { state: GameState; view: StateView; a: AiMemory; mine: number; theirs: number; rng: Uint32Array } {
+    const state = world(48, 34, { seats: 2, players: 2 });
     const view = new StateView(state);
-    run(state, 3, { 0: [{ kind: 'Spawn', seat: 0, cell: 12 * 48 + 14 }, { kind: 'Spawn', seat: 1, cell: 12 * 48 + 31 }] });
+    run(state, 3, { 0: [{ kind: 'Spawn', seat: 0, cell: 17 * 48 + 14 }, { kind: 'Spawn', seat: 1, cell: 17 * 48 + 31 }] });
     run(state, AI_WAR_START_TICKS);
-    const a = createAiMemory(view, 0);
-    toThinkTick(state, a);
+    const a = createAiMemory(view, 0, { humanSeats: [] });
     const [mine, theirs] = [seatToOwner(0), seatToOwner(1)];
+    return { state, view, a, mine, theirs, rng: createRng(3) };
+  }
+
+  it('a nation at AI_WAR_MAX_SHARE_PCT of all land starts no war and calls off the ones it has (one Cancel per neighbour it attacked, once)', () => {
+    const { state, view, a, mine, theirs, rng } = capWorld();
+    // It has really started one (D143: only an attack that still runs is cancelled).
+    state.troops[mine] = ownerCapQt(state, mine);
+    state.troops[theirs] = ownerCapQt(state, theirs);
+    run(state, state.tick + 3, { [state.tick]: [{ kind: 'Attack', seat: 0, target: theirs, pct: 100 }] });
+    toThinkTick(state, a);
     state.troops[mine] = ownerCapQt(state, mine);
     state.troops[theirs] = 100;
     view.refresh();
+    expect(view.attackRunning(mine, theirs)).toBe(true);
     expect(view.contactLength(mine, theirs)).toBeGreaterThan(0);
     expect((view.stats.landShareQ15[0] as number) * 100).toBeGreaterThanOrEqual(AI_WAR_MAX_SHARE_PCT * 32768);
-    const rng = createRng(3);
+    expect((view.stats.landShareQ15[0] as number) * 100).toBeLessThan(AI_EXPAND_MAX_SHARE_PCT * 32768);
     // No war although the neighbour is a fraction of its size.
     expect(think(view, a, rng).some((b) => b.kind === 'Attack' && b.target === theirs)).toBe(false);
     // It had started one: it calls it off, once.
@@ -395,6 +408,134 @@ describe('think: expansion and war', () => {
     expect(think(view, a, rng).some((b) => b.kind === 'CancelAttack')).toBe(false);
   });
 
+  it('never cancels an attack that is not running any more (the sim refuses a Cancel of it, D143): the memory is cleared and nothing is sent', () => {
+    const { state, view, a, mine, theirs, rng } = capWorld();
+    state.troops[mine] = ownerCapQt(state, mine);
+    state.troops[theirs] = 100;
+    toThinkTick(state, a);
+    view.refresh();
+    expect(view.attackRunning(mine, theirs)).toBe(false);
+    a.lastAttack[theirs] = state.tick - 100; // the AI remembers a war that ran dry
+    const out = think(view, a, rng);
+    expect(out.some((b) => b.kind === 'CancelAttack')).toBe(false);
+    expect(a.lastAttack[theirs]).toBe(-1);
+  });
+
+  it('a nation at the war cap answers a neighbour that attacks it: its force is set against the attacker\'s (the mutual attack of D85) and is never "called off" afterwards (D143)', () => {
+    const { state, view, a, mine, theirs, rng } = capWorld();
+    // The neighbour (seat 1) attacks us (seat 0) with everything.
+    state.troops[mine] = ownerCapQt(state, mine);
+    state.troops[theirs] = ownerCapQt(state, theirs);
+    run(state, state.tick + 3, { [state.tick]: [{ kind: 'Attack', seat: 1, target: mine, pct: 100 }] });
+    toThinkTick(state, a);
+    state.troops[mine] = ownerCapQt(state, mine);
+    view.refresh();
+    expect(view.attackRunning(theirs, mine)).toBe(true);
+    const before = state.attacks.find(theirs, mine)?.troops as number;
+    const out = think(view, a, rng);
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({ kind: 'Attack', seat: 0, target: theirs });
+    // The answer takes troops off the aggressor's attack at once.
+    run(state, state.tick + 3, { [state.tick]: [out[0] as IntentBody] });
+    const after = state.attacks.find(theirs, mine)?.troops as number;
+    expect(after).toBeLessThan(before);
+    // The aggressor goes on; the next thought, after the cooldown, answers again and never sends a Cancel.
+    run(state, state.tick + AI_ATTACK_COOLDOWN_TICKS);
+    toThinkTick(state, a);
+    state.troops[mine] = ownerCapQt(state, mine);
+    view.refresh();
+    expect(view.attackRunning(theirs, mine)).toBe(true);
+    const again = think(view, a, rng);
+    expect(again.some((b) => b.kind === 'CancelAttack')).toBe(false);
+    expect(again[0]).toMatchObject({ kind: 'Attack', seat: 0, target: theirs });
+    // Nobody attacks it: a nation at the war cap starts no war (it may still expand into free land, below the expansion cap).
+    const quiet = capWorld();
+    toThinkTick(quiet.state, quiet.a);
+    quiet.state.troops[quiet.mine] = ownerCapQt(quiet.state, quiet.mine);
+    quiet.view.refresh();
+    expect(think(quiet.view, quiet.a, quiet.rng).some((b) => b.kind === 'Attack' && b.target === quiet.theirs)).toBe(false);
+  });
+
+  it('a nation at AI_EXPAND_MAX_SHARE_PCT expands no more and calls off its running expansion (D143)', () => {
+    // 40 x 24 = 960 cells: one disc is 20.5 %.
+    const state = world(40, 24, { seats: 2, players: 2 });
+    const view = new StateView(state);
+    run(state, 3, { 0: [{ kind: 'Spawn', seat: 1, cell: 12 * 40 + 20 }] });
+    // a strip of free land is not needed: the disc has unowned land next to it (the rest of the world)
+    run(state, AI_WAR_START_TICKS);
+    const a = createAiMemory(view, 1, { humanSeats: [] });
+    const mine = seatToOwner(1);
+    toThinkTick(state, a);
+    state.troops[mine] = ownerCapQt(state, mine);
+    view.refresh();
+    expect((view.stats.landShareQ15[1] as number) * 100).toBeGreaterThanOrEqual(AI_EXPAND_MAX_SHARE_PCT * 32768);
+    expect(view.contactLength(mine, 0)).toBeGreaterThanOrEqual(AI_MIN_CONTACT_LENGTH);
+    const rng = createRng(3);
+    expect(think(view, a, rng)).toEqual([]);
+    // With an expansion running, it is cancelled once.
+    run(state, state.tick + 3, { [state.tick]: [{ kind: 'Attack', seat: 1, target: 0, pct: 100 }] });
+    toThinkTick(state, a);
+    state.troops[mine] = ownerCapQt(state, mine);
+    view.refresh();
+    expect(view.attackRunning(mine, 0)).toBe(true);
+    expect(think(view, a, rng)).toEqual([{ kind: 'CancelAttack', seat: 1, target: 0 }]);
+  });
+
+  it('starts no war on a human seat before AI_WAR_HUMAN_START_TICKS, but does at once against a human who attacks it, and after the grace (D143)', () => {
+    const [mine, theirs] = [seatToOwner(1), seatToOwner(2)];
+    const build = (): ReturnType<typeof twoNations> => {
+      const w = twoNations();
+      run(w.state, AI_WAR_START_TICKS);
+      toThinkTick(w.state, w.a);
+      w.state.troops[mine] = ownerCapQt(w.state, mine);
+      w.state.troops[theirs] = 100;
+      w.view.refresh();
+      return w;
+    };
+    const target = (w: ReturnType<typeof twoNations>, human: boolean): number => {
+      const memory = createAiMemory(w.view, 1, { humanSeats: human ? [2] : [] });
+      return (think(w.view, memory, w.rng)[0] as { target: number }).target;
+    };
+    // seat 2 is a human: left alone (the nation expands instead); not a human: attacked.
+    const early = build();
+    expect(early.state.tick).toBeLessThan(AI_WAR_HUMAN_START_TICKS);
+    expect(target(early, true)).toBe(0);
+    expect(target(early, false)).toBe(theirs);
+    // The human attacks us: the nation answers.
+    const attacked = build();
+    attacked.state.troops[theirs] = ownerCapQt(attacked.state, theirs);
+    run(attacked.state, attacked.state.tick + 3, { [attacked.state.tick]: [{ kind: 'Attack', seat: 2, target: mine, pct: 100 }] });
+    toThinkTick(attacked.state, attacked.a);
+    attacked.state.troops[mine] = ownerCapQt(attacked.state, mine);
+    attacked.state.troops[theirs] = 100;
+    attacked.view.refresh();
+    expect(attacked.view.attackRunning(theirs, mine)).toBe(true);
+    expect(target(attacked, true)).toBe(theirs);
+    // After the grace the human is a target like any other.
+    const late = twoNations();
+    run(late.state, AI_WAR_HUMAN_START_TICKS);
+    toThinkTick(late.state, late.a);
+    late.state.troops[mine] = ownerCapQt(late.state, mine);
+    late.state.troops[theirs] = 100;
+    late.view.refresh();
+    expect(target(late, true)).toBe(theirs);
+  });
+
+  it('starts no war over a single cell of contact (it is gone before the intent runs, D143), and does with AI_WAR_MIN_CONTACT_LENGTH', () => {
+    for (const [gap, war] of [[16, false], [14, true]] as const) {
+      const w = twoNations(gap);
+      run(w.state, AI_WAR_START_TICKS);
+      toThinkTick(w.state, w.a);
+      const [mine, theirs] = [seatToOwner(1), seatToOwner(2)];
+      w.state.troops[mine] = ownerCapQt(w.state, mine);
+      w.state.troops[theirs] = 100;
+      w.view.refresh();
+      const contact = w.view.contactLength(mine, theirs);
+      expect(contact >= AI_WAR_MIN_CONTACT_LENGTH, `gap ${gap} contact ${contact}`).toBe(war);
+      expect((think(w.view, w.a, w.rng)[0] as { target: number }).target, `gap ${gap}`).toBe(war ? theirs : 0);
+    }
+  });
+
   it('picks the WEAKEST of several neighbours, ties to the lower owner id', () => {
     const state = world(160, 64, { seats: 4, players: 4 });
     const view = new StateView(state);
@@ -402,8 +543,8 @@ describe('think: expansion and war', () => {
     run(state, 3, {
       0: [
         { kind: 'Spawn', seat: 1, cell: 32 * 160 + 80 },
-        { kind: 'Spawn', seat: 2, cell: 32 * 160 + 96 },
-        { kind: 'Spawn', seat: 3, cell: 32 * 160 + 64 },
+        { kind: 'Spawn', seat: 2, cell: 32 * 160 + 94 },
+        { kind: 'Spawn', seat: 3, cell: 32 * 160 + 66 },
       ],
     });
     run(state, AI_WAR_START_TICKS);
@@ -431,7 +572,7 @@ describe('think: expansion and war', () => {
       const state = world(100, 40, {
         seats: 2,
         players: 2,
-        classAt: (x, y) => ((x - cx) * (x - cx) + (y - cy) * (y - cy) <= R * R || free(x, y) ? CLASS_PLAINS : CLASS_DEEP_SEA),
+        classAt: (x, y) => ((x - cx) * (x - cx) + (y - cy) * (y - cy) <= R * R || free(x, y) || x >= 70 ? CLASS_PLAINS : CLASS_DEEP_SEA), // x >= 70: land out of reach, so the disc is below the share caps (D143)
       });
       const view = new StateView(state);
       run(state, 3, { 0: [{ kind: 'Spawn', seat: 1, cell: cy * 100 + cx }] });

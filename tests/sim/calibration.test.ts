@@ -10,6 +10,19 @@ async function solo(country: string, minutes = 10): Promise<number[]> {
   return report.rows.map((r) => r.cells[0] as number);
 }
 
+describe('the solo band itself is pinned (D143)', () => {
+  // The only allowed change of a band is "the measured value +-30 %" (M04 rule), with a reason in docs/DECISIONS.md. Without this test a band could be
+  // widened until any curve fits, which defeats it (M09 and M12 reuse it).
+  it('SOLO_BAND is exactly the tempo pass band and equals the reference curve (8 063 cells after 5 minutes, 10 786 after 10, D142) times 0.7 and 1.3 within 1 %', () => {
+    expect(SOLO_BAND).toEqual({ country: 'RUS', seed: 1, minute5: [5600, 10500], minute10: [7500, 14000] });
+    const near = (bound: number, want: number): boolean => Math.abs(bound - want) / want <= 0.01;
+    expect(near(SOLO_BAND.minute5[0], 0.7 * 8063), 'minute 5, lower').toBe(true);
+    expect(near(SOLO_BAND.minute5[1], 1.3 * 8063), 'minute 5, upper').toBe(true);
+    expect(near(SOLO_BAND.minute10[0], 0.7 * 10786), 'minute 10, lower').toBe(true);
+    expect(near(SOLO_BAND.minute10[1], 1.3 * 10786), 'minute 10, upper').toBe(true);
+  });
+});
+
 describe('solo expander calibration', () => {
   it('the reference scenario (one player on the capital of the largest country) holds the band of tools/sim/bands.ts: 5 600-10 500 cells after 5 minutes and 7 500-14 000 after 10 (it was 1 500-2 500 and 5 000-8 000 before the tempo pass)', async () => {
     const curve = await solo(SOLO_BAND.country);

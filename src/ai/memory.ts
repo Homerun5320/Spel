@@ -20,11 +20,15 @@ export interface AiMemory {
   attempts: number;
   /** Tick of the last Attack this seat sent per target ownerId, -1 = never. */
   readonly lastAttack: Int32Array;
+  /** 1 per seat that a human plays (index = seat): a nation starts no war on such a seat before AI_WAR_HUMAN_START_TICKS (D143). */
+  readonly human: Uint8Array;
 }
 
 export interface AiMemoryOptions {
   /** The anchor seat (default AI_ANCHOR_SEAT). */
   readonly anchor?: number;
+  /** The seats a human plays (default: the anchor seat only). */
+  readonly humanSeats?: readonly number[];
   /** Position of the seat in the Spawn order (default: seat - 1, i.e. seat 0 is the one human). With several or other human seats the driver counts the AI seats. */
   readonly order?: number;
 }
@@ -34,9 +38,12 @@ export function createAiMemory(view: SimView, seat: number, options: AiMemoryOpt
   const tribe = seat >= view.players;
   // Spawn order: the AI seats in seat order (the nations), then the first tribe, the second, ...; the human seats never think.
   const order = options.order ?? seat - 1;
+  const anchor = options.anchor ?? AI_ANCHOR_SEAT;
+  const human = new Uint8Array(view.seats);
+  for (const h of options.humanSeats ?? [anchor]) if (h >= 0 && h < view.seats) human[h] = 1;
   return {
     seat,
-    anchor: options.anchor ?? AI_ANCHOR_SEAT,
+    anchor,
     tribe,
     slot: order * AI_SPAWN_SPACING_TICKS,
     release: -1,
@@ -44,5 +51,6 @@ export function createAiMemory(view: SimView, seat: number, options: AiMemoryOpt
     retryAt: 0,
     attempts: 0,
     lastAttack: new Int32Array(view.seats + 1).fill(-1),
+    human,
   };
 }

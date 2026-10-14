@@ -75,3 +75,38 @@ describe('SimView.contactLength', () => {
     expect(at(0, 2)).toBe(0);
   });
 });
+
+describe('SimView.attackRunning (D143)', () => {
+  it('the mirror equals the sim for every pair of owners while a real match with the AI runs, and some attacks do run', async () => {
+    const world = await loadRealWorld();
+    const state = createWorldState(world, { seed: 5, seats: SEATS, players: PLAYERS, config: { debugIntents: false, spawnPhase: true } });
+    const host = new MainThreadHost(state, { driver: new AiDriver(5) });
+    const { mirror } = await ViewMirror.attach(host);
+    const live = new StateView(state);
+    let running = 0;
+    let toOwned = 0;
+    for (const upTo of [600, 1500, 2600, 3500, 4500]) {
+      host.runTicks(upTo - state.tick);
+      live.refresh();
+      for (let a = 0; a <= SEATS; a++) {
+        for (let b = 0; b <= SEATS; b++) {
+          const want = state.attacks.find(a, b) !== null;
+          expect(live.attackRunning(a, b), `live tick ${upTo}: attack(${a}, ${b})`).toBe(want);
+          expect(mirror.attackRunning(a, b), `mirror tick ${upTo}: attack(${a}, ${b})`).toBe(want);
+          if (want) {
+            running++;
+            if (b !== 0) toOwned++;
+          }
+        }
+      }
+    }
+    expect(running).toBeGreaterThan(20);
+    expect(toOwned).toBeGreaterThan(0);
+    // out of range ids are no attack
+    for (const view of [live, mirror]) {
+      expect(view.attackRunning(-1, 2)).toBe(false);
+      expect(view.attackRunning(2, SEATS + 5)).toBe(false);
+      expect(view.attackRunning(3, 3)).toBe(false);
+    }
+  });
+});

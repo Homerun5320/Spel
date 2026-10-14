@@ -10,7 +10,10 @@ import { hashState } from '../../src/sim/serialize';
 import { type GameState } from '../../src/sim/state';
 import { createWorldState, type SimWorld } from '../../src/sim/world';
 import { StateView } from '../../src/sim/view';
-import { loadRealWorld } from '../../tools/sim/realWorld';
+import { createMatch, matchSetupConfig } from '../../src/app/matchSetup';
+import { REJECT_NO_ATTACK } from '../../src/sim/intents';
+import { HUMAN_COUNTRIES, MATCH_OPTIONS } from '../../tools/sim/pace';
+import { loadPreparedWorld, loadRealWorld } from '../../tools/sim/realWorld';
 
 const PLAYERS = 1 + MATCH_AI_NATIONS;
 const cellAt = (lat: number, lon: number): number => Math.floor(((90 - lat) / 180) * 512) * 1024 + Math.floor(((lon + 180) / 360) * 1024);
@@ -266,4 +269,41 @@ describe('the AI driver in the host', () => {
     view.refresh();
     expect(tribeCells(view)).toBeGreaterThan((MATCH_TRIBES * START_DISC_CELLS) / 2);
   });
+
+  it('D143: the Skirmish seeds 1 to 6 (12 AI nations, Europe) send no refused intent in 10 minutes, and no seed of either setup ever has a CancelAttack refused (REJECT_NO_ATTACK)', async () => {
+    const world = await loadPreparedWorld();
+    let cancels = 0;
+    for (const setup of ['skirmish', 'play'] as const) {
+      for (let seed = 1; seed <= 6; seed++) {
+        const human = HUMAN_COUNTRIES[setup][seed % HUMAN_COUNTRIES[setup].length] as string;
+        const country = world.countries.find((c) => c.a3 === human);
+        if (country === undefined) throw new Error(`no country ${human}`);
+        const built = createMatch(world, matchSetupConfig({ kind: 'real', countryId: country.id }, MATCH_OPTIONS[setup](seed)));
+        if (!built.ok) throw new Error(`${setup} ${seed}: ${built.error.code}`);
+        const ai = new AiDriver(seed, { humanSeats: [built.match.humanSeat] });
+        const log: IntentBody[] = [];
+        const driver: TickDriver = {
+          onTick(view, submit) {
+            ai.onTick(view, (body) => {
+              if (body.kind === 'CancelAttack') log.push(body);
+              submit(body);
+            });
+          },
+        };
+        const host = new MainThreadHost(built.match.state, { driver });
+        const reasons: number[] = [];
+        host.subscribe((e) => {
+          if (e.type === 'diff' && e.diff.view.lastRejectTick === e.diff.toTick - 1) reasons.push(e.diff.view.lastRejectReason);
+        });
+        for (let t = 0; t < 6000; t++) host.runTicks(1);
+        cancels += log.length;
+        expect(reasons.filter((r) => r === REJECT_NO_ATTACK), `${setup} seed ${seed}: refused Cancels`).toEqual([]);
+        // Skirmish: not one refusal. Play: at most one (a target the sim flips whole in the 2 ticks between the AI's look and the intent, e.g. an enclave).
+        expect(built.match.state.rejects, `${setup} seed ${seed}`).toBeLessThanOrEqual(setup === 'skirmish' ? 0 : 1);
+        host.dispose();
+      }
+    }
+    // The test is not vacuous: the caps did send Cancels.
+    expect(cancels).toBeGreaterThan(5);
+  }, 120000);
 });
