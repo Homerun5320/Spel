@@ -8,7 +8,7 @@ import type { GlobePick } from '../render/describe';
 import { REGION_IDS, type RegionId } from '../data/regions';
 import { SETUP_AI_NATIONS_MAX, START_DISC_CELLS } from '../sim/rules';
 import { cssOfHex, drawFlag, flagSpecText, makeFlagSpec } from '../ui/flag';
-import { getLanguage, onLanguageChange, setLanguage, t, type TextKey } from '../ui/i18n';
+import { getLanguage, onLanguageChange, setLanguage, t, tn, type TextKey } from '../ui/i18n';
 import { mountHudStyle } from '../ui/hudStyle';
 import { CUSTOM_NAME_MAX_CHARS, FLAG_PREVIEW_H, FLAG_PREVIEW_W, SETUP_FLY_MAX_KM, SETUP_PLACE_DIST_KM } from '../ui/uiConfig';
 import { resolveClickCell } from './clickTarget';
@@ -318,7 +318,7 @@ export function mountSetupScreen(parent: HTMLElement, world: PreparedWorld, init
       const name = el('span', 'setup-row-name');
       name.textContent = countryName(c, lang);
       const meta = el('span', 'setup-row-meta');
-      meta.textContent = t('setup.cells', { cells: e.cells });
+      meta.textContent = tn('setup.cells', 'setup.cells.one', e.cells, { cells: e.cells });
       row.append(name, meta);
       if (!e.ok && e.key !== null) {
         const why = el('span', 'setup-row-why', 'setup-row-why');
@@ -508,12 +508,28 @@ export function mountSetupScreen(parent: HTMLElement, world: PreparedWorld, init
   search.addEventListener('keydown', (e) => {
     if (e.key !== 'Enter') return;
     e.preventDefault();
+    // Enter takes the first hit, but only a country that can be played: a disabled first row (its reason is printed in it) is not chosen.
     const first = list.querySelector('[data-country-id]');
-    if (first instanceof HTMLElement) {
+    if (first instanceof HTMLElement && first.dataset.ok === '1') {
       const c = world.byId.get(Number(first.dataset.countryId));
       if (c !== undefined) selectCountry(c, true);
     }
   });
+  // Escape: the first press leaves the text field that has the focus, the next one goes back to the main menu. (The search field of type
+  // "search" would clear itself on Escape; the key is ours here.) A press the Dev panel already used is not ours.
+  const onEscape = (e: KeyboardEvent): void => {
+    if (e.key !== 'Escape' || e.defaultPrevented || !root.isConnected || starting) return;
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && root.contains(active) && (active instanceof HTMLInputElement || active instanceof HTMLSelectElement) && active.type !== 'checkbox') {
+      e.preventDefault();
+      active.blur();
+      return;
+    }
+    if (active instanceof HTMLElement && !root.contains(active) && (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement || active instanceof HTMLSelectElement)) return; // typing elsewhere
+    e.preventDefault();
+    hooks.back();
+  };
+  window.addEventListener('keydown', onEscape);
   list.addEventListener('click', (e) => {
     const target = e.target instanceof Element ? e.target.closest('[data-country-id]') : null;
     if (!(target instanceof HTMLElement)) return;
@@ -634,6 +650,7 @@ export function mountSetupScreen(parent: HTMLElement, world: PreparedWorld, init
     },
     dispose(): void {
       stopLang();
+      window.removeEventListener('keydown', onEscape);
       root.remove();
     },
   };

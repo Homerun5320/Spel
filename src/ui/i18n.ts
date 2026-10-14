@@ -82,14 +82,15 @@ const sv = {
   'class.6': 'Bergstopp',
   'class.7': 'Is',
 
-  'setup.reason.tooFewCells': 'för få celler för en rättvis start: {cells} av {need} celler',
-  'setup.reason.smallLandmass': 'för liten landmassa för en rättvis start: {cells} av {need} celler',
-  'setup.reason.noCapitalLand': 'huvudstaden ligger inte på spelbar mark',
-  'setup.reason.outsideRegion': 'ligger utanför det valda utsnittet',
-  'setup.reason.excluded': 'inte valbart i spelet',
+  'setup.reason.tooFewCells': 'Landet har för få celler för en rättvis start: {cells} av {need} celler.',
+  'setup.reason.smallLandmass': 'Landmassan är för liten för en rättvis start: {cells} av {need} celler.',
+  'setup.reason.noCapitalLand': 'Huvudstaden ligger inte på spelbar mark.',
+  'setup.reason.outsideRegion': 'Landet ligger utanför det valda utsnittet.',
+  'setup.reason.excluded': 'Landet är inte valbart i spelet.',
   'setup.start.terrain': 'Välj en plats på land (slätt, skog, kullar eller berg).',
   'setup.error.invalid': 'Ogiltig inställning: {field}.',
   'setup.error.neutralNeedsCustom': 'Läget utan riktiga gränser kräver en egen nation.',
+  'setup.error.nameTaken': 'Namnet "{name}" tillhör ett riktigt land. Välj ett eget namn.',
   'setup.error.notEnoughCountries': 'Det finns bara {available} lämpliga länder för {wanted} AI-nationer i det här utsnittet.',
   'start.setup': 'Välj land och inställningar',
   'start.playHint': 'Snabbstart: du klickar var du vill börja på jordklotet.',
@@ -107,6 +108,7 @@ const sv = {
   'setup.pickHint': 'Eller klicka på ett land på globen.',
   'setup.noMatch': 'Inget land matchar sökningen.',
   'setup.cells': '{cells} celler',
+  'setup.cells.one': '{cells} cell',
   'setup.countryOk': '{name} kan väljas. Din startskiva blir {need} celler.',
   'setup.click.sea': 'Det där är hav. Klicka på ett land.',
   'setup.click.unknown': 'Det landet finns inte i listan.',
@@ -222,14 +224,15 @@ const en: Record<TextKey, string> = {
   'class.5': 'Mountains',
   'class.6': 'Peak',
   'class.7': 'Ice',
-  'setup.reason.tooFewCells': 'too few cells for a fair start: {cells} of {need} cells',
-  'setup.reason.smallLandmass': 'land mass too small for a fair start: {cells} of {need} cells',
-  'setup.reason.noCapitalLand': 'the capital is not on playable land',
-  'setup.reason.outsideRegion': 'lies outside the chosen region',
-  'setup.reason.excluded': 'not selectable in the game',
+  'setup.reason.tooFewCells': 'The country has too few cells for a fair start: {cells} of {need} cells.',
+  'setup.reason.smallLandmass': 'The land mass is too small for a fair start: {cells} of {need} cells.',
+  'setup.reason.noCapitalLand': 'The capital is not on playable land.',
+  'setup.reason.outsideRegion': 'The country lies outside the chosen region.',
+  'setup.reason.excluded': 'The country is not selectable in the game.',
   'setup.start.terrain': 'Pick a place on land (plains, forest, hills or mountains).',
   'setup.error.invalid': 'Invalid setting: {field}.',
   'setup.error.neutralNeedsCustom': 'The mode without real borders needs a custom nation.',
+  'setup.error.nameTaken': 'The name "{name}" belongs to a real country. Choose a name of your own.',
   'setup.error.notEnoughCountries': 'Only {available} suitable countries exist for {wanted} AI nations in this region.',
   'start.setup': 'Choose country and options',
   'start.playHint': 'Quick start: you click where you want to begin on the globe.',
@@ -247,6 +250,7 @@ const en: Record<TextKey, string> = {
   'setup.pickHint': 'Or click a country on the globe.',
   'setup.noMatch': 'No country matches the search.',
   'setup.cells': '{cells} cells',
+  'setup.cells.one': '{cells} cell',
   'setup.countryOk': '{name} can be chosen. Your start disc will be {need} cells.',
   'setup.click.sea': 'That is sea. Click a country.',
   'setup.click.unknown': 'That country is not in the list.',
@@ -363,6 +367,14 @@ export function t(key: TextKey, params?: TextParams): string {
     }
     return String(v);
   });
+}
+
+/**
+ * A text with a count: `oneKey` when `count` is exactly 1, else `key` (the plural; also used for 0). Both languages here have two forms, so the
+ * pair is all a caller needs: `tn('setup.cells', 'setup.cells.one', n, { cells: n })`. The value is passed in `params` like for `t`.
+ */
+export function tn(key: TextKey, oneKey: TextKey, count: number, params?: TextParams): string {
+  return t(count === 1 ? oneKey : key, params);
 }
 
 /** True when `key` exists in both tables. */

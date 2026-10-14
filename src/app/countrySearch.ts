@@ -17,6 +17,17 @@ export function normalizeSearch(text: string): string {
   return out.replace(/[^a-z0-9]+/g, ' ').trim();
 }
 
+/**
+ * The country whose English or Swedish name is `name` (same normalisation as the search: case, accents and spacing do not matter), or null.
+ * A custom nation may not take such a name: it would be two nations with one name in the leaderboard (M06fix).
+ */
+export function countryWithName(countries: readonly CountryInfo[], name: string): CountryInfo | null {
+  const wanted = normalizeSearch(name);
+  if (wanted === '') return null;
+  for (const c of countries) if (normalizeSearch(c.nameEn) === wanted || normalizeSearch(c.nameSv) === wanted) return c;
+  return null;
+}
+
 /** The name of a country in a language. */
 export function countryName(country: CountryInfo, lang: Lang): string {
   return lang === 'sv' ? country.nameSv : country.nameEn;

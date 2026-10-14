@@ -41,6 +41,7 @@ import { makeFlagSpec, type FlagSpec } from '../ui/flag';
 import type { TextKey } from '../ui/i18n';
 import { createSeatLabels, type SeatIdentity, type SeatLabels } from '../ui/seatLabels';
 import { CUSTOM_NAME_MAX_CHARS } from '../ui/uiConfig';
+import { countryWithName } from './countrySearch';
 import { countryEligibility, startCellEligibility } from './eligibility';
 import { inventName } from './inventedNames';
 import type { CountryInfo, PreparedWorld, RegionAnalysis } from './matchWorld';
@@ -103,7 +104,7 @@ export function matchSetupConfig(player: PlayerChoice, options: Partial<Omit<Mat
   };
 }
 
-export type SetupErrorCode = 'invalid' | 'neutralNeedsCustom' | 'unknownCountry' | 'notSelectable' | 'startCell' | 'notEnoughCountries';
+export type SetupErrorCode = 'invalid' | 'neutralNeedsCustom' | 'unknownCountry' | 'notSelectable' | 'startCell' | 'notEnoughCountries' | 'nameTaken';
 
 /** Why a config was refused: a code for the tests and an i18n key with its parameters for the player. */
 export interface SetupError {
@@ -247,6 +248,12 @@ function build(world: PreparedWorld, config: MatchSetupConfig, lenient: boolean)
   if (bad !== null) return invalid(bad);
   const analysis = world.analyse(config.region);
   const player = config.player;
+  // A custom nation may not carry the name of a real country (every one of them can be an AI nation of this very match, and in the leaderboard
+  // two nations with one name could not be told apart). The invented AI names of the neutral mode already skip the custom name.
+  if (player.kind === 'custom') {
+    const clash = countryWithName(world.countries, player.name);
+    if (clash !== null) return fail('nameTaken', 'setup.error.nameTaken', { name: player.name.trim() });
+  }
 
   // The player's place.
   let playerCountry: CountryInfo | null = null;

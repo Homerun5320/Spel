@@ -4,6 +4,7 @@
 import { isRegionId, type RegionId } from '../data/regions';
 import type { TextKey } from '../ui/i18n';
 import { CUSTOM_NAME_MAX_CHARS } from '../ui/uiConfig';
+import { countryWithName } from './countrySearch';
 import { countryEligibility, startCellEligibility } from './eligibility';
 import { CUSTOM_COLORS, DIFFICULTIES, matchSetupConfig, type Difficulty, type MatchSetupConfig } from './matchSetup';
 import type { PreparedWorld } from './matchWorld';
@@ -50,7 +51,7 @@ export function defaultDraft(seed: number, name: string): SetupDraft {
 /** Why a draft cannot start yet (an i18n key with its numbers) or the config it makes. */
 export type DraftCheck =
   | { readonly ok: true; readonly config: MatchSetupConfig; readonly key: null; readonly params: null }
-  | { readonly ok: false; readonly config: null; readonly key: TextKey; readonly params: Readonly<Record<string, number>> | null };
+  | { readonly ok: false; readonly config: null; readonly key: TextKey; readonly params: Readonly<Record<string, string | number>> | null };
 
 const SEED_PATTERN = /^-?\d{1,10}$/;
 
@@ -84,6 +85,7 @@ export function checkDraft(world: PreparedWorld, draft: SetupDraft, debugIntents
   }
   const name = cleanName(draft.name);
   if (name === null) return { ok: false, config: null, key: 'setup.need.name', params: null };
+  if (countryWithName(world.countries, name) !== null) return { ok: false, config: null, key: 'setup.error.nameTaken', params: { name } };
   if (draft.cell < 0) return { ok: false, config: null, key: 'setup.need.cell', params: null };
   const e = startCellEligibility(world, analysis, draft.cell);
   if (!e.ok) return { ok: false, config: null, key: e.key as TextKey, params: e.params };

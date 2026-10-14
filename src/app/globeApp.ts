@@ -15,9 +15,10 @@ import { latLonOfCell } from './cellGeo';
 import { createPerfOverlay, type PerfOverlay } from '../ui/perfOverlay';
 import { ClickTracker } from '../ui/clickTracker';
 import { createMatchHud, notConquerableText, rejectText, type MatchHud, type MatchHudModel } from '../ui/matchHud';
-import { getLanguage, languageOf, onLanguageChange, setLanguage, setStrictI18n, t, type TextKey } from '../ui/i18n';
+import { getLanguage, onLanguageChange, setStrictI18n, t, type TextKey } from '../ui/i18n';
 import { START_FLY_KM, START_SPIN_DEG_PER_S, SETUP_IDLE_DIST_KM } from '../ui/uiConfig';
 import { mountStartScreen, type StartScreen } from '../ui/startScreen';
+import { applyStartLanguage } from './langPref';
 import { getPref, setPref } from './prefs';
 import { createMatch, type BuiltMatch, type MatchSetupConfig } from './matchSetup';
 import { countryEligibility } from './eligibility';
@@ -192,7 +193,7 @@ function loadPrepared(world: WorldData): Promise<PreparedWorld> {
 export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   const { wrapper, canvas, overlay, params } = ctx;
   // Language and strictness first: every text below goes through t(). Test mode fails on a missing key (D98).
-  setLanguage(languageOf(ctx.state.raw));
+  const stopLanguagePref = applyStartLanguage(ctx.state.raw, params.test);
   setStrictI18n(params.test);
   const status = document.createElement('div');
   status.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#9bd;font:14px system-ui,sans-serif;pointer-events:none;';
@@ -202,7 +203,10 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   const world = await loadWorld();
   const { meta } = world;
   status.remove();
-  if (ctx.isActive && !ctx.isActive()) return () => undefined; // stopped while loading: build nothing
+  if (ctx.isActive && !ctx.isActive()) {
+    stopLanguagePref();
+    return () => undefined; // stopped while loading: build nothing
+  }
 
   const quality = resolveQuality({ test: params.test, quality: ctx.scene.quality });
   const dpr = params.test ? 1 : Math.min(window.devicePixelRatio || 1, quality.maxDpr);
@@ -441,6 +445,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     startScreen?.dispose();
     setupScreen?.dispose();
     stopNames();
+    stopLanguagePref();
     session?.dispose();
     tip.remove();
     status.remove();

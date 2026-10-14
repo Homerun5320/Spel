@@ -6,6 +6,7 @@ import type { Overrides, WorldMeta } from '../data/world';
 import { regionMask, type RegionId } from '../data/regions';
 import { CLASS_MOUNTAIN, CLASS_PEAK, CLASS_PLAINS } from '../sim/terrain';
 import { maskTerrain } from '../sim/setup';
+import { hashWorld } from '../sim/state';
 import { createSimWorld, type SimWorld, type SimWorldInput } from '../sim/world';
 import { computeLandmasses, type Landmasses } from './landmass';
 
@@ -59,8 +60,12 @@ export interface RegionAnalysis {
   readonly cellsInMask: ReadonlyMap<number, number>;
   /** The match world for this region (the mask applied), ready for `createWorldState`. */
   readonly world: SimWorld;
-  /** The world hash to put in the match header, or undefined to let the state compute it (a masked world is not the pack). */
-  readonly mapHash: number | undefined;
+  /**
+   * The map identity of this region, the value the match header carries (`world.mapHash`). The whole world keeps the pack's hash when the data
+   * supplies one (else the hash of its terrain and elevation); EVERY cut-out hashes its own masked terrain, so it can neither equal the pack's
+   * hash nor another region's (the masks differ). Always a number: the header never depends on who built the data.
+   */
+  readonly mapHash: number;
 }
 
 export interface PreparedWorld {
@@ -131,8 +136,11 @@ export function prepareWorld(data: WorldData): PreparedWorld {
       const id = data.country[i] as number;
       if (id !== 0 && (terrain[i] as number) >= CLASS_PLAINS && (mask === null || mask[i] === 1)) cellsInMask.set(id, (cellsInMask.get(id) ?? 0) + 1);
     }
-    const world = createSimWorld({ ...data.sim, terrainClass: masked, mapHash: mask === null ? data.sim.mapHash : undefined });
-    const out: RegionAnalysis = { region, mask, terrain: masked, land: computeLandmasses(width, height, masked), cellsInMask, world, mapHash: mask === null ? data.sim.mapHash : undefined };
+    const plain = createSimWorld({ ...data.sim, terrainClass: masked, mapHash: undefined });
+    // The identity of the map the match is played on: the pack's own hash for the whole world, the hash of the masked terrain for a cut-out.
+    const mapHash = (mask === null ? data.sim.mapHash ?? hashWorld(plain.terrain, plain.elevation) : hashWorld(plain.terrain, plain.elevation)) >>> 0;
+    const world: SimWorld = { ...plain, mapHash };
+    const out: RegionAnalysis = { region, mask, terrain: masked, land: computeLandmasses(width, height, masked), cellsInMask, world, mapHash };
     cache.set(region, out);
     return out;
   };

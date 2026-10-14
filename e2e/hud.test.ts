@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { Browser, Page } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
-import { OUT_DIR, decodePng, launchBrowser, luma, openPage, readUsedHeap } from '../scripts/shot.mjs';
+import { OUT_DIR, decodePng, heapDelta, launchBrowser, luma, openPage } from '../scripts/shot.mjs';
 import { timeForSubsolarLon } from '../src/render/geo';
 import { CLASS_FOREST, CLASS_HILLS, CLASS_PLAINS } from '../src/sim/terrain';
 import { TABLES, placeholdersOf } from '../src/ui/i18n';
@@ -550,12 +550,10 @@ describe('the HUD does no work when nothing changed', () => {
       });
       console.log(`[hud] 500 refreshes of an unchanged state: ${r.ms.toFixed(2)} ms (${(r.ms / 500).toFixed(4)} ms each), ${r.mutations} DOM mutations; logged, not asserted`);
       expect(r.mutations).toBe(0);
-      // a heap check without gc: the garbage of 3000 refreshes stays tiny (a string per refresh would be 100 KB or more)
-      const before = await readUsedHeap(page);
-      await page.evaluate(() => (window as any).__test.hudRefresh(3000));
-      const after = await readUsedHeap(page);
-      console.log(`[hud] heap growth over 3000 refreshes: ${after - before} bytes (not collected yet)`);
-      expect(after - before).toBeLessThan(1_000_000);
+      // the retained heap of 3000 refreshes (gc before and after, median of 3; a string per refresh would be 100 KB or more)
+      const retained = await heapDelta(page, () => page.evaluate(() => { (window as any).__test.hudRefresh(3000); }));
+      console.log(`[hud] heap retained by 3000 refreshes (gc, median of 3): ${retained} bytes`);
+      expect(retained).toBeLessThan(1_000_000);
       expect(messages).toEqual([]);
     } finally {
       await page.close();

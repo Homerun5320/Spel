@@ -331,7 +331,7 @@ describe('a custom nation: name, colour, flag, a free start place', () => {
       expect(await page.locator(tid('setup-start')).isDisabled()).toBe(true);
       await shot(page, 'custom-invalid-island');
       await page.click(tid('setup-language'));
-      expect((await msg()).text).toMatch(/^land mass too small for a fair start: \d+ of 197 cells$/i);
+      expect((await msg()).text).toMatch(/^The land mass is too small for a fair start: \d+ of 197 cells\.$/);
       await page.click(tid('setup-language'));
       // 4. a valid click on the big land mass: that cell becomes the capital
       const goodCell = interiorCell(5000, Infinity, { lat: 48, lon: 13 });

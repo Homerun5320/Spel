@@ -16,6 +16,8 @@ describe('heapDelta self-test', () => {
     await browser?.close();
   });
 
+  // The one raw read in the test code, on purpose (M06fix): it checks the PRECISION of the reading itself (the switch --enable-precise-memory-info),
+  // it asserts no growth, so no gc is wanted here. Every growth assert goes through heapDelta (gc before and after, median of 3).
   it('usedJSHeapSize is precise (not quantised to multiples of 1 000 000)', async () => {
     const samples: number[] = [];
     for (let i = 0; i < 5; i++) {

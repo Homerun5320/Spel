@@ -73,9 +73,9 @@ describe('country eligibility in the whole world', () => {
     expect(p.cells).toBeLessThan(START_DISC_CELLS);
     expect(p.cells).toBe(small.eligibility.landmass);
     setLanguage('sv');
-    expect(t('setup.reason.smallLandmass', p)).toBe(`för liten landmassa för en rättvis start: ${p.cells} av 197 celler`);
+    expect(t('setup.reason.smallLandmass', p)).toBe(`Landmassan är för liten för en rättvis start: ${p.cells} av 197 celler.`);
     setLanguage('en');
-    expect(t('setup.reason.smallLandmass', p)).toBe(`land mass too small for a fair start: ${p.cells} of 197 cells`);
+    expect(t('setup.reason.smallLandmass', p)).toBe(`The land mass is too small for a fair start: ${p.cells} of 197 cells.`);
   });
 
   it('the on-purpose exclusions are marked: Antarctica, the unplayable list and the merged territories can never be chosen', () => {

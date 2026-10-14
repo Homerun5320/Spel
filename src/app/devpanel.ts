@@ -211,6 +211,7 @@ export function mountDevPanel(opts: DevPanelOptions): DevPanel {
       e.preventDefault();
       toggle();
     } else if (e.key === 'Escape' && !panel.hidden) {
+      e.preventDefault(); // this Escape was the panel's: a screen behind it (the setup) must not also react
       close();
     }
   };
