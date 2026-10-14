@@ -18,11 +18,14 @@ import { D_MAX_CELLS, FRONT_COMPACT_MIN } from './rules';
 // (the test runner's) than reading a local, and pick() runs for every cell an attack takes.
 const hashOf = hash2;
 const DEPTH_MAX = D_MAX_CELLS;
-const INITIAL_CAPACITY = 16;
+const INITIAL_CAPACITY = 64;
+/** 2^-21: the scale from a 21-bit hash fraction times the entry count to an index. */
+const PICK_SCALE = 1 / 2097152;
 
 /** Index 0 .. count-1 chosen by the top 21 bits of a hash (exact for counts below 2^22: the product stays below 2^43). */
 export function pickIndex(hash: number, count: number): number {
-  return Math.floor(((hash >>> 11) * count) / 2097152);
+  // times 2^-21 is exact (a power of two), and the result is below 2^22, so the truncation is the floor
+  return ((hash >>> 11) * count * PICK_SCALE) | 0;
 }
 
 export class Attack {

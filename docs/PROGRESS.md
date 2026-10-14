@@ -17,6 +17,27 @@ Resume: Läs CLAUDE.md och docs/PROGRESS.md, kör git log -10 och npm run verify
 
 ## Now
 
+### PerfGate: stable burst gate and a faster conquest kernel (focused stabilisation on HEAD 55960a3, no new milestone; one part; the orchestrator owns pushing and the Artifact)
+
+Previous merge SHA (origin/main at start): f29121a8d1607ca169e6675b5f22a52d76c42ef7 (unchanged; nothing is merged, M00 to M06 live on this branch and in draft pull request #1). Why: the M04 acceptance "100 000 cells in one tick, median <= budgetMs(50)" (`tests/conquestBurst.perf.test.ts`) swung between 42 and 65 ms on this 4-core VM against a budget of about 56-58 ms and failed on random `verify` runs. The 50 ms budget, the statistic (median) and the perfguard calibration are NOT changed.
+
+GÖR
+- [ ] 1. MEASURE: the burst test alone 20 times (one process per run) and inside the whole perf project 5 times; min / median / max and the perfguard factor; bisect over 69798de, 8a29cc4, be1db76, 5f597c8, ee186f0, HEAD with git worktrees; name the change that cost the time (or show that there is none)
+- [ ] 2. FIX THE CAUSE: profile `advanceAttack`, optimise the hot loop with byte-identical behaviour (all golden hashes and sim tests unchanged, no ENGINE_VERSION change); target median at most 60 % of the budget on this machine
+- [ ] 3. ROBUST GATE without loosening it: budget `budgetMs(50)` and statistic median unchanged; more samples (at least 5 after at least 2 warm-ups), worlds built before the timed loop, GC isolated; the statistic is in the test name; 30 runs with zero failures and a worst median below 85 % of the budget
+- [ ] 4. The other `*.perf.test.ts`: the whole perf project 15 times; any test whose worst median exceeds 70 % of its budget is fixed the same way
+- [ ] 5. `npm run verify:fast` and the perf project green; DECISIONS (next free D-number) and this file carry the findings (the offending change, before and after medians)
+- [ ] 6. SLUT: ARCHITECTURE index, BALANCE (no constant changes expected), `npm run verify` green, `npm run build && npm run artifact:pack` (nothing user-visible changes, so the Artifact is NOT republished), local commit
+
+ACCEPTANS
+- [ ] The cause is named with numbers (bisect table, 20 + 5 runs of the unmodified kernel)
+- [ ] All golden hashes (`e2e/goldens/sim-hashes.json`, `e2e/goldens/match-hashes.json`) and every sim test are unchanged; `ENGINE_VERSION` unchanged
+- [ ] Burst median at most 60 % of the budget on this machine (or the measured limit is stated with the evidence)
+- [ ] 30 runs of the burst test: zero failures, worst median below 85 % of its budget
+- [ ] 15 runs of the whole perf project: no test above 70 % of its budget, or it is fixed
+- [ ] The test keeps `budgetMs(50)`, the median, at least 5 samples after at least 2 warm-ups, and says the statistic in its name
+- [ ] `npm run verify` green
+
 ### M06fix: flaky HUD heap test, D121 wording, map identity of cut-outs, small setup UX fixes (focused follow-up after the M06 play audit, no redesign; one part; the orchestrator owns pushing and the Artifact)
 
 Previous merge SHA (origin/main at start): f29121a8d1607ca169e6675b5f22a52d76c42ef7 (unchanged; nothing is merged, M00 to M06 live on this branch and in draft pull request #1).

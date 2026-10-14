@@ -11,6 +11,8 @@ const ENCLAVE_SALT = 0x3c91;
 // Bound once at load, see src/sim/attacks.ts.
 const hashOf = hash2;
 const BUCKETS = ENCLAVE_FLIP_TICKS;
+/** Capacity of a bucket on first use: a big conquest queues tens of thousands of cells, and every growth is a typed-array allocation. */
+const BUCKET_START = 512;
 
 /** The bucket (0..ENCLAVE_FLIP_TICKS-1) in which a cell is checked. */
 export function enclaveBucket(seed: number, cell: number): number {
@@ -42,7 +44,7 @@ export class EnclaveQueues {
     let list = this.buckets[b] as Int32Array;
     const n = this.counts[b] as number;
     if (n === list.length) {
-      const bigger = new Int32Array(n === 0 ? 32 : n * 2);
+      const bigger = new Int32Array(n === 0 ? BUCKET_START : n * 2);
       bigger.set(list);
       this.buckets[b] = bigger;
       list = bigger;

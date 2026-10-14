@@ -76,6 +76,7 @@ const UPHILL_STEP = UPHILL_STEP_UNITS;
 const UPHILL_CAP = UPHILL_MAX_PCT * 10;
 /** Micro-cells of progress per percent point of terrain cost above (or below) Plains. */
 const MICRO_PER_PCT = MICRO_CELLS_PER_CELL / 100;
+const DEBT_MAX = PROGRESS_DEBT_MAX;
 /** Salt of the per-tick order in which the attacks run. */
 const ORDER_SALT = 0x2d4b;
 /** Attack counts stay below this (seats * seats <= 65025), which lets the run order pack (hash, index) into one safe integer. */
@@ -125,6 +126,16 @@ export function riseUnits(targetElevationM: number, sourceElevationM: number): n
   const rise = targetElevationM - sourceElevationM;
   return rise <= 0 ? 0 : Math.floor(rise / HEIGHT_UNIT);
 }
+
+/** Terrain classes and depths the flat-price table covers (a class outside it takes the general formula). */
+const FLAT_CLASSES = 8;
+const FLAT_DEPTHS = D_MAX_CELLS + 1;
+/** captureCostMilliQt(class, 0, depth) for every class and depth, filled from the function itself: the price on level ground or downhill. */
+const FLAT_COST = new Int32Array(FLAT_CLASSES * FLAT_DEPTHS);
+for (let c = 0; c < FLAT_CLASSES; c++) for (let d = 0; d < FLAT_DEPTHS; d++) FLAT_COST[c * FLAT_DEPTHS + d] = captureCostMilliQt(c, 0, d);
+/** The progress a capture of a cell of each terrain class owes (micro-cells): ((TERRAIN_COST_PCT - 100) * MICRO_PER_PCT; 0 for a class off the table). */
+const PROGRESS_OWED = new Int32Array(256);
+for (let c = 0; c < 256; c++) PROGRESS_OWED[c] = ((COST_PCT[c] ?? 100) - 100) * MICRO_PER_PCT;
 
 /** Builds the frontier of a new attack from the boundary cells of its attacker: the target cells that touch them. */
 function buildFrontier(state: GameState, a: Attack): void {
@@ -204,51 +215,86 @@ export function advanceAttack(state: GameState, a: Attack, slot: number, n: numb
   const owner = state.owner;
   const grid = state.grid;
   const playable = grid.playable;
-  const nb = state.scratch.nb;
   const elevation = state.elevation;
   const terrain = state.terrain;
-  const work = state.work;
   const seed = state.header.seed;
   const home = state.home;
+  const attacker = a.attacker;
+  const target = a.target;
+  const stamp = a.id;
+  const w = grid.width;
+  const colMask = grid.colMask;
+  const cells = grid.cells;
+  // The attack's own numbers live in locals while the loop runs and are written back once at the end (nothing in the loop reads them).
+  let troops = a.troops;
+  let costFrac = a.costFrac;
+  let progress = a.progress;
   let taken = 0;
+  let popped = 0;
   while (taken < n) {
     const cell = a.pick(seed);
     if (cell < 0) {
       a.dead = true;
       break;
     }
-    work.popped++;
-    if (owner[cell] !== a.target || playable[cell] === 0) continue;
-    // Does the cell still touch the attacker, and from which attacker cell is it cheapest to come (the highest)?
-    const cnt = grid.neighbours(cell, nb);
+    popped++;
+    if (owner[cell] !== target || playable[cell] === 0) continue;
+    // Does the cell still touch the attacker, and from which attacker cell is it cheapest to come (the highest)? The four
+    // neighbours are read in place (what Grid.neighbours gives: x wraps, no row above row 0 or below the last).
+    const x = colMask >= 0 ? cell & colMask : cell % w;
+    const row = cell - x;
     let source = -1;
-    for (let k = 0; k < cnt; k++) {
-      const m = nb[k] as number;
-      if (m !== cell && owner[m] === a.attacker && playable[m] === 1) {
+    if (row > 0) {
+      const m = cell - w;
+      if (owner[m] === attacker && playable[m] === 1) {
         const e = elevation[m] as number;
         if (e > source) source = e;
       }
     }
+    let m = x + 1 === w ? row : cell + 1;
+    if (m !== cell && owner[m] === attacker && playable[m] === 1) {
+      const e = elevation[m] as number;
+      if (e > source) source = e;
+    }
+    if (row + w < cells) {
+      m = cell + w;
+      if (owner[m] === attacker && playable[m] === 1) {
+        const e = elevation[m] as number;
+        if (e > source) source = e;
+      }
+    }
+    m = x === 0 ? cell + w - 1 : cell - 1;
+    if (m !== cell && owner[m] === attacker && playable[m] === 1) {
+      const e = elevation[m] as number;
+      if (e > source) source = e;
+    }
     if (source < 0) continue;
     const depth = a.lastDepth;
-    let cost = captureCostMilliQt(terrain[cell] as number, riseUnits(elevation[cell] as number, source), depth);
+    const cls = terrain[cell] as number;
+    // Level ground or downhill (a rise below one height unit) is the common case: its price is looked up, not worked out.
+    const rise = (elevation[cell] as number) - source;
+    let cost = rise < HEIGHT_UNIT && cls < FLAT_CLASSES ? (FLAT_COST[cls * FLAT_DEPTHS + depth] as number) : captureCostMilliQt(cls, riseUnits(elevation[cell] as number, source), depth);
     // Home land (D112) and the defence trait (D113): only a match with homeRules has them; for the others this is one comparison.
-    if (home !== null) cost = adjustedCostMilliQt(home, cost, cell, a.attacker, a.target);
-    const owed = a.costFrac + cost;
-    const whole = Math.floor(owed / MILLI_QT);
-    if (a.troops < whole) {
+    if (home !== null) cost = adjustedCostMilliQt(home, cost, cell, attacker, target);
+    const owed = (costFrac + cost) | 0;
+    const whole = (owed / MILLI_QT) | 0;
+    if (troops < whole) {
       a.dead = true;
       break;
     }
-    a.troops -= whole;
-    a.costFrac = owed - whole * MILLI_QT;
-    takeCell(state, cell, a.attacker, a.id, slot, depth);
+    troops -= whole;
+    costFrac = owed - whole * MILLI_QT;
+    takeCell(state, cell, attacker, stamp, slot, depth);
     // Terrain slows the front: the extra progress this cell was worth is owed (a Mountain cell: 1.5 cells' worth).
-    const owedProgress = a.progress - ((COST_PCT[terrain[cell] as number] ?? 100) - 100) * MICRO_PER_PCT;
-    a.progress = owedProgress < -PROGRESS_DEBT_MAX ? -PROGRESS_DEBT_MAX : owedProgress;
+    const owedProgress = progress - (PROGRESS_OWED[cls] as number);
+    progress = owedProgress < -DEBT_MAX ? -DEBT_MAX : owedProgress;
     taken++;
-    work.captured++;
   }
+  a.troops = troops;
+  a.costFrac = costFrac;
+  a.progress = progress;
+  state.work.popped += popped;
+  state.work.captured += taken;
   return taken;
 }
 

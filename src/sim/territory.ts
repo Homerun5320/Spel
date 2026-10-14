@@ -80,6 +80,7 @@ function afterChange(state: GameState, cell: number, prev: number, next: number,
   const attacking = table.list.length > 0;
   const exposure = state.exposure;
   const enclaves = state.enclaves;
+  const queued = enclaves.queued;
   const seed = state.header.seed;
   const w = grid.width;
   const x = grid.colMask >= 0 ? cell & grid.colMask : cell % w;
@@ -92,6 +93,7 @@ function afterChange(state: GameState, cell: number, prev: number, next: number,
   ports[2] = row + w < grid.cells && playable[cell + w] === 1 ? cell + w : -1;
   ports[3] = west !== cell && playable[west] === 1 ? west : -1;
   let nonNext = 0;
+  let otherMask = 0; // bit i: port i is a playable cell that is not `next`'s
   let hasPrev = false;
   let leak = false; // the cell touched a wall: it may have been what kept its own region open
   for (let i = 0; i < 4; i++) {
@@ -103,14 +105,15 @@ function afterChange(state: GameState, cell: number, prev: number, next: number,
     const r = owner[n] as number;
     if (r !== next) {
       nonNext++;
+      otherMask |= 1 << i;
       if (r === prev) hasPrev = true;
     }
   }
   // Runs of non-`next` CELLS that contain a port: only worth working out when two such ports exist and one of them belongs
   // to `prev` (otherwise every non-`next` port is queued anyway, or none can matter).
   let runs = 0;
-  if (hasPrev && nonNext >= 2) runs = portRuns(state, cell, row, x, next);
-  const wasQueued = enclaves.queued[cell] === 1;
+  if (hasPrev && nonNext >= 2) runs = portRuns(state, cell, row, x, next, otherMask);
+  const wasQueued = queued[cell] === 1;
   let seenCount = 0;
   let diffHere = 0;
   let friends = 0;
@@ -131,8 +134,9 @@ function afterChange(state: GameState, cell: number, prev: number, next: number,
       diffHere++;
       if (foreign === -1) foreign = r;
       else if (foreign !== r) twoForeign = true;
-      if (r !== prev || runs >= 2 || leak || wasQueued) enclaves.push(n, seed);
-      else if (prevPort === -1) prevPort = n;
+      if (r !== prev || runs >= 2 || leak || wasQueued) {
+        if (queued[n] === 0) enclaves.push(n, seed);
+      } else if (prevPort === -1) prevPort = n;
       if (attacking) {
         // The attack of `next` on `r` gains n, a cell of its target that now touches a new cell of the attacker.
         const s1 = table.slotOf[next * slots + r] as number;
@@ -171,45 +175,38 @@ function afterChange(state: GameState, cell: number, prev: number, next: number,
   // The cell joins its friendly neighbours into one region of `next`, and that merged region may be closed in now (the cell
   // may have been its last leak): queue the cell, whose fill covers the merged region. Two different foreign owners at the
   // cell mean the region touches both, so it cannot be an enclave.
-  if (!twoForeign && (friends > 0 || diffHere > 0)) enclaves.push(cell, seed);
+  if (!twoForeign && (friends > 0 || diffHere > 0) && queued[cell] === 0) enclaves.push(cell, seed);
   // The region of `prev` has lost the cell. It may now be small enough (at most ENCLAVE_MAX_CELLS) to be an enclave that was
   // open only because it was too big: one of its ports is checked (all its pieces are covered by the SPLIT rule above).
   if (prevPort !== -1) enclaves.push(prevPort, seed);
 }
 
-/** Is `c` (-1: off the map) a playable cell, other than `cell`, that is not `next`'s? Walls (off the map, unplayable) are no cells: they join nothing. */
-function otherCell(grid: GameState['grid'], owner: Uint16Array, c: number, cell: number, next: number): boolean {
-  return c >= 0 && c !== cell && grid.playable[c] === 1 && owner[c] !== next;
-}
-
 /**
  * How many groups of non-`next` cells around `cell` contain a port (a 4-neighbour of it), counting two ports as one group
  * when they are joined along the cycle of the eight neighbours by non-`next` playable cells (the diagonal between two
- * consecutive ports). A wall (off the map, an unplayable cell) is no cell and joins nothing. Ports in the order N, E, S, W
- * are in ring[0..3] (-1 for a wall). 0 when no port is a non-`next` cell.
+ * consecutive ports). A wall (off the map, an unplayable cell) is no cell and joins nothing. `other` has bit i set when port i
+ * (in the order N, E, S, W) is a playable cell that is not `next`'s (the caller has read them already); only the diagonals
+ * between two such ports are read here. 0 when no port is a non-`next` cell.
  */
-function portRuns(state: GameState, cell: number, row: number, x: number, next: number): number {
+function portRuns(state: GameState, cell: number, row: number, x: number, next: number, other: number): number {
   const grid = state.grid;
   const w = grid.width;
   const owner = state.owner;
-  const ring = state.scratch.ring;
   const xe = x + 1 === w ? 0 : x + 1;
   const xw = x === 0 ? w - 1 : x - 1;
   const north = row >= w ? row - w : -1;
   const south = row + w < grid.cells ? row + w : -1;
-  // the diagonals NE, SE, SW, NW sit between N and E, E and S, S and W, W and N
-  ring[4] = north < 0 ? -1 : north + xe;
-  ring[5] = south < 0 ? -1 : south + xe;
-  ring[6] = south < 0 ? -1 : south + xw;
-  ring[7] = north < 0 ? -1 : north + xw;
-  let other = 0;
-  for (let i = 0; i < 4; i++) if (otherCell(grid, owner, ring[i] as number, cell, next)) other |= 1 << i;
   let count = 0;
   let links = 0;
   for (let i = 0; i < 4; i++) {
     if (((other >> i) & 1) === 0) continue;
     count++;
-    if (((other >> ((i + 1) & 3)) & 1) === 1 && otherCell(grid, owner, ring[4 + i] as number, cell, next)) links++;
+    if (((other >> ((i + 1) & 3)) & 1) === 0) continue;
+    // the diagonals NE, SE, SW, NW sit between N and E, E and S, S and W, W and N
+    const base = i === 0 || i === 3 ? north : south;
+    if (base < 0) continue;
+    const d = base + (i === 0 || i === 1 ? xe : xw);
+    if (d !== cell && grid.playable[d] === 1 && owner[d] !== next) links++;
   }
   const runs = count - links;
   return count > 0 && runs === 0 ? 1 : runs;

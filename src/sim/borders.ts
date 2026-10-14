@@ -61,7 +61,7 @@ export class BorderIndex {
     let list = this.lists[owner] as Int32Array;
     const n = this.counts[owner] as number;
     if (n === list.length) {
-      const bigger = new Int32Array(n === 0 ? 64 : n * 2);
+      const bigger = new Int32Array(n === 0 ? 1024 : n * 2);
       bigger.set(list);
       this.lists[owner] = bigger;
       list = bigger;
