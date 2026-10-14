@@ -105,9 +105,28 @@ export function parseSceneParams(search: string, hash = ''): SceneParams {
   return sceneParamsOf(parseRaw(search, hash));
 }
 
+export type TerrainName = 'chunks' | 'fixed';
+
+export interface TerrainParams {
+  /** `?terrain=fixed` (`#terrain-fixed`) keeps the M02 lat/lon mesh; everything else is the quadtree of chunks (M07a, the default). */
+  terrain: TerrainName;
+  /** `?chunks=1` (`#chunks`): every chunk in its own colour (the chunk terrain only). */
+  chunkDebug: boolean;
+}
+
+function terrainParamsOf(q: RawParams): TerrainParams {
+  return { terrain: q.terrain === 'fixed' ? 'fixed' : 'chunks', chunkDebug: q.chunks === '1' };
+}
+
+/** M07a additions, kept apart from `parseSceneParams` (its result shape is pinned by an M02 test). */
+export function parseTerrainParams(search: string, hash = ''): TerrainParams {
+  return terrainParamsOf(parseRaw(search, hash));
+}
+
 export interface AppState {
   params: AppParams;
   scene: SceneParams;
+  terrain: TerrainParams;
   /** `?perf=1` / `#perf`: the performance overlay. */
   perf: boolean;
   /** `?devbtn=1` / `#devbtn`: show the Dev panel corner button also in test mode (it is hidden there so goldens stay clean). */
@@ -119,5 +138,5 @@ export interface AppState {
 /** Everything the app reads from the address, through the one parser. */
 export function parseAppState(search: string, hash = ''): AppState {
   const raw = parseRaw(search, hash);
-  return { params: appParamsOf(raw), scene: sceneParamsOf(raw), perf: raw.perf === '1', devButton: raw.devbtn === '1', raw };
+  return { params: appParamsOf(raw), scene: sceneParamsOf(raw), terrain: terrainParamsOf(raw), perf: raw.perf === '1', devButton: raw.devbtn === '1', raw };
 }

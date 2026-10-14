@@ -2,20 +2,21 @@
 // This is the only module (besides the M00 spike and textureProbe) that talks to WebGL.
 import { BufferAttribute, BufferGeometry, Color, Mesh, PerspectiveCamera, Points, Scene, type ShaderMaterial, SphereGeometry, type Vector3, WebGLRenderer } from 'three';
 import { type City, type RenderPack, type SimGrid, type WorldMeta } from '../data';
-import { CameraRig, type ViewState } from './camera';
-import { ATMOSPHERE_TOP, HEIGHT_EXAGGERATION, OCEAN_WAVE_SPEED } from './config';
+import { CameraRig, clipPlanes, setViewAtAgl, type ViewState } from './camera';
+import { ATMOSPHERE_TOP, EARTH_RADIUS_KM, HEIGHT_EXAGGERATION, OCEAN_WAVE_SPEED } from './config';
 import { fxNow } from './clock';
 import { CameraFlight, type FlyOptions } from './flyTo';
 import { BORDER_STRENGTH, COUNTRY_TINT } from './config';
 import { selectionBytes } from './selection';
 import { describeAt, type GlobePick } from './describe';
-import { sunDirectionAt, type Vec3 } from './geo';
+import { ChunkTerrain, type ChunkStats } from './chunkTerrain';
+import { sunDirectionAt, vecToLatLon, type Vec3 } from './geo';
 import { buildGlobeGeometry } from './globeMesh';
 import { HeightField } from './heightField';
 import { OwnershipTexture } from './ownership';
 import { meshTriangles, type QualitySettings } from './quality';
 import { buildStars } from './stars';
-import { createTerrainMaterial } from './terrainMaterial';
+import { createTerrainMaterial, type TerrainMode } from './terrainMaterial';
 import { readTexels } from './textureProbe';
 import {
   allTextureBytes,
@@ -45,6 +46,10 @@ export interface GlobeOptions {
   quality: QualitySettings;
   world: WorldData;
   preserveDrawingBuffer: boolean;
+  /** `chunks` (default): the quadtree of instanced chunks; `fixed`: the M02 lat/lon mesh (`?terrain=fixed`). */
+  terrain?: TerrainMode;
+  /** `?chunks=1`: colour every chunk by its key instead of shading it. */
+  chunkDebug?: boolean;
 }
 
 export interface GlobeInfo {
@@ -63,9 +68,18 @@ export interface GlobeInfo {
   tier: string;
   meshCols: number;
   meshRows: number;
+  terrainMode: TerrainMode;
+}
+
+/** What `__test.state().terrain` reports. */
+export interface TerrainInfo extends ChunkStats {
+  mode: TerrainMode;
 }
 
 export type { GlobePick } from './describe';
+
+/** The height above ground the clip planes assume at the very least (Earth radii; 10 cm): a camera on or under the ground still gets a valid near plane. */
+const CLIP_AGL_FLOOR = 1.6e-8;
 
 export interface ScreenHit {
   x: number;
@@ -87,6 +101,8 @@ export class Globe {
   private readonly camera: PerspectiveCamera;
   private readonly material: ShaderMaterial;
   private readonly mesh: Mesh;
+  private readonly chunkTerrain: ChunkTerrain | null;
+  readonly terrainMode: TerrainMode;
   private readonly shell: Mesh;
   private readonly stars: Points;
   private readonly starsMaterial: ShaderMaterial;
@@ -128,11 +144,27 @@ export class Globe {
     this.textures = createWorldTextures(o.world.render, o.world.sim);
     this.look = createLookTextures(o.world.cities ?? []);
     this.ownership = new OwnershipTexture(o.world.sim.width, o.world.sim.height, o.world.sim.terrainClass);
-    const tm = createTerrainMaterial(this.textures, o.world.render, o.world.sim, o.world.meta, this.look, this.ownership);
+    this.terrainMode = o.terrain ?? 'chunks';
+    const tm = createTerrainMaterial(this.textures, o.world.render, o.world.sim, o.world.meta, this.look, this.ownership, this.terrainMode, o.quality.chunkCells);
     this.material = tm.material;
     this.sun = tm.sun;
-    this.mesh = new Mesh(buildGlobeGeometry(o.quality.meshCols, o.quality.meshRows), this.material);
-    this.mesh.frustumCulled = false;
+    if (this.terrainMode === 'chunks') {
+      this.chunkTerrain = new ChunkTerrain({
+        material: this.material,
+        quality: o.quality,
+        codes: o.world.render.height8,
+        width: o.world.render.width,
+        height: o.world.render.height,
+        maxM: o.world.meta.encoding.heightSqrt.maxM,
+        exaggeration: HEIGHT_EXAGGERATION,
+      });
+      this.mesh = this.chunkTerrain.mesh;
+      if (o.chunkDebug) this.setChunkDebug(true);
+    } else {
+      this.chunkTerrain = null;
+      this.mesh = new Mesh(buildGlobeGeometry(o.quality.meshCols, o.quality.meshRows), this.material);
+      this.mesh.frustumCulled = false;
+    }
     // Back-face additive atmosphere shell (drawn after the opaque globe) and the star points (drawn first).
     this.shell = new Mesh(new SphereGeometry(ATMOSPHERE_TOP, 96, 48), tm.atmosphere);
     this.shell.frustumCulled = false;
@@ -158,6 +190,57 @@ export class Globe {
   setExaggeration(x: number): void {
     this.field.exaggeration = x;
     (this.material.uniforms.uExag as { value: number }).value = x;
+    this.chunkTerrain?.setExaggeration(x);
+  }
+
+  /** `?chunks=1`: colours every chunk by its key (chunk terrain only). */
+  setChunkDebug(on: boolean): void {
+    const u = this.material.uniforms.uChunkDebug as { value: number } | undefined;
+    if (u) u.value = on ? 1 : 0;
+  }
+
+  /** Test switch: the skirts of the chunks (on by default). With them off every LOD seam is an open crack. */
+  setSkirts(on: boolean): void {
+    const u = this.material.uniforms.uSkirtsOn as { value: number } | undefined;
+    if (u) u.value = on ? 1 : 0;
+  }
+
+  /** Test switch: the colour the frame is cleared to (the crack test clears to magenta so a hole in the terrain shows). */
+  setClearColor(rgb: number): void {
+    this.renderer.setClearColor(new Color(rgb), 1);
+  }
+
+  /** The chunk terrain's numbers (mode, chunk count, distinct levels, triangles, draw calls); all zero in the fixed mode except the mesh. */
+  terrainInfo(): TerrainInfo {
+    if (this.chunkTerrain) return { mode: 'chunks', ...this.chunkTerrain.getStats() };
+    return { mode: 'fixed', chunkCount: 0, lodLevels: 0, levels: [], triangles: this.meshTriangleCount, drawCalls: 1, passes: 1 };
+  }
+
+  /** The chunk terrain itself (tests); null in the fixed mode. */
+  get chunks(): ChunkTerrain | null {
+    return this.chunkTerrain;
+  }
+
+  /** Forgets the LOD hysteresis (called when a test or the app jumps the camera, so the result does not depend on the path). */
+  resetTerrain(): void {
+    this.chunkTerrain?.reset();
+  }
+
+  /** The camera's height above the displaced ground under it, in metres (negative when it is below). */
+  cameraAglM(): number {
+    const p = this.rig.pose().position;
+    return this.aglRadii(p) * EARTH_RADIUS_KM * 1000;
+  }
+
+  private aglRadii(p: Vec3): number {
+    const { lat, lon } = vecToLatLon(p);
+    return Math.hypot(p[0], p[1], p[2]) - this.field.surfaceRadius(lat, lon);
+  }
+
+  /** Test hook: the camera `altAglM` metres above the displaced ground under it, without the user's zoom limit and tilt clamp (see `setViewAtAgl`). */
+  setViewAgl(v: Partial<ViewState>, altAglM: number): void {
+    this.flight.cancel();
+    setViewAtAgl(this.rig, (lat, lon) => this.field.surfaceRadius(lat, lon), v, altAglM);
   }
 
   /** Strength of the country border lines (0 = none); a test switch for the border acceptance. */
@@ -227,13 +310,21 @@ export class Globe {
     const c = this.camera;
     c.position.set(p.position[0], p.position[1], p.position[2]);
     c.up.set(p.up[0], p.up[1], p.up[2]);
-    c.near = p.near;
-    c.far = p.far;
+    if (this.chunkTerrain) {
+      // Chunk terrain: the depth range follows the camera's height above the ground (near 10 % of it, far at the horizon plus the sky shell).
+      const clip = clipPlanes(Math.hypot(p.position[0], p.position[1], p.position[2]), Math.max(this.aglRadii(p.position), CLIP_AGL_FLOOR));
+      c.near = clip.near;
+      c.far = clip.far;
+    } else {
+      c.near = p.near;
+      c.far = p.far;
+    }
     c.fov = p.fovDeg;
     c.aspect = p.aspect;
     c.updateProjectionMatrix();
     c.lookAt(p.target[0], p.target[1], p.target[2]);
     c.updateMatrixWorld();
+    this.chunkTerrain?.update(p);
     this.renderer.render(this.scene, c);
   }
 
@@ -294,6 +385,7 @@ export class Globe {
       tier: this.quality.tier,
       meshCols: this.quality.meshCols,
       meshRows: this.quality.meshRows,
+      terrainMode: this.terrainMode,
     };
   }
 
@@ -303,6 +395,7 @@ export class Globe {
   }
 
   dispose(): void {
+    this.chunkTerrain?.dispose();
     this.mesh.geometry.dispose();
     this.material.dispose();
     this.shell.geometry.dispose();

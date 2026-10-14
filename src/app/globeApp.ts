@@ -10,6 +10,7 @@ import { Globe, type GlobeInfo, type GlobePick, type ScreenHit, type WorldData }
 import type { WorldTextureName } from '../render/textures';
 import { DEFAULT_START_TIME, DEFAULT_START_VIEW } from '../render/views';
 import { resolveQuality } from '../render/quality';
+import type { TerrainMode } from '../render/terrainMaterial';
 import { FrameStats } from '../ui/frameStats';
 import { latLonOfCell } from './cellGeo';
 import { createPerfOverlay, type PerfOverlay } from '../ui/perfOverlay';
@@ -75,14 +76,49 @@ export interface MatchStateInfo {
   seats: Array<{ seat: number; cells: number; troopsQt: number; goldMilli: number; landShareQ15: number; alive: boolean }>;
   ownership: { uploads: number; gpuUploads: number; dirty: boolean };
   hostAdvance: { frames: number; meanMs: number; p95Ms: number; maxMs: number };
+  /** M07a: `'chunks'` (the quadtree, default) or `'fixed'` (`?terrain=fixed`). */
+  terrainMode: TerrainMode;
+  /** M07a: the terrain of the last rendered frame: chunks drawn, distinct LOD levels, triangles and draw calls of the terrain. */
+  terrain: TerrainStateInfo;
+}
+
+/** The terrain numbers of the last rendered frame (`__test.state().terrain`, `__test.terrain()`). */
+export interface TerrainStateInfo {
+  chunkCount: number;
+  /** Distinct quadtree levels among the chunks drawn. */
+  lodLevels: number;
+  triangles: number;
+  drawCalls: number;
+  /** The levels themselves, ascending. */
+  levels: number[];
+  /** Selection passes the update needed (1 = the wanted detail fitted the tier's cap). */
+  passes: number;
+  /** Every float of the instance data is finite. */
+  finite: boolean;
 }
 
 export interface GlobeTestHooks {
   /** Renders one frame; `dt` (default 0) first steps the fx clock, which also moves camera inertia and the sun. */
   render(dt?: number): void;
   info(): GlobeTestInfo;
-  /** Sets the camera (and the fx clock when `time` is given). Does not render. */
-  setView(v: Partial<ViewState> & { time?: number }): void;
+  /**
+   * Sets the camera (and the fx clock when `time` is given). Does not render. M07a: with `altAglM` the camera is put that many metres
+   * above the displaced ground under it; the user's zoom limit and the tilt clamp (up to 89.5 degrees) do not apply and the near / far planes
+   * follow the height. Every call forgets the chunk LOD hysteresis, so a view does not depend on the path that led to it.
+   */
+  setView(v: Partial<ViewState> & { time?: number; altAglM?: number }): void;
+  /** M07a: the terrain numbers of the last rendered frame (the same object as `state().terrain`, available without a match). */
+  terrain(): TerrainStateInfo;
+  /** M07a: the chunks of the last rendered frame (level, column, row, levels the four neighbours are coarser); empty in the fixed mode. */
+  terrainLeaves(): Array<{ level: number; ix: number; iy: number; coarser: number[] }>;
+  /** M07a: the skirts of the chunks (on by default); off, every LOD seam is an open crack (the crack test proves its detector with it). */
+  setSkirts(on: boolean): void;
+  /** M07a: the `?chunks=1` colouring on or off. */
+  setChunkDebug(on: boolean): void;
+  /** M07a: the colour (0xRRGGBB) the frame is cleared to; the crack test uses magenta, `0x000000` is the default. */
+  setClearColor(rgb: number): void;
+  /** M07a: the camera's height above the displaced ground under it, metres. */
+  cameraAglM(): number;
   /** Screen position of a position on the displaced surface. */
   project(lat: number, lon: number): ScreenHit;
   /** Steps the fx clock by `dt` seconds and then runs exactly `ticks` sim ticks (default 0), whatever the speed. With ticks the ownership texture is flushed (the throttle is bypassed) so the next render shows them. */
@@ -221,7 +257,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   }
   canvas.style.touchAction = 'none';
 
-  const globe = new Globe({ canvas, width, height, dpr, quality, world, preserveDrawingBuffer: params.test });
+  const globe = new Globe({ canvas, width, height, dpr, quality, world, preserveDrawingBuffer: params.test, terrain: ctx.state.terrain.terrain, chunkDebug: ctx.state.terrain.chunkDebug });
   globe.setView(DEFAULT_START_VIEW);
   if (params.blank) canvas.style.visibility = 'hidden'; // debug: the negative e2e test needs an empty picture
   setFxTime(DEFAULT_START_TIME); // the sun starts 67 degrees west of the default view so that the terminator is visible at once
@@ -649,6 +685,10 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   };
 
   // --- Test hooks or the frame loop ---------------------------------------------------------------------------------
+  const terrainState = (): TerrainStateInfo => {
+    const t = globe.terrainInfo();
+    return { chunkCount: t.chunkCount, lodLevels: t.lodLevels, triangles: t.triangles, drawCalls: t.drawCalls, levels: t.levels, passes: t.passes, finite: globe.chunks?.allFinite() ?? true };
+  };
   const matchState = (): MatchStateInfo | null => {
     const sess = session;
     if (sess === null) return null;
@@ -684,6 +724,8 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       seats,
       ownership: { uploads: globe.ownership.uploads, gpuUploads: globe.ownership.gpuUploads, dirty: globe.ownership.isDirty },
       hostAdvance: { frames: hostAdvance.frames, meanMs: hostAdvance.meanMs(), p95Ms: hostAdvance.p95Ms(), maxMs: hostAdvance.maxMs() },
+      terrainMode: globe.terrainMode,
+      terrain: terrainState(),
     };
   };
   if (params.test) {
@@ -704,10 +746,18 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
         return { ...globe.info(), firstFrameMs, frames, testMode: true, fx: fxNow() };
       },
       setView(v): void {
-        const { time, ...view } = v;
+        const { time, altAglM, ...view } = v;
         if (time !== undefined) setFxTime(time);
-        globe.setView(view);
+        if (altAglM !== undefined) globe.setViewAgl(view, altAglM);
+        else globe.setView(view);
+        globe.resetTerrain();
       },
+      terrain: terrainState,
+      terrainLeaves: () => globe.chunks?.leaves().map((l) => ({ ...l, coarser: [...l.coarser] })) ?? [],
+      setSkirts: (on) => globe.setSkirts(on),
+      setChunkDebug: (on) => globe.setChunkDebug(on),
+      setClearColor: (rgb) => globe.setClearColor(rgb),
+      cameraAglM: () => globe.cameraAglM(),
       project: (lat, lon) => globe.project(lat, lon),
       advance(dt, ticks = 0): void {
         advanceFx(dt);

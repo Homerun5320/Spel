@@ -5,8 +5,12 @@
 // the analytic east/north frame, so it is defined at the poles too. All cosmetic motion (inertia, zoom smoothing)
 // integrates on the fx clock: `update(fxNow())`.
 import {
+  ATMOSPHERE_TOP,
   CAMERA_FOV_DEG,
   CAMERA_MAX_STEP_S,
+  CLIP_FAR_MARGIN,
+  CLIP_NEAR_FRACTION,
+  CLIP_NEAR_MIN,
   DIST_MAX_KM,
   DIST_MIN_KM,
   EARTH_RADIUS_KM,
@@ -77,6 +81,20 @@ export interface ScreenPoint {
 
 const clamp = (v: number, lo: number, hi: number): number => (v < lo ? lo : v > hi ? hi : v);
 
+/**
+ * Near and far plane (Earth radii) of the chunk terrain, from the camera's distance to the planet centre and its height above the
+ * ground (AGL). The near plane follows the height (a camera 300 m up gets a near plane of 30 m, one in orbit of hundreds of km);
+ * the far plane reaches the farthest thing that can be seen: the horizon of the planet plus the way a ray along the horizon takes
+ * to leave the atmosphere shell (the sky glow is that shell's far side), plus a margin. So the depth range is as tight as it can
+ * be at every altitude and a 24-bit depth buffer is enough without reversed depth (docs/DECISIONS.md).
+ */
+export function clipPlanes(centreDist: number, aglRadii: number): { near: number; far: number } {
+  const horizon = Math.sqrt(Math.max(centreDist * centreDist - 1, 0));
+  const shell = Math.sqrt(ATMOSPHERE_TOP * ATMOSPHERE_TOP - 1);
+  const near = Math.max(CLIP_NEAR_MIN, CLIP_NEAR_FRACTION * aglRadii);
+  return { near, far: horizon + shell + CLIP_FAR_MARGIN };
+}
+
 export class CameraRig {
   private s: ViewState = { lat: 0, lon: 0, distKm: 20000, heading: 0, tilt: 0 };
   private targetDistKm = 20000;
@@ -127,6 +145,22 @@ export class CameraRig {
       heading: wrapLon(n.heading),
       tilt: clamp(n.tilt, 0, TILT_MAX_DEG),
     };
+    this.targetDistKm = this.s.distKm;
+    this.velRate = 0;
+    this.anchor = null;
+    this.dragging = false;
+  }
+
+  /**
+   * Sets the view WITHOUT the user limits: any distance above 1 m and a tilt up to 89.5 degrees (a horizon view). Test hooks only
+   * (`__test.setView({altAglM})`); the user's own zoom and tilt stay clamped by `setView`.
+   */
+  setViewUnclamped(v: Partial<ViewState>): void {
+    const n = { ...this.s, ...v };
+    if (!Number.isFinite(n.lat) || !Number.isFinite(n.lon) || !Number.isFinite(n.distKm) || !Number.isFinite(n.heading) || !Number.isFinite(n.tilt)) {
+      throw new Error(`setViewUnclamped: non-finite value in ${JSON.stringify(v)}`);
+    }
+    this.s = { lat: clamp(n.lat, -90, 90), lon: wrapLon(n.lon), distKm: clamp(n.distKm, 0.001, 1e6), heading: wrapLon(n.heading), tilt: clamp(n.tilt, 0, 89.5) };
     this.targetDistKm = this.s.distKm;
     this.velRate = 0;
     this.anchor = null;
@@ -297,4 +331,36 @@ export class CameraRig {
       }
     }
   }
+}
+
+/**
+ * Puts the camera of `rig` at `altAglM` metres above the ground under it: the view `v` (focus, heading, tilt) with a distance chosen
+ * so that the camera's height above `surfaceRadius(lat, lon)` (the displaced ground under the CAMERA, in Earth radii) equals the
+ * wanted one. Along the line from the focus point outward the first distance at which the camera clears the ground is searched by a
+ * geometric scan and bisection (a fixed-point iteration does not converge on a steep slope: the ground moves faster than the camera).
+ * The user's zoom limit and the tilt clamp do not apply (tilt up to 89.5 degrees). Used by the test hook `altAglM` and the tests.
+ */
+export function setViewAtAgl(rig: CameraRig, surfaceRadius: (latDeg: number, lonDeg: number) => number, v: Partial<ViewState>, altAglM: number): void {
+  const target = altAglM / (EARTH_RADIUS_KM * 1000);
+  rig.setViewUnclamped({ ...v, distKm: 0.001 });
+  const f = (distRadii: number): number => {
+    rig.setViewUnclamped({ distKm: distRadii * EARTH_RADIUS_KM });
+    const p = rig.pose().position;
+    const { lat, lon } = vecToLatLon(p);
+    return length(p) - surfaceRadius(lat, lon) - target;
+  };
+  let lo = 1e-7;
+  let hi = lo;
+  let fhi = f(hi);
+  for (let i = 0; i < 200 && fhi < 0; i++) {
+    lo = hi;
+    hi *= 1.15;
+    fhi = f(hi);
+  }
+  for (let i = 0; i < 60; i++) {
+    const mid = 0.5 * (lo + hi);
+    if (f(mid) < 0) lo = mid;
+    else hi = mid;
+  }
+  f(hi);
 }

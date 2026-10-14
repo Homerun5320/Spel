@@ -23,7 +23,7 @@ uniform float uExag;
 uniform float uKmPerUnit;
 
 varying vec3 vDir;
-varying vec3 vPos;
+varying vec3 vRel;
 
 void main() {
   vec3 dir = normalize(position);
@@ -35,12 +35,34 @@ void main() {
   float r = 1.0 + uExag * hM / (uKmPerUnit * 1000.0);
   vec3 p = dir * r;
   vDir = dir;
-  vPos = p;
+  vRel = p - cameraPosition; // camera-relative, like the chunk vertex shader (shaders/chunk.ts) produces it
   gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
 }
 `;
 
-export const terrainFragmentShader = /* glsl */ `
+/**
+ * The terrain fragment shader. With `chunk` it also declares the debug colouring of the chunk terrain (`?chunks=1`: a flat colour
+ * per chunk with a darker rim, so the chunks and their levels can be seen); the fixed mesh has no such uniform.
+ */
+export function buildTerrainFragmentShader(chunk: boolean): string {
+  const chunkDecl = chunk ? 'uniform float uChunkDebug;\nuniform float uChunkCells;\nvarying vec4 vChunk;' : '';
+  // The facet normal is the stylised flat shading of the mesh. A mesh cell much smaller than a raster texel only shows the texel
+  // grid of the bilinear height field (blocky streaks), so the facet weight fades out below four texels per cell (the fixed mesh
+  // and the orbit-level chunks have 8 or more and keep the full weight; the slope normal already carries the finer relief).
+  const facetWeight = chunk
+    ? `float cellTexels = (1.5707963 / exp2(vChunk.y) / uChunkCells) / (2.0 * PI / float(uHeightSize.x));
+  float facetW = uFacet * clamp(cellTexels * 0.25, 0.0, 1.0);`
+    : 'float facetW = uFacet;';
+  const chunkDebug = chunk
+    ? `  if (uChunkDebug > 0.5) {
+    vec3 hue = clamp(abs(fract(vChunk.x + vec3(0.0, 2.0 / 3.0, 1.0 / 3.0)) * 6.0 - 3.0) - 1.0, 0.0, 1.0);
+    vec3 chunkCol = mix(vec3(1.0), hue, 0.75) * (0.55 + 0.4 * fract(vChunk.y * 0.37));
+    vec2 rim = min(vChunk.zw, 1.0 - vChunk.zw);
+    float edge = 1.0 - smoothstep(0.0, 0.035, min(rim.x, rim.y));
+    gl_FragColor = vec4(mix(chunkCol, chunkCol * 0.35, edge) * (0.75 + 0.25 * max(dot(normalize(vDir), sun), 0.0)), 1.0);
+  }`
+    : '';
+  return /* glsl */ `
 uniform sampler2D uHeight;
 uniform sampler2D uBathy;
 uniform sampler2D uClass;
@@ -64,7 +86,8 @@ uniform float uFacet;
 uniform vec3 uPolarCap; // x, y: |latitude| (degrees) where the polar-cap fade starts and ends; z: sea depth in metres inside the cap
 
 varying vec3 vDir;
-varying vec3 vPos;
+varying vec3 vRel; // surface point minus camera position (the vertex shaders form it without absolute float32 coordinates)
+${chunkDecl}
 
 ${GLSL_GEO}
 ${GLSL_TEXELS}
@@ -189,9 +212,10 @@ void main() {
   float gE = capKeep * (exagHeight(normalize(dir + east * st)) - exagHeight(normalize(dir - east * st))) / (2.0 * st);
   float gN = capKeep * (exagHeight(normalize(dir + north * st)) - exagHeight(normalize(dir - north * st))) / (2.0 * st);
   vec3 detailN = normalize(dir - gE * east - gN * north);
-  vec3 flatN = normalize(cross(dFdx(vPos), dFdy(vPos)));
+  vec3 flatN = normalize(cross(dFdx(vRel), dFdy(vRel)));
   if (dot(flatN, dir) < 0.0) flatN = -flatN;
-  vec3 shadeN = normalize(detailN + (flatN - dir) * uFacet);
+  ${facetWeight}
+  vec3 shadeN = normalize(detailN + (flatN - dir) * facetW);
   float slope = 1.0 - clamp(dot(shadeN, dir), 0.0, 1.0);
 
   // Land colour: biome tone, bare rock on steep faces and high ground, snow above a latitude dependent snow line.
@@ -226,7 +250,7 @@ void main() {
   float diffWater = clamp(sunDot, 0.0, 1.0);
   vec3 ambient = mix(uAmbientNight, uAmbientDay, day) + uSunColorLow * twilight * 0.35;
 
-  vec3 viewDir = normalize(cameraPosition - vPos);
+  vec3 viewDir = normalize(-vRel);
   vec3 litLand = toLinear(albedoLand) * (ambient + sunCol * day * (0.12 + 0.95 * diffLand));
   vec3 bodyWater = toLinear(albedoWater) * (ambient + sunCol * day * (0.10 + 0.9 * diffWater));
   // Territory at night: mix the owner's colour into the lit land after the lighting (see territory.ts), so it stays readable in the dark.
@@ -253,11 +277,15 @@ void main() {
   }
 
   // Atmosphere: haze and glow between the camera and this surface point (in linear light).
-  vec3 toSurf = vPos - cameraPosition;
+  vec3 toSurf = vRel;
   float distSurf = length(toSurf);
   vec4 sc = atmosphereScatter(cameraPosition, toSurf / distSurf, distSurf, sun, 6);
   col = col * sc.a + sc.rgb;
 
   gl_FragColor = vec4(toDisplay(col), 1.0);
+${chunkDebug}
 }
 `;
+}
+
+export const terrainFragmentShader = buildTerrainFragmentShader(false);

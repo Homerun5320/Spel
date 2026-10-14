@@ -147,6 +147,36 @@ export const CAMERA_MAX_STEP_S = 1 / 60;
 /** Default view: the whole Earth framed so that it nearly fills the height of the canvas. */
 export const DEFAULT_VIEW = { lat: 22, lon: 12, distKm: 21500, heading: 0, tilt: 0 } as const;
 
+// --- Terrain chunks (M07a): the quadtree of instanced chunks that replaces the fixed globe mesh -----------------------------------
+/** Deepest quadtree level (level 0 = the 8 roots of 90 degrees; level L chunks are 90 / 2^L degrees: 17 is about 76 m on a side). */
+export const CHUNK_MAX_LEVEL = 17;
+/** A split chunk merges back only when it is this much (fraction) farther than the split distance: the LOD hysteresis band. */
+export const CHUNK_HYSTERESIS = 0.25;
+/**
+ * Skirt depth in grid cells of the chunk's own level; it is multiplied by 2^d on an edge whose neighbour is d levels coarser (the
+ * crack to cover grows with the coarse cell). Also covers the float rounding hairlines between equal-level neighbours.
+ */
+export const CHUNK_SKIRT_CELLS = 1.5;
+/**
+ * How far the skirt leans OUTWARD from its chunk (grid cells of the chunk's own level, times 2^d like the depth). A wall that only hangs
+ * straight down is edge-on to a camera looking straight down, so a hairline gap between two chunks (float rounding of their separately
+ * computed edge vertices) would show the background there; a wall that leans outward is seen from above and covers it.
+ */
+export const CHUNK_SKIRT_OUT_CELLS = 0.75;
+/** Frustum culling slack: the half field of view is widened by this fraction so a chunk never pops in at the screen edge. */
+export const CHUNK_FRUSTUM_SLACK = 0.06;
+/** When more chunks than the tier allows are wanted, the split distances shrink by this factor and the selection is run again. */
+export const CHUNK_BUDGET_SHRINK = 0.8;
+/** At most this many shrink passes (the last one also stops splitting when the cap is reached). */
+export const CHUNK_BUDGET_PASSES = 8;
+/** Dynamic near plane: this fraction of the camera's height above the ground, never below `CLIP_NEAR_MIN` (Earth radii). */
+export const CLIP_NEAR_FRACTION = 0.1;
+export const CLIP_NEAR_MIN = 2e-7;
+/** Dynamic far plane: the distance to the horizon plus the distance a ray along the horizon needs to leave the atmosphere shell, plus this margin (Earth radii). */
+export const CLIP_FAR_MARGIN = 0.1;
+/** Hue step of the `?chunks=1` debug colours (golden ratio conjugate: neighbouring keys get well separated hues). */
+export const CHUNK_HUE_STEP = 0.6180339887498949;
+
 // --- Colours of the terrain classes (sRGB, 0..1), index = TerrainClass value of src/data/format.ts --------------------
 export const CLASS_ALBEDO: ReadonlyArray<readonly [number, number, number]> = [
   [0.02, 0.1, 0.3], // 0 DeepSea (unused on land)

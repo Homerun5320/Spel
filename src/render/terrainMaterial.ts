@@ -6,11 +6,15 @@ import { DEPTH_MAX_M, LAND_MAX_M, type RenderPack, type SimGrid, type WorldMeta 
 import * as C from './config';
 import { atmosphereFragmentShader, atmosphereVertexShader } from './shaders/atmosphere';
 import { starsFragmentShader, starsVertexShader } from './shaders/stars';
-import { terrainFragmentShader, terrainVertexShader } from './shaders/terrain';
+import { chunkVertexShader } from './shaders/chunk';
+import { buildTerrainFragmentShader, terrainFragmentShader, terrainVertexShader } from './shaders/terrain';
 import { createLookTextures, type LookTextures, type WorldTextures } from './textures';
 import { createOwnerPaletteTexture } from './ownerPalette';
 import { createSelectionTexture } from './selection';
 import type { OwnershipTexture } from './ownership';
+
+/** How the terrain is drawn: `chunks` is the quadtree of instanced chunks (M07a, the default), `fixed` the M02 lat/lon mesh. */
+export type TerrainMode = 'chunks' | 'fixed';
 
 export interface TerrainMaterial {
   material: ShaderMaterial;
@@ -31,6 +35,8 @@ export function createTerrainMaterial(
   meta: WorldMeta,
   look: LookTextures = createLookTextures([]),
   ownership?: OwnershipTexture,
+  mode: TerrainMode = 'fixed',
+  chunkCells = 32,
 ): TerrainMaterial {
   const sun = new Vector3(0, 0, 1);
   // Uniforms used by more than one material are the SAME objects, so one assignment updates all of them.
@@ -43,9 +49,10 @@ export function createTerrainMaterial(
     uAtmoColor: { value: v3(C.ATMOSPHERE_COLOR) },
     uAtmoDusk: { value: v3(C.ATMOSPHERE_DUSK) },
   };
+  const chunks = mode === 'chunks';
   const material = new ShaderMaterial({
-    vertexShader: terrainVertexShader,
-    fragmentShader: terrainFragmentShader,
+    vertexShader: chunks ? chunkVertexShader : terrainVertexShader,
+    fragmentShader: chunks ? buildTerrainFragmentShader(true) : terrainFragmentShader,
     side: FrontSide,
     uniforms: {
       uHeight: { value: textures.height },
@@ -96,6 +103,8 @@ export function createTerrainMaterial(
       uSkyHorizon: { value: v3(C.SKY_HORIZON) },
       uSkyZenith: { value: v3(C.SKY_ZENITH) },
       uSkyNight: { value: v3(C.SKY_NIGHT) },
+      // Chunk terrain only: the skirts switch (a debug flag of the crack test) and the `?chunks=1` colouring.
+      ...(chunks ? { uSkirtsOn: { value: 1 }, uChunkDebug: { value: 0 }, uChunkCells: { value: chunkCells }, uSkirt: { value: new Vector2(C.CHUNK_SKIRT_CELLS, C.CHUNK_SKIRT_OUT_CELLS) } } : {}),
       ...shared,
     },
   });

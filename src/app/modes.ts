@@ -10,6 +10,9 @@ export function registerAppModes(): void {
   registerDevMode({ id: 'quality-low', label: 'Kvalitet: låg', params: { quality: 'low' } });
   registerDevMode({ id: 'quality-medium', label: 'Kvalitet: medel', params: { quality: 'medium' } });
   registerDevMode({ id: 'quality-high', label: 'Kvalitet: hög', params: { quality: 'high' } });
+  registerDevMode({ id: 'terrain-fixed', label: 'Terräng: gamla fasta nätet (M02)', params: { terrain: 'fixed' } });
+  registerDevMode({ id: 'terrain-chunks', label: 'Terräng: chunk-träd (standard)', params: { terrain: 'chunks' } });
+  registerDevMode({ id: 'chunks', label: 'Visa chunkens färger och kanter', params: { chunks: '1' }, toggle: true });
   registerDevMode({ id: 'seed-7', label: 'Seed 7', params: { seed: '7' } });
   registerDevMode({ id: 'seed', label: 'Seed', field: { param: 'seed', placeholder: '1', pattern: /^-?\d{1,10}$/ } });
   registerDevMode({ id: 'lang-en', label: 'Språk: English', params: { lang: 'en' } });
