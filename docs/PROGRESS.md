@@ -15,6 +15,7 @@ Resume: Läs CLAUDE.md och docs/PROGRESS.md, kör git log -10 och npm run verify
 | M05 | (set after the squash merge) | Wow 2, the first playable conquest on the globe: SimView and snapshots, ownership texture, spawn phase and click-to-attack, HUD with i18n (sv, en), start screen, AI v0 (5 nations) and 20 tribes. Published in the Artifact as version 5 (version 4 was the early Part A build). GATE: the user played it and reported "Stadiga 30 fps" (steady 30 fps on a real GPU at the default medium quality) and no other complaint; M07 onwards must not regress the FPS at the default quality. Previous merge SHA (origin/main at start): f29121a8d1607ca169e6675b5f22a52d76c42ef7 (nothing is merged yet) |
 | M06 | (set after the squash merge) | Menu: real country or own nation with a procedural flag, fair start (exactly K = 197 cells for every nation), Skirmish regions, search in two languages, flyTo, home land and traits, prefs, createMatch. Published in the Artifact as version 6. Previous merge SHA (origin/main at start): f29121a8d1607ca169e6675b5f22a52d76c42ef7 (nothing is merged yet) |
 | M06 | (set after the squash merge) | Menu: real or custom country. The fair start (every nation 197 cells, same troops and gold), home land and traits, regions (Skirmish cut-outs), procedural flags, country search, preferences, `createMatch`; the start screen with the setup screen (search or click on the globe, custom nation with flag and free start place, match options, "no real borders"), the camera flight (`flyTo`), the outline of the chosen country, names and flags in the HUD and the leaderboard. The Artifact is republished by the orchestrator after the last part (24 files, 15.55 MB packed). Previous merge SHA (origin/main at start): f29121a8d1607ca169e6675b5f22a52d76c42ef7 (nothing is merged yet; M00 to M05 live on this branch and in draft pull request #1) |
+| M07a | (set after the squash merge) | Terrain LOD A (user gate): the terrain is a quadtree of instanced chunks with skirts (one draw call, hard chunk cap per tier), the territory and the selection outline on it with finer organic border warp, a terrain-aware orbit zoom down to 1 km above the ground, `#view-alps-valley` and `#view-himalaya-valley`, six contact-sheet goldens. Previous merge SHA (origin/main at start): f29121a8d1607ca169e6675b5f22a52d76c42ef7 (nothing is merged; M00 to M06 live on this branch and in draft pull request #1) |
 
 ## Now
 
@@ -32,23 +33,23 @@ GÖR (Part A = items 1, 2, 3, 5, 6)
 - [x] A8. Budgetar rows and the chunk vs fixed table in `docs/ARCHITECTURE.md`; D133 and D134 in `docs/DECISIONS.md`; BACKLOG entries; PREVIEW rows for `#terrain-fixed`, `#chunks`, `#test_chunktier-high`; BALANCE untouched (render config only)
 - [x] A9. `npm run verify:fast` green and the new e2e file green alone; local commits. Open on purpose: the golden test of `e2e/looks.test.ts` (and the golden tests of M05 / M06 that render the globe) differ from the committed PNGs because the default terrain changed; regenerated once in Part C (D134)
 
-GÖR (Part B, NOT started: items 4 and 7)
-- [ ] B1. Item 4: the territory/border shader on the chunk material (the shared fragment module already carries it: the ownership texture, the owner palette and the selection outline are uniforms of the chunk material too; Part B has to check it close up and scale the UV domain warp so borders look organic at 300 m), the ownership texture interface unchanged
-- [ ] B2. Item 7: terrain-aware orbit camera minimum (about 1 km AGL), zoom steps proportional to the height, `?view=alps-valley` and `?view=himalaya-valley` (`#view-alps-valley`, `#view-himalaya-valley`) via `registerDevMode` through `src/app/params.ts`, listed in `docs/PREVIEW.md`; `setViewAtAgl` in `src/render/camera.ts` is the solver for "the camera N metres above the ground", reuse it
+GÖR (Part B: items 4 and 7; DONE)
+- [x] B1. Item 4 (D135: the finer warp bounded by the fold test, the two-part cell position, pixel size from the camera-relative position): the territory/border shader on the chunk material (the shared fragment module already carries it: the ownership texture, the owner palette and the selection outline are uniforms of the chunk material too; Part B has to check it close up and scale the UV domain warp so borders look organic at 300 m), the ownership texture interface unchanged
+- [x] B2. Item 7 (D136, D137): terrain-aware orbit camera minimum (about 1 km AGL), zoom steps proportional to the height, `?view=alps-valley` and `?view=himalaya-valley` (`#view-alps-valley`, `#view-himalaya-valley`) via `registerDevMode` through `src/app/params.ts`, listed in `docs/PREVIEW.md`; `setViewAtAgl` in `src/render/camera.ts` is the solver for "the camera N metres above the ground", reuse it
 
-GÖR (Part C, NOT started: item 8 and the finish)
-- [ ] C1. Item 8: goldens, contact sheet of 3 heights over the Alps, the Himalaya and western Norway (about 61.5 N 6 E), normal view and `?chunks=1`; the changed M02/M05/M06 goldens regenerated ONCE with `UPDATE_GOLDENS=1` after looking at old and new side by side, justified in DECISIONS
-- [ ] C2. SLUT: PROGRESS, DECISIONS, ARCHITECTURE index, BACKLOG, PREVIEW; `npm run verify` green; `npm run build && npm run artifact:pack`
+GÖR (Part C: item 8 and the finish)
+- [x] C1. Item 8 (D138, D139; six sheets, 0 px differ on the second run, all six M02 goldens rewritten once after the side-by-side look): goldens, contact sheet of 3 heights over the Alps, the Himalaya and western Norway (about 61.5 N 6 E), normal view and `?chunks=1`; the changed M02/M05/M06 goldens regenerated ONCE with `UPDATE_GOLDENS=1` after looking at old and new side by side, justified in DECISIONS
+- [x] C2. SLUT (PROGRESS, DECISIONS D135 to D139, ARCHITECTURE, BACKLOG, PREVIEW 17u and the two table rows; verify and pack: see below): PROGRESS, DECISIONS, ARCHITECTURE index, BACKLOG, PREVIEW; `npm run verify` green; `npm run build && npm run artifact:pack`
 
 ACCEPTANS (all parts; ticked = proven by a test that can fail)
 - [x] Without flags `__test.state().terrainMode === 'chunks'`; with `?terrain=fixed` (and `#terrain-fixed`) it is 'fixed' (`e2e/terrain.test.ts`)
 - [x] Six altitudes over the Alps via altAglM (orbit, 3000 km, 500 km, 60 km, 8 km, 300 m AGL): 0 magenta pixels in the terrain region; the detector proven by a synthetic hole (`tests/render/crackDetector.test.ts`) and on the real renderer: with the skirts off the views at 3000 km, 500 km, 60 km and 8 km (different LOD levels side by side) give 143, 167, 129 and 108 magenta pixels
 - [x] Lower bounds at the three lowest altitudes: chunkCount >= 12, >= 3 distinct LOD levels, test-tier triangles >= 20k, `?chunks=1` >= 12 distinct chunk hues (and the pixel at a CPU-picked chunk centre has that chunk's hue: 36 of 37, 25 of 25, 40 of 40), >= 200 distinct colours in the terrain region (a coastal view at 300 m: the plain M02 look has 1 to 37 colours over inland ground, D133 (8)); the high tier headless: 100k to 1.5M triangles (470k to 864k), <= 200 draw calls (3); chunk count <= 400 everywhere (unit: 300 poses per tier; browser: 60 poses on the high tier, worst 398)
 - [x] Jitter: camera offset 1e-7 degrees at 300 m AGL changes 0 of 518 400 pixels of the shaded view and 15 of the `?chunks=1` edge picture (limit 0.2 %; the 1e-3 degree control changes 15 %), no NaN; unit test: chunk-relative float32 vertex positions within 1 cm of float64 (worst 3.7 mm for chunks within 50 km)
-- [ ] Ownership: readback == sim-owner on sampled cells, including cells on both sides of at least one border giving different colours (M05's method) - Part B
-- [ ] Orbit camera: mouse zoom stops at 0.8 to 1.5 km AGL over sea level and over the Himalaya (unit test); both `?view=` addresses load with no console errors and show >= 3 LOD levels - Part B
-- [ ] Goldens: new contact sheets committed (two renders in one launch byte-identical); changed M02/M05/M06 goldens regenerated after a visual check and justified; no tolerance raised - Part C
-- [ ] No console errors; `npm run verify` green - Part C
+- [x] Ownership: readback == sim-owner on sampled cells, including cells on both sides of at least one border giving different colours (M05's method) (`e2e/terrainViews.test.ts`: 206 cells, owners 7 | 8, pixel dE76 21.6)
+- [x] Orbit camera: mouse zoom stops at 0.8 to 1.5 km AGL over sea level and over the Himalaya (`tests/render/groundZoom.test.ts`: rests at 1000 m); both `?view=` addresses load (query and hash) with no console errors and show 9 to 11 LOD levels (`e2e/terrainViews.test.ts`)
+- [x] Goldens: new contact sheets committed (two renders in one launch byte-identical); changed M02/M05/M06 goldens regenerated after a visual check and justified; no tolerance raised - Part C
+- [ ] No console errors; `npm run verify` green - the last line of this block says which
 
 Part A results (measured in this sandbox, SwiftShader, test tier unless said): quadtree update median 0.19 ms and chunk terrain update 0.22 to 0.23 ms per frame on the medium tier (`tests/chunkQuadtree.perf.test.ts`, budget `budgetMs(1)`); an unchanged camera costs 0.3 us; 60 renders at 320x180 retain 0.05 MB; chunk frames cost 1.4 to 1.7 times the fixed mesh in SwiftShader (0.6 against 0.4 s at 900 km). What Part B must know: see the handoff of the report and D133 / D134.
 
@@ -681,6 +682,22 @@ Cloud sandbox, SwiftShader, test tier 960x540 unless said:
 | leak test, 60 renders at 320x180 | 0.07 MB |
 | whole e2e project | 716 s (480 s before M07a): `docs/BACKLOG.md` holds the plan to shard it |
 | `npm run verify:fast` | 57 s (126 files, 1414 tests), perf project 22 tests green |
+
+## Measurements M07a part B (logged, not asserted)
+
+Cloud sandbox, SwiftShader, test tier 960x540 unless said:
+
+| measure | value |
+|---------|-------|
+| `CameraRig.update` at rest at the zoom floor over the Himalaya (the per-frame ground check), median of 15 | 0.6 us; budget `budgetMs(0.02)` (`tests/groundCamera.perf.test.ts`) |
+| one wheel notch (the search for the distance of the wanted height, about 130 height reads) plus one frame of the zoom, median of 15 | 135 us; budget `budgetMs(0.6)` |
+| mouse zoom floor | 1000 m above the displaced ground over the open sea, the Alps, the Himalaya and Everest at tilt 0, 40 and 72 |
+| territory border at 1.5 km, worst distance from a straight line over nine rows | 0.62 px with the two-part cell position; 1.47 px with one float32 cell coordinate (limit 1.0) |
+| cell position of a vertex, worst over 400 random vertices of level 9 to 17 chunks | 1.4 mm (two parts) against 1.2 m (one float32) |
+| smallest Jacobian determinant of the border warp, 60 000 positions, all fine octaves on | 0.13 (M05 warp alone 0.48; the first, rougher version -3.5 = folded; limit 0.1) |
+| LOD levels in the two ground views | 9 to 11, chunk count 148 to 150 of 150 (test tier) |
+| contact sheets | 6 files, 1.6 MB, 0 px differ against themselves, byte-identical in one launch |
+| whole e2e project before the new file (17 files, 149 tests) | 796 s |
 
 ## Usage
 
