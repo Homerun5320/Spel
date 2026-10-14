@@ -18,37 +18,39 @@ Resume: Läs CLAUDE.md och docs/PROGRESS.md, kör git log -10 och npm run verify
 
 ## Now
 
-### M07a Terrain LOD A: quadtree chunks and geometry (USER GATE) - three sessions: Part A (items 1, 2, 3, 5, 6 and their tests), Part B (items 4, 7), Part C (item 8, goldens, finish). The orchestrator owns pushing, the pull request and the Artifact.
+### M07a Terrain LOD A: quadtree chunks and geometry (USER GATE) - three sessions: Part A (items 1, 2, 3, 5, 6 and their tests; DONE, see below), Part B (items 4, 7), Part C (item 8, goldens, finish). The orchestrator owns pushing, the pull request and the Artifact.
 
-Previous merge SHA (origin/main at start): f29121a8d1607ca169e6675b5f22a52d76c42ef7 (unchanged; nothing is merged, M00 to M06 live on this branch and in draft pull request #1, so the precondition "M05/M06 merged" is treated as satisfied because they are Done here). Note: the prompt says flyTo is M08; it already exists (`src/render/flyTo.ts`, M06). User feedback to respect: a steady 30 fps at the default medium tier on a real GPU (M05/M06), so the default tier must not cost more triangles or per-pixel work than the fixed mesh (record both in the Budgetar table of `docs/ARCHITECTURE.md`).
+Previous merge SHA (origin/main at start): f29121a8d1607ca169e6675b5f22a52d76c42ef7 (unchanged; nothing is merged, M00 to M06 live on this branch and in draft pull request #1, so the precondition "M05/M06 merged" is treated as satisfied because they are Done here). Note: the prompt says flyTo is M08; it already exists (`src/render/flyTo.ts`, M06). User feedback to respect: a steady 30 fps at the default medium tier on a real GPU (M05/M06), so the default tier must not cost more triangles or per-pixel work than the fixed mesh (the numbers are in the "Chunk-terräng mot det fasta nätet" table of `docs/ARCHITECTURE.md`: 0.41x the triangles at the default orbit view, within +-9 % at the other views).
 
 GÖR (Part A = items 1, 2, 3, 5, 6)
-- [ ] A1. Quadtree of instanced chunks: 8 roots (4x2, 90 deg), one shared 32x32-cell mesh (33x33 vertices; test tier 16x16), instance data (camera-relative chunk origin in float64 -> float32, tangent basis, lat/lon extent, level, neighbour levels), LOD rings with hysteresis (merge at a larger distance than split), frustum and horizon culling, skirts on all four edges FIRST (morphing only if skirts + hysteresis do not suffice)
-- [ ] A2. Heights from the global 4096x2048 sqrt-coded height texture with the x12 exaggeration (no noise); land never changes sign against sea at coasts
-- [ ] A3. Precision: no vertex position from absolute float32 world coordinates; dynamic near/far from the camera AGL (reversed depth only if EXT_clip_control exists: decision in DECISIONS)
-- [ ] A5. Tiers: chunk density per tier and a hard triangle budget through a max chunk count (never above 400); the old fixed mesh behind `?terrain=fixed`, the `?chunks=1` debug colouring (deterministic colour per chunk); both registered with `registerDevMode`; hash forms `#terrain-fixed` and `#chunks`
-- [ ] A6. Test hooks: `__test.setView({altAglM})` (bypasses the zoom limit and the tilt clamp, adjusts near/far), `__test.state().terrainMode` and `.terrain {chunkCount, lodLevels, triangles, drawCalls}`, documented in `docs/ARCHITECTURE.md`
-- [ ] A7. Tests of Part A: crack detector (magenta clear colour, 0 magenta pixels in the terrain region at orbit / 3000 km / 500 km / 60 km / 8 km / 300 m AGL over the Alps; the detector proven by a synthetic-image unit test), lower bounds at the three lowest altitudes (chunkCount >= 12, >= 3 LOD levels, test-tier triangles >= 20k, >= 12 chunk colours in `?chunks=1`, >= 200 colours in the terrain region), float32 vs float64 precision unit test (< 1 cm within 50 km), the 1e-7 degree jitter test (< 0.2 % pixels, no NaN), chunk count <= 400 under fuzzed camera poses, LOD hysteresis (no split/merge oscillation on a wobbling path), quadtree update perf test through `budgetMs` (statistic named), headless high-tier run (100k to 1.5M triangles, <= 200 draw calls)
-- [ ] A8. Budgetar table rows for the chunk terrain (default tier at orbit vs the M05 fixed mesh) in `docs/ARCHITECTURE.md`; D-numbers in `docs/DECISIONS.md`; BALANCE untouched (render config only)
-- [ ] A9. `npm run verify:fast` green and the new e2e files green alone; local commits
+- [x] A1. Quadtree of instanced chunks: 8 roots (4x2, 90 deg), one shared 32x32-cell mesh (33x33 vertices; test and low tier 16x16), instance data (centre direction as high and low float32 parts, tangent basis, lat/lon extent, level, neighbour levels), LOD rings with hysteresis (merge at 1.25x the split distance), frustum and horizon culling, skirts on all four edges first; vertex morphing NOT built (skirts + hysteresis suffice, D133)
+- [x] A2. Heights from the global 4096x2048 sqrt-coded height texture with the x12 exaggeration (no noise); land never changes sign against sea at coasts (never below sea level, sea exactly 0, land above it)
+- [x] A3. Precision: no vertex position from absolute float32 world coordinates (chunk minus camera from hi / lo parts, half-angle offsets, `mat3(viewMatrix)`); dynamic near / far from the camera AGL; reversed depth NOT used (EXT_clip_control exists here, nothing needs it: 24-bit depth resolves < 0.5 % at every altitude)
+- [x] A5. Tiers: chunk density per tier (cells, split distances) and a hard cap on chunks (150 / 100 / 300 / 400, never above 400); the old fixed mesh behind `?terrain=fixed`, the `?chunks=1` debug colouring; both registered with `registerDevMode`; hash forms `#terrain-fixed` and `#chunks`
+- [x] A6. Test hooks: `__test.setView({altAglM})`, `__test.state().terrainMode` and `.terrain {chunkCount, lodLevels, triangles, drawCalls, ...}`, documented in `docs/ARCHITECTURE.md`
+- [x] A7. Tests of Part A: crack detector (0 magenta pixels at the six altitudes, the detector proven on a synthetic hole and on the real renderer with the skirts off), lower bounds, float32 vs float64 precision, 1e-7 degree jitter, chunk cap under fuzzed poses (unit and browser), LOD hysteresis, quadtree perf test, headless high-tier run
+- [x] A8. Budgetar rows and the chunk vs fixed table in `docs/ARCHITECTURE.md`; D133 and D134 in `docs/DECISIONS.md`; BACKLOG entries; PREVIEW rows for `#terrain-fixed`, `#chunks`, `#test_chunktier-high`; BALANCE untouched (render config only)
+- [x] A9. `npm run verify:fast` green and the new e2e file green alone; local commits. Open on purpose: the golden test of `e2e/looks.test.ts` (and the golden tests of M05 / M06 that render the globe) differ from the committed PNGs because the default terrain changed; regenerated once in Part C (D134)
 
 GÖR (Part B, NOT started: items 4 and 7)
-- [ ] B1. Item 4: the territory/border shader on the chunk material (the shared shader modules are already used by Part A), the UV domain warp scaled so borders look organic close up; the ownership texture interface unchanged
-- [ ] B2. Item 7: terrain-aware orbit camera minimum (about 1 km AGL), zoom steps proportional to the height, `?view=alps-valley` and `?view=himalaya-valley` (`#view-alps-valley`, `#view-himalaya-valley`) via `registerDevMode` through `src/app/params.ts`, listed in `docs/PREVIEW.md`
+- [ ] B1. Item 4: the territory/border shader on the chunk material (the shared fragment module already carries it: the ownership texture, the owner palette and the selection outline are uniforms of the chunk material too; Part B has to check it close up and scale the UV domain warp so borders look organic at 300 m), the ownership texture interface unchanged
+- [ ] B2. Item 7: terrain-aware orbit camera minimum (about 1 km AGL), zoom steps proportional to the height, `?view=alps-valley` and `?view=himalaya-valley` (`#view-alps-valley`, `#view-himalaya-valley`) via `registerDevMode` through `src/app/params.ts`, listed in `docs/PREVIEW.md`; `setViewAtAgl` in `src/render/camera.ts` is the solver for "the camera N metres above the ground", reuse it
 
 GÖR (Part C, NOT started: item 8 and the finish)
 - [ ] C1. Item 8: goldens, contact sheet of 3 heights over the Alps, the Himalaya and western Norway (about 61.5 N 6 E), normal view and `?chunks=1`; the changed M02/M05/M06 goldens regenerated ONCE with `UPDATE_GOLDENS=1` after looking at old and new side by side, justified in DECISIONS
 - [ ] C2. SLUT: PROGRESS, DECISIONS, ARCHITECTURE index, BACKLOG, PREVIEW; `npm run verify` green; `npm run build && npm run artifact:pack`
 
-ACCEPTANS (all parts; the Part A ones are the first five)
-- [ ] Without flags `__test.state().terrainMode === 'chunks'`; with `?terrain=fixed` it is 'fixed'
-- [ ] Six altitudes over the Alps via altAglM (orbit, 3000 km, 500 km, 60 km, 8 km, 300 m AGL): 0 magenta pixels in the terrain region; the detector proven by a synthetic hole; with skirts off by a debug flag a view with different LOD levels gives > 0 magenta pixels (or the absence of such a view is noted in DECISIONS and the unit test relied on)
-- [ ] Lower bounds at the three lowest altitudes: chunkCount >= 12, >= 3 distinct LOD levels, test-tier triangles >= 20k, `?chunks=1` >= 12 distinct chunk colours, terrain region >= 200 distinct colours; high tier once headless: 100k to 1.5M triangles, <= 200 draw calls; chunk count <= 400 everywhere
-- [ ] Jitter: camera offset 1e-7 deg at 300 m AGL changes < 0.2 % of the pixels, no NaN; unit test: chunk-relative float32 vertex positions within 1 cm of float64 for chunks within 50 km
-- [ ] Ownership: readback == sim owner on sampled cells, including cells on both sides of at least one border giving different colours (M05's method) - Part B
+ACCEPTANS (all parts; ticked = proven by a test that can fail)
+- [x] Without flags `__test.state().terrainMode === 'chunks'`; with `?terrain=fixed` (and `#terrain-fixed`) it is 'fixed' (`e2e/terrain.test.ts`)
+- [x] Six altitudes over the Alps via altAglM (orbit, 3000 km, 500 km, 60 km, 8 km, 300 m AGL): 0 magenta pixels in the terrain region; the detector proven by a synthetic hole (`tests/render/crackDetector.test.ts`) and on the real renderer: with the skirts off the views at 3000 km, 500 km, 60 km and 8 km (different LOD levels side by side) give 143, 167, 129 and 108 magenta pixels
+- [x] Lower bounds at the three lowest altitudes: chunkCount >= 12, >= 3 distinct LOD levels, test-tier triangles >= 20k, `?chunks=1` >= 12 distinct chunk hues (and the pixel at a CPU-picked chunk centre has that chunk's hue: 36 of 37, 25 of 25, 40 of 40), >= 200 distinct colours in the terrain region (a coastal view at 300 m: the plain M02 look has 1 to 37 colours over inland ground, D133 (8)); the high tier headless: 100k to 1.5M triangles (470k to 864k), <= 200 draw calls (3); chunk count <= 400 everywhere (unit: 300 poses per tier; browser: 60 poses on the high tier, worst 398)
+- [x] Jitter: camera offset 1e-7 degrees at 300 m AGL changes 0 of 518 400 pixels of the shaded view and 15 of the `?chunks=1` edge picture (limit 0.2 %; the 1e-3 degree control changes 15 %), no NaN; unit test: chunk-relative float32 vertex positions within 1 cm of float64 (worst 3.7 mm for chunks within 50 km)
+- [ ] Ownership: readback == sim-owner on sampled cells, including cells on both sides of at least one border giving different colours (M05's method) - Part B
 - [ ] Orbit camera: mouse zoom stops at 0.8 to 1.5 km AGL over sea level and over the Himalaya (unit test); both `?view=` addresses load with no console errors and show >= 3 LOD levels - Part B
 - [ ] Goldens: new contact sheets committed (two renders in one launch byte-identical); changed M02/M05/M06 goldens regenerated after a visual check and justified; no tolerance raised - Part C
 - [ ] No console errors; `npm run verify` green - Part C
+
+Part A results (measured in this sandbox, SwiftShader, test tier unless said): quadtree update median 0.19 ms and chunk terrain update 0.22 to 0.23 ms per frame on the medium tier (`tests/chunkQuadtree.perf.test.ts`, budget `budgetMs(1)`); an unchanged camera costs 0.3 us; 60 renders at 320x180 retain 0.05 MB; chunk frames cost 1.4 to 1.7 times the fixed mesh in SwiftShader (0.6 against 0.4 s at 900 km). What Part B must know: see the handoff of the report and D133 / D134.
 
 ### PerfGate: stable burst gate and a faster conquest kernel (focused stabilisation on HEAD 55960a3, no new milestone; one part; the orchestrator owns pushing and the Artifact)
 
@@ -512,7 +514,7 @@ ACCEPTANS
 
 ## Next
 
-- M05 First playable conquest (GATE, i18n): parts A and B are built (see Now). Next is part C (tribes, AI v0, the final `npm run verify`, the Artifact pack): read "Notes for part C" under Now, `docs/ARCHITECTURE.md` ("Sim flow", "Snapshot growth") and D92 to D101 first.
+- M07a Part B (items 4 and 7): see "Now". Read D133 and D134 of `docs/DECISIONS.md`, the chunk rows of `docs/ARCHITECTURE.md` and the "Chunk-terräng mot det fasta nätet" table first. Then Part C (goldens, finish). The goldens of `e2e/looks.test.ts` and the M05 / M06 golden tests that render the globe fail until Part C regenerates them (D134).
 
 ## Known issues
 
@@ -547,6 +549,10 @@ ACCEPTANS
 - M06 B: the leaderboard ranks by the cos-weighted land share, so a nation far from the equator starts below the others although every seat holds the same 197 cells (D124, backlog).
 - M06 B: everything of the menu was judged in SwiftShader screenshots (960x540, 1920x1080, 390x844) and with a simulated phone viewport only; the feel of the flight, the font sizes of the panel and the touch behaviour need a real screen (the gate is the user's play session).
 - M06 B: `npm run verify` takes about 8.5 minutes in this sandbox (unit 45 s, perf 5 s, e2e 448 s, 123 s of it `e2e/setup.test.ts`; total 8 min 33 s measured); the budget in CLAUDE.md is 8 minutes. It is at the edge, not sharded; if the e2e project grows further it must be sharded (note in D126).
+
+- M07a part A: the golden test of `e2e/looks.test.ts` (six globe views) fails against the committed PNGs (0.4 % of the pixels on europe50, limit 0.2 %) because the default terrain is the chunk quadtree now; Part C regenerates the goldens ONCE with `UPDATE_GOLDENS=1` (D134). Everything else of `npm run verify` is green.
+- M07a part A: the whole e2e project takes about 716 s in this sandbox (480 s before); the plan to shard it over CI jobs is in `docs/BACKLOG.md`.
+- M07a part A: from 300 m above a coast the surface under the sea pixels next to the land is raised (a wedge of water), D133 (7) and `docs/BACKLOG.md`.
 
 ## Skipped
 
@@ -657,6 +663,24 @@ PerfGate (same sandbox, node, 1024x512, 100 000 cells in one tick; D132):
 | burst median as a share of `budgetMs(50)` (budget 55 to 150 ms) | about 80 % when the factor is 1.1 | median 58.8 %, worst 66.9 % of 30 runs; worst 65.4 % of 15 project runs |
 | samples per test | 7 after 2 warm-ups | 21 after 3 warm-ups, worlds built and gc'd outside the clock |
 | perf project (6 files, 18 tests) | about 8 s | about 8 s |
+
+## Measurements M07a part A (logged, not asserted)
+
+Cloud sandbox, SwiftShader, test tier 960x540 unless said:
+
+| measure | value |
+|---------|-------|
+| quadtree update (medium tier, 48 cameras over the six altitudes), median of 15 sweeps | 0.19 ms (p95 0.26 ms); budget `budgetMs(1)` |
+| chunk terrain update (selection, comparison, refill when the selection changed) | 0.22 ms median, 0.23 ms with the refill forced every call; an unchanged camera 0.3 us |
+| default orbit view, renderer.info triangles (scene incl. the 9 024 of the shell) | test: chunks 37 184 vs fixed 74 560; medium: 110 400 vs 271 168 (M05) |
+| chunk frame in SwiftShader (render + readback of one pixel) | orbit 0.30 s, 900 km 0.65 s, 220 km 0.65 s; the fixed mesh 0.26, 0.40, 0.39 s |
+| float32 vs float64 chunk positions, vertices within 50 km of a camera 300 m up | worst 3.7 mm over 5 964 vertices |
+| skirt depth against the worst LOD mismatch (2 435 seam edges, six mountain regions) | worst 44 % of the depth |
+| chunk cap, 300 random poses per tier (unit) | test 150 of 150 (capped in 33), low 100 of 100 (78), medium 300 of 300 (9), high 400 of 400 (24) |
+| LOD hysteresis, 300 frames wobbling +-6 % around a ring boundary | 1 level change with, 66 without (six boundaries) |
+| leak test, 60 renders at 320x180 | 0.07 MB |
+| whole e2e project | 716 s (480 s before M07a): `docs/BACKLOG.md` holds the plan to shard it |
+| `npm run verify:fast` | 57 s (126 files, 1414 tests), perf project 22 tests green |
 
 ## Usage
 
