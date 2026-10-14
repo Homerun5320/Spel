@@ -7,6 +7,7 @@ import {
   AI_ATTACK_COOLDOWN_TICKS,
   AI_EXPAND_COMMIT_PCT,
   AI_EXPAND_TROOP_PCT,
+  AI_MIN_CONTACT_LENGTH,
   AI_NATION_CLEARANCE_CELLS,
   AI_NATION_REACH_CELLS,
   AI_SPAWN_RETRY_TICKS,
@@ -373,6 +374,37 @@ describe('think: expansion and war', () => {
     state.troops[seatToOwner(2)] = 700;
     view.refresh();
     expect((think(view, tie, rng)[0] as { target: number }).target).toBe(seatToOwner(2));
+  });
+
+  it('does not expand into a sliver of unowned land (contact below AI_MIN_CONTACT_LENGTH: it is gone before the intent runs), and does when the front is wide enough', () => {
+    const cx = 40;
+    const cy = 20;
+    /** Seat 1 (an AI nation) holds the capital disc; the only free land it touches is `free(x, y)`. Its troops are full and it is on its think tick. */
+    const build = (free: (x: number, y: number) => boolean): { view: StateView; a: AiMemory; rng: Uint32Array } => {
+      const state = world(100, 40, {
+        seats: 2,
+        players: 2,
+        classAt: (x, y) => ((x - cx) * (x - cx) + (y - cy) * (y - cy) <= R * R || free(x, y) ? CLASS_PLAINS : CLASS_DEEP_SEA),
+      });
+      const view = new StateView(state);
+      run(state, 3, { 0: [{ kind: 'Spawn', seat: 1, cell: cy * 100 + cx }] });
+      run(state, 255);
+      const a = createAiMemory(view, 1);
+      toThinkTick(state, a);
+      state.troops[seatToOwner(1)] = ownerCapQt(state, seatToOwner(1));
+      view.refresh();
+      return { view, a, rng: createRng(3) };
+    };
+    const mine = seatToOwner(1);
+    const sliver = build((x, y) => x === cx + R + 1 && y === cy); // one cell next to the east tip of the disc
+    const wide = build((x, y) => Math.abs(x - cx) <= R + 3 && Math.abs(y - cy) <= R + 3); // a ring of land all around the disc
+    expect(sliver.view.contactLength(mine, 0), 'the sliver touches').toBeGreaterThan(0);
+    expect(sliver.view.contactLength(mine, 0)).toBeLessThan(AI_MIN_CONTACT_LENGTH);
+    expect(wide.view.contactLength(mine, 0)).toBeGreaterThanOrEqual(AI_MIN_CONTACT_LENGTH);
+    expect(think(sliver.view, sliver.a, sliver.rng)).toEqual([]);
+    const out = think(wide.view, wide.a, wide.rng);
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({ kind: 'Attack', seat: 1, target: 0 });
   });
 
   it('does not attack the same target again within the cooldown, and does again after it', () => {

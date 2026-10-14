@@ -105,6 +105,7 @@ describe('types: what src/sim/public.ts lets the AI reach', () => {
         'AI_ATTACK_COOLDOWN_TICKS',
         'AI_EXPAND_COMMIT_PCT',
         'AI_EXPAND_TROOP_PCT',
+        'AI_MIN_CONTACT_LENGTH',
         'AI_NATION_CLEARANCE_CELLS',
         'AI_NATION_REACH_CELLS',
         'AI_SPAWN_RETRY_TICKS',

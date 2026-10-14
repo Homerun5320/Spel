@@ -128,6 +128,7 @@ The AI only emits intents (`src/ai`, read through `src/sim/public.ts`); these va
 | `AI_EXPAND_COMMIT_PCT` | 70 | % of troops | eget val | Share of its troops a nation commits to an Attack on unowned land. |
 | `AI_WAR_COMMIT_PCT` | 50 | % of troops | eget val | Share of its troops a nation commits to an Attack on a neighbour. |
 | `AI_WAR_MIN_RATIO_PCT` | 130 | % | eget val | A nation attacks a neighbour only with at least 1.3 times its troops. |
+| `AI_MIN_CONTACT_LENGTH` | 4 | sim cell adjacencies | eget val | An AI seat expands into unowned land only when its contact length with it is at least this (D109; a war needs any contact). A sliver of one or two cells is usually gone, taken by the seat's own running attack or by another seat, by the time the intent runs 2 ticks later, and the sim then refuses it (REJECT_NO_CONTACT); with the minimum the match of seed 7 runs 6000 ticks without a refusal. |
 | `AI_ATTACK_COOLDOWN_TICKS` | 40 | ticks | eget val | A seat does not attack the same target again within 4 s (a second Attack adds troops to the first). |
 | `AI_TRIBE_COOLDOWN_TICKS` | 100 | ticks | eget val | The same for a tribe's expansion (10 s). |
 | `AI_TRIBE_MAX_CELLS` | 600 | sim cells | eget val | A tribe stops expanding at this size (three times its capital disc). |

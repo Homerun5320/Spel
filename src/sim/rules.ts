@@ -208,6 +208,8 @@ export const AI_EXPAND_COMMIT_PCT = 70;
 export const AI_WAR_COMMIT_PCT = 50;
 /** A nation attacks a neighbour only when its troops are at least this many percent of the neighbour's. */
 export const AI_WAR_MIN_RATIO_PCT = 130;
+/** An AI seat expands into unowned land only when its contact length with it (adjacencies, sim cells) is at least this: a sliver of one or two cells is usually gone (taken by the running attack or by another seat) by the time the intent runs 2 ticks later, which the sim would refuse. */
+export const AI_MIN_CONTACT_LENGTH = 4;
 /** Ticks before a seat attacks the same target again (a second Attack on a target adds troops to the running one). */
 export const AI_ATTACK_COOLDOWN_TICKS = 40;
 /** The same for a tribe's expansion into unowned land. */

@@ -13,6 +13,7 @@ import {
   AI_ATTACK_COOLDOWN_TICKS,
   AI_EXPAND_COMMIT_PCT,
   AI_EXPAND_TROOP_PCT,
+  AI_MIN_CONTACT_LENGTH,
   AI_ANCHOR_SEAT,
   AI_NATION_CLEARANCE_CELLS,
   AI_NATION_REACH_CELLS,
@@ -100,9 +101,9 @@ export function think(view: SimView, memory: AiMemory, rng: Uint32Array, inFligh
       return [attackBody(seat, best, jittered(AI_WAR_COMMIT_PCT, rng))];
     }
   }
-  // Expansion: unowned land that touches ours.
+  // Expansion: unowned land that touches ours along at least AI_MIN_CONTACT_LENGTH (a sliver is gone before the intent runs, 2 ticks later).
   const cooldown = memory.tribe ? AI_TRIBE_COOLDOWN_TICKS : AI_ATTACK_COOLDOWN_TICKS;
-  if (view.contactLength(owner, NO_OWNER) > 0 && !coolingDown(memory, NO_OWNER, tick, cooldown)) {
+  if (view.contactLength(owner, NO_OWNER) >= AI_MIN_CONTACT_LENGTH && !coolingDown(memory, NO_OWNER, tick, cooldown)) {
     memory.lastAttack[NO_OWNER] = tick;
     return [attackBody(seat, NO_OWNER, jittered(AI_EXPAND_COMMIT_PCT, rng))];
   }
