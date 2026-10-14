@@ -174,6 +174,13 @@ export const CHUNK_MAX_LEVEL = 17;
 /** A split chunk merges back only when it is this much (fraction) farther than the split distance: the LOD hysteresis band. */
 export const CHUNK_HYSTERESIS = 0.25;
 /**
+ * Most chunk splits the quadtree may undo per frame to make room, under the chunk cap, for a clearly more urgent split elsewhere
+ * (the swap needs the old split to be more than the hysteresis band less urgent). Bounds the pop-out when the camera moves fast.
+ */
+export const CHUNK_EVICTIONS_PER_FRAME = 4;
+/** Share of the chunk cap that new splits leave free for the splits the quadtree already holds (see `QuadParams.reserve`). */
+export const CHUNK_BUDGET_RESERVE = 0.08;
+/**
  * Skirt depth in grid cells of the chunk's own level; it is multiplied by 2^d on an edge whose neighbour is d levels coarser (the
  * crack to cover grows with the coarse cell). Also covers the float rounding hairlines between equal-level neighbours.
  */

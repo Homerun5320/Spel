@@ -165,6 +165,9 @@ describe('cracks and bounds at six altitudes over the Alps (magenta clear colour
         expect(regionPx, `${v.name}: the planet fills part of the view`).toBeGreaterThan(5000);
         expect(bad, `${v.name}: holes in the terrain`).toBe(0);
         expect(s.terrain.chunkCount, v.name).toBeLessThanOrEqual(400);
+        // the stats the HUD and these tests read are the leaves the renderer drew (a count that drifted from them would pass every other check)
+        const leafCount = (await page.evaluate(() => (window as any).__test.terrainLeaves().length)) as number;
+        expect(s.terrain.chunkCount, `${v.name}: chunkCount equals the number of leaves`).toBe(leafCount);
         expect(s.terrain.finite, `${v.name}: no NaN or infinity in the instance data`).toBe(true);
         expect(s.info.triangles, `${v.name}: renderer.info agrees with the terrain numbers`).toBe(s.terrain.triangles + SHELL_TRIANGLES);
         expect(s.info.drawCalls).toBe(3);
@@ -207,7 +210,7 @@ describe('cracks and bounds at six altitudes over the Alps (magenta clear colour
     }
   });
 
-  it('a camera looking straight down (a skirt that only hangs down is edge-on to it) has no holes at the pole, the antimeridian, the Himalaya and at 3 km', async () => {
+  it('a camera looking straight down (a skirt that only hangs down is edge-on to it) has no holes at the pole, the antimeridian (also looked at across the seam), the Himalaya and at 3 km', async () => {
     const { page, messages } = await open();
     try {
       await page.evaluate(() => (window as any).__test.setClearColor(0xff00ff));
@@ -217,6 +220,10 @@ describe('cracks and bounds at six altitudes over the Alps (magenta clear colour
         ['antimeridian', { lat: 0, lon: 180, distKm: 4000, heading: 0, tilt: 30 }, undefined],
         ['Himalaya 3 km down', { lat: 28.2, lon: 86.8, heading: 0, tilt: 0 }, 3000],
         ['Atlantic 20 km down', { lat: 20, lon: 0, heading: 0, tilt: 0 }, 20_000],
+        // across the antimeridian with a different level on each side (the wrap-around of the neighbour levels): toward the seam and away from it
+        ['antimeridian 60 km, looking east', { lat: 10, lon: 179.5, heading: 90, tilt: 70 }, 60_000],
+        ['antimeridian 8 km, looking west', { lat: 60, lon: -179.9, heading: 270, tilt: 80 }, 8_000],
+        ['antimeridian 500 km, looking east', { lat: 10, lon: 175, heading: 90, tilt: 60 }, 500_000],
       ];
       for (const [name, v, alt] of views) {
         const s = await shoot(page, v, alt);

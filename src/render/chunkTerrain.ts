@@ -8,10 +8,10 @@ import { BufferAttribute, DynamicDrawUsage, InstancedBufferGeometry, InstancedIn
 import type { CameraPose } from './camera';
 import { buildChunkGrid, type ChunkGrid } from './chunkMesh';
 import { chunkGeo, chunkHue, chunkSizeRad, makeChunkGeo } from './chunkMath';
-import { CHUNK_FRUSTUM_SLACK, CHUNK_HYSTERESIS, CHUNK_MAX_LEVEL, EARTH_RADIUS_KM, OWNER_GRID_H, OWNER_GRID_W } from './config';
-import { POLE_HEIGHT_U } from './geo';
+import { CHUNK_MAX_LEVEL, OWNER_GRID_H, OWNER_GRID_W } from './config';
 import { HeightPyramid } from './heightPyramid';
-import { ChunkQuadtree, makeQuadCamera, type HeightRange, type QuadCamera } from './quadtree';
+import { makeQuadParams } from './quadParams';
+import { ChunkQuadtree, makeQuadCamera, type QuadCamera } from './quadtree';
 import { CHUNK_ABSOLUTE_MAX, chunkTriangles, type QualitySettings } from './quality';
 
 export interface ChunkTerrainOptions {
@@ -80,17 +80,7 @@ export class ChunkTerrain {
     this.grid = buildChunkGrid(this.cells);
     this.trianglesPerChunk = chunkTriangles(o.quality);
     if (this.grid.triangles !== this.trianglesPerChunk) throw new Error(`chunk grid has ${this.grid.triangles} triangles, expected ${this.trianglesPerChunk}`);
-    this.tree = new ChunkQuadtree({
-      maxChunks: this.capacity,
-      maxLevel: CHUNK_MAX_LEVEL,
-      splitK: o.quality.chunkSplitK,
-      deepK: o.quality.chunkDeepK,
-      cells: this.cells,
-      texelRad: (2 * Math.PI) / o.width,
-      hysteresis: CHUNK_HYSTERESIS,
-      frustumSlack: CHUNK_FRUSTUM_SLACK,
-      heightRange: (u0, u1, v0, v1, out) => this.heightRange(u0, u1, v0, v1, out),
-    });
+    this.tree = new ChunkQuadtree(makeQuadParams({ quality: o.quality, pyramid: this.pyramid, width: o.width, maxM: o.maxM, exaggeration: () => this.exag }));
     const g = new InstancedBufferGeometry();
     g.setAttribute('position', new BufferAttribute(this.grid.position, 3));
     g.setIndex(new BufferAttribute(this.grid.index, 1));
@@ -123,23 +113,6 @@ export class ChunkTerrain {
     this.tree.reset();
     this.lastKey.fill(NaN);
     this.heldCount = -1;
-  }
-
-  private heightRange(u0: number, u1: number, v0: number, v1: number, out: HeightRange): void {
-    this.pyramid.range(u0, u1, v0, v1);
-    let loC = this.pyramid.minCode;
-    let hiC = this.pyramid.maxCode;
-    if (v0 <= 0 || v1 >= 1) {
-      // The pole rows read the height at one common longitude (POLE_HEIGHT_U), wherever the chunk is.
-      this.pyramid.range(POLE_HEIGHT_U, POLE_HEIGHT_U, v0, v1);
-      if (this.pyramid.minCode < loC) loC = this.pyramid.minCode;
-      if (this.pyramid.maxCode > hiC) hiC = this.pyramid.maxCode;
-    }
-    const k = this.exag * this.maxM / (EARTH_RADIUS_KM * 1000);
-    const lo = loC / 255;
-    const hi = hiC / 255;
-    out.lo = k * lo * lo;
-    out.hi = k * hi * hi;
   }
 
   /** Selects the chunks for the camera and refills the instance buffers. Does nothing when the camera has not moved. */

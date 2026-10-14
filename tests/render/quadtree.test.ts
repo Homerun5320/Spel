@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { CameraRig } from '../../src/render/camera';
+import { CameraRig, type ViewState } from '../../src/render/camera';
 import { chunkKey, chunkSizeRad, levelCols, levelRows } from '../../src/render/chunkMath';
 import { CHUNK_MAX_LEVEL } from '../../src/render/config';
 import { DEG, vecToLatLon, wrapLon } from '../../src/render/geo';
@@ -144,9 +144,20 @@ describe('quadtree: structure', () => {
   });
 });
 
+/** Views across the antimeridian (looking toward and away from the seam, one side finer than the other) and at the poles. */
+const SEAM_VIEWS: ReadonlyArray<{ name: string; altAglM: number; view: Partial<ViewState> }> = [
+  { name: 'seam east 60 km', altAglM: 60_000, view: { lat: 10, lon: 179.5, heading: 90, tilt: 70 } },
+  { name: 'seam west 500 km', altAglM: 500_000, view: { lat: 10, lon: 175, heading: 90, tilt: 60 } },
+  { name: 'seam from the west 8 km', altAglM: 8_000, view: { lat: 60, lon: -179.9, heading: 270, tilt: 80 } },
+  { name: 'seam from the east 60 km', altAglM: 60_000, view: { lat: -20, lon: -176, heading: 270, tilt: 65 } },
+  { name: 'north pole 100 km', altAglM: 100_000, view: { lat: 88, lon: 40, heading: 180, tilt: 70 } },
+  { name: 'south pole 200 km', altAglM: 200_000, view: { lat: -87, lon: -150, heading: 20, tilt: 60 } },
+];
+
 describe('quadtree: neighbour levels', () => {
-  it('the levels the neighbours are coarser equal a brute-force search over the leaves, on every edge of every leaf (six altitudes)', () => {
-    for (const v of ALTITUDE_VIEWS) {
+  it('the levels the neighbours are coarser equal a brute-force search over the leaves, on every edge of every leaf (six altitudes and the antimeridian / pole views)', () => {
+    let seamEdges = 0;
+    for (const v of [...ALTITUDE_VIEWS, ...SEAM_VIEWS]) {
       const tree = makeTree(world, 'test');
       tree.update(quadCameraOf(poseOf(world, v.view, v.altAglM)));
       const leaves = leavesOf(tree);
@@ -170,6 +181,8 @@ describe('quadtree: neighbour levels', () => {
             if (hit && hit.level < l.level) expected = l.level - hit.level;
           }
           if (expected > 0) coarse++;
+          // a wrap-around edge with a neighbour of another level: the west edge of column 0 or the east edge of the last column
+          if (expected > 0 && ((k === 0 && l.ix === 0) || (k === 1 && l.ix === levelCols(l.level) - 1))) seamEdges++;
           expect(l.coarser[k], `${v.name}: leaf ${l.level}/${l.ix}/${l.iy} edge ${k}`).toBe(expected);
           // finer: some leaf across the edge is at a deeper level than this one
           let finer = false;
@@ -181,7 +194,13 @@ describe('quadtree: neighbour levels', () => {
           }
           const fi = Array.from({ length: 4 }, (_, e) => tree.finer[4 * leaves.indexOf(l) + e] as number)[k];
           if (finer) finerSeen++;
-          expect(fi === 1, `${v.name}: leaf ${l.level}/${l.ix}/${l.iy} edge ${k} finer`).toBe(finer);
+          // (a neighbour that was split but whose children are all culled or dropped out, as near the pole rows, is marked finer too: the
+          // conservative direction, a deeper wall, so at the poles only "finer leaves there => marked" is required)
+          if (v.name.includes('pole')) {
+            if (finer) expect(fi === 1, `${v.name}: leaf ${l.level}/${l.ix}/${l.iy} edge ${k} finer`).toBe(true);
+          } else {
+            expect(fi === 1, `${v.name}: leaf ${l.level}/${l.ix}/${l.iy} edge ${k} finer`).toBe(finer);
+          }
         });
       }
       if (v.name === '60 km' || v.name === '8 km') {
@@ -189,6 +208,8 @@ describe('quadtree: neighbour levels', () => {
         expect(finerSeen, `${v.name} has finer neighbours`).toBeGreaterThan(0);
       }
     }
+    // the views must really have put a level change on the antimeridian, or the wrap-around of the neighbour search is untested
+    expect(seamEdges, 'edges across the antimeridian with a coarser neighbour').toBeGreaterThan(0);
   });
 });
 
@@ -246,6 +267,109 @@ describe('quadtree: the chunk cap', () => {
       const isAncestor = wantedLeaves.some((w) => w.level > l.level && w.ix >> (w.level - l.level) === l.ix && w.iy >> (w.level - l.level) === l.iy);
       expect(isWanted || isAncestor, `capped leaf ${l.level}/${l.ix}/${l.iy}`).toBe(true);
     }
+  });
+});
+
+describe('quadtree: the LOD is stable under a binding cap', () => {
+  /** Poses whose wanted detail exceeds the tier's cap (found by search, the same seeded poses every run). */
+  function cappedViews(tier: (typeof QUALITY_TIERS)[number], want: number): Array<{ view: Partial<ViewState>; agl: number }> {
+    const r = rng(881);
+    const found: Array<{ view: Partial<ViewState>; agl: number }> = [];
+    const tree = makeTree(world, tier);
+    for (let i = 0; i < 400 && found.length < want; i++) {
+      const view = { lat: -70 + 140 * r(), lon: -180 + 360 * r(), heading: 360 * r(), tilt: 25 + 55 * r() };
+      const agl = 10 ** (4.3 + 2.9 * r()); // 20 km .. 16 000 km
+      tree.reset();
+      tree.update(quadCameraOf(poseOf(world, view, agl)));
+      if (tree.capped) found.push({ view, agl });
+    }
+    return found;
+  }
+  const leafUnder = (t: ChunkQuadtree, lat: number, lon: number): Leaf | undefined => leavesOf(t).find((l) => contains(l, lat, lon));
+  /** The ground under the screen centre: the point the player looks at (a camera at a height above the displaced ground looks a little past the view's lat / lon). */
+  const rigForFocus = new CameraRig(960, 540);
+  function focusOf(view: Partial<ViewState>, agl: number): { lat: number; lon: number } {
+    const pose = poseOf(world, view, agl);
+    const ray = rigForFocus.rayAt(480, 270, pose);
+    const hit = world.field.pick(ray.origin, ray.dir, 0.0003);
+    return hit ? { lat: hit.lat, lon: hit.lon } : { lat: view.lat as number, lon: view.lon as number };
+  }
+
+  it('a camera wobbling by +-1 % in height for 100 frames at views where the cap binds changes the level under the focus at most once, and swaps few chunks per frame (every tier)', () => {
+    for (const tier of QUALITY_TIERS) {
+      const views = cappedViews(tier, 5);
+      // the cap must really bind in the views (medium rarely needs it: then it is checked on the views that do)
+      if (tier !== 'medium') expect(views.length, `${tier}: poses where the cap binds`).toBeGreaterThanOrEqual(3);
+      let worstChanges = 0;
+      let worstSwap = 0;
+      for (const { view, agl } of views) {
+        const tree = makeTree(world, tier);
+        let prev = new Set<number>();
+        let prevLevel = -2;
+        let changes = 0;
+        let cappedFrames = 0;
+        const focus = focusOf(view, agl);
+        for (let f = 0; f < 100; f++) {
+          const wobble = 0.01 * Math.sin(f * 1.7) * (f % 2 === 1 ? 0.7 : 1);
+          tree.update(quadCameraOf(poseOf(world, view, agl * (1 + wobble))));
+          if (tree.capped) cappedFrames++;
+          const cur = new Set<number>();
+          for (let i = 0; i < tree.count; i++) cur.add(chunkKey(tree.level[i] as number, tree.ix[i] as number, tree.iy[i] as number));
+          if (f > 5) {
+            let swapped = 0;
+            for (const c of cur) if (!prev.has(c)) swapped++;
+            worstSwap = Math.max(worstSwap, swapped);
+          }
+          prev = cur;
+          const l = leafUnder(tree, focus.lat, focus.lon)?.level ?? -1;
+          if (f > 0 && l !== prevLevel) changes++;
+          prevLevel = l;
+        }
+        worstChanges = Math.max(worstChanges, changes);
+        expect(changes, `${tier} lat ${view.lat?.toFixed(1)} lon ${view.lon?.toFixed(1)} tilt ${view.tilt?.toFixed(0)} at ${(agl / 1000).toFixed(0)} km: level changes under the focus in 100 frames`).toBeLessThanOrEqual(1);
+        expect(cappedFrames, 'the wobble path stays capped').toBeGreaterThan(0);
+      }
+      // 1 % of height moves the nodes at their split distances a little: a handful of leaves may change per frame, never a subtree swap
+      console.log(`[lod stability] ${tier}: ${views.length} capped views, worst level changes under the focus ${worstChanges} of 100 frames, most new leaves in one frame ${worstSwap}`);
+      expect(worstSwap, `${tier}: new leaves in one frame`).toBeLessThanOrEqual(Math.ceil(0.08 * QUALITY[tier].chunkMax));
+    }
+  });
+
+  it('a monotone zoom-in straight down never makes the chunk under the focus coarser, and chunks merge only to make room under a binding cap (never without a cap), a few at a time', () => {
+    const r = rng(404);
+    let merges = 0;
+    let frames = 0;
+    for (const tier of QUALITY_TIERS) {
+      for (let run = 0; run < 4; run++) {
+        const view = { lat: -60 + 120 * r(), lon: -180 + 360 * r(), heading: 360 * r(), tilt: run === 0 ? 0 : 20 + 55 * r() };
+        const tree = makeTree(world, tier);
+        let prev: Leaf[] = [];
+        let prevFocus = -1;
+        const fp = focusOf(view, 300); // the ground point the zoom ends at (the camera comes ever nearer to it)
+        for (let agl = 1.5e7; agl > 300; agl /= 1.02) {
+          tree.update(quadCameraOf(poseOf(world, view, agl)));
+          const cur = leavesOf(tree);
+          const focus = leafUnder(tree, fp.lat, fp.lon)?.level ?? -1;
+          // (looking straight down, the focus is the nearest ground; on a tilted view the ground at the camera's feet is nearer and may
+          // rightly take a capped budget from a chunk further away)
+          if (run === 0) expect(focus, `${tier} at ${(agl / 1000).toFixed(1)} km: level under the focus`).toBeGreaterThanOrEqual(prevFocus);
+          prevFocus = Math.max(prevFocus, focus);
+          // a merge: a leaf now that was a node with leaves below it a frame ago
+          let m = 0;
+          for (const l of cur) {
+            if (prev.some((p) => p.level > l.level && p.ix >> (p.level - l.level) === l.ix && p.iy >> (p.level - l.level) === l.iy)) m++;
+          }
+          if (m > 0) {
+            expect(tree.evictions, `${tier} run ${run}: merges without an eviction`).toBeGreaterThan(0);
+            expect(m, `${tier} run ${run}: merged chunks in one frame`).toBeLessThanOrEqual(4 * 4);
+          }
+          merges += m;
+          frames++;
+          prev = cur;
+        }
+      }
+    }
+    console.log(`[lod stability] monotone zoom-in: ${merges} chunks merged in ${frames} frames of 2 % steps (all of them evictions under a binding cap)`);
   });
 });
 
@@ -353,6 +477,20 @@ describe('quadtree: LOD hysteresis', () => {
 });
 
 describe('quadtree: culling', () => {
+  it('a peak that stands beyond the sea-level horizon is kept: the horizon test adds the extra horizon of the HIGHEST terrain of a chunk (x12 mountains are up to 106 km tall)', () => {
+    // [camera, the summit region far beyond its sea-level horizon (a camera 300 m up sees 62 km), and the place that must be covered]
+    const cases: Array<{ name: string; view: Partial<ViewState>; target: [number, number]; distKm: number }> = [
+      { name: 'Himalaya from the Indian plain', view: { lat: 22, lon: 87, heading: 0, tilt: 88 }, target: [28, 86.9], distKm: 670 },
+      { name: 'Alps from the Ligurian coast', view: { lat: 43.6, lon: 7.5, heading: 0, tilt: 88 }, target: [45.83, 6.86], distKm: 250 },
+    ];
+    for (const c of cases) {
+      const tree = makeTree(world, 'test');
+      tree.update(quadCameraOf(poseOf(world, c.view, 300)));
+      const hit = leavesOf(tree).filter((l) => contains(l, c.target[0], c.target[1]));
+      expect(hit.length, `${c.name}: a chunk covers the summit region ${c.distKm} km away`).toBeGreaterThanOrEqual(1);
+    }
+  });
+
   it('a view at orbit selects fewer chunks than the whole globe would need, and a camera looking away from the planet selects none behind it', () => {
     const near = poseOf(world, { lat: 0, lon: 0, heading: 0, tilt: 0 }, 2_000_000);
     const a = makeTree(world, 'medium');

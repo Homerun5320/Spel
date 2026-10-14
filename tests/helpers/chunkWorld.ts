@@ -1,7 +1,8 @@
 // Shared setup of the chunk terrain tests: the real height raster, its pyramid, the height field (picking / CPU heights), a quadtree
 // of a quality tier and the camera of a view as the quadtree wants it. Loaded once per test file.
 import { CameraRig, setViewAtAgl, type CameraPose, type ViewState } from '../../src/render/camera';
-import { CHUNK_FRUSTUM_SLACK, CHUNK_HYSTERESIS, CHUNK_MAX_LEVEL, EARTH_RADIUS_KM, HEIGHT_EXAGGERATION } from '../../src/render/config';
+import { HEIGHT_EXAGGERATION } from '../../src/render/config';
+import { makeQuadParams } from '../../src/render/quadParams';
 import { HeightField } from '../../src/render/heightField';
 import { HeightPyramid } from '../../src/render/heightPyramid';
 import { QUALITY, type QualitySettings, type QualityTier } from '../../src/render/quality';
@@ -36,26 +37,9 @@ export function loadChunkWorld(): Promise<ChunkWorld> {
   return cache;
 }
 
+/** The quadtree parameters of a tier: the very function the production chunk terrain uses (no copy of its wiring). */
 export function quadParams(world: ChunkWorld, q: QualitySettings, over: Partial<QuadParams> = {}): QuadParams {
-  const k = (HEIGHT_EXAGGERATION * world.maxM) / (EARTH_RADIUS_KM * 1000);
-  return {
-    maxChunks: q.chunkMax,
-    maxLevel: CHUNK_MAX_LEVEL,
-    splitK: q.chunkSplitK,
-    deepK: q.chunkDeepK,
-    cells: q.chunkCells,
-    texelRad: (2 * Math.PI) / world.width,
-    hysteresis: CHUNK_HYSTERESIS,
-    frustumSlack: CHUNK_FRUSTUM_SLACK,
-    heightRange: (u0, u1, v0, v1, out) => {
-      world.pyramid.range(u0, u1, v0, v1);
-      const lo = world.pyramid.minCode / 255;
-      const hi = world.pyramid.maxCode / 255;
-      out.lo = k * lo * lo;
-      out.hi = k * hi * hi;
-    },
-    ...over,
-  };
+  return { ...makeQuadParams({ quality: q, pyramid: world.pyramid, width: world.width, maxM: world.maxM, exaggeration: () => HEIGHT_EXAGGERATION }), ...over };
 }
 
 export function makeTree(world: ChunkWorld, tier: QualityTier = 'test', over: Partial<QuadParams> = {}): ChunkQuadtree {
