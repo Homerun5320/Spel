@@ -9,6 +9,9 @@
 //  - After that, once per second on its own tick (staggered by seat), a seat with troops of at least AI_EXPAND_TROOP_PCT of its
 //    cap acts: a nation first attacks the WEAKEST neighbour it outnumbers (AI_WAR_MIN_RATIO_PCT), else expands into unowned
 //    land it touches. A tribe only expands. A seat does not attack the same target again within a cooldown.
+//  - Tempo pass (D142): a nation starts no war before AI_WAR_START_TICKS (the land grab comes first), and a nation that owns
+//    AI_WAR_MAX_SHARE_PCT of all land starts none and calls off the ones it has with one CancelAttack per neighbour (only a
+//    neighbour it still touches, so the sim never refuses it).
 import {
   AI_ATTACK_COOLDOWN_TICKS,
   AI_EXPAND_COMMIT_PCT,

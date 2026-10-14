@@ -187,6 +187,10 @@ describe('the territory border seen from close', () => {
     const { page, messages } = await open('test=1&seed=7&ai=0');
     try {
       await playScript(page);
+      // The conquest is 3 to 4 times as fast since the tempo pass (D142): after the script the territory is a round blob whose east edge is a
+      // staircase with no three rows of the same column, so one more click and 300 ticks give the front time to leave a straight stretch.
+      await clickAt(page, 48.5, 17);
+      await advance(page, 0.1, 300);
       const owners: number[] = await page.evaluate(() => {
         const h = (window as any).__test;
         const o = new Array(1024 * 512);
