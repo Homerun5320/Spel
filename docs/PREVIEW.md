@@ -59,6 +59,9 @@ Lägen som finns registrerade i Dev-panelen (F2 eller hörnknappen) just nu:
 | `?test=1` | `#test` (även `#test-1`) | testläge (fast bild, ingen animation, Dev-knappen dold) |
 | `?scene=spike` | `#scene-spike` | M00-spiken i stället för jorden; `#scene-globe` är jorden |
 | `?quality=low` / `medium` / `high` | `#quality-low` / `#quality-medium` / `#quality-high` | kvalitetsnivå (hög ger cirka 1 miljon trianglar) |
+| `?terrain=fixed` | `#terrain-fixed` | M07a: det gamla fasta globnätet (M02) i stället för chunk-trädet; `#terrain-chunks` (eller ingen nyckel) är chunk-trädet, standard. Jämför gärna: samma vy, två lägen |
+| `?chunks=1` | `#chunks` | M07a: varje chunk i sin egen färg med mörk kant, så att man ser chunkens storlek och LOD-nivåer när man flyger ner mot marken. Avslås med `#chunks-0` eller via Dev-panelen (Visa chunkens färger och kanter) |
+| `?test=1&chunktier=high` | `#test_chunktier-high` | bara för tester: testläget (fast bild, MSAA av, DPR 1) men med chunk-tätheten från kvalitetsnivån hög; så körs hög nivå headless |
 | `?seed=7` | `#seed-7` | matchens seed: samma seed ger exakt samma match (standard är 1). Dev-panelen har också ett seed-fält (skriv ett heltal, tryck Starta) |
 | `?ai=0` | `#ai-0` | stänger av AI-nationerna och stammarna (en tom match där bara du agerar; `#ai-1` eller ingen nyckel = på, standard). Finns också i Dev-panelen som "AI och stammar av" och "AI och stammar på" |
 | `?lang=en` | `#lang-en` | engelska i spelet (`#lang-sv` är svenska, standard). Språkknappen på startskärmen gör samma sak utan omladdning |

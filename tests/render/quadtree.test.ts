@@ -281,7 +281,7 @@ describe('quadtree: LOD hysteresis', () => {
       return centreLevel(tree);
     };
     // coming down from far above: the first altitude at which the centre chunk is finer than at the start
-    let l = levelAt(120_000);
+    const l = levelAt(120_000);
     let down = 0;
     for (let agl = 120_000; agl > 4_000; agl *= 0.998) {
       const n = levelAt(agl);

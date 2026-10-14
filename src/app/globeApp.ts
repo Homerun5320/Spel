@@ -745,6 +745,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
         refreshHud();
         updateMarker();
         renderFrame();
+        globe.finish(); // no frame is presented between the calls of a test: wait for the commands (see Globe.finish)
         if (!overlay.hidden) refreshOverlay();
         perf?.update();
       },

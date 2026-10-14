@@ -328,6 +328,15 @@ export class Globe {
     this.renderer.render(this.scene, c);
   }
 
+  /**
+   * Waits for the queued GL commands. A frame loop needs no call (the browser presents every frame); the test hooks, which render many frames
+   * in one JavaScript task without presenting, call it so that the driver's command queue (ANGLE warns "running out of reserved queue
+   * serials" after a few dozen uploads in one task) never fills up.
+   */
+  finish(): void {
+    this.renderer.getContext().finish();
+  }
+
   /** Surface pick under a pixel: ray against the displaced heights, then the sim cell, class and country. */
   pick(px: number, py: number): GlobePick | null {
     const ray = this.rig.rayAt(px, py);

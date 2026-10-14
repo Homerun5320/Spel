@@ -2,7 +2,7 @@
 // vertex shader (shaders/chunk.ts). Owns the instance buffers, refilled each frame from the camera: per chunk the camera-relative
 // origin (a float64 difference stored as float32), the tangent basis, the lat/lon extent, the level, the skirt depth, the
 // neighbour levels and a debug hue. The only three.js user of the chunk code besides the material.
-import { DynamicDrawUsage, InstancedBufferAttribute, InstancedBufferGeometry, BufferAttribute, Mesh, type ShaderMaterial } from 'three';
+import { BufferAttribute, DynamicDrawUsage, InstancedBufferGeometry, InstancedInterleavedBuffer, InterleavedBufferAttribute, Mesh, type ShaderMaterial } from 'three';
 import type { CameraPose } from './camera';
 import { buildChunkGrid, type ChunkGrid } from './chunkMesh';
 import { chunkGeo, chunkHue, chunkSizeRad, makeChunkGeo } from './chunkMath';
@@ -39,8 +39,9 @@ export interface ChunkStats {
   passes: number;
 }
 
-const FLOATS = 4; // per instance attribute
+const ATTR_FLOATS = 4; // floats per instance attribute (a vec4)
 const ATTRS = 5;
+const STRIDE = ATTR_FLOATS * ATTRS; // floats per instance: ONE interleaved buffer, one upload per frame
 
 export class ChunkTerrain {
   readonly mesh: Mesh;
@@ -48,8 +49,8 @@ export class ChunkTerrain {
   readonly tree: ChunkQuadtree;
   readonly pyramid: HeightPyramid;
   private readonly geometry: InstancedBufferGeometry;
-  private readonly attrs: InstancedBufferAttribute[] = [];
-  private readonly data: Float32Array[] = [];
+  private readonly buffer: InstancedInterleavedBuffer;
+  private readonly data: Float32Array;
   private readonly cells: number;
   private readonly capacity: number;
   private readonly cam: QuadCamera = makeQuadCamera();
@@ -87,15 +88,10 @@ export class ChunkTerrain {
     const g = new InstancedBufferGeometry();
     g.setAttribute('position', new BufferAttribute(this.grid.position, 3));
     g.setIndex(new BufferAttribute(this.grid.index, 1));
-    const names = ['aOrigin', 'aUp', 'aEast', 'aGeo', 'aNeigh'];
-    for (let a = 0; a < ATTRS; a++) {
-      const arr = new Float32Array(this.capacity * FLOATS);
-      const attr = new InstancedBufferAttribute(arr, FLOATS, false, 1);
-      attr.setUsage(DynamicDrawUsage);
-      g.setAttribute(names[a] as string, attr);
-      this.data.push(arr);
-      this.attrs.push(attr);
-    }
+    this.data = new Float32Array(this.capacity * STRIDE);
+    this.buffer = new InstancedInterleavedBuffer(this.data, STRIDE, 1);
+    this.buffer.setUsage(DynamicDrawUsage);
+    ['aOrigin', 'aUp', 'aEast', 'aGeo', 'aNeigh'].forEach((name, a) => g.setAttribute(name, new InterleavedBufferAttribute(this.buffer, ATTR_FLOATS, a * ATTR_FLOATS)));
     g.instanceCount = 0;
     this.geometry = g;
     this.mesh = new Mesh(g, o.material);
@@ -169,44 +165,42 @@ export class ChunkTerrain {
     const n = t.count;
     const c = this.cam;
     const g = this.geo;
-    const [d0, d1, d2, d3, d4] = this.data as [Float32Array, Float32Array, Float32Array, Float32Array, Float32Array];
+    const d = this.data;
     let mask = 0;
     for (let i = 0; i < n; i++) {
       const level = t.level[i] as number;
       chunkGeo(level, t.ix[i] as number, t.iy[i] as number, g);
-      const o = i * FLOATS;
+      const o = i * STRIDE;
       // 0: origin relative to the camera (float64 difference, rounded once to float32) and the level
-      d0[o] = g.cx - c.px;
-      d0[o + 1] = g.cy - c.py;
-      d0[o + 2] = g.cz - c.pz;
-      d0[o + 3] = level;
+      d[o] = g.cx - c.px;
+      d[o + 1] = g.cy - c.py;
+      d[o + 2] = g.cz - c.pz;
+      d[o + 3] = level;
       // 1: centre direction and the size of one grid cell
-      d1[o] = g.cx;
-      d1[o + 1] = g.cy;
-      d1[o + 2] = g.cz;
-      d1[o + 3] = chunkSizeRad(level) / this.cells;
+      d[o + 4] = g.cx;
+      d[o + 5] = g.cy;
+      d[o + 6] = g.cz;
+      d[o + 7] = chunkSizeRad(level) / this.cells;
       // 2: east and the debug hue
-      d2[o] = g.ex;
-      d2[o + 1] = 0;
-      d2[o + 2] = g.ez;
-      d2[o + 3] = chunkHue(level, g.ix, g.iy);
+      d[o + 8] = g.ex;
+      d[o + 9] = 0;
+      d[o + 10] = g.ez;
+      d[o + 11] = chunkHue(level, g.ix, g.iy);
       // 3: latitude and longitude of the centre and the extents
-      d3[o] = g.latC;
-      d3[o + 1] = g.dLat;
-      d3[o + 2] = g.dLon;
-      d3[o + 3] = g.lonC;
+      d[o + 12] = g.latC;
+      d[o + 13] = g.dLat;
+      d[o + 14] = g.dLon;
+      d[o + 15] = g.lonC;
       // 4: how many levels coarser the neighbours are
-      d4[o] = t.coarser[4 * i] as number;
-      d4[o + 1] = t.coarser[4 * i + 1] as number;
-      d4[o + 2] = t.coarser[4 * i + 2] as number;
-      d4[o + 3] = t.coarser[4 * i + 3] as number;
+      d[o + 16] = t.coarser[4 * i] as number;
+      d[o + 17] = t.coarser[4 * i + 1] as number;
+      d[o + 18] = t.coarser[4 * i + 2] as number;
+      d[o + 19] = t.coarser[4 * i + 3] as number;
       mask |= 1 << level;
     }
-    for (const a of this.attrs) {
-      a.clearUpdateRanges();
-      if (n > 0) a.addUpdateRange(0, n * FLOATS);
-      a.needsUpdate = true;
-    }
+    this.buffer.clearUpdateRanges();
+    if (n > 0) this.buffer.addUpdateRange(0, n * STRIDE);
+    this.buffer.needsUpdate = true;
     this.geometry.instanceCount = n;
     this.mesh.visible = n > 0;
     this.levelMask = mask;
@@ -222,8 +216,8 @@ export class ChunkTerrain {
 
   /** True when every float of the instance data of the drawn chunks is finite (the NaN check of the jitter test). */
   allFinite(): boolean {
-    const n = this.tree.count * FLOATS;
-    for (const arr of this.data) for (let i = 0; i < n; i++) if (!Number.isFinite(arr[i] as number)) return false;
+    const n = this.tree.count * STRIDE;
+    for (let i = 0; i < n; i++) if (!Number.isFinite(this.data[i] as number)) return false;
     return true;
   }
 
