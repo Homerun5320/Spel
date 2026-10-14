@@ -140,7 +140,8 @@ export function hudCss(): string {
 .setup-check { display: flex; align-items: center; gap: 0.6em; min-height: ${target}; cursor: pointer; }
 .setup-check input { width: 1.3em; height: 1.3em; accent-color: ${C.accent}; }
 .setup-check[data-disabled="1"] { opacity: 0.55; cursor: default; }
-.setup-disclaimer { margin: 0.4em 0 0.3em; color: ${C.textDim}; font-size: 0.78em; line-height: 1.35; }
+.setup-disclaimer { margin: 0; color: ${C.textDim}; font-size: 0.76em; line-height: 1.3; }
+.setup-sources { margin: 0.4em 0 0.3em; color: ${C.textDim}; font-size: 0.78em; line-height: 1.35; }
 .setup-foot { padding: 0.5em 0.8em 0.7em; border-top: 1px solid ${C.panelBorder}; display: flex; flex-direction: column; gap: 0.5em; }
 .setup-status { font-size: 0.88em; min-height: 2.6em; }
 .setup-status[data-kind="ok"] { color: ${C.troops}; }

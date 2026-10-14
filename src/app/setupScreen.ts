@@ -209,15 +209,17 @@ export function mountSetupScreen(parent: HTMLElement, world: PreparedWorld, init
   const neutralHint = el('div', 'setup-hint');
   optBox.append(optTitle, regionLabel, region, aiLabel, aiRow, tribesRow, diffLabel, diff, diffNote, seedLabel, seed, seedHint, neutralRow, neutralHint);
 
+  // The neutral disclaimer is always in view (in the footer, above the status); where the lines and names come from is at the end of the body.
   const disclaimer = el('p', 'setup-disclaimer', 'setup-disclaimer');
-  body.append(tabs, placeMsg, realBox, customBox, optBox, disclaimer);
+  const sources = el('p', 'setup-sources', 'setup-sources');
+  body.append(tabs, placeMsg, realBox, customBox, optBox, sources);
 
   const foot = el('div', 'setup-foot');
   const status = el('div', 'setup-status', 'setup-status');
   status.setAttribute('role', 'status');
   const startBtn = el('button', 'start-btn setup-start', 'setup-start');
   startBtn.type = 'button';
-  foot.append(status, startBtn);
+  foot.append(disclaimer, status, startBtn);
   panel.append(head, body, foot);
   root.append(panel);
   parent.appendChild(root);
@@ -385,6 +387,7 @@ export function mountSetupScreen(parent: HTMLElement, world: PreparedWorld, init
     neutralText.textContent = t('setup.neutral');
     neutralHint.textContent = t('setup.neutralHint');
     disclaimer.textContent = t('setup.disclaimer');
+    sources.textContent = t('setup.sources');
   };
 
   const showStatus = (): void => {

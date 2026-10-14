@@ -168,6 +168,13 @@ describe('a real country: search, the flight, the outline, the start', () => {
       expect(await page.locator('.setup-row').first().locator('.setup-row-name').textContent()).toBe('Sweden');
       await page.click(tid('setup-language'));
       expect(await page.locator('.setup-row').first().locator('.setup-row-name').textContent()).toBe('Sverige');
+      // the neutral disclaimer is always in view, inside the panel (and so is the source line at the end of the options)
+      const disc = (await page.locator(tid('setup-disclaimer')).boundingBox())!;
+      const panelBox = (await page.locator(tid('setup-panel')).boundingBox())!;
+      expect(await text(page, 'setup-disclaimer')).toBe(TABLES.sv['setup.disclaimer']);
+      expect(disc.y).toBeGreaterThan(panelBox.y);
+      expect(disc.y + disc.height).toBeLessThanOrEqual(panelBox.y + panelBox.height);
+      expect(await text(page, 'setup-sources')).toBe(TABLES.sv['setup.sources']);
       // the start is not possible yet; the status says what is missing
       expect(await page.locator(tid('setup-start')).isDisabled()).toBe(true);
       expect(await page.locator(tid('setup-status')).getAttribute('data-key')).toBe('setup.need.country');
