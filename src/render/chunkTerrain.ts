@@ -227,11 +227,9 @@ export class ChunkTerrain {
       d[o + 13] = g.dLat;
       d[o + 14] = g.dLon;
       d[o + 15] = g.lonC;
-      // 4: how many levels coarser the neighbours are
-      d[o + 16] = t.coarser[4 * src] as number;
-      d[o + 17] = t.coarser[4 * src + 1] as number;
-      d[o + 18] = t.coarser[4 * src + 2] as number;
-      d[o + 19] = t.coarser[4 * src + 3] as number;
+      // 4: how many levels coarser the neighbours are (-1: finer)
+      // (a neighbour that is split further is marked -1: the finer chunks there are lower or higher than this edge, so the wall stays deep)
+      for (let k = 0; k < 4; k++) d[o + 16 + k] = t.finer[4 * src + k] === 1 ? -1 : (t.coarser[4 * src + k] as number);
       mask |= 1 << level;
     }
     this.buffer.clearUpdateRanges();

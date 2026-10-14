@@ -163,6 +163,11 @@ export const CHUNK_SKIRT_CELLS = 1.25;
  * computed edge vertices) would show the background there; a wall that leans outward is seen from above and covers it.
  */
 export const CHUNK_SKIRT_OUT_CELLS = 0.5;
+/**
+ * Where the neighbour is on the same LOD level the wall only covers float rounding hairlines, so its depth and lean are this share of
+ * the full ones (a smaller wall is less to rasterise and to shade; the walls at LOD seams keep their full size).
+ */
+export const CHUNK_SKIRT_SAME_SHARE = 0.25;
 /** Frustum culling slack: the half field of view is widened by this fraction so a chunk never pops in at the screen edge. */
 export const CHUNK_FRUSTUM_SLACK = 0.06;
 /** Dynamic near plane: this fraction of the camera's height above the ground, never below `CLIP_NEAR_MIN` (Earth radii). */

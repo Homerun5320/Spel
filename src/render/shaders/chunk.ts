@@ -25,12 +25,13 @@ uniform float uSkirtsOn;
 uniform vec3 uCamHi; // the camera position as a float32 and what it left out (the high and the low part)
 uniform vec3 uCamLo;
 uniform vec2 uSkirt; // x: depth, y: outward lean, both in grid cells of the chunk's own level (times 2^d where the neighbour is d levels coarser)
+uniform float uSkirtSame; // the share of that depth and lean where the neighbour is on the same level (only float rounding hairlines to cover)
 
 attribute vec4 aOrigin; // xyz: the low part of the chunk centre direction (what the float32 in aUp left out); w: level
 attribute vec4 aUp;     // xyz: centre direction (the high part); w: the size of one grid cell (Earth radii)
 attribute vec4 aEast;   // xyz: east at the centre; w: debug hue
 attribute vec4 aGeo;    // x: centre latitude, y: latitude extent, z: longitude extent, w: centre longitude (radians)
-attribute vec4 aNeigh;  // levels the neighbour across the west, east, north, south edge is coarser
+attribute vec4 aNeigh;  // levels the neighbour across the west, east, north, south edge is coarser (0 = same level, -1 = finer)
 
 varying vec3 vDir;
 varying vec3 vRel;
@@ -39,6 +40,10 @@ varying float vWall;  // 1 on a skirt wall, 0 on the grid
 
 const float TWO_PI = 6.283185307179586;
 const float PI_ = 3.141592653589793;
+
+float wallScale(float v) {
+  return v > 0.5 ? exp2(v) : (v < -0.5 ? 1.0 : uSkirtSame);
+}
 
 void main() {
   vec2 g = position.xy;
@@ -80,14 +85,16 @@ void main() {
   if (wallFlag > 0.5 && wallFlag < 1.5) {
     // The wall hangs under the rim and leans outward: deeper where the neighbour across this edge is coarser (its straight edge can
     // sit lower), and leaning so that a camera looking straight down still sees it (a hairline gap between two chunks is covered).
-    float nd = 0.0;
+    // How far the wall reaches on each rim edge: the full size where the neighbour is finer or d levels coarser (times 2^d: the crack to
+    // cover is as big as the coarse cell), a small share where it is on the same level (only a hairline to cover).
+    float m = 0.0;
     float sx = 0.0;
     float sy = 0.0;
-    if (g.x < 0.001) { nd = max(nd, aNeigh.x); sx -= 1.0; }
-    if (g.x > 0.999) { nd = max(nd, aNeigh.y); sx += 1.0; }
-    if (g.y < 0.001) { nd = max(nd, aNeigh.z); sy += 1.0; }
-    if (g.y > 0.999) { nd = max(nd, aNeigh.w); sy -= 1.0; }
-    float k = aUp.w * exp2(nd) * uSkirtsOn;
+    if (g.x < 0.001) { m = max(m, wallScale(aNeigh.x)); sx -= 1.0; }
+    if (g.x > 0.999) { m = max(m, wallScale(aNeigh.y)); sx += 1.0; }
+    if (g.y < 0.001) { m = max(m, wallScale(aNeigh.z)); sy += 1.0; }
+    if (g.y > 0.999) { m = max(m, wallScale(aNeigh.w)); sy -= 1.0; }
+    float k = aUp.w * m * uSkirtsOn;
     rel += (east * sx + north * sy) * (k * uSkirt.y) - dir * (k * uSkirt.x);
   }
   vDir = dir;

@@ -132,6 +132,8 @@ export class ChunkQuadtree {
   readonly iy: Int32Array;
   /** Per leaf, for the edges west, east, north, south: levels the neighbour is coarser (0 = same, finer or absent). */
   readonly coarser: Uint8Array;
+  /** Per leaf and edge: 1 when the neighbour across the edge is split further (finer chunks lie there), else 0. */
+  readonly finer: Uint8Array;
   /** Nodes whose bounds were evaluated in the last update (all passes): a cost counter, not a result. */
   nodesVisited = 0;
   /** True when the cap refused at least one split the last update wanted (the far detail is lower than asked for). */
@@ -192,6 +194,7 @@ export class ChunkQuadtree {
     this.ix = new Int32Array(cap);
     this.iy = new Int32Array(cap);
     this.coarser = new Uint8Array(4 * cap);
+    this.finer = new Uint8Array(4 * cap);
     // Every split adds at most 4 nodes; a split that keeps the number of leaves (one visible child) can repeat down a branch, so at most
     // one split per leaf per level.
     const nodes = 8 + 4 * params.maxChunks * (params.maxLevel + 1);
@@ -433,8 +436,8 @@ export class ChunkQuadtree {
         this.capped = true; // stays a leaf; a cheaper split (fewer visible children) may still fit
         continue;
       }
-      this.nSplit[n] = 1;
-      this.curSplit.add(chunkKey(level, ix, iy));
+      this.nSplit[n] = 1; // (with no visible child the node simply drops out; it is not recorded as split, nothing finer lies there)
+      if (vc > 0) this.curSplit.add(chunkKey(level, ix, iy));
       leaves += vc - 1;
       for (let k = 0; k < vc; k++) {
         this.nLevel[nodes] = level + 1;
@@ -468,11 +471,26 @@ export class ChunkQuadtree {
       const iy = this.iy[i] as number;
       const cols = levelCols(l);
       const rows = levelRows(l);
-      this.coarser[4 * i] = this.coarserAcross(l, (ix + cols - 1) % cols, iy);
-      this.coarser[4 * i + 1] = this.coarserAcross(l, (ix + 1) % cols, iy);
-      this.coarser[4 * i + 2] = iy > 0 ? this.coarserAcross(l, ix, iy - 1) : 0;
-      this.coarser[4 * i + 3] = iy < rows - 1 ? this.coarserAcross(l, ix, iy + 1) : 0;
+      this.setEdge(4 * i, l, (ix + cols - 1) % cols, iy);
+      this.setEdge(4 * i + 1, l, (ix + 1) % cols, iy);
+      if (iy > 0) this.setEdge(4 * i + 2, l, ix, iy - 1);
+      else this.noEdge(4 * i + 2);
+      if (iy < rows - 1) this.setEdge(4 * i + 3, l, ix, iy + 1);
+      else this.noEdge(4 * i + 3);
     }
+  }
+
+  private noEdge(slot: number): void {
+    this.coarser[slot] = 0;
+    this.finer[slot] = 0;
+  }
+
+  /** Writes how many levels coarser the neighbour cell (nx, ny) of level `level` is, and whether it is split further (finer chunks there). */
+  private setEdge(slot: number, level: number, nx: number, ny: number): void {
+    const d = this.coarserAcross(level, nx, ny);
+    this.coarser[slot] = d;
+    // The same-level cell is an internal node of the tree (it was split) exactly when finer leaves lie there.
+    this.finer[slot] = d === 0 && this.prevSplit.has(chunkKey(level, nx, ny)) ? 1 : 0;
   }
 
   /** Levels coarser than `level` of the leaf covering the same-level cell (nx, ny); 0 when that cell is a leaf, is split further, or is not drawn. */

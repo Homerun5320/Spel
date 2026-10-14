@@ -56,7 +56,7 @@ const sha = (b: Buffer): string => crypto.createHash('sha256').update(b).digest(
 
 describe('globe scene: test tier budget', () => {
   it('renders in the test tier with <= 150k triangles and <= 30 draw calls, WebGL2, zero console errors', async () => {
-    const { page, messages } = await openGlobe('test=1&quality=high');
+    const { page, messages } = await openGlobe('test=1&quality=high&terrain=fixed'); // M07a: the fixed mesh (the exact M02 scene) is behind ?terrain=fixed; the chunk terrain has its budget test in e2e/terrain.test.ts
     try {
       await page.evaluate(() => (window as any).__test.render());
       const info = await page.evaluate(() => (window as any).__test.info());

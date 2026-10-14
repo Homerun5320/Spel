@@ -151,6 +151,7 @@ describe('quadtree: neighbour levels', () => {
       tree.update(quadCameraOf(poseOf(world, v.view, v.altAglM)));
       const leaves = leavesOf(tree);
       let coarse = 0;
+      let finerSeen = 0;
       for (const l of leaves) {
         const w = chunkSizeRad(l.level) / DEG;
         const latC = 90 - (l.iy + 0.5) * w;
@@ -170,9 +171,23 @@ describe('quadtree: neighbour levels', () => {
           }
           if (expected > 0) coarse++;
           expect(l.coarser[k], `${v.name}: leaf ${l.level}/${l.ix}/${l.iy} edge ${k}`).toBe(expected);
+          // finer: some leaf across the edge is at a deeper level than this one
+          let finer = false;
+          if (p !== null) {
+            // the same-level cell across the edge, and a deeper leaf inside it
+            const nx = Math.floor((wrapLon(p[1]) + 180) / w);
+            const ny = Math.min(levelRows(l.level) - 1, Math.floor((90 - p[0]) / w));
+            finer = leaves.some((o) => o.level > l.level && o.ix >> (o.level - l.level) === nx && o.iy >> (o.level - l.level) === ny);
+          }
+          const fi = Array.from({ length: 4 }, (_, e) => tree.finer[4 * leaves.indexOf(l) + e] as number)[k];
+          if (finer) finerSeen++;
+          expect(fi === 1, `${v.name}: leaf ${l.level}/${l.ix}/${l.iy} edge ${k} finer`).toBe(finer);
         });
       }
-      if (v.name === '60 km' || v.name === '8 km') expect(coarse, `${v.name} has LOD seams`).toBeGreaterThan(0);
+      if (v.name === '60 km' || v.name === '8 km') {
+        expect(coarse, `${v.name} has LOD seams`).toBeGreaterThan(0);
+        expect(finerSeen, `${v.name} has finer neighbours`).toBeGreaterThan(0);
+      }
     }
   });
 });

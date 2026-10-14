@@ -104,7 +104,7 @@ export function createTerrainMaterial(
       uSkyZenith: { value: v3(C.SKY_ZENITH) },
       uSkyNight: { value: v3(C.SKY_NIGHT) },
       // Chunk terrain only: the skirts switch (a debug flag of the crack test) and the `?chunks=1` colouring.
-      ...(chunks ? { uSkirtsOn: { value: 1 }, uChunkDebug: { value: 0 }, uChunkCells: { value: chunkCells }, uCamHi: { value: new Vector3() }, uCamLo: { value: new Vector3() }, uSkirt: { value: new Vector2(C.CHUNK_SKIRT_CELLS, C.CHUNK_SKIRT_OUT_CELLS) } } : {}),
+      ...(chunks ? { uSkirtsOn: { value: 1 }, uChunkDebug: { value: 0 }, uChunkCells: { value: chunkCells }, uCamHi: { value: new Vector3() }, uCamLo: { value: new Vector3() }, uSkirt: { value: new Vector2(C.CHUNK_SKIRT_CELLS, C.CHUNK_SKIRT_OUT_CELLS) }, uSkirtSame: { value: C.CHUNK_SKIRT_SAME_SHARE } } : {}),
       ...shared,
     },
   });
