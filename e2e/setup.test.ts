@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { Browser, BrowserContext, Page } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
-import { OUT_DIR, decodePng, launchBrowser, newTestPage, openPage } from '../scripts/shot.mjs';
+import { OUT_DIR, decodePng, launchBrowser, newTestPage, openPage, fastClick, waitVisible, LIVE_POLL_MS } from '../scripts/shot.mjs';
 import { deltaE76Rgb } from '../src/render/color';
 import { isPlayableClass } from '../src/sim/terrain';
 import { START_DISC_CELLS } from '../src/sim/rules';
@@ -728,15 +728,17 @@ describe('the two link chips of the start page never cover the setup panel (non-
       page.on('pageerror', (e) => messages.push({ type: 'error', text: `pageerror: ${e.message}` }));
       try {
         await page.goto(`${baseUrl}/`, { waitUntil: 'load' }); // no address parameter at all: the plain page the player and the Artifact see
-        await page.waitForSelector(tid('start-setup'), { timeout: 60_000 });
+        await waitVisible(page, tid('start-setup'), 60_000);
         const chip = (id: string): Promise<boolean> => page.evaluate((i) => !(document.getElementById(i) as HTMLElement).hidden, id);
         expect([await chip('probe-link'), await chip('debug-links')]).toEqual([true, true]);
-        await page.click(tid('start-setup'));
-        await page.waitForSelector(tid('setup-screen'), { timeout: 60_000 });
-        await page.locator(tid('setup-row')).first().click(); // a country is chosen (the panel with its longest content)
+        await fastClick(page, tid('start-setup'));
+        await waitVisible(page, tid('setup-screen'), 60_000);
+        await fastClick(page, tid('setup-row')); // a country is chosen (the panel with its longest content)
         // The condition the next lines assert (no sleep): both chips are gone and the primary button has its country.
         await page.waitForFunction(
           () => ['probe-link', 'debug-links'].every((i) => (document.getElementById(i) as HTMLElement).hidden) && document.querySelector('[data-testid="setup-start"]')?.getAttribute('data-ready') === '1',
+          undefined,
+          { polling: LIVE_POLL_MS },
         );
         expect([await chip('probe-link'), await chip('debug-links')]).toEqual([false, false]);
         const start = page.locator(tid('setup-start'));
@@ -755,8 +757,8 @@ describe('the two link chips of the start page never cover the setup panel (non-
           expect(await hits(page, x, y), `button ${JSON.stringify(b)} at ${x.toFixed(0)},${y.toFixed(0)}`).toBe(true);
         }
         fs.writeFileSync(path.join(SHOT_DIR, `setup-chips-${viewport.width}.png`), await page.screenshot({ type: 'png' }));
-        await page.click(tid('setup-back'));
-        await page.waitForSelector(tid('start-setup'));
+        await fastClick(page, tid('setup-back'));
+        await waitVisible(page, tid('start-setup'));
         expect([await chip('probe-link'), await chip('debug-links')]).toEqual([true, true]);
       } finally {
         await page.close();

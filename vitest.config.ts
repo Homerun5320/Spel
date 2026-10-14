@@ -1,11 +1,16 @@
+import os from 'node:os';
 import { defineConfig } from 'vitest/config';
 import { e2eWorkerCount } from './scripts/localGpu.mjs';
 
-// e2e workers: E2E_WORKERS, or floor(cores / 2) (at most 4) with LOCAL_GPU=1, else the default below (docs/DECISIONS.md D144).
-const E2E_DEFAULT_WORKERS = 1;
-const e2eWorkers = e2eWorkerCount(process.env, undefined, E2E_DEFAULT_WORKERS);
+// e2e workers (docs/DECISIONS.md D144): E2E_WORKERS wins; with LOCAL_GPU=1 floor(cores / 2) up to 4; otherwise floor(cores / 2) up to 2
+// (SwiftShader already uses several cores per frame, so more than 2 Chromium instances only slow every frame down). The tests that measure
+// memory or time live in `*.serial.test.ts` files and run alone in the e2e-serial project, one at a time.
+const E2E_DEFAULT_WORKERS = Math.max(1, Math.min(2, Math.floor(os.availableParallelism() / 2)));
+/** The files of the e2e-serial project: every `*.serial.test.ts` plus the heap self-test (its name is pinned by tests/rawHeap.test.ts). */
+const E2E_SERIAL_FILES = ['e2e/**/*.serial.test.ts', 'e2e/heap.test.ts'];
+const e2eWorkers = e2eWorkerCount(process.env, os.availableParallelism(), E2E_DEFAULT_WORKERS);
 
-// Three projects: unit (fast, pure), perf (CPU budgets, strictly serial), e2e (headless Chromium).
+// Four projects: unit (fast, pure), perf (CPU budgets, strictly serial), e2e (headless Chromium, a few files at a time), e2e-serial (Chromium, memory and time tests, one at a time).
 // verify runs them as separate invocations, never a bare `vitest run`.
 export default defineConfig({
   test: {
@@ -41,11 +46,28 @@ export default defineConfig({
         test: {
           name: 'e2e',
           include: ['e2e/**/*.test.ts'],
+          exclude: [...E2E_SERIAL_FILES, 'node_modules/**'],
           environment: 'node',
           globalSetup: ['e2e/globalSetup.ts'],
           pool: 'forks',
           fileParallelism: e2eWorkers > 1,
           maxWorkers: e2eWorkers,
+          // Two Chromium instances share the CPU, so every frame takes longer: the per-test limit grows with the worker count. The 20 s hang
+          // guard of every browser call (scripts/shot.mjs) is unchanged and still catches a real hang.
+          testTimeout: e2eWorkers > 1 ? 120_000 : 60_000,
+          hookTimeout: e2eWorkers > 1 ? 120_000 : 60_000,
+        },
+      },
+      {
+        // Heap, leak and wall-clock budget tests: one file at a time, alone in the machine (never next to the parallel e2e project or perf).
+        test: {
+          name: 'e2e-serial',
+          include: E2E_SERIAL_FILES,
+          environment: 'node',
+          globalSetup: ['e2e/globalSetup.ts'],
+          pool: 'forks',
+          fileParallelism: false,
+          maxWorkers: 1,
           testTimeout: 60_000,
           hookTimeout: 60_000,
         },

@@ -7,7 +7,7 @@ import path from 'node:path';
 import type { Browser } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ALLOWED_EXT, pack } from '../scripts/artifact-pack.mjs';
-import { analyzeImage, checkShot, decodePng, launchBrowser, takeShot, waitFrames } from '../scripts/shot.mjs';
+import { analyzeImage, checkShot, decodePng, launchBrowser, takeShot, waitFrames, fastClick, waitVisible } from '../scripts/shot.mjs';
 import { REPO, buildDistTo, makeTmp } from '../tests/helpers/buildDist';
 import { readGolden } from '../tests/helpers/simGolden';
 
@@ -176,15 +176,15 @@ describe('artifact build served from /x/y/', () => {
       page.on('pageerror', (e) => messages.push(`pageerror: ${e.message}`));
       try {
         await page.goto(`${srv.url}/`, { waitUntil: 'load' });
-        await page.waitForSelector('[data-testid="start-setup"]', { timeout: 60_000 });
-        await page.click('[data-testid="start-setup"]');
-        await page.waitForSelector('[data-testid="setup-screen"]', { timeout: 60_000 });
+        await waitVisible(page, '[data-testid="start-setup"]', 60_000);
+        await fastClick(page, '[data-testid="start-setup"]');
+        await waitVisible(page, '[data-testid="setup-screen"]', 60_000);
         expect(await page.locator('[data-testid="setup-row"]').count()).toBeGreaterThan(200);
         expect(srv.requests.some((r) => r === '200 /x/y/data/overrides.json')).toBe(true);
         await page.fill('#setup-search', 'sverige');
-        await page.locator('[data-testid="setup-row"]').first().click();
-        await page.click('[data-testid="setup-start"]');
-        await page.waitForSelector('[data-testid="match-hud"]', { timeout: 60_000 });
+        await fastClick(page, '[data-testid="setup-row"]');
+        await fastClick(page, '[data-testid="setup-start"]');
+        await waitVisible(page, '[data-testid="match-hud"]', 60_000);
         expect(await page.locator('[data-testid="nation-name"]').textContent()).toBe('Sverige');
         await waitFrames(page, 3); // the first frames of the new match have run: any late console error is in `messages`
       } finally {

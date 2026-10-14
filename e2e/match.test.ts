@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { Browser, Page } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
-import { OUT_DIR, analyzeImage, decodePng, launchBrowser, newTestPage, luma, openPage } from '../scripts/shot.mjs';
+import { OUT_DIR, analyzeImage, decodePng, launchBrowser, newTestPage, luma, openPage, fastClick, waitVisible, LIVE_POLL_MS } from '../scripts/shot.mjs';
 import { deltaE76, rgbToLab } from '../src/render/color';
 import { timeForSubsolarLon } from '../src/render/geo';
 import { REJECT_IMMUNE, REJECT_PCT, REJECT_PHASE, REJECT_SELF, REJECT_TERRAIN } from '../src/sim/intents';
@@ -659,17 +659,17 @@ describe('the live page (no test mode): start screen, Play, a click spawns, the 
     page.on('pageerror', (e) => messages.push({ type: 'error', text: `pageerror: ${e.message}` }));
     try {
       await page.goto(`${baseUrl}/?quality=low#perf_seed-7`, { waitUntil: 'load' });
-      await page.waitForSelector('[data-testid="start-screen"]', { timeout: 30_000 });
+      await waitVisible(page, '[data-testid="start-screen"]', 30_000);
       expect(await page.locator('[data-testid="match-hud"]').count()).toBe(0); // nothing of the match before Play
       fs.writeFileSync(path.join(SHOT_DIR, 'match-start-screen.png'), await page.screenshot({ type: 'png' }));
-      await page.click('[data-testid="play"]');
-      await page.waitForSelector('[data-testid="match-hud"]', { timeout: 30_000 });
+      await fastClick(page, '[data-testid="play"]');
+      await waitVisible(page, '[data-testid="match-hud"]', 30_000);
       expect(await page.locator('[data-testid="start-screen"]').count()).toBe(0);
       // a click on the middle of the globe (the default view looks at the Sahara): spawn
       await page.mouse.click(480, 270);
-      await page.waitForFunction(() => Number(document.querySelector('[data-testid="troops"]')?.getAttribute('data-value') ?? 0) > 100, undefined, { timeout: 30_000 });
+      await page.waitForFunction(() => Number(document.querySelector('[data-testid="troops"]')?.getAttribute('data-value') ?? 0) > 100, undefined, { timeout: 30_000, polling: LIVE_POLL_MS });
       // the loop runs: the countdown of the spawn phase goes down
-      await page.waitForFunction(() => Number(/\d+/.exec(document.querySelector('[data-testid="phase-seconds"]')?.textContent ?? '')?.[0] ?? 99) < 20, undefined, { timeout: 30_000 });
+      await page.waitForFunction(() => Number(/\d+/.exec(document.querySelector('[data-testid="phase-seconds"]')?.textContent ?? '')?.[0] ?? 99) < 20, undefined, { timeout: 30_000, polling: LIVE_POLL_MS });
       fs.writeFileSync(path.join(SHOT_DIR, 'match-live.png'), await page.screenshot({ type: 'png' }));
       const text = await page.evaluate(() => document.querySelector('[data-perf]')?.textContent ?? '');
       console.log(`[live] perf overlay: ${text.replace(/\n/g, ' | ')}`);

@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { Browser, Page } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
-import { OUT_DIR, launchBrowser, newTestPage, openPage } from '../scripts/shot.mjs';
+import { OUT_DIR, launchBrowser, newTestPage, openPage, fastClick, waitVisible, LIVE_POLL_MS } from '../scripts/shot.mjs';
 import { countryEligibility } from '../src/app/eligibility';
 import type { PreparedWorld } from '../src/app/matchWorld';
 import { TABLES } from '../src/ui/i18n';
@@ -249,18 +249,18 @@ describe('the language is remembered (the live page, no test mode)', () => {
 
   /** The start screen is up and the world for the setup is prepared (its button is enabled): leaving earlier would abort a fetch and log an error. */
   async function ready(page: Page): Promise<void> {
-    await page.waitForSelector(tid('start-screen'), { timeout: 60_000 });
+    await waitVisible(page, tid('start-screen'), 60_000);
     await page.waitForFunction(() => {
       const b = document.querySelector('[data-testid="start-setup"]') as HTMLButtonElement | null;
       return b !== null && !b.disabled;
-    }, null, { timeout: 60_000 });
+    }, null, { timeout: 60_000, polling: LIVE_POLL_MS });
   }
 
   it('Swedish at first; English after the language button and after a reload; the address language still wins and is not stored', async () => {
     const { page, messages } = await live('');
     try {
       expect(await text(page, 'play')).toBe(TABLES.sv['start.play']);
-      await page.click(tid('start-language'));
+      await fastClick(page, tid('start-language'));
       expect(await text(page, 'play')).toBe(TABLES.en['start.play']);
       await page.reload({ waitUntil: 'load' });
       await ready(page);
@@ -275,7 +275,7 @@ describe('the language is remembered (the live page, no test mode)', () => {
       await ready(page);
       expect(await text(page, 'play')).toBe(TABLES.en['start.play']); // still the stored one
       // and back to Swedish by the button, remembered again
-      await page.click(tid('start-language'));
+      await fastClick(page, tid('start-language'));
       await page.reload({ waitUntil: 'load' });
       await ready(page);
       expect(await text(page, 'play')).toBe(TABLES.sv['start.play']);
@@ -298,8 +298,8 @@ describe('the language is remembered (the live page, no test mode)', () => {
     });
     try {
       await page.goto(`${baseUrl}/?quality=low`, { waitUntil: 'load' });
-      await page.waitForSelector(tid('start-screen'), { timeout: 60_000 });
-      await page.click(tid('start-language'));
+      await waitVisible(page, tid('start-screen'), 60_000);
+      await fastClick(page, tid('start-language'));
       expect(await text(page, 'play')).toBe(TABLES.en['start.play']);
       expect(messages).toEqual([]);
     } finally {

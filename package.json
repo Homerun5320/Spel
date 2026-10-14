@@ -22,8 +22,9 @@
     "sim:run": "tsx tools/sim/run.ts",
     "sim:scenario": "tsx tools/sim/scenario.ts",
     "sim:pace": "tsx tools/sim/pace.ts",
-    "verify:fast": "npm run typecheck && npm run lint && vitest run --project unit",
-    "verify": "npm run typecheck && npm run lint && vitest run --project unit && vitest run --project perf --passWithNoTests && vitest run --project e2e"
+    "verify:fast": "node scripts/verify.mjs --fast",
+    "verify": "node scripts/verify.mjs",
+    "verify:local": "node scripts/verify.mjs --local"
   },
   "dependencies": {
     "three": "0.186.1"

@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { Browser, Page } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
-import { OUT_DIR, decodePng, heapDelta, launchBrowser, newTestPage, luma, openPage, waitFrames } from '../scripts/shot.mjs';
+import { OUT_DIR, decodePng, launchBrowser, newTestPage, luma, openPage, waitFrames, fastClick, waitVisible, LIVE_POLL_MS } from '../scripts/shot.mjs';
 import { timeForSubsolarLon } from '../src/render/geo';
 import { CLASS_FOREST, CLASS_HILLS, CLASS_PLAINS } from '../src/sim/terrain';
 import { TABLES, placeholdersOf } from '../src/ui/i18n';
@@ -34,8 +34,8 @@ afterAll(async () => {
   await browser?.close();
 });
 
-async function open(query: string, viewport = { width: 960, height: 540 }, options?: { isolated?: boolean }): Promise<{ page: Page; messages: Array<{ type: string; text: string }> }> {
-  const { page, consoleMessages } = await openPage(browser, baseUrl, query, viewport, options);
+async function open(query: string, viewport = { width: 960, height: 540 }): Promise<{ page: Page; messages: Array<{ type: string; text: string }> }> {
+  const { page, consoleMessages } = await openPage(browser, baseUrl, query, viewport);
   return { page, messages: consoleMessages };
 }
 
@@ -529,38 +529,6 @@ describe('i18n in the browser', () => {
   });
 });
 
-describe('the HUD does no work when nothing changed', () => {
-  it('500 refreshes of an unchanged state cause no DOM mutation; the cost per refresh is logged', async () => {
-    const { page, messages } = await open('test=1&seed=7&hud=1&ai=0', undefined, { isolated: true }); // a heap measurement: a page of its own context
-    try {
-      await view(page, VIEW);
-      await clickAt(page, START.lat, START.lon);
-      await advance(page, 0, 30);
-      const r = await page.evaluate(() => {
-        const root = document.querySelector('[data-testid="match-hud"]') as HTMLElement;
-        const records: string[] = [];
-        const obs = new MutationObserver((list) => {
-          for (const m of list) records.push(`${m.type}:${(m.target as HTMLElement).dataset?.testid ?? (m.target as HTMLElement).className}`);
-        });
-        obs.observe(root, { subtree: true, childList: true, attributes: true, characterData: true });
-        const ms = (window as any).__test.hudRefresh(500);
-        const pending = obs.takeRecords();
-        obs.disconnect();
-        return { ms, mutations: records.length + pending.length };
-      });
-      console.log(`[hud] 500 refreshes of an unchanged state: ${r.ms.toFixed(2)} ms (${(r.ms / 500).toFixed(4)} ms each), ${r.mutations} DOM mutations; logged, not asserted`);
-      expect(r.mutations).toBe(0);
-      // the retained heap of 3000 refreshes (gc before and after, median of 3; a string per refresh would be 100 KB or more)
-      const retained = await heapDelta(page, () => page.evaluate(() => { (window as any).__test.hudRefresh(3000); }));
-      console.log(`[hud] heap retained by 3000 refreshes (gc, median of 3): ${retained} bytes`);
-      expect(retained).toBeLessThan(1_000_000);
-      expect(messages).toEqual([]);
-    } finally {
-      await page.close();
-    }
-  });
-});
-
 describe('the live page: the start screen first, Play, language, Dev', () => {
   async function live(hash: string, viewport = { width: 960, height: 540 }): Promise<{ page: Page; messages: string[] }> {
     const page = await newTestPage(browser, viewport);
@@ -570,7 +538,7 @@ describe('the live page: the start screen first, Play, language, Dev', () => {
     });
     page.on('pageerror', (e) => messages.push(`pageerror: ${e.message}`));
     await page.goto(`${baseUrl}/?quality=low${hash}`, { waitUntil: 'load' });
-    await page.waitForSelector('[data-testid="start-screen"]', { timeout: 60_000 });
+    await waitVisible(page, '[data-testid="start-screen"]', 60_000);
     return { page, messages };
   }
 
@@ -601,18 +569,18 @@ describe('the live page: the start screen first, Play, language, Dev', () => {
   it('the language button switches the whole start screen at once and back; the Dev button opens the Dev panel; Enter starts the match in the chosen language', async () => {
     const { page, messages } = await live('#seed-7');
     try {
-      await page.click('[data-testid="start-language"]');
+      await fastClick(page, '[data-testid="start-language"]');
       expect(await page.locator('[data-testid="play"]').textContent()).toBe('Play');
       expect(await page.locator('[data-testid="start-title"]').textContent()).toBe('Conquer the Earth');
       expect(await page.locator('[data-testid="start-language"]').textContent()).toBe('Svenska');
       const helpEn = await page.locator('[data-testid="start-help"] li').allTextContents();
       expect(helpEn).toEqual([TABLES.en['help.click'], TABLES.en['help.drag'], TABLES.en['help.commit'], TABLES.en['help.speed'], TABLES.en['help.dev']]);
       fs.writeFileSync(path.join(SHOT_DIR, 'start-en.png'), await page.screenshot({ type: 'png' }));
-      await page.click('[data-testid="start-language"]');
+      await fastClick(page, '[data-testid="start-language"]');
       expect(await page.locator('[data-testid="play"]').textContent()).toBe('Spela');
-      await page.click('[data-testid="start-language"]');
+      await fastClick(page, '[data-testid="start-language"]');
       expect(await page.locator('[data-dev-panel]').isVisible()).toBe(false);
-      await page.click('[data-testid="start-dev"]');
+      await fastClick(page, '[data-testid="start-dev"]');
       expect(await page.locator('[data-dev-panel]').isVisible()).toBe(true);
       expect(await page.locator('input#seed').count()).toBe(1);
       await page.keyboard.press('Escape');
@@ -624,7 +592,7 @@ describe('the live page: the start screen first, Play, language, Dev', () => {
       await page.keyboard.press('F2');
       await page.focus('[data-testid="play"]');
       await page.keyboard.press('Enter');
-      await page.waitForSelector('[data-testid="match-hud"]', { timeout: 60_000 });
+      await waitVisible(page, '[data-testid="match-hud"]', 60_000);
       expect(await page.locator('[data-testid="start-screen"]').count()).toBe(0);
       expect(await page.locator('[data-testid="phase-text"]').textContent()).toBe('Choose your starting place: click the ground');
       // the two link chips of the start page are gone while the HUD is up (they sat above it)
@@ -639,11 +607,11 @@ describe('the live page: the start screen first, Play, language, Dev', () => {
     const { page, messages } = await live('#perf_seed-7_lang-en');
     try {
       expect(await page.locator('[data-testid="play"]').textContent()).toBe('Play');
-      await page.click('[data-testid="play"]');
-      await page.waitForSelector('[data-testid="match-hud"]', { timeout: 60_000 });
+      await fastClick(page, '[data-testid="play"]');
+      await waitVisible(page, '[data-testid="match-hud"]', 60_000);
       await page.mouse.click(480, 270);
-      await page.waitForFunction(() => Number(document.querySelector('[data-testid="troops"]')?.getAttribute('data-value') ?? 0) > 100, undefined, { timeout: 30_000 });
-      await page.waitForFunction(() => /HUD [\d.]+ ms/.test(document.querySelector('[data-perf]')?.textContent ?? ''), undefined, { timeout: 30_000 });
+      await page.waitForFunction(() => Number(document.querySelector('[data-testid="troops"]')?.getAttribute('data-value') ?? 0) > 100, undefined, { timeout: 30_000, polling: LIVE_POLL_MS });
+      await page.waitForFunction(() => /HUD [\d.]+ ms/.test(document.querySelector('[data-perf]')?.textContent ?? ''), undefined, { timeout: 30_000, polling: LIVE_POLL_MS });
       const text = await page.evaluate(() => document.querySelector('[data-perf]')?.textContent ?? '');
       console.log(`[live] perf overlay: ${text.replace(/\n/g, ' | ')}`);
       fs.writeFileSync(path.join(SHOT_DIR, 'hud-live-en.png'), await page.screenshot({ type: 'png' }));
@@ -657,7 +625,7 @@ describe('the live page: the start screen first, Play, language, Dev', () => {
     const { page, messages } = await live('#seed-7', { width: 390, height: 844 });
     try {
       await page.keyboard.press('Enter');
-      await page.waitForSelector('[data-testid="match-hud"]', { timeout: 60_000 });
+      await waitVisible(page, '[data-testid="match-hud"]', 60_000);
       const box = async (sel: string): Promise<{ x: number; y: number; width: number; height: number }> => {
         const b = await page.locator(sel).first().boundingBox();
         if (b === null) throw new Error(`${sel} has no box`);
@@ -679,8 +647,8 @@ describe('the live page: the start screen first, Play, language, Dev', () => {
       await check('spawn phase');
       await page.screenshot({ path: path.join(SHOT_DIR, 'm390-01-banner.png') });
       await page.mouse.click(195, 470);
-      await page.waitForFunction(() => Number(document.querySelector('[data-testid="troops"]')?.getAttribute('data-value') ?? 0) > 100, undefined, { timeout: 30_000 });
-      await page.waitForFunction(() => (document.querySelector('[data-testid="phase-text"]')?.textContent ?? '').includes('Startplats vald'), undefined, { timeout: 30_000 });
+      await page.waitForFunction(() => Number(document.querySelector('[data-testid="troops"]')?.getAttribute('data-value') ?? 0) > 100, undefined, { timeout: 30_000, polling: LIVE_POLL_MS });
+      await page.waitForFunction(() => (document.querySelector('[data-testid="phase-text"]')?.textContent ?? '').includes('Startplats vald'), undefined, { timeout: 30_000, polling: LIVE_POLL_MS });
       await check('after the click');
       expect(await page.locator('[data-testid="phase-text"]').textContent()).toContain('Startplats vald');
       fs.writeFileSync(path.join(SHOT_DIR, 'm390-02-after-click.png'), await page.screenshot({ type: 'png' }));

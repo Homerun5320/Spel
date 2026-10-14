@@ -66,13 +66,21 @@ export function median(values) {
   return n % 2 === 1 ? sorted[(n - 1) / 2] : (sorted[n / 2 - 1] + sorted[n / 2]) / 2;
 }
 
-/** Rejects if `promise` does not settle within `ms` (the hang guard). */
+/**
+ * Rejects if `promise` does not settle within `ms` (the hang guard). A call that needed more than half of the limit is logged
+ * (`[guard] slow call`), so a parallel run that comes close to the guard shows it before it ever trips.
+ */
 export function guard(promise, label, ms = HANG_GUARD_MS) {
   let timer;
+  const t0 = performance.now();
   const timeout = new Promise((_, reject) => {
     timer = setTimeout(() => reject(new Error(`hang guard: "${label}" did not finish within ${ms} ms`)), ms);
   });
-  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+  return Promise.race([promise, timeout]).finally(() => {
+    clearTimeout(timer);
+    const took = performance.now() - t0;
+    if (took > ms / 2) console.log(`[guard] slow call "${label}": ${Math.round(took)} ms of ${ms} ms`);
+  });
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -319,6 +327,37 @@ export function waitFrames(page, n = 2) {
     ),
     `waitFrames(${n})`,
   );
+}
+
+/**
+ * Live (non-test) pages run a requestAnimationFrame loop that draws a full frame per callback, and under SwiftShader a frame takes
+ * 0.5 to 2 s. Playwright's own waits are paced by that loop (`click` waits two animation frames for the element to be "stable",
+ * `waitForSelector` and `waitForFunction` poll once per frame), so each costs one to three frames. These two helpers do the same
+ * job on a timer: a real mouse click at the element's centre and a visibility wait that polls every 50 ms (docs/DECISIONS.md D144).
+ */
+export const LIVE_POLL_MS = 50;
+
+/** Waits until the first match of `selector` is visible (exists, has a size, not hidden), polling by timer instead of by frame. */
+export function waitVisible(page, selector, timeout = HANG_GUARD_MS * 3) {
+  return page.waitForFunction(
+    (sel) => {
+      const el = document.querySelector(sel);
+      if (!el) return false;
+      const r = el.getBoundingClientRect();
+      const style = getComputedStyle(el);
+      return r.width > 0 && r.height > 0 && style.visibility !== 'hidden' && style.display !== 'none' && !el.hidden;
+    },
+    selector,
+    { polling: LIVE_POLL_MS, timeout },
+  );
+}
+
+/** A real mouse click at the centre of the first match of `selector`, without the "stable for two frames" wait of `page.click`. */
+export async function fastClick(page, selector, timeout = HANG_GUARD_MS * 3) {
+  await waitVisible(page, selector, timeout);
+  const box = await page.locator(selector).first().boundingBox({ timeout });
+  if (!box) throw new Error(`fastClick: "${selector}" has no box`);
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
 }
 
 /** Renders again on an already-open page and returns the PNG bytes (for byte-identity checks). */

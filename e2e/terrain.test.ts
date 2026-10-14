@@ -6,7 +6,7 @@ import path from 'node:path';
 import pixelmatch from 'pixelmatch';
 import type { Browser, Page } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
-import { OUT_DIR, decodePng, heapDelta, launchBrowser, openPage } from '../scripts/shot.mjs';
+import { OUT_DIR, decodePng, launchBrowser, openPage } from '../scripts/shot.mjs';
 import { CameraRig, type CameraPose } from '../src/render/camera';
 import { chunkHue, chunkSizeRad } from '../src/render/chunkMath';
 import { DEG } from '../src/render/geo';
@@ -55,8 +55,8 @@ afterAll(async () => {
   await browser?.close();
 });
 
-async function open(query = 'test=1&ai=0', viewport = { width: W, height: H }, options?: { isolated?: boolean }): Promise<{ page: Page; messages: Array<{ type: string; text: string }> }> {
-  const { page, consoleMessages } = await openPage(browser, baseUrl, query, viewport, options);
+async function open(query = 'test=1&ai=0', viewport = { width: W, height: H }): Promise<{ page: Page; messages: Array<{ type: string; text: string }> }> {
+  const { page, consoleMessages } = await openPage(browser, baseUrl, query, viewport);
   return { page, messages: consoleMessages };
 }
 
@@ -441,34 +441,5 @@ describe('the chunk terrain at orbit looks like the old globe and costs less', (
     }
     console.log(`[budget] default view, test tier: chunks ${counts.chunks} triangles, fixed mesh ${counts.fixed} triangles`);
     expect(counts.chunks).toBeLessThan(counts.fixed as number);
-  });
-});
-
-describe('leak-test: chunk terrain', () => {
-  it('60 render calls (3 rounds x 20) at 320x180 over a moving camera retain less than 5 MB (median of 3)', async () => {
-    const { page, messages } = await open('test=1&ai=0&w=320&h=180', { width: 320, height: 180 }, { isolated: true }); // a leak test: a page of its own context
-    try {
-      // One render per evaluate: ANGLE warns "running out of reserved queue serials" when dozens of instance-buffer uploads pile up in ONE
-      // JavaScript task (a page presents a frame per task, so only a test that renders in a loop meets it; the selection changes every frame here).
-      let step = 0;
-      const frames = async (n: number): Promise<void> => {
-        for (let i = 0; i < n; i++, step++) {
-          await page.evaluate((k) => {
-            const h = (window as any).__test as Hooks;
-            h.setView({ lat: 43.4 + 0.01 * k, lon: 7.4, heading: 3 * k, tilt: 70, altAglM: 20_000 * (1 + 0.02 * (k % 20)) });
-            h.render();
-          }, step);
-        }
-      };
-      await frames(20); // warm-up outside the measurement: shader compile and first-use allocations are not leaks
-      const delta = await heapDelta(page, async () => {
-        for (let round = 0; round < 3; round++) await frames(20);
-      });
-      console.log(`[leak-test] chunk terrain heap delta: ${(delta / MB).toFixed(3)} MB`);
-      expect(delta).toBeLessThan(5 * MB);
-      expect(messages).toEqual([]);
-    } finally {
-      await page.close();
-    }
   });
 });

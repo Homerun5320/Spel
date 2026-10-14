@@ -4,7 +4,7 @@ Project rules for every session. Keep this file under 200 lines. Constitution: `
 
 ## Language
 - Reply to the user in Swedish. Code, comments, identifiers, docs and commit messages are in English.
-- Exceptions written in Swedish: `docs/PREVIEW.md`, `docs/SERVER.md` (later), `README.md` (bilingual) and the summary at the top of `docs/BALANCE.md`.
+- Exceptions written in Swedish: `docs/PREVIEW.md`, `docs/LOCAL.md`, `docs/SERVER.md` (later), `README.md` (bilingual) and the summary at the top of `docs/BALANCE.md`.
 - Prompt section headings stay Swedish (see `docs/PROMPT_TEMPLATE.md`).
 
 ## Clean room (hard invariant)
@@ -20,8 +20,10 @@ Project rules for every session. Keep this file under 200 lines. Constitution: `
 
 ## Commands
 - `npm ci` installs exactly the locked versions (Node >= 22.13, `.nvmrc` = 22).
-- `npm run verify:fast` = typecheck + lint + vitest unit. The inner loop, target <= 60 s.
-- `npm run verify` = typecheck + lint + `vitest run --project unit` + `vitest run --project perf --passWithNoTests` + `vitest run --project e2e` (headless WebGL2 shots and goldens). Sequential, never concurrent with another Chromium. Budget <= 8 min; if it grows, shard e2e and note it in `docs/DECISIONS.md`. `verify` is the only definition of done.
+- `npm run verify:fast` = typecheck + lint + vitest unit, side by side (`scripts/verify.mjs --fast`, plain Node). The inner loop, target <= 60 s (about 70 s on the 4-core sandbox).
+- `npm run verify` (`scripts/verify.mjs`) = typecheck + lint + `vitest run --project unit` side by side, then `--project perf --passWithNoTests` alone, then `--project e2e` (headless WebGL2 shots and goldens), then `--project e2e-serial` (heap, leak and wall-clock tests: the files `e2e/*.serial.test.ts` and `e2e/heap.test.ts`, one file at a time). It stops at the first failing step and ends with a timing table. Budget <= 8 min (the sandbox floor and the measured times are in D144 of `docs/DECISIONS.md`); `verify` is the only definition of done.
+- Chromium rule: in the e2e project at most `E2E_WORKERS` (default floor(cores / 2), at most 2; 4 with LOCAL_GPU) Chromium instances run side by side, because each SwiftShader frame already uses several cores; none runs during unit, perf or e2e-serial, and you never start a second Chromium command (`shots`, another vitest e2e run) while `verify` runs. A test that measures heap or time goes in a `*.serial.test.ts` file.
+- `npm run verify:local` = the same stages with `LOCAL_GPU=1` on a PC with a real GPU (no SwiftShader switches, `CHROME_PATH`, golden image comparison only warns, `UPDATE_GOLDENS` refused); writes `test-results/local-report.txt`. Steps for the user (Swedish): `docs/LOCAL.md`.
 - Never run a bare `vitest run` (it would mix the projects).
 - `npm test` = unit project, `npm run shots` = smoke screenshot into `test-results/shots/`, `npm run dev|build|preview` = Vite.
 - `npm run artifact:pack` (after `npm run build`) = packs `dist` into the gitignored artifact folder for the Claude Artifact preview; options `-- --container=png|wasm|b64 --prev=<file> --probe`. Procedure in `docs/PREVIEW.md`.
@@ -55,7 +57,8 @@ Project rules for every session. Keep this file under 200 lines. Constitution: `
 - Lint rules apply to the source files in `src/sim`, `src/ai` and `src/data` but NOT to `**/*.test.ts`: all tests live in `tests/` (`tests/sim`, `tests/ai`, `*.perf.test.ts`) or `e2e/`, never next to the sources (vitest include: `tests/**/*.test.ts`, `tools/**/*.test.ts`).
 - CPU-budget tests are named `*.perf.test.ts` and run in their own vitest project (pool forks, fileParallelism false, maxWorkers 1). The perf project must always have at least one test.
 - Every perf assert uses the median of at least 5 measurements after 2 warm-ups. A p99 requirement applies only where it is stated explicitly, and then over at least 200 samples. `retry: 1` is allowed in the perf project only and is logged. Every budget states its statistic (median or p99).
-- Leak tests (all heapDelta / memory measurements in later milestones) render in a 320x180 viewport over 60 render calls (3 rounds x 20), threshold 5 MB, median of 3, and are tagged `leak-test` in the e2e shell.
+- Leak tests (all heapDelta / memory measurements in later milestones) render in a 320x180 viewport over 60 render calls (3 rounds x 20), threshold 5 MB, median of 3, are tagged `leak-test` in the e2e shell and live in a `*.serial.test.ts` file (open their page with `{ isolated: true }`).
+- e2e speed rules (D144): a wait where nobody looks at the pictures uses `__test.settle(dt, n)` (one draw, not n), a wait on a live page uses `waitFrames`, `waitVisible`, `fastClick` or a `polling` interval, never `waitForTimeout`; tests open pages with `openPage` / `newTestPage` (a tab of a shared context). A SwiftShader frame costs about 0.55 s at 960x540: render fewer or smaller frames before anything else.
 - Test mode `?test=1`: no rAF loop, fixed seed, DPR 1, 960x540 (override with `w`, `h`), MSAA off, preserveDrawingBuffer, `window.__test = { render(), info() }`. Hooks added by later milestones are listed in `docs/ARCHITECTURE.md`.
 
 ## i18n
@@ -105,7 +108,7 @@ When compacting the conversation keep: the current milestone id and branch, the 
 - The SessionStart hook (`.claude/session-start.sh`) prints one health line and runs `npm ci` when needed; errors go to `.claude/hook.log`.
 
 ## Where things are
-- `docs/CHARTER.md` constitution; `docs/ARCHITECTURE.md` module and API index; `docs/PROGRESS.md` state (Done / Now / Next / Known issues / Skipped, Environment, usage); `docs/DECISIONS.md`; `docs/BACKLOG.md`; `docs/ASSETS.md`; `docs/PROMPT_TEMPLATE.md`; `docs/PREVIEW.md` (Swedish preview guide and Artifact update procedure, M00b).
+- `docs/CHARTER.md` constitution; `docs/ARCHITECTURE.md` module and API index; `docs/PROGRESS.md` state (Done / Now / Next / Known issues / Skipped, Environment, usage); `docs/DECISIONS.md`; `docs/BACKLOG.md`; `docs/ASSETS.md`; `docs/PROMPT_TEMPLATE.md`; `docs/PREVIEW.md` (Swedish preview guide and Artifact update procedure, M00b); `docs/LOCAL.md` (Swedish: run and test on the user's own PC with a real GPU, `npm run verify:local`).
 - `CREDITS.md` (M01) credits Terrarium and Natural Earth; baked packs live in `public/data/`.
 - `docs/BALANCE.md` (M04) tabulates every constant of `src/sim/rules.ts`; a test keeps the two in step.
 - Later: `docs/SERVER.md`, `docs/ART.md` (both "(later)").

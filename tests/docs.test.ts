@@ -49,7 +49,7 @@ describe('docs/PROGRESS.md', () => {
 });
 
 describe('docs only mention files that exist (or are marked later)', () => {
-  const files = ['CLAUDE.md', 'README.md', 'docs/ARCHITECTURE.md', 'docs/ASSETS.md', 'docs/BACKLOG.md', 'docs/BALANCE.md', 'docs/DECISIONS.md', 'docs/PROGRESS.md', 'docs/PROMPT_TEMPLATE.md'];
+  const files = ['CLAUDE.md', 'README.md', 'docs/ARCHITECTURE.md', 'docs/ASSETS.md', 'docs/BACKLOG.md', 'docs/BALANCE.md', 'docs/DECISIONS.md', 'docs/LOCAL.md', 'docs/PROGRESS.md', 'docs/PROMPT_TEMPLATE.md'];
   for (const file of files) {
     it(file, () => {
       const missing: string[] = [];
@@ -78,7 +78,7 @@ describe('docs never backtick a gitignored generated folder (a fresh checkout la
     .split('\n')
     .map((l) => l.trim().replace(/\/$/, ''))
     .filter((l) => l !== '' && !l.startsWith('#') && !l.startsWith('!') && !l.includes('*') && l !== 'node_modules');
-  const files = ['CLAUDE.md', 'README.md', 'docs/ARCHITECTURE.md', 'docs/ASSETS.md', 'docs/BACKLOG.md', 'docs/BALANCE.md', 'docs/DECISIONS.md', 'docs/PROGRESS.md', 'docs/PROMPT_TEMPLATE.md'];
+  const files = ['CLAUDE.md', 'README.md', 'docs/ARCHITECTURE.md', 'docs/ASSETS.md', 'docs/BACKLOG.md', 'docs/BALANCE.md', 'docs/DECISIONS.md', 'docs/LOCAL.md', 'docs/PROGRESS.md', 'docs/PROMPT_TEMPLATE.md'];
   it('knows the generated folders', () => {
     expect(ignored).toEqual(expect.arrayContaining(['dist', '.cache', 'test-results', 'artifact']));
   });

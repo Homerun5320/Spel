@@ -102,6 +102,9 @@ export function takeShot(
 ): Promise<ShotResult>;
 export function renderAndCapture(page: Page): Promise<Buffer>;
 export function waitFrames(page: Page, n?: number): Promise<void>;
+export const LIVE_POLL_MS: number;
+export function waitVisible(page: Page, selector: string, timeout?: number): Promise<unknown>;
+export function fastClick(page: Page, selector: string, timeout?: number): Promise<void>;
 
 export interface GoldenResult {
   status: 'updated' | 'match' | 'missing-warn' | 'mismatch-warn';
