@@ -1,5 +1,6 @@
 // The solo calibration: one expander on open land stays inside the bands of tools/sim/bands.ts (D88). The bands are the
-// provisional ones of the prompt; the numbers of rules.ts were tuned (two rounds) until the reference scenario was inside them.
+// provisional ones of the prompt (M04), moved once by the tempo pass (D142, measured +-30 %, reason "user feedback: too slow"); the numbers of
+// rules.ts were tuned until the reference scenario was inside them.
 import { describe, expect, it } from 'vitest';
 import { SOLO_BAND } from '../../tools/sim/bands';
 import { parseArgs, runScenario } from '../../tools/sim/scenario';
@@ -10,7 +11,7 @@ async function solo(country: string, minutes = 10): Promise<number[]> {
 }
 
 describe('solo expander calibration', () => {
-  it('the reference scenario (one player on the capital of the largest country) holds 1 500-2 500 cells after 5 minutes and 5 000-8 000 after 10', async () => {
+  it('the reference scenario (one player on the capital of the largest country) holds the band of tools/sim/bands.ts: 5 600-10 500 cells after 5 minutes and 7 500-14 000 after 10 (it was 1 500-2 500 and 5 000-8 000 before the tempo pass)', async () => {
     const curve = await solo(SOLO_BAND.country);
     console.log(`[calibration] ${SOLO_BAND.country} solo, cells per minute: ${curve.join(' ')}`);
     expect(curve[4]).toBeGreaterThanOrEqual(SOLO_BAND.minute5[0]);
@@ -19,16 +20,21 @@ describe('solo expander calibration', () => {
     expect(curve[9]).toBeLessThanOrEqual(SOLO_BAND.minute10[1]);
     // a steady climb, never a stall: each minute adds at least 200 cells
     for (let m = 1; m < curve.length; m++) expect((curve[m] as number) - (curve[m - 1] as number)).toBeGreaterThan(200);
+    // the tempo pass (D142): 540 cells after the first minute before, over 1 200 now (1 591 measured), and the old 10-minute size (5 115) after 3 minutes instead of 10
+    expect(curve[0]).toBeGreaterThan(1200);
+    expect(curve[2]).toBeGreaterThan(5115);
   }, 60000);
 
-  it('other starting points give other curves of the same kind (land is not the same everywhere): 1 000-3 500 cells after 5 minutes, still climbing at 10', async () => {
+  it('other starting points give other curves of the same kind (land is not the same everywhere): 3 900-9 900 cells after 5 minutes (measured 5 568-7 585 +-30 %, D142), still climbing at 10 unless the whole land mass is taken', async () => {
     const seen: string[] = [];
     for (const country of ['CHN', 'USA', 'BRA', 'AUS', 'IND']) {
       const curve = await solo(country);
       seen.push(`${country} ${curve[4]}/${curve[9]}`);
-      expect(curve[4], country).toBeGreaterThan(1000);
-      expect(curve[4], country).toBeLessThan(3500);
-      expect(curve[9] as number, country).toBeGreaterThan((curve[4] as number) * 1.5);
+      expect(curve[4], country).toBeGreaterThan(3900);
+      expect(curve[4], country).toBeLessThan(9900);
+      // Australia is a continent: its 5 568 land cells are all taken after 5 minutes, so its curve is flat from there (it was still climbing before the tempo pass)
+      if (country === 'AUS') expect(curve[9] as number, country).toBeGreaterThanOrEqual(curve[4] as number);
+      else expect(curve[9] as number, country).toBeGreaterThan((curve[4] as number) * 1.15);
     }
     console.log(`[calibration] other countries, cells after 5 / 10 minutes: ${seen.join(', ')}`);
   }, 120000);

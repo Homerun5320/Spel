@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { ownerCapQt } from '../../src/sim/economy';
 import { REJECT_OWNED, REJECT_SPAWNED, REJECT_TERRAIN, withId, type Intent } from '../../src/sim/intents';
 import { OUTBOX_PAINT, OUTBOX_REJECT } from '../../src/sim/outbox';
-import { START_DISC_CELLS, START_DISC_RADIUS_CELLS, START_GOLD_MILLI, START_TROOPS_QT } from '../../src/sim/rules';
+import { QT_PER_TROOP, REGEN_BASE_TROOPS_PER_SEC, REGEN_SQRT_COEF_MILLI, START_DISC_CELLS, START_DISC_RADIUS_CELLS, START_GOLD_MILLI, START_TROOPS_QT, TICK_HZ } from '../../src/sim/rules';
 import { hashState } from '../../src/sim/serialize';
 import { claimDisc } from '../../src/sim/spawn';
 import { rebuildAggregates } from '../../src/sim/state';
@@ -72,7 +72,9 @@ describe('Spawn: the capital disc on open land', () => {
     expect(s.capital[1]).toBe(center + 1);
     // the step already ran one economy tick after the start values
     expect(s.troops[1]).toBeGreaterThanOrEqual(START_TROOPS_QT);
-    expect(s.troops[1]).toBeLessThan(START_TROOPS_QT + 12); // one economy tick of about 8 QT ran after the start values
+    // one economy tick ran after the start values: at most (REGEN_BASE + REGEN_SQRT * sqrt(T)) troops per second, in QT per tick (about 16 QT since the tempo pass, D142; it was 8)
+    const oneTickQt = ((REGEN_BASE_TROOPS_PER_SEC + (REGEN_SQRT_COEF_MILLI / 1000) * Math.sqrt(START_TROOPS_QT / QT_PER_TROOP)) * QT_PER_TROOP) / TICK_HZ;
+    expect(s.troops[1]).toBeLessThanOrEqual(START_TROOPS_QT + Math.ceil(oneTickQt));
     expect(s.gold[1]).toBeGreaterThanOrEqual(START_GOLD_MILLI);
     expect(s.gold[1]).toBeLessThan(START_GOLD_MILLI + 400); // one tick of income, about 0.2 gold
     expect(s.agg.area[1]).toBe(START_DISC_CELLS);

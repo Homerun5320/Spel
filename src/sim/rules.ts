@@ -89,9 +89,9 @@ export const CAP_N_COEF_TROOPS = 120;
 export const CAP_CITY_LEVEL_TROOPS = 800;
 
 /** Regeneration per second = max((REGEN_BASE + REGEN_SQRT_COEF * sqrt(T)) * (1 - T / Tmax), -MAX_DECAY), T in troops. */
-export const REGEN_BASE_TROOPS_PER_SEC = 8;
+export const REGEN_BASE_TROOPS_PER_SEC = 24;
 /** The 0.35 of the plan, in thousandths. */
-export const REGEN_SQRT_COEF_MILLI = 350;
+export const REGEN_SQRT_COEF_MILLI = 1000;
 /** The most a seat above its cap loses per second (own choice: the plan names MAX_DECAY but gives no number). */
 export const MAX_DECAY_TROOPS_PER_SEC = 40;
 
@@ -118,7 +118,7 @@ export const MAX_DECAY_MICRO_QT_PER_TICK = (MAX_DECAY_TROOPS_PER_SEC * MICRO_QT_
 // Conquest (wired in M04 part B; the numbers are the plan's starting values, calibrated in D88)
 
 /** Capture speed = CAPTURE_K * sqrt(L) * 2F / (F + Td), in std-cells per second; this is CAPTURE_K in thousandths (80 = 0.08). */
-export const CAPTURE_K_MILLI = 123;
+export const CAPTURE_K_MILLI = 420;
 /** Troops to take one std-cell of Plains with the attacker's depth term 0, before the multipliers. */
 export const BASE_COST_TROOPS = 3;
 /** The same per SIM cell in QT: BASE_COST_TROOPS * QT_PER_TROOP / STD_CELL_AREA (3 QT = 0.75 troop). */
@@ -208,6 +208,10 @@ export const AI_EXPAND_COMMIT_PCT = 70;
 export const AI_WAR_COMMIT_PCT = 50;
 /** A nation attacks a neighbour only when its troops are at least this many percent of the neighbour's. */
 export const AI_WAR_MIN_RATIO_PCT = 130;
+/** No AI nation attacks a neighbour before this tick (tempo pass, D142: with the faster conquest the land grab comes first and the first war is a few minutes in). Expansion into unowned land is not held back. */
+export const AI_WAR_START_TICKS = 2000;
+/** An AI nation that owns this share of all land (percent, cos-weighted) attacks no neighbour any more: nobody runs away with the match, the leader sits on its land. */
+export const AI_WAR_MAX_SHARE_PCT = 15;
 /** An AI seat expands into unowned land only when its contact length with it (adjacencies, sim cells) is at least this: a sliver of one or two cells is usually gone (taken by the running attack or by another seat) by the time the intent runs 2 ticks later, which the sim would refuse. */
 export const AI_MIN_CONTACT_LENGTH = 4;
 /** Ticks before a seat attacks the same target again (a second Attack on a target adds troops to the running one). */

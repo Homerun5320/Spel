@@ -5,7 +5,7 @@ import { AiDriver } from '../../src/host/aiDriver';
 import { MainThreadHost, type TickDriver } from '../../src/host/mainThreadHost';
 import { ViewMirror } from '../../src/host/viewMirror';
 import type { IntentBody } from '../../src/sim/intents';
-import { MATCH_AI_NATIONS, MATCH_TRIBES, SPAWN_PHASE_TICKS, START_DISC_CELLS } from '../../src/sim/rules';
+import { AI_WAR_START_TICKS, MATCH_AI_NATIONS, MATCH_TRIBES, SPAWN_PHASE_TICKS, START_DISC_CELLS } from '../../src/sim/rules';
 import { hashState } from '../../src/sim/serialize';
 import { type GameState } from '../../src/sim/state';
 import { createWorldState, type SimWorld } from '../../src/sim/world';
@@ -248,13 +248,22 @@ describe('the AI driver in the host', () => {
     const state = matchState(world, 3);
     const host = new MainThreadHost(state, { driver: new AiDriver(3) });
     host.submitIntent({ kind: 'Spawn', seat: 0, cell: HUMAN_CELL });
-    host.runTicks(6000);
+    const tribeCells = (view: StateView): number => {
+      let total = 0;
+      for (let seat = PLAYERS; seat < SEATS; seat++) {
+        total += view.stats.cells[seat] as number;
+        expect(view.stats.cells[seat] as number, `tribe ${seat}`).toBeLessThan(900);
+      }
+      return total;
+    };
+    // Until the nations' first war (AI_WAR_START_TICKS, D142) the tribes expand untouched: all 20 are alive and together hold more than their discs.
+    host.runTicks(AI_WAR_START_TICKS);
     const view = new StateView(state);
-    let total = 0;
-    for (let seat = PLAYERS; seat < SEATS; seat++) {
-      total += view.stats.cells[seat] as number;
-      expect(view.stats.cells[seat] as number, `tribe ${seat}`).toBeLessThan(900);
-    }
-    expect(total).toBeGreaterThan(MATCH_TRIBES * START_DISC_CELLS);
+    expect(tribeCells(view)).toBeGreaterThan(MATCH_TRIBES * START_DISC_CELLS);
+    // After the nations' wars begin (the conquest is 3 to 4 times as fast since the tempo pass) the nations eat the weakest neighbours, tribes first:
+    // after 10 minutes the tribes are still small, and still hold at least half of their discs' worth (it was more than all of it before the pass).
+    host.runTicks(6000 - AI_WAR_START_TICKS);
+    view.refresh();
+    expect(tribeCells(view)).toBeGreaterThan((MATCH_TRIBES * START_DISC_CELLS) / 2);
   });
 });

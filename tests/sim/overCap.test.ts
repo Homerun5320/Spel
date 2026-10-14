@@ -20,8 +20,10 @@ function play(): { s: ReturnType<typeof freshTerritoryMatch>; trace: { troops: n
 describe('the troop surplus above a fallen cap (the property counterexample of the flake hunt)', () => {
   it('owner 4 holds its full cap, loses a cell, and keeps the surplus over the lower cap (not clamped, by the rule)', () => {
     const { trace } = play();
-    const last = trace[trace.length - 1] as { troops: number; cap: number; area: number };
-    const before = trace[trace.length - 2] as { troops: number; cap: number; area: number };
+    // The capture is faster since the tempo pass (D142): the cell falls at tick 5 instead of tick 10, so the two entries are found, not indexed.
+    const firstLoss = trace.findIndex((e) => e.area < 197 && e.area > 0);
+    const last = trace[firstLoss] as { troops: number; cap: number; area: number };
+    const before = trace[firstLoss - 1] as { troops: number; cap: number; area: number };
     expect(before).toEqual({ troops: 4721, cap: 4721, area: 197 }); // full cap, 197 cells
     expect(last).toEqual({ troops: 4720, cap: 4713, area: 196 }); // one cell lost: 7 QT over the new cap
   });
@@ -43,7 +45,7 @@ describe('the troop surplus above a fallen cap (the property counterexample of t
     }
   });
 
-  it('the refund of a cancelled attack can lift a seat one QT over its cap (the committed pool is outside the cap), and it decays from there', () => {
+  it('the refund of a cancelled attack can lift a seat a few QT over its cap (the committed pool is outside the cap), and it decays from there', () => {
     const s = freshTerritoryMatch(REFUND_OVER_CAP_MATCH.seed, REFUND_OVER_CAP_MATCH.debug);
     const seen: { troops: number; cap: number; attacks: number }[] = [];
     for (const intents of REFUND_OVER_CAP_MATCH.turns) {
@@ -52,9 +54,10 @@ describe('the troop surplus above a fallen cap (the property counterexample of t
     }
     expect(seen[1]).toEqual({ troops: 4703, cap: 4703, attacks: 0 }); // full cap
     expect(seen[2]).toEqual({ troops: 4468, cap: 4703, attacks: 1 }); // 235 QT committed
-    expect(seen[7]).toEqual({ troops: 4469, cap: 4703, attacks: 1 });
-    expect(seen[8]).toEqual({ troops: 4704, cap: 4703, attacks: 0 }); // cancelled: 235 QT back
-    expect(seen[9]?.troops).toBeLessThanOrEqual(4704);
+    // The regeneration is faster since the tempo pass (D142: 24 troops per second at T = 0, it was 8), so the pool gains 3 QT in the five ticks of the attack instead of 1.
+    expect(seen[7]).toEqual({ troops: 4471, cap: 4703, attacks: 1 });
+    expect(seen[8]).toEqual({ troops: 4706, cap: 4703, attacks: 0 }); // cancelled: 235 QT back, 3 QT over the cap
+    expect(seen[9]?.troops).toBeLessThanOrEqual(4706);
     for (let i = 0; i < 100; i++) {
       const before = s.troops[5] as number;
       step(s, { turn: s.tick, intents: [] });

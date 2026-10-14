@@ -18,6 +18,27 @@ Resume: Läs CLAUDE.md och docs/PROGRESS.md, kör git log -10 och npm run verify
 
 ## Now
 
+### Tempo: a balance pass on HEAD ef06bc0 after the user's feedback "Att erövra länder tar för lång tid" / "Jag behövde köra 4x för att den ens skulle vara spelbart" (USER GATE; one part; the orchestrator owns pushing, the pull request and the Artifact)
+
+Previous merge SHA (origin/main at start): f29121a8d1607ca169e6675b5f22a52d76c42ef7 (unchanged; nothing is merged, M00 to M07a live on this branch and in draft pull request #1). Goal (game seconds at 1x): what the user sees at 4x today becomes the normal pace at 1x (about 3 to 4 times faster conquest, free expansion AND contested fronts); 4x becomes a real fast-forward. Levers: the balance file only (`src/sim/rules.ts`), never the tick rate or the clock (later milestones' second-based timings).
+
+GÖR
+- [ ] T1. Pace report tool `npm run sim:pace` (`tools/sim/pace.ts`, deterministic, headless, prints tables, unit test of its pure parts): (a) solo free-expansion curve at minutes 1, 2, 3, 5, 10; (b) contested conquest at troop parity on a real border, 100 % and 40 % commitment, seconds to own the defender's 197-cell disc and to own 500 cells of it, also against a counter-attacking bot; (c) the default Play match (you + 5 AI + 20 tribes) and a 12-AI Skirmish with a scripted sane human bot: top land share, human land share, nations alive, free land at minutes 1, 3, 6, 10, 15
+- [ ] T2. BASELINE recorded with the current constants (D142)
+- [ ] T3. Tune with at most 5 rounds (each round's constants and results in a table in D142) until the targets and guard rails hold over 5 seeds each
+- [ ] T4. Update everything the constants touch: `src/sim/rules.ts`, `docs/BALANCE.md` rows, the solo band in `tools/sim/bands.ts` (M04 rule: measured +-30 %, reason "user feedback: too slow") and the tests that pin it, tests that pin changed plan values (with justification), ENGINE_VERSION (and FORMAT_VERSION if the serialised state changes), goldens re-pinned ONCE at the end with UPDATE_GOLDENS=1 (PNG goldens only if a territory picture depends on the pace)
+- [ ] T5. Browser side: host advance cost per frame at 4x with the faster conquest, ownership texture uploads <= 10 per fx second at 4x, HUD numbers (gold/s, troop cap bar) still look right
+- [ ] T6. Docs: ARCHITECTURE index (the pace tool), DECISIONS D142 (baseline, rounds, final constants, band move, goldens), BALANCE rows, PREVIEW.md (Swedish: one sentence that the pace was raised after the feedback and that 4x is now a fast-forward), BACKLOG if needed
+- [ ] T7. `npm run verify` green TWICE in a row (background + log), then `npm run build && npm run artifact:pack`, local commit
+
+ACCEPTANS
+- [ ] 100 % commitment at troop parity: a 197-cell start disc falls in about 45 to 90 s and 500 cells of a country in about 1.5 to 3 min (game seconds, 1x); 40 % commitment is slower but active
+- [ ] Solo free-expansion curve about 3 to 3.5 times faster in time (about 1 500 or more cells at minute 1 instead of 540), saturating where the troop pool or caps bind
+- [ ] Guard rails over 5 seeds each (default Play match and 12-AI Skirmish, 1x, sane human bot): no nation above about 25 % of the land at minute 10; AI nations and tribes mostly alive after 3 minutes; a passive player is not wiped out in the first 2 minutes
+- [ ] Ratio tests pass unchanged (4:1 troops >= 1.4x speed, mountain >= 2.2x price, uphill dearer than downhill); the sim is deterministic with integer arithmetic only
+- [ ] Browser side: advance cost per frame at 4x within the existing budgets, texture uploads <= 10 per fx second at 4x, HUD sane
+- [ ] Goldens re-pinned once and justified; `npm run verify` green twice in a row; build and pack done
+
 ### M07a Terrain LOD A: quadtree chunks and geometry (USER GATE) - three sessions: Part A (items 1, 2, 3, 5, 6 and their tests; DONE, see below), Part B (items 4, 7), Part C (item 8, goldens, finish). The orchestrator owns pushing, the pull request and the Artifact.
 
 Previous merge SHA (origin/main at start): f29121a8d1607ca169e6675b5f22a52d76c42ef7 (unchanged; nothing is merged, M00 to M06 live on this branch and in draft pull request #1, so the precondition "M05/M06 merged" is treated as satisfied because they are Done here). Note: the prompt says flyTo is M08; it already exists (`src/render/flyTo.ts`, M06). User feedback to respect: a steady 30 fps at the default medium tier on a real GPU (M05/M06), so the default tier must not cost more triangles or per-pixel work than the fixed mesh (the numbers are in the "Chunk-terräng mot det fasta nätet" table of `docs/ARCHITECTURE.md`: 0.41x the triangles at the default orbit view, within +-9 % at the other views).

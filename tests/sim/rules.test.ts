@@ -59,7 +59,8 @@ describe('rules.ts: the plan values', () => {
   it('start values, cap, regeneration and tribe factors', () => {
     expect([r.START_TROOPS, r.START_GOLD]).toEqual([1200, 500]);
     expect([r.CAP_BASE_TROOPS, r.CAP_N_COEF_TROOPS, r.CAP_CITY_LEVEL_TROOPS]).toEqual([2000, 120, 800]);
-    expect([r.REGEN_BASE_TROOPS_PER_SEC, r.REGEN_SQRT_COEF_MILLI]).toEqual([8, 350]);
+    // The plan's regeneration was 8 + 0.35 sqrt(T); the tempo pass (D142) tripled it to 24 + 1.0 sqrt(T) so that the troop pool keeps up with a conquest 3 to 4 times as fast.
+    expect([r.REGEN_BASE_TROOPS_PER_SEC, r.REGEN_SQRT_COEF_MILLI]).toEqual([24, 1000]);
     expect([r.TRIBE_CAP_DIV, r.TRIBE_REGEN_PCT, r.TRIBE_ATTACK_DIV]).toEqual([3, 50, 20]);
     expect(r.TICK_HZ).toBe(10);
   });
@@ -88,10 +89,10 @@ describe('rules.ts: the plan values', () => {
     expect(r.TERRAIN_COST_PCT.length).toBe(t.CLASS_COUNT);
   });
 
-  it('conquest constants are the plan values, except CAPTURE_K_MILLI which the solo calibration moved from the plan\'s 80 to 103 (D88; it stays inside the plan\'s 0.06 to 0.15)', () => {
+  it('conquest constants are the plan values, except CAPTURE_K_MILLI which the calibration moved from the plan\'s 80 (D88) and the tempo pass to 420 (D142; the product with the other factors must stay below 2^53 for K <= 1000, see conquest.ts)', () => {
     expect([r.BASE_COST_TROOPS, r.D_MAX_STD, r.DEPTH_COST_DIV_STD]).toEqual([3, 40, 20]);
     expect(r.CAPTURE_K_MILLI).toBeGreaterThanOrEqual(60);
-    expect(r.CAPTURE_K_MILLI).toBeLessThanOrEqual(150);
+    expect(r.CAPTURE_K_MILLI).toBeLessThanOrEqual(1000);
     expect([r.UPHILL_PER_STEP_MILLI, r.UPHILL_STEP_UNITS, r.UPHILL_MAX_PCT, r.ENCLAVE_FLIP_TICKS]).toEqual([250, 32, 200, 20]);
     expect(r.HEIGHT_UNIT_M).toBeGreaterThan(0);
   });

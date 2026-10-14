@@ -18,6 +18,8 @@ import {
   AI_TRIBE_COOLDOWN_TICKS,
   AI_TRIBE_MAX_CELLS,
   AI_WAR_COMMIT_PCT,
+  AI_WAR_MAX_SHARE_PCT,
+  AI_WAR_START_TICKS,
   START_DISC_RADIUS_CELLS,
 } from '../../src/sim/rules';
 import { createRng } from '../../src/sim/rng';
@@ -330,7 +332,7 @@ describe('think: expansion and war', () => {
 
   it('attacks the neighbour it outnumbers by the margin, with 40 to 60 percent, and expands when it does not', () => {
     const { state, view, a, rng } = twoNations();
-    run(state, 255);
+    run(state, AI_WAR_START_TICKS); // the war comes after the land grab (D142)
     toThinkTick(state, a);
     const [mine, theirs] = [seatToOwner(1), seatToOwner(2)];
     expect(view.contactLength(mine, theirs)).toBeGreaterThan(0);
@@ -348,6 +350,51 @@ describe('think: expansion and war', () => {
     expect((think(view, b2, rng)[0] as { target: number }).target).toBe(0);
   });
 
+  it('starts no war before AI_WAR_START_TICKS: the same strong nation next to a weak neighbour expands instead, and attacks once the land grab is over (D142)', () => {
+    const { state, view, a, rng } = twoNations();
+    run(state, 255);
+    toThinkTick(state, a);
+    const [mine, theirs] = [seatToOwner(1), seatToOwner(2)];
+    expect(state.tick).toBeLessThan(AI_WAR_START_TICKS);
+    expect(view.contactLength(mine, theirs)).toBeGreaterThan(0);
+    state.troops[mine] = ownerCapQt(state, mine);
+    state.troops[theirs] = 100;
+    view.refresh();
+    expect((think(view, a, rng)[0] as { target: number }).target).toBe(0);
+    // The same position after the grace: the war.
+    const later = twoNations();
+    run(later.state, AI_WAR_START_TICKS);
+    toThinkTick(later.state, later.a);
+    later.state.troops[mine] = ownerCapQt(later.state, mine);
+    later.state.troops[theirs] = 100;
+    later.view.refresh();
+    expect((think(later.view, later.a, later.rng)[0] as { target: number }).target).toBe(theirs);
+  });
+
+  it('a nation at AI_WAR_MAX_SHARE_PCT of all land starts no war and calls off the ones it has (one Cancel per neighbour it attacked, once)', () => {
+    // A 48 x 24 world: two capital discs (197 cells each, 17 % of the 1152 cells) 17 columns apart, so they touch and each is above the cap.
+    const state = world(48, 24, { seats: 2, players: 2 });
+    const view = new StateView(state);
+    run(state, 3, { 0: [{ kind: 'Spawn', seat: 0, cell: 12 * 48 + 14 }, { kind: 'Spawn', seat: 1, cell: 12 * 48 + 31 }] });
+    run(state, AI_WAR_START_TICKS);
+    const a = createAiMemory(view, 0);
+    toThinkTick(state, a);
+    const [mine, theirs] = [seatToOwner(0), seatToOwner(1)];
+    state.troops[mine] = ownerCapQt(state, mine);
+    state.troops[theirs] = 100;
+    view.refresh();
+    expect(view.contactLength(mine, theirs)).toBeGreaterThan(0);
+    expect((view.stats.landShareQ15[0] as number) * 100).toBeGreaterThanOrEqual(AI_WAR_MAX_SHARE_PCT * 32768);
+    const rng = createRng(3);
+    // No war although the neighbour is a fraction of its size.
+    expect(think(view, a, rng).some((b) => b.kind === 'Attack' && b.target === theirs)).toBe(false);
+    // It had started one: it calls it off, once.
+    a.lastAttack[theirs] = state.tick - 100;
+    expect(think(view, a, rng)).toEqual([{ kind: 'CancelAttack', seat: 0, target: theirs }]);
+    expect(a.lastAttack[theirs]).toBe(-1);
+    expect(think(view, a, rng).some((b) => b.kind === 'CancelAttack')).toBe(false);
+  });
+
   it('picks the WEAKEST of several neighbours, ties to the lower owner id', () => {
     const state = world(160, 64, { seats: 4, players: 4 });
     const view = new StateView(state);
@@ -359,7 +406,7 @@ describe('think: expansion and war', () => {
         { kind: 'Spawn', seat: 3, cell: 32 * 160 + 64 },
       ],
     });
-    run(state, 255);
+    run(state, AI_WAR_START_TICKS);
     const m = createAiMemory(view, 1);
     toThinkTick(state, m);
     const me = seatToOwner(1);
@@ -409,7 +456,7 @@ describe('think: expansion and war', () => {
 
   it('does not attack the same target again within the cooldown, and does again after it', () => {
     const { state, view, a, rng } = twoNations();
-    run(state, 255);
+    run(state, AI_WAR_START_TICKS);
     toThinkTick(state, a);
     const me = seatToOwner(1);
     const fill = (): void => {

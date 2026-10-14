@@ -20,6 +20,8 @@ import {
   MAX_DECAY_MICRO_QT_PER_TICK,
   MICRO_QT_PER_QT,
   QT_PER_TROOP,
+  REGEN_BASE_TROOPS_PER_SEC,
+  REGEN_SQRT_COEF_MILLI,
   START_GOLD_MILLI,
   START_TROOPS_QT,
   TICK_HZ,
@@ -31,9 +33,10 @@ import { setOwner } from '../../src/sim/territory';
 import { landState } from './helpers/worlds';
 
 const ONE = WEIGHT_ONE;
-/** The real formula in doubles (tests may use Math.pow): troops per second. */
+/** The real formula in doubles (tests may use Math.pow): troops per second. The constants are those of rules.ts (the tempo pass moved them from 8 and 0.35, D142). */
+const REGEN_SQRT = REGEN_SQRT_COEF_MILLI / 1000;
 function refRegen(t: number, tmax: number): number {
-  return Math.max((8 + 0.35 * Math.sqrt(t)) * (1 - t / tmax), -40);
+  return Math.max((REGEN_BASE_TROOPS_PER_SEC + REGEN_SQRT * Math.sqrt(t)) * (1 - t / tmax), -40);
 }
 
 describe('N^0.75 in Q15 (sqrt(N) * sqrt(sqrt(N)) with integer roots)', () => {
@@ -102,8 +105,8 @@ describe('troop cap = 2000 + 120 * N^0.75 + 800 * cityLevels (in QT)', () => {
 describe('regeneration (micro-QT per tick)', () => {
   const tmax = troopCapQt(49 * ONE, 0, false);
 
-  it('at T = 0 a player regenerates 8 troops per second: exactly 3.2 QT per tick', () => {
-    expect(regenMicroQtPerTick(0, 8000, false)).toBe(3.2 * MICRO_QT_PER_QT);
+  it('at T = 0 a player regenerates REGEN_BASE troops per second: exactly REGEN_BASE * 4 / 10 QT per tick', () => {
+    expect(regenMicroQtPerTick(0, 8000, false)).toBe(((REGEN_BASE_TROOPS_PER_SEC * QT_PER_TROOP) / TICK_HZ) * MICRO_QT_PER_QT);
   });
 
   it('is positive below the cap, zero at the cap, negative above it', () => {
@@ -150,7 +153,7 @@ describe('regeneration (micro-QT per tick)', () => {
     expect(regenMicroQtPerTick(tribeCap * 2, tribeCap, true)).toBe(regenMicroQtPerTick(tribeCap * 2, tribeCap, false));
   });
 
-  it('property: always an integer within [-MAX_DECAY, 8 troops per second + 0.35 sqrt(T)] for any T and Tmax', () => {
+  it('property: always an integer within [-MAX_DECAY, REGEN_BASE troops per second + REGEN_SQRT sqrt(T)] for any T and Tmax', () => {
     fc.assert(
       fc.property(fc.integer({ min: 0, max: 4294967295 }), fc.integer({ min: 0, max: 100000000 }), fc.boolean(), (t, cap, tribe) => {
         const v = regenMicroQtPerTick(t, cap, tribe);
@@ -305,11 +308,11 @@ describe('economyTick integrated over thousands of ticks (the carry of the sub-Q
     return { s, cap: ownerCapQt(s, 1) };
   }
 
-  it('the troops follow the closed-form regeneration law (dT/dt = (8 + 0.35 sqrt(T)) (1 - T/Tmax), integrated by RK4 in doubles) within 0.1 % at 1200, 2400, ... 6000 ticks; a dropped remainder would be 4 to 6 % off', () => {
+  it('the troops follow the closed-form regeneration law (dT/dt = (REGEN_BASE + REGEN_SQRT sqrt(T)) (1 - T/Tmax), integrated by RK4 in doubles) within 0.1 % at 1200, 2400, ... 6000 ticks; a dropped remainder would be 4 to 6 % off', () => {
     const { s, cap } = spawned();
     let t = (s.troops[1] as number) / QT_PER_TROOP; // troops, as a float
     const tmax = cap / QT_PER_TROOP;
-    const rate = (x: number): number => Math.max((8 + 0.35 * Math.sqrt(x)) * (1 - x / tmax), -40);
+    const rate = (x: number): number => refRegen(x, tmax);
     const h = 1 / TICK_HZ;
     let worst = 0;
     for (let k = 1; k <= 6000; k++) {

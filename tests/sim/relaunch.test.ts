@@ -161,14 +161,18 @@ describe('the solo expander on the real world: relaunching does not beat the pla
     return s.agg.area[1] as number;
   }
 
-  it('cancel and relaunch every 100 or every 20 ticks leaves the territory after 5 minutes within +5 % / -15 % of the plain expander (it was +13 % and +44 % before the exposure record)', async () => {
+  it('cancel and relaunch every 100 or every 20 ticks leaves the territory after 5 minutes within +5 % / -30 % of the plain expander (it was +13 % and +44 % before the exposure record; the lower bound was -15 % until the tempo pass, D142)', async () => {
     const plain = await fiveMinutes(0);
     const slow = await fiveMinutes(100);
     const fast = await fiveMinutes(20);
     console.log(`[relaunch] Moscow solo, cells after 5 minutes: plain ${plain}, relaunch every 100 ticks ${slow}, every 20 ticks ${fast}`);
     for (const v of [slow, fast]) {
       expect(v).toBeLessThanOrEqual(plain * 1.05);
-      expect(v).toBeGreaterThanOrEqual(plain * 0.85);
+      // Since the tempo pass the expander is bound by its troop pool after the third minute, and a bot that commits 100 % of the pool every 10 s
+      // keeps the pool near zero, where the regeneration (REGEN_BASE + REGEN_SQRT * sqrt(T)) is lowest: the relaunching bot loses 19 % and 24 %
+      // (plain 8063, every 100 ticks 6550, every 20 ticks 6098) because it hoards nothing, not because the cancel is dear. The upper bound, the
+      // property this test exists for (relaunching must not beat the plain expander), is unchanged.
+      expect(v).toBeGreaterThanOrEqual(plain * 0.7);
     }
   }, 120000);
 });

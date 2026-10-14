@@ -33,11 +33,16 @@ describe('sim:scenario on the real world', () => {
     const c = await runScenario(parseArgs(['--seed', '4', '--minutes', '2', '--players', '4', '--tribes', '6']));
     expect(c.report.finalHash).not.toBe(a.report.finalHash);
     expect(a.report.rows.length).toBe(2);
-    const [m1, m2] = a.report.rows;
+    // With fighters a player can be eaten within the minute since the tempo pass (D142: the conquest is 3 to 4 times as fast), so the
+    // "every curve grows" property is checked on the run where the players only expand; with fighters the land owned in total grows.
+    const peaceful = await runScenario(parseArgs(['--seed', '3', '--minutes', '2', '--players', '4', '--tribes', '6', '--no-fighters']));
+    const [m1, m2] = peaceful.report.rows;
     for (let seat = 0; seat < 10; seat++) {
       expect(m1?.cells[seat] as number).toBeGreaterThan(197);
       expect(m2?.cells[seat] as number).toBeGreaterThan(m1?.cells[seat] as number);
     }
+    const total = (cells: number[] | undefined): number => (cells ?? []).reduce((x, y) => x + y, 0);
+    expect(total(a.report.rows[1]?.cells)).toBeGreaterThan(total(a.report.rows[0]?.cells));
     const text = format(a.report);
     expect(text).toContain('min  1:');
     expect(text).toContain('min  2:');

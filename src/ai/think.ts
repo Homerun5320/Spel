@@ -24,14 +24,18 @@ import {
   AI_TRIBE_COOLDOWN_TICKS,
   AI_TRIBE_MAX_CELLS,
   AI_WAR_COMMIT_PCT,
+  AI_WAR_MAX_SHARE_PCT,
   AI_WAR_MIN_RATIO_PCT,
+  AI_WAR_START_TICKS,
   NO_OWNER,
   PHASE_PLAY,
   PHASE_SPAWN,
   attackBody,
+  cancelAttackBody,
   nextBelow,
   seatToOwner,
   spawnBody,
+  WEIGHT_ONE,
   type IntentBody,
   type SimView,
 } from '../sim/public';
@@ -78,11 +82,24 @@ export function think(view: SimView, memory: AiMemory, rng: Uint32Array, inFligh
   }
   if (view.phase === PHASE_SPAWN || (tick + memory.phase) % AI_THINK_PERIOD_TICKS !== 0) return NONE;
   if ((stats.alive[seat] as number) === 0) return NONE;
+  const owner = seatToOwner(seat);
+  // A nation that owns AI_WAR_MAX_SHARE_PCT of all land calls off the wars it has started (one Cancel per target it attacked, once) and starts none.
+  const atWarCap = !memory.tribe && (stats.landShareQ15[seat] as number) * 100 >= AI_WAR_MAX_SHARE_PCT * WEIGHT_ONE;
+  if (atWarCap) {
+    let cancels: IntentBody[] | null = null;
+    for (let o = 1; o <= view.seats; o++) {
+      if (o === owner || (memory.lastAttack[o] as number) < 0) continue;
+      memory.lastAttack[o] = -1;
+      // An attack needs contact; a target that is no neighbour any more has none running (a Cancel would only be refused).
+      if (view.contactLength(owner, o) > 0) (cancels ??= []).push(cancelAttackBody(seat, o));
+    }
+    if (cancels !== null) return cancels;
+  }
   if ((stats.troopsQt[seat] as number) * 100 < (stats.capQt[seat] as number) * AI_EXPAND_TROOP_PCT) return NONE;
   if (memory.tribe && (stats.cells[seat] as number) >= AI_TRIBE_MAX_CELLS) return NONE;
 
-  const owner = seatToOwner(seat);
-  if (!memory.tribe && view.phase === PHASE_PLAY) {
+  // War comes after the land grab (AI_WAR_START_TICKS).
+  if (!memory.tribe && !atWarCap && view.phase === PHASE_PLAY && tick >= AI_WAR_START_TICKS) {
     // War: the weakest neighbour (fewest troops; the lower ownerId on a tie) that we outnumber by the margin.
     let best = NO_OWNER;
     let bestTroops = 0;

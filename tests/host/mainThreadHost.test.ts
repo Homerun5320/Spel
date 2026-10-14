@@ -270,6 +270,8 @@ describe('MainThreadHost: nothing is shared across the interface', () => {
     expect(hashState(state as never)).toBe(hashBefore);
   });
 
+  // A value no statistic can hold (the regeneration of the tempo pass, D142, made the small value 9 a real troop count of some tick).
+  const SCRIBBLE = 0xdeadbeef;
   it('the light view in a diff is a copy per listener: scribbling on diff.view.stats in one listener changes neither another listener\'s view nor the next view', async () => {
     const host = small();
     host.submitIntent({ kind: 'DebugPaint', seat: 1, cell: 4 });
@@ -277,19 +279,19 @@ describe('MainThreadHost: nothing is shared across the interface', () => {
     const seenB: HostEvent[] = [];
     host.subscribe((e) => {
       seenA.push(e);
-      if (e.type === 'diff') e.diff.view.stats.fill(9);
+      if (e.type === 'diff') e.diff.view.stats.fill(SCRIBBLE);
     });
     host.subscribe((e) => seenB.push(e));
     for (let i = 0; i < 3; i++) host.advance(TICK_MS);
     const a = diffsOf(seenA).at(-1) as StateDiff;
     const b = diffsOf(seenB).at(-1) as StateDiff;
     expect(a.view.stats.buffer).not.toBe(b.view.stats.buffer);
-    expect(b.view.stats.some((x) => x === 9)).toBe(false);
+    expect(b.view.stats.some((x) => x === SCRIBBLE)).toBe(false);
     const fresh = await host.requestView();
     expect(Array.from(b.view.stats)).toEqual(Array.from(fresh.stats));
     host.advance(TICK_MS);
     const later = diffsOf(seenB).at(-1) as StateDiff;
-    expect(later.view.stats.some((x) => x === 9)).toBe(false);
+    expect(later.view.stats.some((x) => x === SCRIBBLE)).toBe(false);
   });
 
   it('every message of the SimHost interface is plain structured-cloneable data', () => {
