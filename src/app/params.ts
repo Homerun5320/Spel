@@ -150,6 +150,8 @@ export interface AppState {
   view: GroundViewName | null;
   /** `?perf=1` / `#perf`: the performance overlay. */
   perf: boolean;
+  /** `?adapt=0` / `#adapt-0` switches the adaptive resolution (AutoTier-2) off, `?adapt=1` / `#adapt-1` forces it on (also in test mode and in the performance scene); null = the default (on in the live game, off in test mode and the performance scene). */
+  adapt: boolean | null;
   /** `?devbtn=1` / `#devbtn`: show the Dev panel corner button also in test mode (it is hidden there so goldens stay clean). */
   devButton: boolean;
   /** Every key and value of the address (query merged with hash). */
@@ -159,5 +161,5 @@ export interface AppState {
 /** Everything the app reads from the address, through the one parser. */
 export function parseAppState(search: string, hash = ''): AppState {
   const raw = parseRaw(search, hash);
-  return { params: appParamsOf(raw), scene: sceneParamsOf(raw), terrain: terrainParamsOf(raw), view: groundViewOf(raw), perf: raw.perf === '1', devButton: raw.devbtn === '1', raw };
+  return { params: appParamsOf(raw), scene: sceneParamsOf(raw), terrain: terrainParamsOf(raw), view: groundViewOf(raw), perf: raw.perf === '1', adapt: raw.adapt === '1' ? true : raw.adapt === '0' ? false : null, devButton: raw.devbtn === '1', raw };
 }

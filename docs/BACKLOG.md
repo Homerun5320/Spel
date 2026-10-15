@@ -220,3 +220,12 @@ Everything here would shorten `verify` further; each needs a per-test reset cont
 - Structure rows in the M10 snapshot so a `ViewMirror` shows the real table (today it is empty).
 - The AI never builds yet (M09b); the effects (City income and cap, Factory, Port trade, Post, SAM / Silo radius) and conquest of structures are M09b.
 - Spacing is a linear scan of the live slots (about 300 in a normal match); a per-cell grid index would only pay off with thousands.
+
+### AutoTier-2
+
+- A more exact card database for the starting tier (device ids, per-model scales) now that the regulator corrects a wrong class guess at run time; and a stored last-good scale per machine (pref) so that the first seconds of a session do not start at 1.0 on a card that always ends at 0.6.
+- More scales (a finer ladder between 0.5 and 1, a floor below 0.5) and a scale per axis; the buffer is scaled uniformly today.
+- Measure on real Intel UHD hardware: the ladder and the 30 / 18 ms limits are derived from SwiftShader proxies and the one number the user measured (68.8 ms at 904x742, DPR 1.25, `high`); the user's `#scene-perf` and `#scene-perf_adapt-1` reports are the data.
+- The regulator reads the GPU timer when the browser has it (a slow CPU cannot be helped by fewer pixels) and the animation-frame interval otherwise; a combined rule (CPU time from the draw call, GPU time from the timer) could tell a CPU-bound frame from a GPU-bound one on browsers without the timer.
+- The sky shell, the stars and the border lines are drawn at the buffer's resolution and look slightly softer at 0.5; a crisp overlay pass (borders drawn at full resolution) would need a second render target.
+- A cheap vertex cut in `low`: `Globe.setDetailBias(-1)` (one detail octave fewer) removes part of the 12 077 operators per vertex, but it changes the picture of `low`; look at it on real hardware first (the measurement is in PROGRESS "Measurements AutoTier-2").

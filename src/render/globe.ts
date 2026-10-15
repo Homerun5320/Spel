@@ -155,6 +155,8 @@ export class Globe {
   private width: number;
   private height: number;
   private dpr: number;
+  /** AutoTier-2: the scale of the drawing buffer against the tier's pixel ratio (1 = full); the CSS size, the camera and picking do not see it. */
+  private renderScaleValue = 1;
   private readonly world: WorldData;
   /** The law of detail of the tier (offset of the distance law and level bias) before `setDetailBias` moved it. */
   private detailLodBase: DetailLod | null = null;
@@ -432,10 +434,30 @@ export class Globe {
     this.width = width;
     this.height = height;
     this.dpr = dpr;
-    this.renderer.setPixelRatio(dpr);
-    this.renderer.setSize(width, height, false);
     this.rig.setViewport(width, height);
-    (this.starsMaterial.uniforms.uPixelRatio as { value: number }).value = dpr;
+    this.applyBuffer();
+  }
+
+  /**
+   * AutoTier-2 (D160): scales the DRAWING BUFFER to `scale` times the tier's pixel ratio (0.25 .. 1). Only the buffer changes: `renderer.setSize(..., false)` leaves the CSS size,
+   * and the camera rig, picking and projection keep working in CSS pixels. Call it when the scale changes, not per frame.
+   */
+  setRenderScale(scale: number): void {
+    const s = Math.min(1, Math.max(0.25, scale));
+    if (s === this.renderScaleValue) return;
+    this.renderScaleValue = s;
+    this.applyBuffer();
+  }
+
+  get renderScale(): number {
+    return this.renderScaleValue;
+  }
+
+  private applyBuffer(): void {
+    const ratio = this.dpr * this.renderScaleValue;
+    this.renderer.setPixelRatio(ratio);
+    this.renderer.setSize(this.width, this.height, false);
+    (this.starsMaterial.uniforms.uPixelRatio as { value: number }).value = ratio;
   }
 
   /**

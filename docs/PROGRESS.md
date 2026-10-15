@@ -737,6 +737,19 @@ GÖR
 - [x] 5. Prices, build times, Delete cooldown, spacing in `src/sim/rules.ts` and `docs/BALANCE.md`
 - [x] Tests: `tests/sim/structures.test.ts` (one test per rule and per price rule, round trip, restored run equals straight run), `tests/ai/boundary.test.ts` (pinned list, writing through a SimView does not compile), `tests/structures.perf.test.ts`; golden scenario extended with Build / Upgrade / Delete, both golden files re-pinned once (ENGINE_VERSION 7, FORMAT_VERSION 6)
 
+### AutoTier-2: adaptive resolution (one part; the orchestrator owns pushing, the pull request and the Artifact)
+
+Previous merge SHA (origin/main at start): not recorded by this builder (nothing is merged; PR #1 is a draft). AutoTier-1 is Done on this branch.
+
+- [x] 1. This checklist
+- [x] 2. `src/render/adaptive.ts` (pure): median of a 30-frame window, 90 warm-up frames, two slow windows down, four fast windows up, 2 s between changes, chunk density one step down after scale 0.5; numbers in `src/render/config.ts`; D160 says which clock and why
+- [x] 3. Wired in the draw loop of `src/app/globeApp.ts` (`Globe.setRenderScale`: only the buffer changes, CSS size, camera and picking do not); off in test mode and the performance scene unless `adapt=1`; `?adapt=0` / `#adapt-0` off; Dev panel switch; no allocation per frame
+- [x] 4. Measurements (pixel-bound against vertex-bound, SwiftShader, low / medium / high, three sizes) in "Measurements AutoTier-2"; used for the ladder
+- [x] 5. Report field `adaptive` and an F3 line (schemaVersion stays 1)
+- [x] 6. Tests: `tests/render/adaptive.test.ts` (model, the four named mutants), `tests/adaptiveWiring.test.ts`, `e2e/adaptive.test.ts`
+- [x] 7. Docs: PREVIEW 5e (Swedish), ARCHITECTURE, DECISIONS D160, BACKLOG
+- [x] ACCEPTANS: regulator tests green and the mutants killed; converges and holds with a synthetic slow GPU, off = no change (byte-identical picture); buffer follows the scale, CSS size and picking do not; report and F3 show `adaptive`; measurements written; no golden and no earlier test changed; `npm run verify:fast` and `npm run build` green
+
 ## Next
 
 - CamFix is built (D158); the user looks at it in the Artifact (PREVIEW 17aa) in their own window shape. Then the M08 gate items below stand as before.
@@ -958,6 +971,21 @@ Wall times of `npm run verify` on the 4-core, no-GPU sandbox (the stage table is
 | 3 workers, runs 1 to 3 | 3 | about 18 s / 18 s / 58 to 60 s | 10 s | 6:31, 6:25, 6:18 | 13, 13, 12 s | 7:53, 7:48, 7:39 |
 | 3 workers, the three final runs (default; the last one on the committed final tree, nothing else running) | 3 | 17 / 17 / 59 s; 20 / 19 / 59 s; 17 / 17 / 56 s | 10 s | 6:29, 6:30, 6:08 | 13, 12, 12 s | 7:52, 7:51, 7:26 |
 Counts of the final run: unit 136 files / 1 536 tests, perf 8 / 24, e2e 16 / 143, e2e-serial 4 / 7 (150 browser tests; HEAD had 149 in the e2e project).
+
+## Measurements AutoTier-2 (logged, not asserted; SwiftShader, so only the SPLIT between the two costs says anything about a GPU)
+
+One throw-away script (not committed) rendered the same view with the chunk density of each tier at 320x180, 640x360 and 960x540 (median of 7 draws, each ended by a one-pixel readback) and fitted `time = fixed + per_pixel * pixels` through the 320x180 and 960x540 points. The machine was shared with two other builders and a unit run, so the milliseconds are rough (the 640x360 points scatter by up to 30 %); the structure is clear. Static proxy (`tests/helpers/shaderCost.ts`, executed operators): chunk VERTEX shader 12 077 operators, 41 fetches, 9 transcendentals per vertex; chunk FRAGMENT shader (orbit view) 3 796 operators, 172 fetches, 176 transcendentals per pixel.
+
+| tier chunks, view | triangles | 320x180 | 640x360 | 960x540 | fixed (per frame, vertex) | per Mpixel | fixed share at 960x540 |
+|---|---|---|---|---|---|---|---|
+| low, orbit | 44 864 | 213 ms | 688 | 739 | 147 ms | 1 142 ms | 20 % |
+| low, Alps 35 deg | 66 624 | 362 | 829 | 1 421 | 230 | 2 296 | 16 % |
+| medium, orbit | 138 048 | 341 | 624 | 1 345 | 216 | 2 177 | 16 % |
+| medium, Alps | 257 856 | 697 | 1 795 | 2 986 | 411 | 4 967 | 14 % |
+| high, orbit | 361 536 | 700 | 878 | 1 564 | 592 | 1 875 | 38 % |
+| high, Alps | 437 568 | 908 | 1 867 | 2 966 | 650 | 4 466 | 22 % |
+
+Reading: (1) the fixed part grows with the triangle count (about 3 ms per 1000 triangles here), the pixel part with the buffer size, and a terrain view at 35 degrees costs about twice per pixel what the orbit view does (the near view takes the whole fragment shader, the sea of the orbit view skips the class fetches). (2) On `low` (at most 66 000 triangles) the frame is PIXEL-bound at any ordinary window size: at 960x540 about 80 % of the time is per pixel, so the scale ladder removes up to 75 % of it (0.5 squared = 0.25) and the time halves or better; only below about 400x225 does the vertex part dominate. (3) On `high` the vertex part is large (22 to 38 % at 960x540, and the user's `high` run had up to 921 408 triangles in a 904x742 window at DPR 1.25, where the vertex work, about 460 000 vertices times 12 077 operators, is of the same size as the pixel work of 1.05 million pixels times 3 796): there the ladder alone is not enough and the chunk-density step (fewer chunks, fewer octaves) is the part that cuts the vertex cost. That is why the step exists and why AutoTier-1 starts such a card on `low`. (4) The ladder steps 1 -> 0.85 -> 0.72 -> 0.6 -> 0.5 cut the pixel count to 72 %, 52 %, 36 % and 25 %: ratios between neighbours of 1.38 to 1.44, which the 18 / 30 ms hysteresis gap (ratio 1.67) absorbs. A cheap change in `low` that cuts the vertex cost (`Globe.setDetailBias(-1)`, one octave fewer) would also change the picture of `low` and was left to `docs/BACKLOG.md` (it needs a look on real hardware).
 
 ## Usage
 

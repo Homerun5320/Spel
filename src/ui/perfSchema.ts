@@ -77,6 +77,8 @@ const SCENE: JsonSchema = obj({
   phases: { type: 'array', items: PHASE, minItems: 1 },
 });
 
+const ADAPTIVE: JsonSchema = obj({ enabled: bool, scale: num, scaleMean: num, scaleMin: num, steps: int, densityReduced: bool });
+
 export const PERF_REPORT_SCHEMA: JsonSchema = obj(
   {
     schemaVersion: { type: 'integer', minimum: 1 },
@@ -88,6 +90,7 @@ export const PERF_REPORT_SCHEMA: JsonSchema = obj(
     tier: str,
     gpuClass: str,
     tierSource: str,
+    adaptive: ADAPTIVE,
     viewport: obj({ width: num, height: num, dpr: num }),
     fps: obj({ mean: num, p95: num, p95FrameMs: num, frames: int, windowFrames: int }),
     renderInfo: obj({ calls: int, triangles: int, geometries: int, textures: int }),
@@ -97,7 +100,7 @@ export const PERF_REPORT_SCHEMA: JsonSchema = obj(
     match: MATCH,
     scene: SCENE,
   },
-  ['match', 'scene', 'gpuClass', 'tierSource'], // gpuClass and tierSource are additive (AutoTier-1): reports of older versions stay valid
+  ['match', 'scene', 'gpuClass', 'tierSource', 'adaptive'], // gpuClass, tierSource (AutoTier-1) and adaptive (AutoTier-2) are additive: reports of older versions stay valid
 );
 
 function typeOk(type: NonNullable<JsonSchema['type']>, v: unknown): boolean {
