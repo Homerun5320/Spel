@@ -13,6 +13,12 @@ import {
   REJECT_BUILD_PEAK,
   REJECT_BUILD_SPACING,
   REJECT_DELETE_COOLDOWN,
+  REJECT_DISTRICT_CITY_BUILDING,
+  REJECT_DISTRICT_EMPTY,
+  REJECT_DISTRICT_KIND,
+  REJECT_DISTRICT_NOT_CITY,
+  REJECT_DISTRICT_OCCUPIED,
+  REJECT_DISTRICT_SLOT,
   REJECT_STRUCT_BUSY,
   REJECT_STRUCT_ID,
   REJECT_STRUCT_MAX_LEVEL,
@@ -75,6 +81,18 @@ export function structureRefusalKey(reason: number): TextKey {
       return 'toast.struct.busy';
     case REJECT_DELETE_COOLDOWN:
       return 'toast.struct.cooldown';
+    case REJECT_DISTRICT_NOT_CITY: // Districts-2a: the district intents' own codes 39 to 44
+      return 'toast.district.notCity';
+    case REJECT_DISTRICT_SLOT:
+      return 'toast.district.slot';
+    case REJECT_DISTRICT_OCCUPIED:
+      return 'toast.district.occupied';
+    case REJECT_DISTRICT_EMPTY:
+      return 'toast.district.empty';
+    case REJECT_DISTRICT_KIND:
+      return 'toast.district.kind';
+    case REJECT_DISTRICT_CITY_BUILDING:
+      return 'toast.district.cityBuilding';
     case REJECT_PHASE: // Fix-Sim: Build / Upgrade / Delete are refused in the spawn phase like Attack
       return 'reject.phase';
     default:

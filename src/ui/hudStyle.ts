@@ -1,7 +1,7 @@
 // The style sheet of the match HUD and the start screen, built from the tokens in uiConfig.ts. One <style> element per root; the
 // classes are prefixed `hud-` / `start-`. No transitions or animations (CSS time is not the fx clock; tests/fxClock.test.ts
 // forbids them): every visible change is a state change driven from JS.
-import { GPU_TIP, NARROW_MAX_PX, HUD_FONT_BIAS_PX, HUD_FONT_MAX_PX, HUD_FONT_MIN_PX, HUD_FONT_VW, SETUP_PANEL_EM, SETUP_SHEET_VH, TARGET_MIN_PX, UI_COLORS as C, Z_HUD, Z_SETUP, Z_START_SCREEN } from './uiConfig';
+import { CITY_VIEW, GPU_TIP, NARROW_MAX_PX, HUD_FONT_BIAS_PX, HUD_FONT_MAX_PX, HUD_FONT_MIN_PX, HUD_FONT_VW, SETUP_PANEL_EM, SETUP_SHEET_VH, TARGET_MIN_PX, UI_COLORS as C, Z_HUD, Z_SETUP, Z_START_SCREEN } from './uiConfig';
 
 export function hudCss(): string {
   const fontSize = `clamp(${HUD_FONT_MIN_PX}px, calc(${HUD_FONT_VW}vw + ${HUD_FONT_BIAS_PX}px), ${HUD_FONT_MAX_PX}px)`;
@@ -217,6 +217,48 @@ export function hudCss(): string {
   .setup-status { min-height: 2.2em; }
   .setup-start { min-height: 2.6em; }
   .setup-foot { padding: 0.4em 0.8em 0.5em; gap: 0.35em; }
+}
+
+/* Districts-2a: the city view. A side panel on the right of a wide window (the 3D view stays free in the middle), a bottom sheet on a narrow one. */
+.city-view { position: absolute; right: 0.6em; top: 64px; bottom: 0.6em; width: min(${CITY_VIEW.widthEm}em, ${CITY_VIEW.widthMaxVw}vw); overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 0.45em; padding: 0.55em 0.7em 0.6em; z-index: 2; user-select: none; }
+.city-view.hud-panel { background: ${CITY_VIEW.colors.panel}; }
+.city-view[hidden] { display: none !important; }
+.city-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5em; }
+.city-title { font-weight: 800; font-size: 1.1em; }
+.city-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4em 0.7em; }
+.city-state { color: ${C.barWarning}; font-size: 0.85em; }
+.city-totals { display: flex; flex-wrap: wrap; gap: 0.2em 0.9em; font-size: 0.9em; color: ${C.gold}; font-variant-numeric: tabular-nums; }
+.city-total { white-space: nowrap; }
+.city-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(${CITY_VIEW.tileMinEm}em, 1fr)); gap: 0.45em; }
+.city-tile { display: flex; flex-direction: column; gap: 0.3em; padding: 0.4em 0.5em 0.5em; border-radius: 0.5em; border: 1px solid ${CITY_VIEW.colors.tileBorder}; background: ${CITY_VIEW.colors.tile}; min-width: 0; }
+.city-tile[data-state="empty"] { border-style: dashed; background: ${CITY_VIEW.colors.tileEmpty}; }
+.city-tile[hidden], .city-empty[hidden], .city-used[hidden] { display: none !important; }
+.city-tile-label { color: ${C.textDim}; font-size: 0.75em; text-transform: uppercase; letter-spacing: 0.08em; }
+.city-empty, .city-used { display: flex; flex-direction: column; gap: 0.3em; }
+.city-empty-hint { color: ${C.textDim}; font-size: 0.8em; }
+.city-btn, .city-build { min-height: ${TARGET_MIN_PX}px; padding: 0 0.7em; border-radius: 0.5em; border: 1px solid ${C.buttonBorder}; background: ${C.button}; color: ${C.text}; font: inherit; font-weight: 700; cursor: pointer; touch-action: manipulation; }
+.city-btn:hover, .city-build:hover { background: ${C.buttonActive}; }
+.city-btn:focus-visible, .city-build:focus-visible { outline: 2px solid ${C.accent}; outline-offset: 2px; }
+.city-btn[data-state="dim"], .city-build[data-state="dim"] { opacity: 0.5; border-style: dashed; cursor: not-allowed; }
+.city-btn[data-armed="1"] { border-color: ${C.danger}; box-shadow: inset 0 0 0 1px ${C.danger}; }
+.city-build { display: flex; align-items: center; gap: 0.5em; text-align: left; padding: 0.1em 0.5em; }
+.city-build-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }
+.city-build-time { color: ${C.textDim}; font-size: 0.75em; font-weight: 400; }
+.city-used-top { display: flex; align-items: center; gap: 0.5em; }
+.city-used-names { display: flex; flex-direction: column; line-height: 1.2; }
+.city-used-name { font-weight: 800; }
+.city-used-level { color: ${C.textDim}; font-size: 0.8em; }
+.city-used-state { color: ${C.barWarning}; font-size: 0.8em; }
+.city-progress { height: 0.5em; border-radius: 0.3em; background: ${CITY_VIEW.colors.progressTrack}; overflow: hidden; }
+.city-progress-fill { height: 100%; background: ${CITY_VIEW.colors.progress}; }
+.city-progress[hidden], .city-used-state[hidden], .city-fx[hidden] { display: none !important; }
+.city-fx { font-size: 0.82em; }
+.city-fx-next { color: ${C.textDim}; }
+.city-row { display: flex; flex-wrap: wrap; gap: 0.35em; margin-top: 0.1em; }
+.city-row .city-btn { flex: 1 1 auto; padding: 0 0.5em; }
+.city-hint { color: ${C.textDim}; font-size: 0.8em; }
+@media (max-width: ${NARROW_MAX_PX}px), (max-aspect-ratio: 1/1) {
+  .city-view { left: 8px; right: 8px; top: auto; bottom: 8px; width: auto; max-height: ${CITY_VIEW.sheetVh}vh; }
 }
 `;
 }

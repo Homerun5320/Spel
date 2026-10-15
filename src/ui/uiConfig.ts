@@ -129,3 +129,32 @@ export const FLAG_ROW_H = 16;
 export const START_FLY_KM = 3600;
 /** While the setup screen is open and no country is chosen, the globe is shown from this far away (km), moved out from under the panel. */
 export const SETUP_IDLE_DIST_KM = 24000;
+
+/**
+ * The city view (Districts-2a): a DOM panel, no GPU work. Wide windows: a side panel on the right (the 3D view stays free in the middle);
+ * narrow ones (NARROW_MAX_PX or portrait): a bottom sheet of sheetVh percent of the height. The camera flies to the City when it opens unless it
+ * is already within flyNearM.
+ */
+export const CITY_VIEW = {
+  widthEm: 29,
+  widthMaxVw: 46,
+  sheetVh: 66,
+  flyAltM: 1500,
+  flyTiltDeg: 50,
+  flyNearM: 5000,
+  /** Two clicks on the selected City within this many fx milliseconds open the view. */
+  doubleClickMs: 450,
+  tileMinEm: 11.5,
+  iconPx: 26,
+  colors: {
+    /** The panel is nearly opaque (the build bar and the status panel sit behind it on a narrow window). */
+    panel: 'rgba(8, 13, 24, 0.97)',
+    tile: 'rgba(24, 50, 98, 0.45)',
+    tileEmpty: 'rgba(13, 24, 48, 0.7)',
+    tileBorder: '#4d73b8',
+    progress: '#7fd1ff',
+    progressTrack: '#1d2c49',
+    /** Icon colour per district kind (index 1 Housing, 2 Market, 3 Barracks, 4 Walls). */
+    kind: ['#000000', '#8ee6b0', '#ffd666', '#ff9e7a', '#b4c4e0'],
+  },
+} as const;
