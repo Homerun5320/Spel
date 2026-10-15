@@ -35,6 +35,8 @@ const vec2 SNOW_SHED_SLOPE = ${glslVec2(C.SHADE_SNOW_SHED_SLOPE)};
 const vec3 ROCK_WARM = ${glslVec3(C.SHADE_ROCK_WARM)};
 const vec3 ROCK_COOL = ${glslVec3(C.SHADE_ROCK_COOL)};
 const vec3 SNOW_COLOR = ${glslVec3(C.SHADE_SNOW_COLOR)};
+const vec3 BOREAL_TINT = ${glslVec3(C.SHADE_BOREAL_TINT)};
+const vec2 BOREAL_RAMP = ${glslVec2(C.SHADE_BOREAL_RAMP)};
 const float MOTTLE_COLOR = ${glslFloat(C.SHADE_MOTTLE_COLOR)};
 const vec2 MOTTLE_FADE = ${glslVec2(C.SHADE_MOTTLE_FADE_PX)};
 const float MOTTLE_SNOW = ${glslFloat(C.SHADE_MOTTLE_SNOW_M)};
@@ -361,6 +363,7 @@ void main() {
   float steep = smoothstep(ROCK_SLOPE.x, ROCK_SLOPE.y, tanR);
   float alpine = smoothstep(treeLine - TREE_FADE, treeLine + TREE_FADE, hD);
   float iceKeep = 1.0 - smoothstep(0.82, 0.9, albedoLand.b); // a glacier class stays white: no rock streaks on an ice sheet
+  albedoLand *= mix(vec3(1.0), BOREAL_TINT, smoothstep(BOREAL_RAMP.x, BOREAL_RAMP.y, aLat) * iceKeep);
   float bare = max(steep, alpine) * ROCK_STRENGTH * iceKeep;
   vec3 rock = mix(ROCK_WARM, ROCK_COOL, smoothstep(treeLine - 700.0, snowLine, hD));
   rock = mix(rock, albedoLand * 0.85, 0.3) * (1.0 + MOTTLE_COLOR * 0.8 * (mot - 0.5)); // a third of the biome's own tone: brown Mountain cells stay brown

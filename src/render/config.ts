@@ -262,6 +262,9 @@ export const SHADE_SNOW_SHED_SLOPE: readonly [number, number] = [0.45, 1.1];
 export const SHADE_ROCK_WARM: readonly [number, number, number] = [0.42, 0.36, 0.31];
 export const SHADE_ROCK_COOL: readonly [number, number, number] = [0.36, 0.36, 0.38];
 export const SHADE_SNOW_COLOR: readonly [number, number, number] = [0.88, 0.92, 0.97];
+/** The Hills, Plains and Mountain tones cool and darken towards the boreal and arctic belt (smoothstep over |latitude|): west Norway is dark green-grey rock and moss, not the khaki of a dry hill. A glacier class keeps its white. */
+export const SHADE_BOREAL_TINT: readonly [number, number, number] = [0.8, 0.9, 0.86];
+export const SHADE_BOREAL_RAMP: readonly [number, number] = [48, 66];
 /** Fine mottling of the colours (forest canopy, rock tone, a ragged snow edge): amplitude (of the colour) and, for the snow edge, of the height in metres. Faded out by pixel size, so orbit views pay nothing. */
 export const SHADE_MOTTLE_COLOR = 0.26;
 /** An octave of that mottling fades in between these two sizes of its wavelength in pixels (never a grain of a few pixels). */
