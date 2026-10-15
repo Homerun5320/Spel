@@ -352,3 +352,11 @@ Not done in the Fix-UI slice (the sim, host and AI findings belong to Fix-Sim):
 - Fire control of a Silo or of a radar structure type: `Los.sync` knows only SAM sites (type 5) and Posts; a radar type needs one line in `sync`.
 - Sub-cell accuracy: a second pass that tries the exact half-cell line for the cells where the two estimates differ by more than the slack, if the slack should shrink.
 - A mask per OWNER-wide union exists (composite); a "who sees this cell" listing for several enemy seats is a loop over seats, not a structure.
+
+## M18-2 leftovers
+- The standard "Play" match (`MatchSession.create`) has no win block, so it never ends; give it `defaultWinConfig('world')` when the golden hashes of the e2e tests that use it may move (D M18-2 point 7).
+- In-place restart and "to menu" without a page reload (needs a teardown of the structure layers, input modes and panels of a session).
+- The in-game win-progress bar (leader, share, hold seconds) from `MatchView.leaderSeat / holdSeat / holdTicksLeft / requiredPct` belongs to M20a; the panels here do not show it.
+- The result table has no flags (the HUD has); sorting by a column; a "copy result" button.
+- Selfplay CLI (`--matches N --mode skirmish --ai-only`) was not part of this slice.
+- Pause-menu volume / graphics settings; keyboard focus ring for the result rows.

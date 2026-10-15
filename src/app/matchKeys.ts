@@ -47,3 +47,9 @@ export function matchKeyAction(k: KeyLike): MatchKeyAction | null {
       return null;
   }
 }
+
+/** What Escape does (M18-2): close the innermost mode of the input stack, or (stack empty) open the pause menu. The stack calls this. */
+export type EscapeAction = 'close-mode' | 'open-pause';
+export function escapeAction(stackDepth: number): EscapeAction {
+  return stackDepth > 0 ? 'close-mode' : 'open-pause';
+}

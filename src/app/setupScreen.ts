@@ -10,7 +10,7 @@ import { SETUP_AI_NATIONS_MAX, START_DISC_CELLS } from '../sim/rules';
 import { cssOfHex, drawFlag, flagSpecText, makeFlagSpec } from '../ui/flag';
 import { getLanguage, onLanguageChange, setLanguage, t, tn, type TextKey } from '../ui/i18n';
 import { mountHudStyle } from '../ui/hudStyle';
-import { CUSTOM_NAME_MAX_CHARS, FLAG_PREVIEW_H, FLAG_PREVIEW_W, SETUP_FLY_MAX_KM, SETUP_PLACE_DIST_KM } from '../ui/uiConfig';
+import { CUSTOM_NAME_MAX_CHARS, FLAG_PREVIEW_H, FLAG_PREVIEW_W, SETUP_FLY_MAX_KM, SETUP_PLACE_DIST_KM, WIN_SETUP } from '../ui/uiConfig';
 import { resolveClickCell } from './clickTarget';
 import { countryName, searchCountries } from './countrySearch';
 import { countryViews, flyDistanceKm } from './countryGeo';
@@ -18,6 +18,7 @@ import { countryEligibility, startCellEligibility } from './eligibility';
 import { CUSTOM_COLORS, DIFFICULTIES, maxAiNations, type Difficulty, type MatchSetupConfig, type SetupError } from './matchSetup';
 import type { CountryInfo, PreparedWorld } from './matchWorld';
 import { checkDraft, type DraftCheck, type SetupDraft, type SetupTab } from './setupModel';
+import { WIN_PRESETS, clampWinDraft, presetDraft, presetOf, winConfigOf, winInfoOfConfig, winSummaryText, type WinPreset } from './winSetup';
 
 /** What the page does for the screen. */
 export interface SetupHooks {
@@ -53,6 +54,12 @@ const REGION_KEYS: Readonly<Record<RegionId, TextKey>> = {
   eastAsia: 'setup.region.eastAsia',
   americas: 'setup.region.americas',
   africaMiddleEast: 'setup.region.africaMiddleEast',
+};
+
+const PRESET_KEYS: Readonly<Record<WinPreset, TextKey>> = {
+  standard: 'win.preset.standard',
+  quick: 'win.preset.quick',
+  sandbox: 'win.preset.sandbox',
 };
 
 const DIFFICULTY_KEYS: Readonly<Record<Difficulty, TextKey>> = {
@@ -207,7 +214,48 @@ export function mountSetupScreen(parent: HTMLElement, world: PreparedWorld, init
   const neutralText = el('span', '');
   neutralRow.append(neutral, neutralText);
   const neutralHint = el('div', 'setup-hint');
-  optBox.append(optTitle, regionLabel, region, aiLabel, aiRow, tribesRow, diffLabel, diff, diffNote, seedLabel, seed, seedHint, neutralRow, neutralHint);
+  // The win conditions (M18-2): three presets, three switches (land share with a slider, last alive, points after a time) and a one-line summary.
+  const winTitle = el('div', 'setup-subtitle', 'setup-win-title');
+  const winPresets = el('div', 'setup-win-presets', 'setup-win-presets');
+  winPresets.setAttribute('role', 'radiogroup');
+  const presetButtons = WIN_PRESETS.map((p) => {
+    const b = el('button', 'setup-tab', `setup-win-preset-${p}`);
+    b.type = 'button';
+    b.setAttribute('role', 'radio');
+    b.dataset.preset = p;
+    winPresets.append(b);
+    return b;
+  });
+  const winLandRow = el('label', 'setup-check');
+  const winLand = el('input', '', 'setup-win-land');
+  winLand.type = 'checkbox';
+  const winLandText = el('span', '');
+  winLandRow.append(winLand, winLandText);
+  const winPctRow = el('div', 'setup-ai-row');
+  const winPct = el('input', 'setup-range', 'setup-win-pct');
+  winPct.type = 'range';
+  winPct.min = String(WIN_SETUP.pctMin);
+  winPct.max = String(WIN_SETUP.pctMax);
+  winPct.step = String(WIN_SETUP.pctStep);
+  const winPctValue = el('span', 'setup-ai-value', 'setup-win-pct-value');
+  winPctRow.append(winPct, winPctValue);
+  const winLastRow = el('label', 'setup-check');
+  const winLast = el('input', '', 'setup-win-last');
+  winLast.type = 'checkbox';
+  const winLastText = el('span', '');
+  winLastRow.append(winLast, winLastText);
+  const winScoreRow = el('label', 'setup-check');
+  const winScore = el('input', '', 'setup-win-score');
+  winScore.type = 'checkbox';
+  const winScoreText = el('span', '');
+  winScoreRow.append(winScore, winScoreText);
+  const winMinutesLabel = el('label', 'setup-label');
+  winMinutesLabel.htmlFor = 'setup-win-minutes';
+  const winMinutes = el('select', 'setup-input', 'setup-win-minutes');
+  winMinutes.id = 'setup-win-minutes';
+  const winSummary = el('div', 'setup-hint', 'setup-win-summary');
+  winSummary.setAttribute('role', 'status');
+  optBox.append(optTitle, regionLabel, region, aiLabel, aiRow, tribesRow, diffLabel, diff, diffNote, winTitle, winPresets, winLandRow, winPctRow, winLastRow, winScoreRow, winMinutesLabel, winMinutes, winSummary, seedLabel, seed, seedHint, neutralRow, neutralHint);
 
   // The neutral disclaimer is always in view (in the footer, above the status); where the lines and names come from is at the end of the body.
   const disclaimer = el('p', 'setup-disclaimer', 'setup-disclaimer');
@@ -382,6 +430,20 @@ export function mountSetupScreen(parent: HTMLElement, world: PreparedWorld, init
       diff.append(o);
     }
     diffNote.textContent = t('setup.difficultyNote');
+    winTitle.textContent = t('win.title');
+    presetButtons.forEach((b, i) => (b.textContent = t(PRESET_KEYS[WIN_PRESETS[i] as WinPreset])));
+    winLandText.textContent = t('win.land');
+    winLastText.textContent = t('win.last');
+    winScoreText.textContent = t('win.score');
+    winMinutesLabel.textContent = t('win.minutes');
+    winPct.setAttribute('aria-label', t('win.landPct'));
+    winMinutes.textContent = '';
+    for (const m of WIN_SETUP.minuteChoices) {
+      const o = el('option', '');
+      o.value = String(m);
+      o.textContent = m === 0 ? t('win.minutes.auto') : t('win.minutes.n', { n: m });
+      winMinutes.append(o);
+    }
     seedLabel.textContent = t('setup.seed');
     seedHint.textContent = t('setup.seedHint');
     neutralText.textContent = t('setup.neutral');
@@ -462,6 +524,24 @@ export function mountSetupScreen(parent: HTMLElement, world: PreparedWorld, init
     tribes.checked = draft.tribes;
     if (diff.value !== draft.difficulty) diff.value = draft.difficulty;
     if (seed.value !== draft.seed) seed.value = draft.seed;
+    const w = draft.win;
+    const preset = presetOf(w);
+    presetButtons.forEach((b) => {
+      const on = b.dataset.preset === preset;
+      b.setAttribute('aria-checked', on ? 'true' : 'false');
+      b.dataset.active = on ? '1' : '0';
+    });
+    winPresets.dataset.preset = preset ?? 'custom';
+    winLand.checked = w.land;
+    winLast.checked = w.last;
+    winScore.checked = w.score;
+    winPct.disabled = !w.land;
+    winPct.value = String(w.landPct);
+    winPctValue.textContent = t('win.pct', { n: w.landPct });
+    winPctValue.dataset.value = String(w.landPct);
+    winMinutes.disabled = !w.score;
+    if (winMinutes.value !== String(w.minutes)) winMinutes.value = String(w.minutes);
+    winSummary.textContent = winSummaryText(winInfoOfConfig(winConfigOf(w, draft.region), draft.region));
     seed.setAttribute('aria-invalid', check.ok || check.key !== 'setup.need.seed' ? 'false' : 'true');
     neutral.disabled = realTab;
     neutral.checked = !realTab && draft.neutral;
@@ -558,6 +638,12 @@ export function mountSetupScreen(parent: HTMLElement, world: PreparedWorld, init
   ai.addEventListener('input', () => apply({ aiNations: Number(ai.value) }));
   tribes.addEventListener('change', () => apply({ tribes: tribes.checked }));
   diff.addEventListener('change', () => apply({ difficulty: diff.value as Difficulty }));
+  presetButtons.forEach((b) => b.addEventListener('click', () => apply({ win: presetDraft(b.dataset.preset as WinPreset) })));
+  winLand.addEventListener('change', () => apply({ win: { ...draft.win, land: winLand.checked } }));
+  winLast.addEventListener('change', () => apply({ win: { ...draft.win, last: winLast.checked } }));
+  winScore.addEventListener('change', () => apply({ win: { ...draft.win, score: winScore.checked } }));
+  winPct.addEventListener('input', () => apply({ win: clampWinDraft({ ...draft.win, landPct: Number(winPct.value) }) }));
+  winMinutes.addEventListener('change', () => apply({ win: clampWinDraft({ ...draft.win, minutes: Number(winMinutes.value) }) }));
   seed.addEventListener('input', () => apply({ seed: seed.value }));
   neutral.addEventListener('change', () => apply({ neutral: neutral.checked }));
   langBtn.addEventListener('click', () => {

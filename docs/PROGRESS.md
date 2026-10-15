@@ -1170,3 +1170,11 @@ GÖR and ACCEPTANS:
 | Australia | 90.8 % | 0 | - | 21.4 % | 100 % |
 
 Plains median Low (Kansas, Iowa, Ukraine, Pampas, Australia): 21.8 %. Rounds of EXAG / weight: see D-block "M11a" in `docs/DECISIONS.md` item 6. Mask build medians in the cloud sandbox (perfguard factor about 1.1): R = 24 about 0.4 ms, R = 64 about 1.8 ms, 200 sites at R = 24 about 80 ms, 1000 synced queries on 100 sites about 1.1 ms.
+
+### M18-2: the match flow UI (win conditions in the setup, pause menu, result screen, elimination and spectating; DOM only; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+- [x] 1. Selectable win conditions in the setup menu ("Vinstvillkor": three switches, a 40 to 80 percent slider, 5 / 8 / 12 / 20 minute choice plus "default for the area", three presets), remembered with the setup through `getPref` / `setPref`, validated by `createMatch`, summary line in the setup card and the pause menu (`src/app/winSetup.ts`).
+- [x] 2. Result screen (winner, reason, table from the `MatchView`, "Spela igen", "Till menyn"); the clock stops when the match ended.
+- [x] 3. Pause menu on Escape with an empty input stack (`escapeAction`), resume / restart / menu / speed / summary; the game pauses behind it.
+- [x] 4. Elimination of the human: Watch / Restart / Menu panel, spectator bar; toasts for the elimination and capital loss of other nations through `src/ui/toast.ts` (cap untouched).
+- [x] 5. The spawn countdown banner stays uncovered (the pause card sits below it; asserted in `e2e/matchEnd.test.ts`).
+- [x] Tests: `tests/ui/matchFlow.test.ts` (unit), `e2e/matchEnd.test.ts`, golden `e2e/goldens/result-screen.png`. Leftovers: see "M18-2 leftovers" in `docs/BACKLOG.md`.

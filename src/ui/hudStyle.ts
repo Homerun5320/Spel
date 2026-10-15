@@ -1,7 +1,7 @@
 // The style sheet of the match HUD and the start screen, built from the tokens in uiConfig.ts. One <style> element per root; the
 // classes are prefixed `hud-` / `start-`. No transitions or animations (CSS time is not the fx clock; tests/fxClock.test.ts
 // forbids them): every visible change is a state change driven from JS.
-import { CITY_VIEW, GPU_TIP, NARROW_MAX_PX, HUD_FONT_BIAS_PX, HUD_FONT_MAX_PX, HUD_FONT_MIN_PX, HUD_FONT_VW, SETUP_PANEL_EM, SETUP_SHEET_VH, TARGET_MIN_PX, UI_COLORS as C, Z_HUD, Z_SETUP, Z_START_SCREEN } from './uiConfig';
+import { CITY_VIEW, GPU_TIP, MATCH_PANELS, NARROW_MAX_PX, HUD_FONT_BIAS_PX, HUD_FONT_MAX_PX, HUD_FONT_MIN_PX, HUD_FONT_VW, SETUP_PANEL_EM, SETUP_SHEET_VH, TARGET_MIN_PX, UI_COLORS as C, Z_HUD, Z_SETUP, Z_START_SCREEN } from './uiConfig';
 
 export function hudCss(): string {
   const fontSize = `clamp(${HUD_FONT_MIN_PX}px, calc(${HUD_FONT_VW}vw + ${HUD_FONT_BIAS_PX}px), ${HUD_FONT_MAX_PX}px)`;
@@ -259,6 +259,47 @@ export function hudCss(): string {
 .city-hint { color: ${C.textDim}; font-size: 0.8em; }
 @media (max-width: ${NARROW_MAX_PX}px), (max-aspect-ratio: 1/1) {
   .city-view { left: 8px; right: 8px; top: auto; bottom: 8px; width: auto; max-height: ${CITY_VIEW.sheetVh}vh; }
+}
+
+/* M18-2: win conditions in the setup, then the match panels (pause menu, result screen, elimination panel, spectator bar). */
+.setup-win-presets { display: flex; flex-wrap: wrap; gap: 0.35em; }
+.setup-win-presets .setup-tab { flex: 1 1 auto; padding: 0 0.5em; font-size: 0.9em; }
+.mp-root { position: absolute; inset: 0; z-index: ${MATCH_PANELS.z}; pointer-events: none; font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; font-size: ${fontSize}; line-height: 1.3; color: ${C.text}; box-sizing: border-box; }
+.mp-root *, .mp-root *::before { box-sizing: border-box; }
+.mp-root [hidden] { display: none !important; }
+.mp-scrim { position: absolute; inset: 0; pointer-events: auto; background: ${MATCH_PANELS.scrim}; display: flex; align-items: safe center; justify-content: center; padding: 0.6em; overflow: auto; }
+.mp-scrim:has(.mp-small) { align-items: flex-start; padding-top: ${MATCH_PANELS.pauseTopEm}em; }
+.mp-card { background: ${C.panel}; border: 1px solid ${C.panelBorder}; border-radius: 1em; box-shadow: 0 0.4em 2em rgba(0, 0, 0, 0.6); padding: 0.9em 1.1em; display: flex; flex-direction: column; gap: 0.6em; max-width: 100%; max-height: ${MATCH_PANELS.maxHeightVh}vh; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6); }
+.mp-small { width: ${MATCH_PANELS.cardWidthEm}em; }
+.mp-wide { width: ${MATCH_PANELS.resultWidthEm}em; }
+.mp-title { margin: 0; font-size: 1.5em; font-weight: 800; }
+.mp-reason { margin: 0; font-size: 1.05em; color: ${C.accent}; font-weight: 600; }
+.mp-text { margin: 0; color: ${C.textDim}; }
+.mp-label { color: ${C.textDim}; font-size: 0.85em; }
+.mp-col { display: flex; flex-direction: column; gap: 0.4em; }
+.mp-row { display: flex; gap: 0.4em; flex-wrap: wrap; }
+.mp-actions { justify-content: flex-end; }
+.mp-btn { min-width: ${target}; min-height: ${target}; padding: 0 1em; border-radius: 0.6em; border: 1px solid ${C.buttonBorder}; background: ${C.button}; color: ${C.text}; font: inherit; font-weight: 700; cursor: pointer; touch-action: manipulation; }
+.mp-btn:hover { background: ${C.buttonActive}; }
+.mp-btn:focus-visible { outline: 2px solid ${C.accent}; outline-offset: 2px; }
+.mp-btn[aria-pressed="true"] { background: ${C.buttonActive}; border-color: ${C.accent}; box-shadow: inset 0 0 0 1px ${C.accent}; }
+.mp-primary { border-color: ${C.accent}; }
+.mp-table-wrap { overflow: auto; min-height: 0; border: 1px solid ${C.panelBorder}; border-radius: 0.5em; background: ${C.field}; }
+.mp-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.mp-table th { color: ${C.textDim}; font-size: 0.78em; font-weight: 600; padding: 0.35em 0.4em; text-align: right; position: sticky; top: 0; background: ${C.field}; }
+.mp-table td { padding: 0.3em 0.4em; text-align: right; border-top: 1px solid rgba(60, 90, 143, 0.35); }
+.mp-table .mp-left { text-align: left; }
+.mp-name { display: flex; align-items: center; gap: 0.45em; min-width: 6em; }
+.mp-name-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mp-swatch { flex: none; width: 0.9em; height: 0.9em; border-radius: 0.2em; border: 1px solid rgba(255, 255, 255, 0.7); }
+.mp-table tr[data-you="1"] td { background: ${C.youRow}; font-weight: 700; }
+.mp-table tr[data-winner="1"] td { color: ${MATCH_PANELS.winnerBorder}; }
+.mp-table tr[data-eliminated="1"] td { color: ${C.textDim}; }
+.mp-spectator { position: absolute; left: 50%; top: 6em; transform: translateX(-50%); width: max-content; max-width: calc(100% - 1.2em); justify-content: center; pointer-events: auto; display: flex; align-items: center; gap: 0.35em; flex-wrap: wrap; background: ${C.panel}; border: 1px solid ${C.panelBorder}; border-radius: 0.6em; padding: 0.3em 0.5em; }
+.mp-badge { font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: ${C.barWarning}; padding: 0 0.4em; }
+@media (max-width: ${NARROW_MAX_PX}px), (max-aspect-ratio: 1/1) {
+  .mp-table th, .mp-table td { padding: 0.3em 0.25em; }
+  .mp-table { font-size: 0.9em; }
 }
 `;
 }
