@@ -28,6 +28,18 @@ export interface PerfSnapshot {
   /** AutoTier-1: the class of the graphics card and where the tier came from (additive; absent in old callers). */
   gpuClass?: string;
   tierSource?: string;
+  /** AutoTier-2: the adaptive resolution (additive). */
+  adaptive?: AdaptivePerf;
+}
+
+/** The adaptive-resolution part of the report (AutoTier-2, D160): is it on, the current scale, the mean and the minimum of the scale over the run, the number of changes. */
+export interface AdaptivePerf {
+  enabled: boolean;
+  scale: number;
+  scaleMean: number;
+  scaleMin: number;
+  steps: number;
+  densityReduced: boolean;
 }
 
 export interface PerfContext {
@@ -66,6 +78,8 @@ export interface PerfReport {
   /** AutoTier-1 (additive, schema version stays 1): 'software' | 'integrated' | 'capable' and 'test' | 'param' | 'dev' | 'pref' | 'auto' | 'default'. */
   gpuClass: string;
   tierSource: string;
+  /** AutoTier-2 (additive, schema version stays 1): the adaptive resolution; absent in reports of callers that do not know it. */
+  adaptive?: AdaptivePerf;
   viewport: { width: number; height: number; dpr: number };
   fps: { mean: number; p95: number; p95FrameMs: number; frames: number; windowFrames: number };
   renderInfo: { calls: number; triangles: number; geometries: number; textures: number };
@@ -98,6 +112,7 @@ export function buildPerfReport(ctx: PerfContext): PerfReport {
     textureMB: round(s.textureMB),
     mode: ctx.mode,
     userAgent: typeof navigator === 'undefined' ? '' : navigator.userAgent,
+    ...(s.adaptive === undefined ? {} : { adaptive: { ...s.adaptive, scale: round(s.adaptive.scale, 3), scaleMean: round(s.adaptive.scaleMean, 3), scaleMin: round(s.adaptive.scaleMin, 3) } }),
     ...matchSection(ctx),
     ...sceneSection(ctx),
   };
@@ -130,6 +145,7 @@ export function perfLines(r: PerfReport): string[] {
   return [
     `Renderer: ${r.renderer}`,
     `grafikkort: ${r.gpuClass}  nivå ${r.tier} (källa: ${r.tierSource})`,
+    ...(r.adaptive ? [`adaptiv upplösning: ${r.adaptive.enabled ? 'på' : 'av'}, skala nu ${r.adaptive.scale} (medel ${r.adaptive.scaleMean}, minst ${r.adaptive.scaleMin}), ${r.adaptive.steps} ändringar${r.adaptive.densityReduced ? ', chunk-täthet sänkt' : ''}`] : []),
     `GL: ${r.glVersion}`,
     `fps: ${fps}`,
     `anrop ${r.renderInfo.calls}  trianglar ${r.renderInfo.triangles}  geometrier ${r.renderInfo.geometries}  texturer ${r.renderInfo.textures}`,

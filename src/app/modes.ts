@@ -14,6 +14,9 @@ export function registerAppModes(): void {
   registerDevMode({ id: 'quality-low', label: 'Kvalitet: låg', params: { quality: 'low' } });
   registerDevMode({ id: 'quality-medium', label: 'Kvalitet: medel', params: { quality: 'medium' } });
   registerDevMode({ id: 'quality-high', label: 'Kvalitet: hög', params: { quality: 'high' } });
+  // AutoTier-2: the adaptive resolution (on by default in the live game; `adapt-1` also forces it on in the performance scene).
+  registerDevMode({ id: 'adapt-on', label: 'Adaptiv upplösning på (tvingar på, även i prestandascenen)', params: { adapt: '1' } });
+  registerDevMode({ id: 'adapt-off', label: 'Adaptiv upplösning av (full upplösning hela tiden)', params: { adapt: '0' } });
   registerDevMode({ id: 'terrain-fixed', label: 'Terräng: gamla fasta nätet (M02)', params: { terrain: 'fixed' } });
   registerDevMode({ id: 'terrain-chunks', label: 'Terräng: chunk-träd (standard)', params: { terrain: 'chunks' } });
   registerDevMode({ id: 'chunks', label: 'Visa chunkens färger och kanter', params: { chunks: '1' }, toggle: true });

@@ -9,6 +9,7 @@ import { rgbOfHex } from '../ui/flag';
 import type { ViewState } from '../render/camera';
 import type { FlyOptions } from '../render/flyTo';
 import { Globe, probeGpuStrings, type GlobeInfo, type GlobePick, type ScreenHit, type WorldData } from '../render/globe';
+import { AdaptiveResolution } from '../render/adaptive';
 import { classifyRenderer, readableGpuName, type GpuClass } from '../render/gpuClass';
 import type { WorldTextureName } from '../render/textures';
 import { BOOKMARKS, CAPITAL_BOOKMARK, DEFAULT_START_TIME, DEFAULT_START_VIEW, GROUND_VIEWS, type BookmarkName } from '../render/views';
@@ -154,6 +155,17 @@ export interface GlobeTestHooks {
    */
   runPerfScene(o?: { dt?: number; maxFrames?: number }): PerfSceneSection;
   perfReport(): PerfReport;
+  /**
+   * AutoTier-2 (D160, the adaptive resolution; off in test mode unless `?adapt=1` / `enable(true)`): `enable(on)` switches the regulator, `feed(ms, n)` hands it
+   * `n` frame times (the apply step included), `simulate(a, b, frames)` feeds `frames` frames of a synthetic GPU whose frame time is `a + b * scale^2` ms (a cost per
+   * pixel), `info()` is the state: the scale, the drawing buffer against the CSS size, the steps taken.
+   */
+  adaptive: {
+    enable(on: boolean): void;
+    feed(ms: number, n?: number): AdaptiveInfo;
+    simulate(a: number, b: number, frames: number): AdaptiveInfo;
+    info(): AdaptiveInfo;
+  };
   holdAgl(): number | null;
   /** M08: the ground under a pixel (`pickGround`): latitude, longitude, radius (Earth radii) and seen height (render metres) of the hit; null when the ray misses the globe. */
   pickGround(x: number, y: number): { lat: number; lon: number; radius: number; seenHeightM: number } | null;
@@ -245,6 +257,20 @@ export interface GlobeTestHooks {
   ownedOutside(region: RegionId): number;
   /** M06: how many cells each seat owns right now (index = seat) and, per seat, the capital cell (-1 when none); null before the match started. */
   seatCells(): { cells: number[]; capitals: number[] } | null;
+}
+
+/** What `__test.adaptive` reports. */
+export interface AdaptiveInfo {
+  enabled: boolean;
+  scale: number;
+  density: number;
+  steps: number;
+  scaleMean: number;
+  scaleMin: number;
+  bufferWidth: number;
+  bufferHeight: number;
+  cssWidth: number;
+  cssHeight: number;
 }
 
 /** One country of `setupCountries`. */
@@ -553,6 +579,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       `fps: ${fps.toFixed(1)}`,
       `draw calls: ${i.drawCalls}  triangles: ${i.triangles}  textures: ${i.textures}`,
       `${i.width}x${i.height} @${i.dpr}x  tier ${i.tier} (${i.meshCols}x${i.meshRows})  gpu ${gpuClass}, tier source ${tierSource}`,
+      `adaptive resolution: ${adaptiveOn ? `on, scale ${adaptive.scale}${adaptive.densityReduced ? ', chunk density reduced' : ''} (${canvas.width}x${canvas.height} px)` : 'off'}`,
       terrainLine(),
     ].join('\n');
   };
@@ -601,7 +628,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   };
   let gpuTimerOk = false;
   const perfContext: PerfContext = {
-    snapshot: () => ({ ...globe.info(), gpuClass, tierSource }),
+    snapshot: () => ({ ...globe.info(), gpuClass, tierSource, adaptive: adaptiveReport() }),
     stats,
     mode: { test: params.test ? '1' : '0', quality: quality.tier, scene: ctx.scene.scene },
     scene: () => perfRun?.section() ?? null,
@@ -618,12 +645,48 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
             ownershipGpuUploads: globe.ownership.gpuUploads,
           },
   };
+  // --- Adaptive resolution (AutoTier-2, D160) -------------------------------------------------------------------------------
+  // On in the live game, off in test mode and in the performance scene (which measures the raw speed) unless `?adapt=1`; `?adapt=0` is always off.
+  // The frame time is the GPU time of the draw (the timer extension, when the browser has it: a slow CPU cannot be helped by fewer pixels), else the
+  // interval between animation frames. The fx clock is for effects, not for measuring (D160).
+  const adaptive = new AdaptiveResolution();
+  let adaptiveOn = ctx.state.adapt ?? (!params.test && ctx.scene.scene !== 'perf');
+  const applyAdaptive = (): void => {
+    globe.setRenderScale(adaptive.scale);
+    globe.setChunkDensity(adaptive.density);
+    const last = adaptive.steps[adaptive.steps.length - 1];
+    if (last !== undefined) console.info(`adaptive resolution: scale ${last.scale}${last.densityReduced ? ', chunk density reduced' : ''} (window median ${last.statMs.toFixed(1)} ms)`);
+  };
+  const feedAdaptive = (ms: number): void => {
+    if (adaptive.push(ms)) applyAdaptive();
+  };
+  const adaptiveReport = (): { enabled: boolean; scale: number; scaleMean: number; scaleMin: number; steps: number; densityReduced: boolean } => ({
+    enabled: adaptiveOn,
+    scale: adaptive.scale,
+    scaleMean: adaptive.scaleMean,
+    scaleMin: adaptive.scaleMin,
+    steps: adaptive.steps.length,
+    densityReduced: adaptive.densityReduced,
+  });
+  const adaptiveInfo = (): AdaptiveInfo => ({
+    enabled: adaptiveOn,
+    scale: adaptive.scale,
+    density: adaptive.density,
+    steps: adaptive.steps.length,
+    scaleMean: adaptive.scaleMean,
+    scaleMin: adaptive.scaleMin,
+    bufferWidth: canvas.width,
+    bufferHeight: canvas.height,
+    cssWidth: globe.info().width,
+    cssHeight: globe.info().height,
+  });
   // `?scene=perf` turns the overlay on by itself: it carries the progress line and the button that copies the report.
   if (ctx.state.perf || isPerfScene) perf = createPerfOverlay(wrapper, perfContext);
   if (isPerfScene && !params.test) {
     gpuTimerOk = globe.enableGpuTimer();
     perfRun = new PerfSceneRun(perfHost, { quick: false, now: fxNow });
   }
+  if (adaptiveOn && !params.test && !isPerfScene) gpuTimerOk = globe.enableGpuTimer();
   const disposeAll = (): void => {
     if (!alive) return;
     alive = false;
@@ -926,6 +989,20 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
         return run.section();
       },
       perfReport: () => buildPerfReport(perfContext),
+      adaptive: {
+        enable: (on) => {
+          adaptiveOn = on;
+        },
+        feed: (ms, n = 1) => {
+          if (adaptiveOn) for (let i = 0; i < n; i++) feedAdaptive(ms);
+          return adaptiveInfo();
+        },
+        simulate: (a, b, frames) => {
+          if (adaptiveOn) for (let i = 0; i < frames; i++) feedAdaptive(a + b * adaptive.scale * adaptive.scale);
+          return adaptiveInfo();
+        },
+        info: adaptiveInfo,
+      },
       holdAgl: () => globe.rig.holdAgl,
       pickGround: (x, y) => {
         const h = globe.pickGroundAt(x, y);
@@ -1093,6 +1170,11 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     if (perfRun !== null) {
       perfRun.afterFrame(dt * 1000, performance.now() - drawStart);
       if (perfRun.done) attachInput(); // the run is over: the camera is the player's again
+    }
+    if (adaptiveOn && dt > 0) {
+      if (gpuTimerOk && !isPerfScene) {
+        for (let g = globe.takeGpuMs(); g !== null; g = globe.takeGpuMs()) feedAdaptive(g);
+      } else feedAdaptive(dt * 1000);
     }
     if (!overlay.hidden) refreshOverlay();
     // The scene's report section sorts copies of the recorded frames: once a second while it runs (not every 15 frames), so the measuring does not show up in the numbers.

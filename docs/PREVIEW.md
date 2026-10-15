@@ -125,6 +125,10 @@ Lägen som finns registrerade i Dev-panelen (F2 eller hörnknappen) just nu:
 
 17ae. **Har datorn ett separat grafikkort?** Då använder webbläsaren ibland ändå det inbyggda. I Windows: Inställningar, System, Bildskärm, Grafik, välj webbläsaren i listan, Alternativ, Hög prestanda, och starta om webbläsaren. På en skoldator kan det vara låst; då gör den automatiska låga nivån jobbet.
 
+17af. **Spelet sänker upplösningen själv (AutoTier-2).** Om bildrutorna blir för långsamma (över cirka 30 ms per bild, två sekunder i rad) gör spelet bilden något suddigare i små steg (100, 85, 72, 60, 50 % av bildpunkterna per sida) tills det går jämnt, och höjer upplösningen igen när det har gått lätt en stund. Texter, knappar och klick påverkas inte, bara hur skarp själva världen ritas. Hjälper det inte ens vid 50 % tar spelet också ner terrängens täthet ett steg. Det händer bara medan du spelar, aldrig i testläge.
+
+17ag. **Se och styra det.** Tryck **F3**: raden "adaptive resolution" visar aktuell skala och storleken på ritytan i bildpunkter. `#adapt-0` sist i adressen (lokalt `?adapt=0`) stänger av det (full upplösning hela tiden), `#adapt-1` tvingar på det. Prestandascenen (`#scene-perf`) och `#perf` mäter den RÅA hastigheten och kör utan regulatorn; `#scene-perf_adapt-1` kör den med regulatorn på. Rapporten (Kopiera rapport) har fältet `adaptive` (på/av, skala nu, medelskala, minsta skala, antal ändringar). Dev-panelen (**F2**) har "Adaptiv upplösning på / av".
+
 ## 6. Det som inte fungerar i en Artifact
 
 18. **Ladda ner-knappar fungerar inte** (nedladdningar från sidan är blockerade). Rapporter visas i stället i en textruta som du kan markera och kopiera. Knappen "Kopiera rapport" fungerar (urklipp går bara efter ett klick).

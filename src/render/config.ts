@@ -388,3 +388,24 @@ export const CLASS_ALBEDO: ReadonlyArray<readonly [number, number, number]> = [
   [0.64, 0.6, 0.58], // 6 Peak
   [0.92, 0.95, 0.98], // 7 Ice
 ];
+
+// --- Adaptive resolution (AutoTier-2, D160): the numbers of src/render/adaptive.ts ------------------------------------------
+/** The drawing-buffer scale ladder (times the tier's pixel ratio); the CSS size, picking and the HUD never change with it. */
+export const ADAPT_SCALES: readonly number[] = [1, 0.85, 0.72, 0.6, 0.5];
+/** Frames in one measuring window (the statistic is the median of the window). */
+export const ADAPT_WINDOW = 30;
+/** Frames ignored after the start (and after a restart): shader compilation, the first chunk builds, the texture uploads. */
+export const ADAPT_WARMUP_FRAMES = 90;
+/** A window median above this (ms) counts as too slow (30 fps = 33.3 ms; the margin is the hysteresis gap below). */
+export const ADAPT_DOWN_MS = 30;
+/** A window median below this (ms) counts as comfortably fast (a 60 Hz display delivers 16.7 ms). */
+export const ADAPT_UP_MS = 18;
+/** Slow windows in a row before a step down / fast windows in a row before a step up. */
+export const ADAPT_DOWN_WINDOWS = 2;
+export const ADAPT_UP_WINDOWS = 4;
+/** At least this much frame time (ms, summed over the frames fed in) between two changes. */
+export const ADAPT_MIN_INTERVAL_MS = 2000;
+/** A frame longer than this (ms) is a tab switch or a stall, not a measurement: it is not fed to the window. */
+export const ADAPT_IGNORE_MS = 1000;
+/** The chunk density (`Globe.setChunkDensity`, split distances times this) after the scale ladder is used up. */
+export const ADAPT_DENSITY_SCALE = 0.7;
