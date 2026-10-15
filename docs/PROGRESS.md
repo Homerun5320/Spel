@@ -750,6 +750,15 @@ Previous merge SHA (origin/main at start): not recorded by this builder (nothing
 - [x] 7. Docs: PREVIEW 5e (Swedish), ARCHITECTURE, DECISIONS D160, BACKLOG
 - [x] ACCEPTANS: regulator tests green and the mutants killed; converges and holds with a synthetic slow GPU, off = no change (byte-identical picture); buffer follows the scale, CSS size and picking do not; report and F3 show `adaptive`; measurements written; no golden and no earlier test changed; `npm run verify:fast` and `npm run build` green
 
+### M09b: the effects of structures, conquest, the AI build move and the economy report (items 6 to 9 of M09; no rendering, no UI)
+
+- [x] 6. Effects of finished structures (`src/sim/structureEffects.ts`): City cap and gold, Factory, Port and trade, the Defense Post price; SAM / Silo only the radius table
+- [x] 7. Conquest: City / Factory / Port change owner one level lower (at least 1), Silo / SAM / Post are destroyed, also on an enclave flip (hook in `changeOwner`)
+- [x] 8. AI: `src/ai/build.ts` (build move), `AiDriver.serialize` / `restore` (AI-state blob), public.ts exports pinned in `tests/ai/boundary.test.ts`
+- [x] 9. Scenario CLI: `--ai [--no-build]` and an economy report (income gold/min, purse, structures, land) per minute
+- [x] Tests: `tests/sim/structureEffects.test.ts`, `tests/ai/build.test.ts`, `tests/sim/economyScript.test.ts`, the perf test in `tests/structures.perf.test.ts`; ENGINE_VERSION 8, FORMAT_VERSION 7, both golden hash files re-pinned ONCE (D-M09b)
+- [ ] NOT MET, logged: AI v0 with building reaches 0.90 of the band's upper limit after 10 minutes, not [1.0, 1.5] (D-M09b, BALANCE.md)
+
 ## Next
 
 - CamFix is built (D158); the user looks at it in the Artifact (PREVIEW 17aa) in their own window shape. Then the M08 gate items below stand as before.

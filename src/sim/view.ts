@@ -10,6 +10,7 @@ import { PHASE_PLAY, phaseAt, phaseTicksLeft, type MatchPhase } from './flow';
 import { TICK_HZ } from './rules';
 import { isPlayableClass } from './terrain';
 import { seatToOwner, type GameState } from './state';
+import { structGoldMilliPerSec } from './structureEffects';
 import { landShareQ15 } from './territory';
 import type { StructureView } from './structureRules';
 
@@ -169,7 +170,7 @@ export function fillSeatStats(state: GameState, out: Uint32Array): void {
     out[bCapital + seat] = state.capital[owner] as number;
     if (cells > 0) {
       out[bCap + seat] = ownerCapQt(state, owner);
-      out[bRate + seat] = goldMilliPerTick(ownedStdAreaQ15(state, owner)) * TICK_HZ;
+      out[bRate + seat] = goldMilliPerTick(ownedStdAreaQ15(state, owner)) * TICK_HZ + structGoldMilliPerSec(state, owner);
       out[bShare + seat] = landShareQ15(state, owner);
     } else {
       out[bCap + seat] = 0;

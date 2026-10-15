@@ -7,7 +7,7 @@
 // of the history, and the whole free list is `highWater` plus the stack (both hashed and serialised), so a restored table
 // allocates exactly as the straight run does.
 import { BUILD_TICKS, DELETE_COOLDOWN_TICKS, MILLI_GOLD_PER_GOLD, STRUCT_CAPACITY } from './rules';
-import { foldU32, foldWord } from './hash';
+import { foldBytes, foldU32, foldWord } from './hash';
 import { REJECT_NONE } from './intents';
 import {
   STRUCT_TYPE_SLOTS,
@@ -20,6 +20,7 @@ import {
   type StructureView,
 } from './structureRules';
 import { seatToOwner, type GameState } from './state';
+import { STRUCT_CITY, STRUCT_FACTORY, STRUCT_PORT } from './structureRules';
 
 export class StructureTable implements StructureView {
   readonly capacity = STRUCT_CAPACITY;
@@ -37,6 +38,17 @@ export class StructureTable implements StructureView {
   recycledCount = 0;
   /** Per ownerId: the tick from which that owner may Delete again. Game state. */
   readonly deleteReady: Uint32Array;
+  /** Game state: embargo flag per (ownerId a, ownerId b), index a * slots + b, kept symmetric by `setEmbargo`. Nothing sets it before the diplomacy milestone; trade reads it. */
+  readonly embargo: Uint8Array;
+  /** Derived: the effect cache (src/sim/structureEffects.ts). Dirty on every change of the table; also recomputed when `effNextTick` is reached. */
+  effDirty = true;
+  effNextTick = 0;
+  readonly effCityLevels: Uint32Array;
+  readonly effFixedMilli: Uint32Array;
+  readonly effPortMilli: Uint32Array;
+  /** Scratch for the Defense Post scan of an attack (cells of the target's finished Posts). */
+  readonly postCells = new Int32Array(STRUCT_CAPACITY);
+  postCount = 0;
   /** Derived: id + 1 of the structure on each cell, 0 = none. */
   readonly byCell: Uint16Array;
   /** Derived: structures per (ownerId, type), index ownerId * STRUCT_TYPE_SLOTS + type. */
@@ -46,6 +58,10 @@ export class StructureTable implements StructureView {
   constructor(cells: number, ownerSlotCount: number) {
     this.slots = ownerSlotCount;
     this.deleteReady = new Uint32Array(ownerSlotCount);
+    this.embargo = new Uint8Array(ownerSlotCount * ownerSlotCount);
+    this.effCityLevels = new Uint32Array(ownerSlotCount);
+    this.effFixedMilli = new Uint32Array(ownerSlotCount);
+    this.effPortMilli = new Uint32Array(ownerSlotCount);
     this.byCell = new Uint16Array(cells);
     this.counts = new Uint16Array(ownerSlotCount * STRUCT_TYPE_SLOTS);
   }
@@ -57,6 +73,30 @@ export class StructureTable implements StructureView {
   ownedCount(ownerId: number, type: number): number {
     if (ownerId < 0 || ownerId >= this.slots || type < 0 || type >= STRUCT_TYPE_SLOTS) return 0;
     return this.counts[ownerId * STRUCT_TYPE_SLOTS + type] as number;
+  }
+
+  /** True when trade between the two owners is under embargo. */
+  embargoed(a: number, b: number): boolean {
+    return a >= 0 && b >= 0 && a < this.slots && b < this.slots && this.embargo[a * this.slots + b] === 1;
+  }
+
+  setEmbargo(a: number, b: number, on: boolean): void {
+    if (a < 0 || b < 0 || a >= this.slots || b >= this.slots || a === b) return;
+    this.embargo[a * this.slots + b] = on ? 1 : 0;
+    this.embargo[b * this.slots + a] = on ? 1 : 0;
+    this.effDirty = true;
+  }
+
+  /** Gives a structure to another owner (conquest): the table keeps its id, cell, build ticks; an upgrade in progress is lost. */
+  transfer(id: number, newOwner: number, newLevel: number): void {
+    const from = this.owner[id] as number;
+    const k = this.type[id] as number;
+    this.counts[from * STRUCT_TYPE_SLOTS + k] = (this.counts[from * STRUCT_TYPE_SLOTS + k] as number) - 1;
+    this.counts[newOwner * STRUCT_TYPE_SLOTS + k] = (this.counts[newOwner * STRUCT_TYPE_SLOTS + k] as number) + 1;
+    this.owner[id] = newOwner;
+    this.level[id] = newLevel;
+    this.upgradeReadyTick[id] = 0;
+    this.effDirty = true;
   }
 
   deleteReadyTick(ownerId: number): number {
@@ -83,6 +123,7 @@ export class StructureTable implements StructureView {
     this.byCell[cell] = id + 1;
     this.counts[ownerId * STRUCT_TYPE_SLOTS + type] = (this.counts[ownerId * STRUCT_TYPE_SLOTS + type] as number) + 1;
     this.liveCount++;
+    this.effDirty = true;
     return id;
   }
 
@@ -101,6 +142,7 @@ export class StructureTable implements StructureView {
     this.upgradeReadyTick[id] = 0;
     this.recycled[this.recycledCount++] = id;
     this.liveCount--;
+    this.effDirty = true;
   }
 
   /** Recomputes the derived index and counts from the stored arrays (what deserialize does; tests compare it with the incremental one). */
@@ -117,6 +159,7 @@ export class StructureTable implements StructureView {
       live++;
     }
     this.liveCount = live;
+    this.effDirty = true;
   }
 }
 
@@ -126,6 +169,7 @@ export function foldStructures(h: number, t: StructureTable): number {
   x = foldWord(x, t.recycledCount);
   for (let i = 0; i < t.recycledCount; i++) x = foldWord(x, t.recycled[i] as number);
   x = foldU32(x, t.deleteReady);
+  x = foldBytes(x, t.embargo);
   x = foldWord(x, t.liveCount);
   for (let id = 0; id < t.highWater; id++) {
     if (t.owner[id] === 0) continue;
@@ -209,6 +253,24 @@ export function structuresPhase(state: GameState): void {
     if (ready !== 0 && tick >= ready) {
       t.level[id] = (t.level[id] as number) + 1;
       t.upgradeReadyTick[id] = 0;
+      t.effDirty = true;
     }
+  }
+}
+
+/**
+ * Conquest (M09 part B): the cell of a structure has just changed owner to `newOwner` (0 = freed). City, Factory and Port go to the
+ * new owner one level lower (at least 1); Silo, SAM and Post are destroyed. Called by changeOwner, so it covers the enclave flip too.
+ */
+export function structureCellChanged(state: GameState, cell: number, newOwner: number): void {
+  const t = state.structures;
+  const id = (t.byCell[cell] as number) - 1;
+  if (id < 0) return;
+  const type = t.type[id] as number;
+  if (newOwner !== 0 && (type === STRUCT_CITY || type === STRUCT_FACTORY || type === STRUCT_PORT)) {
+    const level = t.level[id] as number;
+    t.transfer(id, newOwner, level > 1 ? level - 1 : 1);
+  } else {
+    t.remove(id);
   }
 }

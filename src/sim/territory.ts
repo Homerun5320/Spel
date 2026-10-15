@@ -6,6 +6,7 @@ import type { Attack } from './attacks';
 import { OUTBOX_PAINT } from './outbox';
 import { D_MAX_CELLS, WEIGHT_ONE } from './rules';
 import type { GameState } from './state';
+import { structureCellChanged } from './structures';
 
 // Bound once at load, see src/sim/attacks.ts.
 const PAINT = OUTBOX_PAINT;
@@ -40,6 +41,7 @@ export function changeOwner(state: GameState, cell: number, owner: number, stamp
     warea[owner] = (warea[owner] as number) + weight;
   }
   state.owner[cell] = owner;
+  if (state.structures.liveCount !== 0 && state.structures.byCell[cell] !== 0) structureCellChanged(state, cell, owner);
   state.outbox.push(PAINT, state.tick, cell, owner);
   // A cell nobody can own (sea, Peak, Ice) takes part in no adjacency; only the debug paint can give one an owner.
   if (state.grid.playable[cell] === 1) afterChange(state, cell, prev, owner, viaSlot, viaDepth);

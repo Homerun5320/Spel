@@ -278,3 +278,50 @@ export const DELETE_COOLDOWN_TICKS = 300;
 export const SPACING_CELLS = 16;
 /** Which structures the spacing applies between: 0 = the same type, any owner; 1 = the same type, same owner; 2 = any type, any owner. M19 may change it. */
 export const SPACING_SCOPE = 0;
+
+// ---------------------------------------------------------------------------------------------------------------
+// Structure effects (M09 part B). Gold is counted in milli-gold per second here (the economy turns it into milli-gold per tick).
+// Only FINISHED structures count. Provisional numbers (the M09b block of docs/DECISIONS.md); each has a row in docs/BALANCE.md.
+
+/** A City pays this per level (1.5 gold/s). Its troop cap bonus is CAP_CITY_LEVEL_TROOPS per level. */
+export const CITY_GOLD_MILLI_PER_SEC_PER_LEVEL = 1500;
+/** A Factory pays this flat, whatever its level (2 gold/s). */
+export const FACTORY_GOLD_MILLI_PER_SEC = 2000;
+/** A Factory raises the income of the owner's Cities within FACTORY_RADIUS_CELLS by this many percent (once: Factories do not stack). */
+export const FACTORY_CITY_BONUS_PCT = 25;
+/** The reach of a Factory's bonus in sim cells (Euclidean, x wrapping). */
+export const FACTORY_RADIUS_CELLS = 20;
+/** A Port pays this flat before trade (2 gold/s). */
+export const PORT_GOLD_MILLI_PER_SEC = 2000;
+/** Each Port trades with at most this many nearest partner Ports (nearest first, the lowest id on a tie). */
+export const TRADE_MAX_PARTNERS = 3;
+/** A partner must be at least this far away (sim cells). */
+export const TRADE_MIN_DIST_CELLS = 40;
+/** The trade value per Port of a pair is TRADE_BASE_MILLI * (100 + min(distance, TRADE_DIST_CAP_CELLS)) / 100 milli-gold per second (1.5 * (1 + min(d, 120) / 100) gold/s, at most 3.3). */
+export const TRADE_BASE_MILLI = 1500;
+export const TRADE_DIST_CAP_CELLS = 120;
+/** A pair with the same owner trades at this percent; a pair under embargo at 0. */
+export const TRADE_SAME_OWNER_PCT = 50;
+/** A finished Defense Post multiplies the cell price of an attacker that takes a cell of its owner within POST_RADIUS_CELLS by POST_COST_NUM / POST_COST_DEN (2.5). */
+export const POST_RADIUS_CELLS = 12;
+export const POST_COST_NUM = 5;
+export const POST_COST_DEN = 2;
+/** SAM and Silo radius per level in sim cells: R(L) = 22 - 60 / (L + 5) std-cells, times 2, rounded down (24, 26, 29). Nothing reads it before M14. */
+export const SAM_RADIUS_CELLS = [0, 24, 26, 29];
+/** A SAM (or Silo) on a Mountain cell reaches this percent further. */
+export const SAM_MOUNTAIN_PCT = 120;
+
+// AI build move (M09 part B). The AI emits Build intents like anybody; these only steer when and where it asks.
+/** One Factory per this many Cities (the AI builds a Factory when it has fewer than cities / this). The "build ratio" of the economy tuning. */
+export const AI_BUILD_CITIES_PER_FACTORY = 2;
+/** A new City needs troops of at least this percent of the cap (0 = no gate: a gate of 50 %, even of 20 %, never opens while the AI spends its troops on a long attack and a City is bought with gold, not troops: tuning round 1). */
+export const AI_BUILD_CITY_TROOP_PCT = 0;
+/** Cells around the capital (a square) in which the AI looks for a build place. */
+export const AI_BUILD_WINDOW_CELLS = 56;
+/** Random places tried per think. */
+export const AI_BUILD_TRIES = 24;
+/** After a think that found no place the AI does not look again for this many ticks. */
+export const AI_BUILD_RETRY_TICKS = 50;
+/** One Port per this many Cities (from the second City on); one Post per this many Cities (from the fourth). */
+export const AI_BUILD_CITIES_PER_PORT = 3;
+export const AI_BUILD_CITIES_PER_POST = 4;

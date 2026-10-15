@@ -172,3 +172,34 @@ The structure table, the prices and the placement numbers. The base prices and t
 | `DELETE_COOLDOWN_TICKS` | 300 | ticks | plan | A seat may Delete once per 30 s. |
 | `SPACING_CELLS` | 16 | sim cells | plan | Minimum distance between two structures in the spacing scope (Euclidean, x wrapping; closer than this is refused). |
 | `SPACING_SCOPE` | 0 | scope | plan | 0 = same type any owner, 1 = same type same owner, 2 = any type. M19 may change it. |
+
+## Structure effects and the AI build move (M09 part B)
+
+Gold effects are in milli-gold per second (the economy turns them into milli-gold per tick, floored). Only finished structures count. PROVISIONAL (the M09b block of docs/DECISIONS.md). A Factory and a Port pay the same at every level; only the City grows with its level. Worst single structure: a Port with 3 partners at 120 cells or more of other owners, 2 + 3 * 3.3 = 11.9 gold/s (13.09 with the +10 % trait), against the limit of 10 level-1 Cities = 15 gold/s.
+
+| Constant | Value | Unit | Source | Note |
+|----------|-------|------|--------|------|
+| `CITY_GOLD_MILLI_PER_SEC_PER_LEVEL` | 1500 | milli-gold/s | plan | A City pays 1.5 gold/s per level (and lifts the troop cap by CAP_CITY_LEVEL_TROOPS per level). A level-1 City costs 400 and pays back in 4.4 minutes. |
+| `FACTORY_GOLD_MILLI_PER_SEC` | 2000 | milli-gold/s | plan | A Factory pays 2 gold/s, flat. |
+| `FACTORY_CITY_BONUS_PCT` | 25 | percent | plan | The owner's Cities within FACTORY_RADIUS_CELLS of a finished Factory pay 25 % more; Factories do not stack. |
+| `FACTORY_RADIUS_CELLS` | 20 | sim cells | plan | Reach of the Factory bonus (Euclidean, x wrapping). |
+| `PORT_GOLD_MILLI_PER_SEC` | 2000 | milli-gold/s | plan | A Port pays 2 gold/s before trade, flat; the owner's port trait (+-10 %) multiplies the whole Port income. |
+| `TRADE_MAX_PARTNERS` | 3 | ports | plan | Each Port trades with its 3 nearest partner Ports (the lowest id on a tie). |
+| `TRADE_MIN_DIST_CELLS` | 40 | sim cells | plan | A partner must be at least this far away. |
+| `TRADE_BASE_MILLI` | 1500 | milli-gold/s | plan | Trade value per Port of a pair = 1.5 * (1 + min(d, 120) / 100) gold/s. |
+| `TRADE_DIST_CAP_CELLS` | 120 | sim cells | plan | The distance stops counting here (500 cells pay the same as 120); at most 3.3 gold/s per Port of a pair. |
+| `TRADE_SAME_OWNER_PCT` | 50 | percent | plan | A pair with the same owner trades at half; under embargo at 0. |
+| `POST_RADIUS_CELLS` | 12 | sim cells | plan | A finished Defense Post makes the attacker's cell price x2.5 for cells of its owner within this distance. |
+| `POST_COST_NUM` | 5 | ratio | plan | The Post multiplier 5 / 2 = 2.5 (numerator); the price is floored once. |
+| `POST_COST_DEN` | 2 | ratio | plan | The denominator of the Post multiplier. |
+| `SAM_RADIUS_CELLS` | [0, 24, 26, 29] | sim cells | plan | SAM / Silo radius per level, R(L) = 22 - 60 / (L + 5) std-cells x 2, rounded down. Nothing reads it before M14. |
+| `SAM_MOUNTAIN_PCT` | 120 | percent | plan | A SAM or Silo on a Mountain cell reaches 20 % further. |
+| `AI_BUILD_CITIES_PER_FACTORY` | 2 | cities | eget val | The AI builds a Factory for every 2 Cities (the build ratio). |
+| `AI_BUILD_CITY_TROOP_PCT` | 0 | percent | eget val | Troop gate of a new City: 0 = none. A gate of 50 % (or 20 %) never opened while the AI spent its troops on a long attack, and a City is paid in gold, not troops (tuning round 1). |
+| `AI_BUILD_WINDOW_CELLS` | 56 | sim cells | eget val | The AI looks for a build place in a square of this half-width around its capital. |
+| `AI_BUILD_TRIES` | 24 | places | eget val | Random places tried per think (a Port gets four times as many). |
+| `AI_BUILD_RETRY_TICKS` | 50 | ticks | eget val | After a think without a place the AI does not look again for 5 s. |
+| `AI_BUILD_CITIES_PER_PORT` | 3 | cities | eget val | From the second City on, one Port per 3 Cities. |
+| `AI_BUILD_CITIES_PER_POST` | 4 | cities | eget val | From the fourth City on, one Defense Post per 4 Cities. |
+
+Economy script result (M09b, `npm run sim:scenario -- --solo --ai`, Russia, seed 1, 10 minutes): the build-free scripted expander is unchanged (the M04 band); AI v0 without building has 12 791 land cells, AI v0 with building 12 568 (factor 0.90 of the band's upper limit 14 000, below the asked [1.0, 1.5]). Buildings add troop cap and gold, but in the solo scenario land is limited by the speed of the front, not by troops, so no build ratio or price moved it: the deviation is logged in D-M09b of docs/DECISIONS.md and the interval of tests/sim/economyScript.test.ts is the measured value +-30 %.
