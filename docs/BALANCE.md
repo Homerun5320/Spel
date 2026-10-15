@@ -156,3 +156,19 @@ The home-land and trait rules live in the sim and apply only to a match whose co
 | `TRAIT_MOUNTAIN_MID_PERMILLE` | 150 | thousandths of land cells | eget val | Mountain (and Peak) share at which the defence multiplier is x1 (the median country has 54, the 90th percentile 542). |
 | `TRAIT_MOUNTAIN_GAIN_PCT` | 50 | % | eget val | Multiplier thousandths per thousandth of mountain share. A defence multiplier above 1000 makes an attacker pay more for the nation's land; a flat country gets x0.925, a share of 350 or more the cap x1.1. |
 
+
+## Structures (M09 part A)
+
+The structure table, the prices and the placement numbers. The base prices and times are PROVISIONAL (the M09a block of docs/DECISIONS.md). Arrays are indexed by structure type 1..6 = City, Factory, Port, Silo, SAM, Post (index 0 is unused).
+
+| Constant | Value | Unit | Source | Note |
+|----------|-------|------|--------|------|
+| `STRUCT_CAPACITY` | 4096 | slots | plan | Slots of the structure table; ids 0..4095. A structural limit. |
+| `STRUCT_MAX_LEVEL` | 3 | level | plan | Highest structure level. |
+| `BUILD_BASE_GOLD` | [0, 400, 500, 400, 1000, 600, 250] | gold | plan | Base price per type (City 400, Factory 500, Port 400, Silo 1000, SAM 600, Post 250); provisional. An upgrade to level L costs base * L, no escalation. |
+| `BUILD_TICKS` | [0, 150, 200, 120, 250, 200, 80] | ticks | plan | Build time per type: City 15 s, Factory 20 s, Port 12 s, Silo 25 s, SAM 20 s, Post 8 s. An upgrade takes the same time (own choice). |
+| `PRICE_ESCALATION_ONE_HALVES` | 2 | halves | plan | 1.0 in halves; price = base * min(12, 2 + n) / 2, so the n-th extra structure costs 0.5 base more. |
+| `PRICE_ESCALATION_MAX_HALVES` | 12 | halves | plan | The escalation stops at x6. |
+| `DELETE_COOLDOWN_TICKS` | 300 | ticks | plan | A seat may Delete once per 30 s. |
+| `SPACING_CELLS` | 16 | sim cells | plan | Minimum distance between two structures in the spacing scope (Euclidean, x wrapping; closer than this is refused). |
+| `SPACING_SCOPE` | 0 | scope | plan | 0 = same type any owner, 1 = same type same owner, 2 = any type. M19 may change it. |

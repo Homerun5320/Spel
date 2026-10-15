@@ -236,6 +236,8 @@ function stubView(tick: number, p: { troops: number[]; cap: number[]; alive?: nu
     debugIntents: false,
     contactLength: (a: number, b: number) => p.contact[`${Math.min(a, b)}-${Math.max(a, b)}`] ?? 0,
     attackRunning: () => false,
+    structures: { capacity: 0, highWater: 0, liveCount: 0, type: [], owner: [], cell: [], level: [], buildTick: [], readyTick: [], upgradeReadyTick: [], idAt: () => -1, ownedCount: () => 0, deleteReadyTick: () => 0 },
+    falloutUntilAt: () => 0,
   };
 }
 

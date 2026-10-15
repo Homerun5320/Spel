@@ -11,8 +11,39 @@ export { STAT_COUNT, STAT_FIELDS, type ReadonlyNumbers, type SeatStatsView, type
 export { isPlayableClass } from './terrain';
 
 // Intents: the types (type-only, so the AI cannot construct an intent by hand that the sim does not know) and the constructors.
-export type { AttackBody, CancelAttackBody, Intent, IntentBody, SpawnBody } from './intents';
-export { attackBody, cancelAttackBody, spawnBody } from './intents';
+export type { AttackBody, BuildBody, CancelAttackBody, DeleteBody, Intent, IntentBody, SpawnBody, UpgradeBody } from './intents';
+export { attackBody, buildBody, cancelAttackBody, deleteBody, spawnBody, upgradeBody } from './intents';
+export {
+  REJECT_BUILD_FALLOUT,
+  REJECT_BUILD_FOREST,
+  REJECT_BUILD_FULL,
+  REJECT_BUILD_GOLD,
+  REJECT_BUILD_HILLS,
+  REJECT_BUILD_MOUNTAIN,
+  REJECT_BUILD_NO_COAST,
+  REJECT_BUILD_NO_FACTORY,
+  REJECT_BUILD_NOT_OWNED,
+  REJECT_BUILD_OCCUPIED,
+  REJECT_BUILD_PEAK,
+  REJECT_BUILD_SPACING,
+  REJECT_BUILD_TYPE,
+  REJECT_NONE,
+} from './intents';
+
+// Structures (M09 part A): the read-only table type, the type numbers, the prices and the placement check (validateBuild first).
+export type { StructureView } from './structureRules';
+export {
+  STRUCT_CITY,
+  STRUCT_FACTORY,
+  STRUCT_PORT,
+  STRUCT_POST,
+  STRUCT_SAM,
+  STRUCT_SILO,
+  buildPriceGold,
+  buildPriceMilli,
+  upgradePriceGold,
+  validateBuild,
+} from './structureRules';
 
 // The generator the AI is handed (its own stream, never the sim's): the state is a Uint32Array of RNG_WORDS words.
 export { RNG_WORDS, createRng, nextBelow, nextU32 } from './rng';
@@ -43,6 +74,9 @@ export {
   AI_WAR_MIN_CONTACT_LENGTH,
   AI_WAR_MIN_RATIO_PCT,
   AI_WAR_START_TICKS,
+  BUILD_BASE_GOLD,
+  BUILD_TICKS,
+  STRUCT_MAX_LEVEL,
   START_DISC_RADIUS_CELLS,
   WEIGHT_ONE,
 } from './rules';

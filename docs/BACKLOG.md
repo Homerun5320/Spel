@@ -206,3 +206,10 @@ Everything here would shorten `verify` further; each needs a per-test reset cont
 - The Himalaya wall: a fast pan toward the massif at 3 km height lets the camera sink to 21 % of the held height (the first-order follower lags a slope of 4.7 by slope x speed x 0.25 s). A look-ahead (aim at the higher of the ground here and the ground 0.25 s ahead) was built and measured: the dip fell to 32 % but the shake share rose from 0.33 to 0.70 and the direction reversals from 1 to 23 (the velocity estimate and the maximum of two rough samples are noise); rejected. A look-ahead on the SMOOTH ground (3 octaves) or a faster rise than fall (the tests of `tests/render/rtsFollow.test.ts` pin the symmetric step, so that is a decision, not a fix) are the next things to try.
 - Windows narrower than 0.25 or wider than 4 are clamped to those aspects in `src/render/fit.ts`; the disc does not fit at the maximum distance in a narrower window (the ceiling `DIST_ABS_MAX_KM` 150 000 km binds there).
 - The prompt's e2e wish ("count the bounding box of the non-black screenshot") is done with a lit-pixel bounding box that includes the atmosphere's glow, so the picture is asked for 3 % margin where the disc is asked 5 % (the glow is about 2 % of the half-extent); a pixel-exact disc outline would need the atmosphere off (`?`-switch) in the test.
+
+### M09a
+
+- A `validateUpgrade` / `validateDelete` in `src/sim/public.ts` for the UI (the rules exist as `checkUpgrade` / `checkDelete`; only `validateBuild` is exported in part A).
+- Structure rows in the M10 snapshot so a `ViewMirror` shows the real table (today it is empty).
+- The AI never builds yet (M09b); the effects (City income and cap, Factory, Port trade, Post, SAM / Silo radius) and conquest of structures are M09b.
+- Spacing is a linear scan of the live slots (about 300 in a normal match); a per-cell grid index would only pay off with thousands.
