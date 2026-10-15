@@ -29,6 +29,8 @@ export interface DrawnStructure {
   radius: number;
   /** The same as render metres above the sea-level sphere: `(radius - 1) * R`. Equals `exaggeration * groundHeightAt` to float64 rounding. */
   heightM: number;
+  /** The instance's turn (radians, model +x -> east/north): the Port's pier points along it. */
+  yaw: number;
 }
 
 interface TypeLayer {
@@ -49,6 +51,30 @@ interface TypeLayer {
 
 const FLOATS = { hi: 3, lo: 3, params: 4, owner: 3, build: 2 } as const;
 const NEVER = -1e9;
+
+/** The yaw (radians, model +x -> east/north) that points a pier from a coast cell to the open water, or NaN when no neighbour is sea. */
+function seawardYaw(lat: number, lon: number, gridW: number, gridH: number, cell: number): number {
+  const col = cell % gridW;
+  const row = (cell - col) / gridW;
+  let se = 0;
+  let sn = 0;
+  for (let dy = -2; dy <= 2; dy++) {
+    for (let dx = -2; dx <= 2; dx++) {
+      if (dx === 0 && dy === 0) continue;
+      const r = row + dy;
+      if (r < 0 || r >= gridH) continue;
+      const ll = cellToLatLon(r * gridW + ((col + dx + gridW) % gridW), gridW, gridH);
+      if (groundHeightAt(ll.lat, ll.lon) > 0) continue;
+      let dl = ll.lon - lon;
+      if (dl > 180) dl -= 360;
+      if (dl < -180) dl += 360;
+      const w = 1 / Math.hypot(dx, dy);
+      se += dl * Math.cos((lat * Math.PI) / 180) * w;
+      sn += (ll.lat - lat) * w;
+    }
+  }
+  return se === 0 && sn === 0 ? NaN : Math.atan2(sn, se);
+}
 
 function yawOf(id: number): number {
   return (Math.imul(id + 1, 0x9e3779b1) >>> 0) / 4294967296 * Math.PI * 2;
@@ -265,7 +291,10 @@ export class StructureLayer {
       layer.lo[i * 3 + 1] = p.y - (layer.hi[i * 3 + 1] as number);
       layer.lo[i * 3 + 2] = p.z - (layer.hi[i * 3 + 2] as number);
       layer.params[i * 4] = STRUCT_LEVEL_SCALE[level] ?? 1;
-      layer.params[i * 4 + 1] = yawOf(id);
+      let yaw = NaN;
+      if (STRUCTURE_MODELS[type]?.seaward === true) yaw = seawardYaw(p.lat, p.lon, this.gridWidth, this.gridHeight, cell);
+      if (Number.isNaN(yaw)) yaw = yawOf(id);
+      layer.params[i * 4 + 1] = yaw;
       layer.params[i * 4 + 2] = this.born[id] as number;
       layer.params[i * 4 + 3] = 0;
       layer.rgb[i * 3] = (palette[owner * 4] as number) / 255;
@@ -273,7 +302,7 @@ export class StructureLayer {
       layer.rgb[i * 3 + 2] = (palette[owner * 4 + 2] as number) / 255;
       layer.build[i * 2] = t.buildTick[id] as number;
       layer.build[i * 2 + 1] = t.readyTick[id] as number;
-      this.drawn.push({ id, type, owner, cell, level, lat: p.lat, lon: p.lon, radius: p.radius, heightM: p.heightM });
+      this.drawn.push({ id, type, owner, cell, level, lat: p.lat, lon: p.lon, radius: p.radius, heightM: p.heightM, yaw });
     }
     this.primed = true;
     for (const l of this.layers.values()) {
@@ -289,6 +318,14 @@ export class StructureLayer {
     const g = this.ghost;
     if (g === null || !this.layers.has(type)) return;
     if (g.type === type && g.cell === cell && g.ok === ok && g.mesh.visible) return;
+    if (g.type !== type) {
+      // the ghost shows the model of the type being placed: share that type's vertex buffers (no copy) and its size
+      const l = this.layers.get(type) as TypeLayer;
+      g.geometry.setAttribute('position', l.geometry.getAttribute('position'));
+      g.geometry.setAttribute('aColor', l.geometry.getAttribute('aColor'));
+      g.geometry.setAttribute('aTint', l.geometry.getAttribute('aTint'));
+      (g.material.uniforms.uSizeM as { value: number }).value = STRUCTURE_MODELS[type]?.radiusM ?? 700;
+    }
     g.type = type;
     g.cell = cell;
     g.ok = ok;
@@ -308,7 +345,8 @@ export class StructureLayer {
     lo[0] = p.x - hi[0];
     lo[1] = p.y - hi[1];
     lo[2] = p.z - hi[2];
-    (parA.array as Float32Array).set([1, 0, NEVER, 0]);
+    const yaw = STRUCTURE_MODELS[g.type]?.seaward === true ? seawardYaw(p.lat, p.lon, this.gridWidth, this.gridHeight, g.cell) : NaN;
+    (parA.array as Float32Array).set([1, Number.isNaN(yaw) ? 0 : yaw, NEVER, 0]);
     (ownA.array as Float32Array).set(g.ok ? GHOST_OK_RGB : GHOST_BAD_RGB);
     (bldA.array as Float32Array).set([0, 1]);
     for (const a of g.attrs) a.needsUpdate = true;

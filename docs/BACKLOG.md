@@ -251,3 +251,8 @@ Everything here would shorten `verify` further; each needs a per-test reset cont
 - The ghost goes red on a cell the player already sent a Build for in the same frame batch (the table is updated one diff later); Shift + click on one cell twice sends two intents and the sim refuses the second (a toast shows that).
 - The distant look: the City is a 10 px speck from 1 500 km with its pale rim as the only contrast on the owner's own colour; a flag or an outline would read better. No atmosphere haze is applied to structures.
 - `buildProgress` is drawn as height growth and a stipple; a scaffold or crane silhouette would say more.
+
+## From M10-2 (slice 2: Factory and Port)
+- The Factory hall is partly hidden behind its chimneys from some angles (the yaw is pseudo-random): a larger hall or a fixed front would read better. The Port's pier is only about 0.45 of the model radius long over the water; a ship beside it would sell the coast.
+- The seaward test treats `groundHeightAt <= 0` as sea; a low coastal flat at exactly 0 m counts as sea. A coast direction from the sim's terrain class (water neighbours) would be exact but is not in the snapshot.
+- The ghost of a Port could show a small arrow or the coast cells that are valid.

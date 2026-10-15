@@ -6,8 +6,8 @@ import { STRUCT_LEVEL_SCALE, STRUCT_TRIANGLE_BUDGET } from '../../src/render/con
 import { STRUCTURE_MODELS, modelledTypes } from '../../src/render/structureModels';
 
 describe('the structure models', () => {
-  it('registers the City (the other types are not modelled yet) with level scales 1.0, 1.25 and 1.5', () => {
-    expect(modelledTypes()).toEqual([STRUCT_CITY]);
+  it('registers the City first (later slices add types after it) with level scales 1.0, 1.25 and 1.5', () => {
+    expect(modelledTypes()[0]).toBe(STRUCT_CITY);
     expect(STRUCT_LEVEL_SCALE).toEqual([0, 1.0, 1.25, 1.5]);
   });
 

@@ -6,7 +6,7 @@
 // reaches below it so that the base never floats over a slope). `radiusM` is what one unit is in metres at true size; the layer multiplies
 // by it, by the level scale and by the scale policy. Every vertex has a colour and a TINT: tint 1 takes the owner's colour, 0 keeps the
 // model's own. Normals are not stored: the fragment shader takes the flat normal from screen derivatives (the stylised look of the terrain).
-import { STRUCT_CITY } from '../sim/public';
+import { STRUCT_CITY, STRUCT_FACTORY, STRUCT_PORT } from '../sim/public';
 
 export interface ModelData {
   /** x, y, z per vertex, three vertices per triangle (non-indexed). */
@@ -22,6 +22,8 @@ export interface StructureModel {
   readonly name: string;
   /** Metres that one model unit is at true size and level 1. */
   readonly radiusM: number;
+  /** True when the model has a front (a pier) that should point to the sea: the layer turns it to the water instead of a pseudo-random yaw. Its front is model +x. */
+  readonly seaward?: boolean;
   build(): ModelData;
 }
 
@@ -93,6 +95,15 @@ class MeshBuilder {
     for (let i = 0; i < 4; i++) this.tri(k[i] as Rgb, k[(i + 1) % 4] as Rgb, apex, color, tint);
   }
 
+  /** An n-sided prism (a chimney, a tank) at (cx, cz): wall from y0 to y1, top face at y1. */
+  prism(n: number, cx: number, cz: number, r: number, y0: number, y1: number, wall: Rgb, top: Rgb, topTint: number): void {
+    const ring = (y: number, k: number): Rgb => [cx + Math.cos((k / n) * Math.PI * 2) * r, y, cz + Math.sin((k / n) * Math.PI * 2) * r];
+    for (let k = 0; k < n; k++) {
+      this.quad(ring(y0, k), ring(y0, k + 1), ring(y1, k + 1), ring(y1, k), wall, 0);
+      this.tri([cx, y1, cz], ring(y1, k + 1), ring(y1, k), top, topTint);
+    }
+  }
+
   /** A regular n-gon plate: top face at y1, wall down to y0, around the origin with radius r. */
   plate(n: number, r: number, y0: number, y1: number, top: Rgb, topTint: number, side: Rgb): void {
     const ring = (y: number, k: number): Rgb => [Math.cos(((k + 0.5) / n) * Math.PI * 2) * r, y, Math.sin(((k + 0.5) / n) * Math.PI * 2) * r];
@@ -159,9 +170,64 @@ function buildCity(): ModelData {
   return m.done();
 }
 
+const BRICK: Rgb = [0.55, 0.28, 0.22];
+const HALL: Rgb = [0.62, 0.64, 0.68];
+const TANK: Rgb = [0.74, 0.76, 0.78];
+const CRANE: Rgb = [0.95, 0.72, 0.12];
+const DECK: Rgb = [0.5, 0.38, 0.26];
+const CONTAINER_A: Rgb = [0.3, 0.45, 0.62];
+const CONTAINER_B: Rgb = [0.72, 0.38, 0.24];
+
+/**
+ * The Factory: a long industrial hall with an owner-coloured roof, two brick chimneys (the tall one is the silhouette from far away, with an
+ * owner-coloured cap), a storage tank and a low annex, on the same pale rim and owner-coloured disc as the City.
+ */
+function buildFactory(): ModelData {
+  const m = new MeshBuilder();
+  m.plate(8, 1.0, -0.22, 0.04, PLATE_RIM, 0, PLATE_SIDE);
+  m.disc(8, 0.8, 0.055, PLATE_TOP, 1);
+  // the hall (long along x) and its gabled roof in the owner's colour
+  m.box(-0.12, 0.08, 0.86, 0.5, 0.04, 0.34, 0, HALL, FLAT_ROOF, 0);
+  m.gable(-0.12, 0.08, 0.86, 0.5, 0.34, 0.5, 0, FLAT_ROOF, 1, HALL);
+  // chimneys behind the hall: tall + short
+  m.prism(6, 0.46, -0.36, 0.09, 0.04, 0.98, BRICK, SLATE, 0);
+  m.prism(6, 0.46, -0.36, 0.115, 0.82, 0.98, WALL_A, PLATE_TOP, 1);
+  m.prism(6, 0.24, -0.42, 0.065, 0.04, 0.66, BRICK, SLATE, 0);
+  // a storage tank and a low annex in front
+  m.prism(8, -0.55, -0.5, 0.15, 0.04, 0.3, TANK, TANK, 0);
+  m.box(0.5, 0.42, 0.4, 0.28, 0.04, 0.22, 0.2, WALL_B, FLAT_ROOF, 0);
+  return m.done();
+}
+
+/**
+ * The Port: a pier (model +x, the layer turns it to the sea) with a yellow gantry crane at its end, a warehouse and a stack of containers
+ * on the land side, on the owner-coloured disc. The pier is the only thing that reaches the rim, over the water.
+ */
+function buildPort(): ModelData {
+  const m = new MeshBuilder();
+  m.plate(8, 1.0, -0.22, 0.04, PLATE_RIM, 0, PLATE_SIDE);
+  m.disc(8, 0.8, 0.055, PLATE_TOP, 1);
+  // the pier: a long low deck from the land to over the water
+  m.box(0.6, 0, 0.7, 0.22, -0.16, 0.075, 0, DECK, DECK, 0);
+  // the gantry crane: a tower, a long jib over the water and a counterweight
+  m.box(0.55, 0, 0.12, 0.12, 0.075, 0.6, 0, CRANE, CRANE, 0);
+  m.box(0.68, 0, 0.6, 0.07, 0.6, 0.67, 0, CRANE, CRANE, 0);
+  m.box(0.4, 0, 0.1, 0.12, 0.6, 0.72, 0, FLAT_ROOF, FLAT_ROOF, 0);
+  // a warehouse and three containers (owner-coloured lids) on the land side
+  m.box(-0.45, 0.35, 0.5, 0.34, 0.04, 0.22, 0.2, WALL_A, SLATE, 0);
+  m.gable(-0.45, 0.35, 0.5, 0.34, 0.22, 0.32, 0.2, SLATE, 0, WALL_B);
+  m.box(-0.3, -0.38, 0.3, 0.14, 0.04, 0.16, 0.1, CONTAINER_A, PLATE_TOP, 1);
+  m.box(-0.02, -0.4, 0.3, 0.14, 0.04, 0.16, 0.1, CONTAINER_B, PLATE_TOP, 1);
+  m.box(-0.16, -0.38, 0.3, 0.14, 0.16, 0.28, 0.1, CONTAINER_A, PLATE_TOP, 1);
+  return m.done();
+}
+
 /** The registry: structure type number -> model. A type without an entry is not drawn (yet). */
 export const STRUCTURE_MODELS: Readonly<Record<number, StructureModel>> = {
   [STRUCT_CITY]: { name: 'city', radiusM: 700, build: buildCity },
+  // M10-2
+  [STRUCT_FACTORY]: { name: 'factory', radiusM: 700, build: buildFactory },
+  [STRUCT_PORT]: { name: 'port', radiusM: 700, seaward: true, build: buildPort },
 };
 
 /** The type numbers that have a model, ascending. */

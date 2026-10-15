@@ -174,6 +174,12 @@ const sv = {
   'toast.build.noFactory': 'En silo kräver en färdig fabrik.',
   'toast.build.gold': 'För lite guld.',
   'toast.build.full': 'Det finns inte plats för fler byggnader.',
+  'hud.build.factory': 'Fabrik',
+  'hud.build.factoryTip': 'Bygg en fabrik (tangent 2). Pris: {price} guld.',
+  'hud.build.tooPoorFactory': 'För lite guld: en fabrik kostar {price} guld.',
+  'hud.build.port': 'Hamn',
+  'hud.build.portTip': 'Bygg en hamn vid kusten (tangent 3). Pris: {price} guld.',
+  'hud.build.tooPoorPort': 'För lite guld: en hamn kostar {price} guld.',
 } as const;
 
 export type TextKey = keyof typeof sv;
@@ -341,6 +347,12 @@ const en: Record<TextKey, string> = {
   'toast.build.noFactory': 'A silo needs a finished factory.',
   'toast.build.gold': 'Not enough gold.',
   'toast.build.full': 'There is no room for more buildings.',
+  'hud.build.factory': 'Factory',
+  'hud.build.factoryTip': 'Build a factory (key 2). Price: {price} gold.',
+  'hud.build.tooPoorFactory': 'Not enough gold: a factory costs {price} gold.',
+  'hud.build.port': 'Port',
+  'hud.build.portTip': 'Build a port on the coast (key 3). Price: {price} gold.',
+  'hud.build.tooPoorPort': 'Not enough gold: a port costs {price} gold.',
 };
 
 /** The two tables, for the parity test and for tools. Treat as read-only. */

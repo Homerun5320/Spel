@@ -2,7 +2,7 @@
 // entry to BUILD_ITEMS with their model and nothing else changes. The price on a button is the ESCALATING price from the sim function
 // (`buildPriceMilli` on the snapshot's table), never a number of the UI. A button the player cannot afford is dimmed and its tooltip says why;
 // it still starts the placement mode (the ghost then shows the same reason in red). The bar only reports a choice: placing is `src/app/placement.ts`.
-import { STRUCT_CITY, buildPriceMilli, seatToOwner, type SimView } from '../sim/public';
+import { STRUCT_CITY, STRUCT_FACTORY, STRUCT_PORT, buildPriceMilli, seatToOwner, type SimView } from '../sim/public';
 import { languageVersion, t, type TextKey } from './i18n';
 
 interface BuildItem {
@@ -11,9 +11,16 @@ interface BuildItem {
   readonly key: string;
   readonly nameKey: TextKey;
   readonly tipKey: TextKey;
+  /** The tooltip of a button the player cannot pay (it names the type and the price). */
+  readonly poorKey: TextKey;
 }
 
-const BUILD_ITEMS: readonly BuildItem[] = [{ type: STRUCT_CITY, testid: 'build-city', key: '1', nameKey: 'hud.build.city', tipKey: 'hud.build.cityTip' }];
+const BUILD_ITEMS: readonly BuildItem[] = [
+  { type: STRUCT_CITY, testid: 'build-city', key: '1', nameKey: 'hud.build.city', tipKey: 'hud.build.cityTip', poorKey: 'hud.build.tooPoor' },
+  // M10-2: Factory and Port. The next types append their own lines below.
+  { type: STRUCT_FACTORY, testid: 'build-factory', key: '2', nameKey: 'hud.build.factory', tipKey: 'hud.build.factoryTip', poorKey: 'hud.build.tooPoorFactory' },
+  { type: STRUCT_PORT, testid: 'build-port', key: '3', nameKey: 'hud.build.port', tipKey: 'hud.build.portTip', poorKey: 'hud.build.tooPoorPort' },
+];
 
 export interface BuildBar {
   readonly root: HTMLElement;
@@ -75,7 +82,7 @@ export function createBuildBar(parent: HTMLElement, actions: { select(type: numb
         else e.b.removeAttribute('aria-disabled');
         e.name.textContent = t(e.item.nameKey);
         e.price.textContent = t('hud.build.cityCost', { price: gp });
-        const tip = poor ? t('hud.build.tooPoor', { price: gp }) : t(e.item.tipKey, { price: gp });
+        const tip = poor ? t(e.item.poorKey, { price: gp }) : t(e.item.tipKey, { price: gp });
         e.b.title = tip;
         e.b.setAttribute('aria-label', `${t(e.item.nameKey)} ${gp}`);
       }
