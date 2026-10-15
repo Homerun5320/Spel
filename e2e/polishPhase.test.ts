@@ -1,8 +1,10 @@
 // Polish-1 in headless Chromium: the placement ghost and the build buttons know the spawn phase (red ghost with the phase reason, a toast on a click,
 // dimmed buttons), and play on after the phase; resizing the window while zoomed out keeps the whole globe in view.
+import fs from 'node:fs';
+import path from 'node:path';
 import type { Browser, Page } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
-import { launchBrowser, openPage } from '../scripts/shot.mjs';
+import { OUT_DIR, launchBrowser, openPage } from '../scripts/shot.mjs';
 import { REJECT_PHASE } from '../src/sim/intents';
 import { cellToLatLon } from '../src/render/transforms';
 
@@ -61,6 +63,35 @@ describe('Polish-1: the spawn phase in the build UI', () => {
       expect(props.total).toBeGreaterThan(0);
     } finally {
       await page.close();
+    }
+  });
+});
+
+describe('Polish-1: the start card with the graphics tip', () => {
+  const INTEL = 'ANGLE (Intel, Intel(R) UHD Graphics (0x0000A721) Direct3D11 vs_5_0 ps_5_0, D3D11)';
+  it('Play is fully inside the window without scrolling at 1366x640 and 1280x560, with the tip shown; More opens the rest', async () => {
+    const dir = '/tmp/claude-0/-home-user-Spel/090222b8-c3ec-57d8-8029-4dc7d2316ca6/scratchpad/polish1/shots';
+    fs.mkdirSync(dir, { recursive: true });
+    void path;
+    void OUT_DIR;
+    for (const [w, h] of [[1366, 640], [1280, 560], [960, 540], [540, 960]] as const) {
+      const { page } = await openPage(browser, baseUrl, `test=1&menu=1&gpu=${encodeURIComponent(INTEL)}`, { width: w, height: h }, { isolated: true });
+      try {
+        await page.waitForSelector('[data-testid="gpu-tip"]', { state: 'visible' });
+        await page.evaluate(() => (window as any).__test.render());
+        const r = await page.evaluate(() => {
+          const b = (document.querySelector('.start-play') as HTMLElement).getBoundingClientRect();
+          return { top: b.top, bottom: b.bottom, h: window.innerHeight };
+        });
+        expect(r.top).toBeGreaterThanOrEqual(0);
+        if (w > h) expect(r.bottom).toBeLessThanOrEqual(r.h);
+        fs.writeFileSync(`${dir}/tip-${w}x${h}.png`, await page.screenshot({ type: 'png' }));
+        expect(await page.locator('[data-testid="gpu-tip-extra"]').isVisible()).toBe(false);
+        await page.click('[data-testid="gpu-tip-more"]');
+        expect(await page.locator('[data-testid="gpu-tip-extra"]').isVisible()).toBe(true);
+      } finally {
+        await page.close();
+      }
     }
   });
 });

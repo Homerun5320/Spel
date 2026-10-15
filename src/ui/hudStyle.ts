@@ -136,7 +136,10 @@ export function hudCss(): string {
 .gpu-tip { pointer-events: none; width: 100%; display: flex; flex-direction: row; align-items: flex-end; gap: ${GPU_TIP.gapEm}em; padding: ${GPU_TIP.padEm}em ${GPU_TIP.padEm + 0.2}em; border-radius: ${GPU_TIP.radiusEm}em; border: 1px solid ${GPU_TIP.border}; background: ${GPU_TIP.background}; color: ${GPU_TIP.text}; font-size: ${GPU_TIP.fontEm}em; text-align: left; }
 .gpu-tip-body { display: flex; flex-direction: column; gap: ${GPU_TIP.gapEm}em; flex: 1 1 auto; min-width: 0; }
 .gpu-tip p { margin: 0; }
-.gpu-tip-close { pointer-events: auto; flex: 0 0 auto; min-height: ${TARGET_MIN_PX}px; min-width: ${TARGET_MIN_PX}px; padding: 0 1em; border-radius: 0.5em; border: 1px solid ${C.buttonBorder}; background: ${C.button}; color: ${C.text}; font: inherit; cursor: pointer; }
+.gpu-tip-actions { display: flex; flex: 0 0 auto; gap: ${GPU_TIP.gapEm}em; }
+.gpu-tip-extra { display: flex; flex-direction: column; gap: ${GPU_TIP.gapEm}em; }
+.gpu-tip-extra[hidden] { display: none; }
+.gpu-tip-more, .gpu-tip-close { pointer-events: auto; flex: 0 0 auto; min-height: ${TARGET_MIN_PX}px; min-width: ${TARGET_MIN_PX}px; padding: 0 1em; border-radius: 0.5em; border: 1px solid ${C.buttonBorder}; background: ${C.button}; color: ${C.text}; font: inherit; cursor: pointer; }
 .start-setup { min-width: 11em; min-height: 3.2em; padding: 0 2em; border-radius: 2em; border: 2px solid ${C.buttonBorder}; background: ${C.button}; font-size: 1.25em; font-weight: 800; }
 .start-setup:hover { background: ${C.buttonActive}; }
 

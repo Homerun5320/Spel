@@ -31,6 +31,8 @@ const sv = {
   'start.gpuBetter': 'Vill du ha finare grafik? Öppna Dev-panelen (F2) och välj Kvalitet: medel, eller skriv #quality-medium sist i adressen.',
   'start.gpuSeparate': 'Har datorn ett separat grafikkort: Windows Inställningar, System, Bildskärm, Grafik, välj webbläsaren, Alternativ, Hög prestanda. Starta om webbläsaren.',
   'start.gpuClose': 'Stäng',
+  'start.gpuMore': 'Mer',
+  'start.gpuLess': 'Mindre',
   'start.gpuCloseAria': 'Stäng tipset om grafiken',
   'start.gpuNameFallback': 'din dator',
 
@@ -247,6 +249,8 @@ const en: Record<TextKey, string> = {
   'start.gpuBetter': 'Want nicer graphics? Open the Dev panel (F2) and pick Quality: medium, or add #quality-medium at the end of the address.',
   'start.gpuSeparate': 'If the computer has a separate graphics card: Windows Settings, System, Display, Graphics, pick the browser, Options, High performance. Restart the browser.',
   'start.gpuClose': 'Close',
+  'start.gpuMore': 'More',
+  'start.gpuLess': 'Less',
   'start.gpuCloseAria': 'Close the graphics tip',
   'start.gpuNameFallback': 'your computer',
 
