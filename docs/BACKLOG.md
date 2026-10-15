@@ -261,3 +261,11 @@ Everything here would shorten `verify` further; each needs a per-test reset cont
 - The Silo and SAM have no range ring yet (SAM radius from the sim, the provisional Silo ring), no launch or firing animation (M14), no night lights.
 - The Defense Post wall ring and the Silo pad are decoration; a level-dependent look (a second tower at level 3) would make an upgrade visible.
 - A heavier test of the dish at orbit distances: from far away the scale policy makes all three types the same speck; the icon LOD is what would tell them apart.
+
+## M10-4
+- The Silo range ring (the provisional `SILO_PREVIEW_RANGE_CELLS`) and the hover ring of the prompt are not built; only the selected SAM and Defense Post draw a ring.
+- Clicking an ENEMY structure does not select it (it attacks the cell as before); an info panel for other owners' buildings would need its own rules.
+- A right click does not deselect (Escape and a click on empty ground do).
+- The icon badges have no night dimming and no hover tooltip; at the globe's limb they can sit half behind the horizon.
+- The City lights are floating diamonds; lamp posts or window quads would read better close up.
+- The selection panel shows no owner name (own structures only) and no per-level preview of the next level's numbers.

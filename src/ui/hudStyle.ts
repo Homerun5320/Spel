@@ -77,7 +77,7 @@ export function hudCss(): string {
 .build-bar { flex-wrap: wrap; justify-content: center; max-width: min(23em, calc(100vw - 1em)); }
 .build-btn[data-state="locked"] { opacity: 0.45; border-style: dashed; }
 @media (max-width: 1100px) { .build-btn { padding: 0 0.5em; gap: 0.35em; } .build-name { font-size: 0.85em; } }
-.build-bar ~ .build-hint { bottom: 10.8em; }
+.build-bar ~ .build-hint { bottom: 12em; } /* M10-4: above the wrapped bar (three rows of buttons) */
 .build-hint { position: absolute; left: 50%; bottom: 4.6em; transform: translateX(-50%); width: max-content; max-width: min(20em, calc(100vw - 2em)); text-align: center; padding: 0.35em 0.9em; pointer-events: none; font-size: 0.9em; }
 .toast-stack { position: absolute; left: 50%; bottom: 17em; transform: translateX(-50%); display: flex; flex-direction: column; gap: 0.35em; align-items: center; z-index: ${Z_HUD + 1}; pointer-events: none; font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; font-size: ${fontSize}; }
 .toast { width: max-content; max-width: min(30em, calc(100vw - 2em)); text-align: center; padding: 0.45em 1em; border-radius: 0.6em; background: ${C.panel}; color: ${C.text}; border: 1px solid ${C.panelBorder}; box-shadow: 0 0.15em 0.7em rgba(0, 0, 0, 0.5); }
@@ -107,8 +107,8 @@ export function hudCss(): string {
   .hud-row { min-height: 1.5em; }
   .hud-toast { bottom: 17em; }
   .build-bar { bottom: 11.5em; left: auto; right: 8px; transform: none; max-width: calc(100vw - 20em); justify-content: flex-end; } /* M10-2: right of the gold panel, wraps upward */
-  .build-bar ~ .build-hint { left: auto; right: 8px; transform: none; bottom: 23em; }
-  .toast-stack { bottom: 30em; }
+  .build-bar ~ .build-hint { left: auto; right: 8px; transform: none; bottom: 29.5em; }
+  .toast-stack { bottom: 35em; }
   .sel-panel { left: 8px; bottom: 21em; width: auto; max-width: min(17.5em, calc(100vw - 16px)); }
 }
 
