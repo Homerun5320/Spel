@@ -108,7 +108,7 @@ function seawardYaw(lat: number, lon: number, gridW: number, gridH: number, cell
   return se === 0 && sn === 0 ? NaN : Math.atan2(sn, se);
 }
 
-function yawOf(id: number): number {
+export function yawOf(id: number): number {
   return (Math.imul(id + 1, 0x9e3779b1) >>> 0) / 4294967296 * Math.PI * 2;
 }
 

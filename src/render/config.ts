@@ -452,3 +452,17 @@ export const SELECT_RING_RGB: readonly [number, number, number] = [1.0, 0.92, 0.
 export const RANGE_RING_RGB: readonly [number, number, number] = [0.45, 0.85, 1.0];
 /** A city light is lit where the sun's elevation (dot of the surface normal and the sun) is below this value: the middle of the shader's day smoothstep (-0.10 .. 0.20). */
 export const NIGHT_LIGHT_SUN_DOT = 0.05;
+
+// ---- Districts-2b: the district layer (src/render/districts.ts) ----
+/** The triangle allowance of the district layer per tier (all four models ride in one geometry, so an instance counts the sum of the four models). */
+export const DISTRICT_TRIANGLE_BUDGET: Record<'test' | 'low' | 'medium' | 'high', number> = { test: 9000, low: 18000, medium: 36000, high: 72000 };
+/** Size factor of a district by level (index = level; 0 unused). */
+export const DISTRICT_LEVEL_SCALE: readonly number[] = [0, 1.0, 1.2, 1.4];
+/** The slots stand on a ring of this radius in City model units (the City's rim is at 1.0), at these angles (radians, model +x = 0); a City of level L uses the first 2 / 3 / 4. Fixed, so a district never moves when the City levels up. */
+export const DISTRICT_RING_R = 1.55;
+export const DISTRICT_SLOT_ANGLES: readonly number[] = [Math.PI / 4, (3 * Math.PI) / 4, (5 * Math.PI) / 4, (7 * Math.PI) / 4];
+/** Radius of a district model (City model units) at level 1: the unit model is multiplied by this. */
+export const DISTRICT_MODEL_UNIT = 0.42;
+/** A district is drawn at its true size (no scale policy). Full above DISTRICT_FADE_PX_HI projected pixels of radius, gone below DISTRICT_FADE_PX_LO. */
+export const DISTRICT_FADE_PX_LO = 3;
+export const DISTRICT_FADE_PX_HI = 5;
