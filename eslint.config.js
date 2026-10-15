@@ -127,7 +127,7 @@ const FRONT_END_IMPORTS = {
 };
 
 export default defineConfig([
-  globalIgnores(['dist/**', 'node_modules/**', '.cache/**', 'test-results/**', 'artifact/**', 'e2e/goldens/**', 'public/**']),
+  globalIgnores(['dist/**', 'node_modules/**', '.cache/**', 'test-results/**', 'artifact/**', 'e2e/goldens/**', 'public/**', '.claude/**']),
   js.configs.recommended,
   tseslint.configs.recommended,
   {
