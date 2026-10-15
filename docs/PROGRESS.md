@@ -21,6 +21,36 @@ Resume: Läs CLAUDE.md och docs/PROGRESS.md, kör git log -10 och npm run verify
 
 ## Now
 
+### M08 RTS camera, ground picking and the performance scene (USER GATE) - parts: A (items 1 to 4 and their tests), B (item 5, the perf scene and the report), C (goldens, the verify time, finish). The orchestrator owns pushing, the pull request and the Artifact.
+
+Previous merge SHA (origin/main at start): f29121a8d1607ca169e6675b5f22a52d76c42ef7 (unchanged; nothing is merged, M00 to M07b, Tempo and TestSpeed live on this branch and in draft pull request #1; the precondition "M07b is merged" is treated as satisfied because this file lists M07b as Done). `npm ci` was in place; `npm run verify:fast` was green at the start. Facts that change the prompt (read D153, D154, "Rules for layers on the terrain"): `flyTo` lives in `src/render/flyTo.ts` (D120), the pick criterion is "hit radius = `seenRadius` within 0.05 m" (D154 (5)), `groundHeightAt` works in Node through a pure factory, the camera must reach 300 m AGL (the M07a limit of 1000 m and the hook clamp of `altAglM` move), click threshold stays `CLICK_MOVE_PX` 6 (the M05 tests pin 3 to 10).
+
+GÖR (Part A = items 1 to 4)
+- [ ] A1. `src/render/transforms.ts` (no three): cell <-> lat/lon <-> world with wrapX, `createGroundHeight(source)` (pure factory; the unbound module case is an explicit tested error), `groundHeightAt` = `heightAt` (same function), `pickGround(field, ray)` (adaptive march bounded by 0.5 cell + bisection)
+- [ ] A2. `src/app/input.ts`: the mode stack (base mode = the M05 input unchanged, push / pop, Esc pops, `setPauseHandler`, `setContextHandler` no-op defaults, the mouse mapping, reserved keys 1 to 6, E, H, F, Esc)
+- [ ] A3. Camera mix in `src/render/camera.ts`: globe arcball above an AGL threshold, RTS below, smooth transition; grip-pan on the ground point, zoom to the cursor, yaw, tilt 20 to 80, clearance 300 m via the ground height; Pointer Events + `touch-action: none` + two-finger pan / zoom / rotate
+- [ ] A4. `flyTo` extended in `src/render/flyTo.ts` (altitude, tilt, yaw, RTS mode, fx clock only); bookmarks (Alps, Himalaya, Andes, own capital) in `__test` and the Dev panel
+- [ ] A5. Tests of A1 to A4 (below), docs (DECISIONS, ARCHITECTURE, PROGRESS), `npm run verify:fast` green, local commit
+
+GÖR (Part B)
+- [ ] B1. `?scene=perf` ("Prestandascen", `#scene-perf`): orbit -> continent -> valley -> 300 m AGL over the Himalaya, report JSON (mean and p95 frame time, max triangles, draw calls, chunks, renderer string, tier, DPR, duration) as an additive extension of the M02 schema; extra fields from the user's feedback (GPU string, DPR, canvas size, refresh estimate, rAF cadence histogram, capped?); JSON schema + test; "Kopiera rapport" = `showReport(json)`
+
+GÖR (Part C)
+- [ ] C1. Six height goldens (orbit, continent, region, valley, 30 km, 300 m AGL), `UPDATE_GOLDENS=1` once, justified
+- [ ] C2. `npm run verify` back under 8 minutes (D154 (8)) or the shard plan, `npm run verify` green, PREVIEW (Swedish), BACKLOG, `npm run build && npm run artifact:pack`
+
+ACCEPTANS (all parts; ticked = proven by a test that can fail)
+- [ ] Pick round trip: 200 random screen points over orbit and three RTS heights, pick then reproject, error <= 1 px
+- [ ] Terrain awareness (Himalaya, tilt 60): >= 100 of 200 hits on the surface (hit radius = `seenRadius` within 0.05 m, `groundHeightAt` with the distance-law octaves equals the hit height), >= 30 of them >= 50 m from the sphere intersection
+- [ ] `groundHeightAt === heightAt` (the same function) and it matches the shader's height within 1 % of the local relief (the M07b readback probe)
+- [ ] Scripted flight orbit -> 300 m AGL on the fx clock in steps of 1/60 s: position change per frame <= 5 % of the height, direction change <= 3 degrees per frame, above the clearance in every frame; `flyTo` to 50 m AGL ends >= 300 m
+- [ ] Input unit tests: Esc pops the top mode and calls the pause handler only when the stack is empty; left drag keeps the ground point under the cursor within 1 px; right drag changes yaw but not the position; right click without drag gives exactly one context command with the right cell; scripted two-finger gesture gives pan / zoom / rotate
+- [ ] `flyTo` on the fx clock (`advanceFx` / `__test.advance`) reaches the target within epsilon at the stated time; the M06 tests are unchanged and green
+- [ ] Zoom floor (replaces the M07a 0.8 to 1.5 km test): mouse zoom stops >= 300 m AGL over the sea and the Himalaya; `?view=alps-valley` and `?view=himalaya-valley` still load with >= 3 LOD levels
+- [ ] Perf scene runs to the end in the test tier (shortened) without console errors, the report validates against the schema, all numbers finite, maxChunks >= 12 and maxTriangles >= 20k; "Kopiera rapport" shows JSON that validates
+- [ ] 6 height goldens committed (orbit, continent, region, valley, 30 km, 300 m AGL)
+- [ ] `npm run verify` green
+
 ### M07b audit pass (D154): eight findings of the independent audit, fixed or answered with evidence (one session; the orchestrator owns pushing, the pull request and the Artifact)
 
 - [x] A1. LOD pop: reproduced (5.30 % and 7.95 % at the two leaf-set changes), the cause is the camera (AGL stepping over 12x detailed ground moves it by kilometres), proved with a fixed camera and two tree states; `e2e/lodPop.test.ts` (fixed-camera swaps, 0.2 % path), `tests/render/lodSwap.test.ts` (the geometric pop in pixels with a level-only control); a geomorph was built, measured (no pixel benefit) and removed, numbers in D154 (1) and BACKLOG

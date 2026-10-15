@@ -7,15 +7,18 @@ import { wrapLon } from '../render/geo';
 import { buildOwnerPalette } from '../render/ownerPalette';
 import { rgbOfHex } from '../ui/flag';
 import type { ViewState } from '../render/camera';
+import type { FlyOptions } from '../render/flyTo';
 import { Globe, type GlobeInfo, type GlobePick, type ScreenHit, type WorldData } from '../render/globe';
 import type { WorldTextureName } from '../render/textures';
-import { DEFAULT_START_TIME, DEFAULT_START_VIEW, GROUND_VIEWS } from '../render/views';
+import { BOOKMARKS, CAPITAL_BOOKMARK, DEFAULT_START_TIME, DEFAULT_START_VIEW, GROUND_VIEWS, type BookmarkName } from '../render/views';
+import { cellToLatLon, groundHeightAt } from '../render/transforms';
+import { setBookmarkHandler } from './bookmarks';
+import { InputStack, attachDomInput, createBaseMode, type InputTarget } from './input';
 import { resolveQuality } from '../render/quality';
 import type { TerrainMode } from '../render/terrainMaterial';
 import { FrameStats } from '../ui/frameStats';
 import { latLonOfCell } from './cellGeo';
 import { createPerfOverlay, type PerfOverlay } from '../ui/perfOverlay';
-import { ClickTracker } from '../ui/clickTracker';
 import { createMatchHud, notConquerableText, rejectText, type MatchHud, type MatchHudModel } from '../ui/matchHud';
 import { getLanguage, onLanguageChange, setStrictI18n, t, type TextKey } from '../ui/i18n';
 import { START_FLY_KM, START_SPIN_DEG_PER_S, SETUP_IDLE_DIST_KM } from '../ui/uiConfig';
@@ -35,7 +38,7 @@ import { seatToOwner } from '../sim/state';
 import type { IntentBody } from '../sim/intents';
 import { clickMeaning, resolveClickCell } from './clickTarget';
 import { MatchSession } from './match';
-import { matchKeyAction } from './matchKeys';
+import { matchKeyAction, typingInField } from './matchKeys';
 import type { AppParams, AppState, SceneParams } from './params';
 import { siteUrl } from './paths';
 import { countryNameMap, tooltipText } from './tooltip';
@@ -131,6 +134,21 @@ export interface GlobeTestHooks {
   setClearColor(rgb: number): void;
   /** M07a: the camera's height above the displaced ground under it, metres. */
   cameraAglM(): number;
+  /**
+   * M08 (RTS camera): flies to a ground point (`lat`, `lon`) and arrives `altAglM` metres over it (kept in the options of `FlyOptions`: tilt,
+   * heading, durationS; 0 jumps at once); with `distKm` and no altitude it is the classic orbit flight. `bookmark(name, durationS?)` flies to
+   * 'alps', 'himalaya', 'andes' or 'capital' (false when the place is unknown yet). All time is the fx clock (`advance` and `render(dt)` step it).
+   */
+  flyTo(lat: number, lon: number, distKm: number, options?: FlyOptions): void;
+  bookmark(name: BookmarkName, durationS?: number): boolean;
+  /** True while a flight is under way; `cameraMix()` is the weight of the RTS camera (0 globe .. 1 RTS) and `holdAgl()` the height it keeps over the ground (null: none). */
+  flightActive(): boolean;
+  cameraMix(): number;
+  holdAgl(): number | null;
+  /** M08: the ground under a pixel (`pickGround`): latitude, longitude, radius (Earth radii) and seen height (render metres) of the hit; null when the ray misses the globe. */
+  pickGround(x: number, y: number): { lat: number; lon: number; radius: number; seenHeightM: number } | null;
+  /** M08: `groundHeightAt` (the very function `heightAt`, render metres, all octaves unless given) bound to the page's raster. */
+  groundHeightAt(lat: number, lon: number, octaves?: number): number;
   /**
    * M07b (debug hooks, ARCHITECTURE "Terrain detail"): the readback probe runs the SAME GLSL functions as the chunk vertex shader.
    * `probeEncoding()` is 'float' (an RGBA32F target, EXT_color_buffer_float) or 'bytes' (packed RGBA8); `probeHash(items, encoding?)` returns the
@@ -462,6 +480,31 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     else if (meaning.kind === 'attack') sess.attack(meaning.target); // your own land (kind 'own') does nothing
   };
 
+  // --- Bookmarks and "F" (M08): the RTS camera flies to a place ------------------------------------------------------------------
+  const capitalLatLon = (): { lat: number; lon: number } | null => {
+    const sess = session;
+    if (sess === null) return null;
+    const cap = (sess.view.stats.capital[sess.localSeat] as number) - 1; // the stat is cell + 1, 0 = not spawned
+    return cap >= 0 ? cellToLatLon(cap, world.sim.width, world.sim.height) : null;
+  };
+  const flyToBookmark = (name: BookmarkName, durationS?: number): boolean => {
+    if (globe.terrainMode !== 'chunks') return false; // the fixed mesh has no ground to fly over
+    const opts = durationS === undefined ? {} : { durationS };
+    if (name === 'capital') {
+      const c = capitalLatLon();
+      if (c === null) return false;
+      globe.flyTo(c.lat, c.lon, 0, { ...opts, altAglM: CAPITAL_BOOKMARK.altAglM, tilt: CAPITAL_BOOKMARK.tilt, heading: CAPITAL_BOOKMARK.heading });
+      return true;
+    }
+    const b = BOOKMARKS[name];
+    globe.flyTo(b.lat, b.lon, 0, { ...opts, altAglM: b.altAglM, tilt: b.tilt, heading: b.heading });
+    return true;
+  };
+  const focusCapital = (): void => {
+    flyToBookmark('capital');
+  };
+  setBookmarkHandler((name) => flyToBookmark(name));
+
   // --- Overlay (F3) -----------------------------------------------------------------------------------------------
   let fps = 0;
   const terrainLine = (): string => {
@@ -489,8 +532,16 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
         if (!overlay.hidden) refreshOverlay();
         return;
       }
-      if (session === null) return;
       const t = e.target instanceof HTMLElement ? e.target : null;
+      // The input stack's keys (M08): Escape pops the top mode (with an empty stack it opens the pause menu, M18, a no-op until then) and F flies to
+      // your capital; a key the setup screen or the Dev panel already used, or typed into a text field, is not ours.
+      if (!e.defaultPrevented && (e.key === 'Escape' || e.key === 'f' || e.key === 'F') && setupScreen === null && session !== null) {
+        const typing = typingInField({ key: e.key, ctrlKey: e.ctrlKey, altKey: e.altKey, metaKey: e.metaKey, targetTag: t?.tagName, targetType: t instanceof HTMLInputElement ? t.type : undefined });
+        const depth = inputStack.depth;
+        if (inputStack.key({ key: e.key, ctrlKey: e.ctrlKey, altKey: e.altKey, metaKey: e.metaKey, repeat: e.repeat, typing }) && (depth > 0 || e.key !== 'Escape')) e.preventDefault();
+        return;
+      }
+      if (session === null) return;
       const action = matchKeyAction({ key: e.key, code: e.code, ctrlKey: e.ctrlKey, altKey: e.altKey, metaKey: e.metaKey, repeat: e.repeat, targetTag: t?.tagName, targetType: t instanceof HTMLInputElement ? t.type : undefined });
       if (action === null) return;
       e.preventDefault();
@@ -527,6 +578,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   const disposeAll = (): void => {
     if (!alive) return;
     alive = false;
+    setBookmarkHandler(null);
     abort.abort();
     perf?.dispose();
     hud?.dispose();
@@ -555,70 +607,27 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     tip.style.display = 'block';
     tip.style.transform = `translate(${Math.min(x + 14, width - 220)}px, ${Math.min(y + 16, height - 30)}px)`;
   };
-  const clicks = new ClickTracker();
-  let mode: 'none' | 'drag' | 'rotate' = 'none';
-  let lastX = 0;
-  let lastY = 0;
-  const local = (e: MouseEvent): { x: number; y: number } => {
-    const r = canvas.getBoundingClientRect();
-    return { x: e.clientX - r.left, y: e.clientY - r.top };
-  };
-  canvas.addEventListener('contextmenu', (e) => e.preventDefault());
-  canvas.addEventListener('pointerdown', (e: PointerEvent) => {
-    const p = local(e);
-    canvas.setPointerCapture(e.pointerId);
-    lastX = p.x;
-    lastY = p.y;
-    tip.style.display = 'none';
-    globe.cancelFlight(); // any grab of the camera ends a flight
-    if (e.button === 2 || e.ctrlKey || e.shiftKey) {
-      mode = 'rotate';
-    } else if (e.button === 0) {
-      mode = 'drag';
-      clicks.down(p.x, p.y);
-      globe.rig.dragStart(p.x, p.y, fxNow());
-    }
-  });
-  canvas.addEventListener('pointermove', (e: PointerEvent) => {
-    const p = local(e);
-    if (mode === 'drag') {
-      clicks.move(p.x, p.y);
-      globe.rig.dragMove(p.x, p.y, fxNow());
-    } else if (mode === 'rotate') {
-      globe.rig.rotateBy(p.x - lastX, p.y - lastY);
-    } else {
-      showTip(p.x, p.y);
-    }
-    lastX = p.x;
-    lastY = p.y;
-  });
-  const release = (e: PointerEvent): void => {
-    if (mode === 'drag') {
-      const p = local(e);
-      const wasClick = e.type === 'pointerup' && clicks.up(p.x, p.y);
-      if (!wasClick) clicks.cancel();
-      globe.rig.dragEnd(fxNow());
-      if (wasClick) onGlobeClick(p.x, p.y);
-    }
-    mode = 'none';
-    if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
-  };
-  canvas.addEventListener('pointerup', release);
-  canvas.addEventListener('pointercancel', release);
-  canvas.addEventListener('pointerleave', () => {
-    if (mode === 'none') tip.style.display = 'none';
-  });
-  canvas.addEventListener(
-    'wheel',
-    (e: WheelEvent) => {
-      e.preventDefault();
-      globe.cancelFlight();
-      const p = local(e);
-      const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
-      globe.rig.zoomAt(p.x, p.y, e.deltaY * unit);
+  // The input mode stack (src/app/input.ts, M08): the base mode is the camera and the click on the match, exactly what this block did inline in
+  // M05 and M06; later modes push themselves on top. The events come from the canvas (Pointer Events, `touch-action: none`).
+  const inputTarget: InputTarget = {
+    camera: globe.rig,
+    now: fxNow,
+    cancelFlight: () => globe.cancelFlight(),
+    click: (x, y) => onGlobeClick(x, y),
+    pickCell: (x, y) => {
+      const p = globe.pick(x, y);
+      return p === null ? null : { cell: p.cell.index, lat: p.lat, lon: p.lon };
     },
-    { passive: false },
-  );
+    hover: showTip,
+    hoverEnd: () => {
+      tip.style.display = 'none';
+    },
+    focusCapital: () => focusCapital(),
+  };
+  const inputStack = new InputStack(createBaseMode(inputTarget));
+  attachDomInput(canvas, inputStack, () => {
+    tip.style.display = 'none';
+  }, signal);
 
   // --- The menus: the start screen (Play = the standard match, or the setup) and the setup screen ----------------------------------
   // Building a match takes a moment on the main thread: let the button show "loading" first (two frames), then start.
@@ -828,6 +837,16 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       setChunkDebug: (on) => globe.setChunkDebug(on),
       setClearColor: (rgb) => globe.setClearColor(rgb),
       cameraAglM: () => globe.cameraAglM(),
+      flyTo: (lat, lon, distKm, options) => globe.flyTo(lat, lon, distKm, options),
+      bookmark: (name, durationS) => flyToBookmark(name, durationS),
+      flightActive: () => globe.flight.active,
+      cameraMix: () => globe.rig.rtsWeight,
+      holdAgl: () => globe.rig.holdAgl,
+      pickGround: (x, y) => {
+        const h = globe.pickGroundAt(x, y);
+        return h === null ? null : { lat: h.lat, lon: h.lon, radius: h.radius, seenHeightM: h.seenHeightM };
+      },
+      groundHeightAt: (lat, lon, octaves) => groundHeightAt(lat, lon, octaves),
       probeEncoding: () => globe.probeEncoding(),
       probeHash: (items, encoding) => Array.from(globe.probeHashes(items, encoding)),
       probeHeight: (points, encoding) => Array.from(globe.probeHeights(points, encoding)),

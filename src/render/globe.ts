@@ -3,7 +3,7 @@
 import { BufferAttribute, BufferGeometry, Color, Mesh, PerspectiveCamera, Points, Scene, type ShaderMaterial, SphereGeometry, type Vector3, WebGLRenderer } from 'three';
 import { type City, type RenderPack, type SimGrid, type WorldMeta } from '../data';
 import { CameraRig, clipPlanes, setViewAtAgl, viewFromGroundCamera, type GroundCameraSpec, type ViewState } from './camera';
-import { ATMOSPHERE_TOP, DETAIL_BIAS_MIN, DETAIL_OCTAVES_MAX, MOTTLE_OFF_SCALE, OCTAVE_LAW_OFF_OFFSET, EARTH_RADIUS_KM, HEIGHT_EXAGGERATION, OCEAN_WAVE_SPEED } from './config';
+import { ATMOSPHERE_TOP, DETAIL_BIAS_MIN, DETAIL_OCTAVES_MAX, FLY_GROUND_OCTAVES, MOTTLE_OFF_SCALE, OCTAVE_LAW_OFF_OFFSET, EARTH_RADIUS_KM, HEIGHT_EXAGGERATION, OCEAN_WAVE_SPEED } from './config';
 import { fxNow } from './clock';
 import { CameraFlight, type FlyOptions } from './flyTo';
 import { BORDER_STRENGTH, COUNTRY_TINT } from './config';
@@ -14,6 +14,7 @@ import { bindHeightSource, detailLod, type DetailLod } from './detail';
 import { sunDirectionAt, vecToLatLon, type Vec3 } from './geo';
 import { buildGlobeGeometry } from './globeMesh';
 import { HeightField } from './heightField';
+import { groundPickerOf, pickGround, type GroundHit } from './transforms';
 import { OwnershipTexture } from './ownership';
 import { meshTriangles, type QualitySettings } from './quality';
 import { buildStars } from './stars';
@@ -161,7 +162,14 @@ export class Globe {
     if (this.field.sampler) bindHeightSource(this.field.sampler);
 
     // The chunk terrain can be zoomed down to about 1 km above the ground (the fixed mesh cannot: it keeps the old minimum distance).
-    if ((o.terrain ?? 'chunks') === 'chunks') this.rig.setGround((lat, lon) => this.field.surfaceRadius(lat, lon));
+    // M08: the same ground serves the RTS camera (clearance, the height it keeps), flights (the smooth ground they keep their height over) and the grip / zoom picking.
+    if ((o.terrain ?? 'chunks') === 'chunks') {
+      this.rig.setGround(
+        (lat, lon) => this.field.surfaceRadius(lat, lon),
+        (lat, lon) => this.field.radiusOf(this.field.surfaceHeightM(lat, lon, FLY_GROUND_OCTAVES)),
+      );
+      this.rig.setPicker(groundPickerOf(this.field));
+    }
     this.textures = createWorldTextures(o.world.render, o.world.sim);
     this.look = createLookTextures(o.world.cities ?? []);
     this.ownership = new OwnershipTexture(o.world.sim.width, o.world.sim.height, o.world.sim.terrainClass);
@@ -443,6 +451,12 @@ export class Globe {
     const hit = this.field.pick(ray.origin, ray.dir);
     if (!hit) return null;
     return this.describe(hit.lat, hit.lon, hit.heightM);
+  }
+
+  /** The ground under a pixel (M08, `pickGround` of src/render/transforms.ts): the hit on the surface the camera sees, with its radius and seen height; null when the ray misses the globe. */
+  pickGroundAt(px: number, py: number): GroundHit | null {
+    const ray = this.rig.rayAt(px, py);
+    return pickGround(this.field, ray);
   }
 
   /** The surface point under a pixel as the picking finds it: latitude, longitude and radius (Earth radii) of the displaced surface including the detail (tests). */

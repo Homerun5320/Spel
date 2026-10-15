@@ -106,8 +106,8 @@ export class HeightField {
    * Render height in metres (before the exaggeration) of the displaced SURFACE at a position: with detail the finest level of it (all
    * octaves; `heightAt` of `src/render/detail.ts`), else the filtered raster.
    */
-  surfaceHeightM(latDeg: number, lonDeg: number): number {
-    return this.sampler ? this.sampler.heightAt(latDeg, lonDeg, this.octaves ? undefined : 0) : this.heightM(latDeg, lonDeg);
+  surfaceHeightM(latDeg: number, lonDeg: number, maxOctaves?: number): number {
+    return this.sampler ? this.sampler.heightAt(latDeg, lonDeg, this.octaves ? maxOctaves : 0) : this.heightM(latDeg, lonDeg);
   }
 
   /** Radius of the displaced surface at a position. */

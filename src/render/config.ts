@@ -144,11 +144,11 @@ export const CAMERA_FOV_DEG = 30;
 export const DIST_MIN_KM = 220;
 export const DIST_MAX_KM = 42000;
 /**
- * Terrain-aware zoom (M07a, the chunk terrain): the mouse and `setView` stop the camera this high above the displaced ground under it
- * (0.8 to 1.5 km is the accepted band), whatever the ground (sea level or the x12 Himalaya), and never closer than DIST_MIN_GROUND_KM to
- * the focus point.
+ * Terrain-aware zoom (M07a, the chunk terrain), M08: the mouse, `setView` and every flight stop the camera this high above the displaced
+ * ground under it, whatever the ground (sea level or the x12 Himalaya), and never closer than DIST_MIN_GROUND_KM to the focus point.
+ * M07a had 1000 m (an accepted band of 0.8 to 1.5 km); the RTS camera of M08 comes down to 300 m (D155).
  */
-export const ZOOM_MIN_AGL_M = 1000;
+export const ZOOM_MIN_AGL_M = 300;
 export const DIST_MIN_GROUND_KM = 0.3;
 /** Tilt limit in degrees from straight down (a horizon view is never allowed). */
 export const TILT_MAX_DEG = 72;
@@ -164,6 +164,43 @@ export const WHEEL_ZOOM_RATE = 0.0016;
 export const ROTATE_DEG_PER_PX = 0.35;
 /** Largest simulation step of the camera integrator (fx seconds). */
 export const CAMERA_MAX_STEP_S = 1 / 60;
+
+// --- The RTS camera (M08, D155) -------------------------------------------------------------------------------------------------------
+/**
+ * The camera mix. Above `RTS_AGL_GLOBE_M` metres over the ground the camera is the globe arcball of M02 to M07 (the grab sphere is the
+ * sea level, the tilt 0 to `TILT_MAX_DEG`); below `RTS_AGL_FULL_M` it is the local-tangent RTS camera (the grab surface is the ground
+ * under the cursor, the tilt `RTS_TILT_MIN_DEG` to `RTS_TILT_MAX_DEG`); in between the weight is a smoothstep of the logarithm of the
+ * height, so nothing changes in a step. 4000 km is where the exaggerated relief (up to 100 km) is 2.5 % of the height and the globe is
+ * still the right picture; 800 km is where a country fills the screen and the relief is 12 %.
+ */
+export const RTS_AGL_GLOBE_M = 4_000_000;
+export const RTS_AGL_FULL_M = 800_000;
+/** The RTS tilt limits in degrees from straight down; the lower limit grows from 0 with the mix weight, the upper from `TILT_MAX_DEG`. */
+export const RTS_TILT_MIN_DEG = 20;
+export const RTS_TILT_MAX_DEG = 80;
+/** A tilt outside the limits (a zoom in from straight down) is brought back at this rate, degrees per fx second. */
+export const RTS_TILT_EASE_DEG_PER_S = 40;
+/** The camera follows the ground (keeps the height the user chose) with this time constant, fx seconds, and stops moving under this many metres of error. */
+export const RTS_FOLLOW_TAU_S = 0.25;
+export const RTS_FOLLOW_EPS_M = 0.05;
+/**
+ * Flights with an altitude (`FlyOptions.altAglM`, D155). The camera model of a flight: ground position, height, heading, tilt. The height
+ * rises to at least `FLY_ARCH_RATIO` times the distance flown (so the ground never streams past faster than the camera is high), the
+ * ground position moves while it is high, and the dive down to the end height is the slow part. The flight is planned so that the log-rate
+ * of the height peaks at `FLY_RHO_MAX` e-folds per second and so does the speed of the move in heights per second (2.4 per second at 60 fps
+ * is 4 % of the height per frame, the acceptance asks for at most 5 %). `FLY_SHARE_ACTIVE` of the time is the rise and the dive together
+ * (in proportion to their log spans), `FLY_SHARE_MOVE` the move; `src/render/flyTo.ts` `planGroundFlight` lays the windows out.
+ */
+export const FLY_ARCH_RATIO = 0.4;
+export const FLY_RHO_MAX = 2.4;
+export const FLY_SHARE_ACTIVE = 0.6;
+export const FLY_SHARE_MOVE = 0.4;
+/** The window of the flight in which heading and tilt turn. */
+export const FLY_TURN_WINDOW: readonly [number, number] = [0.15, 0.95];
+/** The highest a flight rises (metres above the ground). */
+export const FLY_PEAK_MAX_M = 40_000_000;
+/** The octaves of the smooth ground a flight keeps its height over while it moves (the camera's clearance always uses all of them). */
+export const FLY_GROUND_OCTAVES = 3;
 
 /** Default view: the whole Earth framed so that it nearly fills the height of the canvas. */
 export const DEFAULT_VIEW = { lat: 22, lon: 12, distKm: 21500, heading: 0, tilt: 0 } as const;

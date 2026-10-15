@@ -1,13 +1,14 @@
-// M07a part B: the terrain-aware orbit camera. The mouse zoom stops 0.8 to 1.5 km above the ground over the sea, the Alps and the Himalaya
-// (where the x12 terrain stands 100 km up), a wheel step is a share of the height above the floor, the ground views are exact, and the
-// camera never ends below the ground after a drag. M08 replaces the orbit rig with the RTS camera and this file with its own test.
+// M07a part B: the terrain-aware orbit camera: a wheel step is a share of the height above the floor, the ground views are exact, and the
+// camera never ends below the ground after a drag. M08 (D155) moved the floor from 1000 m to 300 m and REPLACED the first describe (the
+// 0.8 to 1.5 km zoom stop) by the RTS camera's zoom test below; everything else in this file is as M07a left it.
 import { describe, expect, it } from 'vitest';
 import { GROUND_VIEW_NAMES } from '../../src/app/params';
 import { CameraRig, cameraPositionFor, distForAgl, viewFromGroundCamera, type GroundCameraSpec } from '../../src/render/camera';
-import { CAMERA_FOV_DEG, DIST_MAX_KM, EARTH_RADIUS_KM, TILT_MAX_DEG, WHEEL_ZOOM_RATE, ZOOM_MIN_AGL_M } from '../../src/render/config';
+import { CAMERA_FOV_DEG, DIST_MAX_KM, EARTH_RADIUS_KM, RTS_TILT_MAX_DEG, RTS_TILT_MIN_DEG, TILT_MAX_DEG, WHEEL_ZOOM_RATE, ZOOM_MIN_AGL_M } from '../../src/render/config';
 import { DEG, length, vecToLatLon } from '../../src/render/geo';
 import { GROUND_VIEWS } from '../../src/render/views';
 import { loadChunkWorld, rng } from '../helpers/chunkWorld';
+import { loadRtsWorld, makeRtsRig } from '../helpers/rtsRig';
 
 const R_M = EARTH_RADIUS_KM * 1000;
 const PLACES = [
@@ -40,19 +41,26 @@ function settle(rig: CameraRig, from: number, seconds: number): number {
   return t;
 }
 
-describe('the mouse zoom stops 0.8 to 1.5 km above the ground', () => {
+// M08 (D155) REPLACES the M07a test "the mouse zoom stops 0.8 to 1.5 km above the ground" of the orbit camera: the RTS camera comes down to
+// ZOOM_MIN_AGL_M = 300 m. It is the same experiment (wheel all the way in at four places and three starting tilts, then all the way out)
+// on the camera the page builds - the detailed surface as ground and the ground picker - and it also states the RTS tilt limits.
+describe('the RTS camera: the mouse zoom stops 300 m above the ground', () => {
   for (const place of PLACES) {
     for (const tilt of [0, 40, TILT_MAX_DEG]) {
-      it(`${place.name}, tilt ${tilt}: wheel all the way in, the camera rests 0.8 to 1.5 km above the displaced ground under it`, async () => {
-        const { rig, agl } = await rigOver(place.lat, place.lon, tilt);
+      it(`${place.name}, tilt ${tilt}: wheel all the way in, the camera rests 300 to 600 m above the displaced ground under it, tilted 20 to 80 degrees`, async () => {
+        const rts = await loadRtsWorld();
+        const rig = makeRtsRig(rts, { lat: place.lat, lon: place.lon, heading: 0, tilt, distKm: 3000 });
+        const agl = (): number => rig.aglM();
         let t = 0;
         for (let i = 0; i < 40; i++) {
           rig.zoomAt(480 + 40 * ((i % 3) - 1), 270, -700); // a cursor that is not exactly at the centre: the anchor moves the focus too
           t = settle(rig, t, 0.5);
         }
         t = settle(rig, t, 3);
-        expect(agl(), `${place.name} tilt ${tilt}`).toBeGreaterThan(800);
-        expect(agl(), `${place.name} tilt ${tilt}`).toBeLessThan(1500);
+        expect(agl(), `${place.name} tilt ${tilt}`).toBeGreaterThanOrEqual(ZOOM_MIN_AGL_M - 1);
+        expect(agl(), `${place.name} tilt ${tilt}`).toBeLessThan(2 * ZOOM_MIN_AGL_M);
+        expect(rig.view.tilt, 'RTS tilt').toBeGreaterThanOrEqual(RTS_TILT_MIN_DEG - 0.5);
+        expect(rig.view.tilt, 'RTS tilt').toBeLessThanOrEqual(RTS_TILT_MAX_DEG + 0.01);
         expect(rig.moving).toBe(false);
         // and out again: the way back is as short as the way in (no hidden over-scroll to undo)
         for (let i = 0; i < 6; i++) {
@@ -63,6 +71,23 @@ describe('the mouse zoom stops 0.8 to 1.5 km above the ground', () => {
       });
     }
   }
+
+  it('the floor is the RTS floor and not the old one: an orbit rig without a picker (the old regime) also stops at 300 m, and no wheel step ever leaves the camera below it', async () => {
+    const { rig, agl } = await rigOver(28.2, 86.8, 40);
+    let t = 0;
+    let worst = Infinity;
+    for (let i = 0; i < 60; i++) {
+      rig.zoomAt(480, 270, -500);
+      for (let k = 0; k < 15; k++) {
+        t += 1 / 30;
+        rig.update(t);
+        worst = Math.min(worst, agl());
+      }
+    }
+    expect(worst).toBeGreaterThanOrEqual(ZOOM_MIN_AGL_M - 1);
+    expect(agl()).toBeLessThan(2 * ZOOM_MIN_AGL_M);
+    expect(ZOOM_MIN_AGL_M).toBe(300);
+  });
 
   it('without a ground (the fixed mesh) the old minimum distance stays', () => {
     const rig = new CameraRig(960, 540);

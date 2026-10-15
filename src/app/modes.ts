@@ -1,5 +1,7 @@
 // The registered `?` modes of the app (see devpanel.ts). Every later milestone that adds a `?` mode (scene, scenario, view,
 // debug pages, seed) registers it here, so the Dev panel always lists everything the address bar could do.
+import { DEV_PANEL_REQUEST_EVENT } from '../ui/events';
+import { goToBookmark } from './bookmarks';
 import { registerDevMode } from './devpanel';
 
 export function registerAppModes(): void {
@@ -20,6 +22,20 @@ export function registerAppModes(): void {
   registerDevMode({ id: 'chunktier-high', label: 'Testläge: chunk-täthet som hög kvalitet', params: { chunktier: 'high' } });
   registerDevMode({ id: 'view-alps-valley', label: 'Vy: Alpdal, 2 km över marken', params: { view: 'alps-valley' } });
   registerDevMode({ id: 'view-himalaya-valley', label: 'Vy: Himalayadal, 2 km över marken', params: { view: 'himalaya-valley' } });
+  // M08: the bookmarks fly the RTS camera to a place (a custom action: no reload, the panel closes itself afterwards).
+  const bookmark = (id: 'alps' | 'himalaya' | 'andes' | 'capital', label: string): void =>
+    registerDevMode({
+      id: `bookmark-${id}`,
+      label,
+      run: () => {
+        goToBookmark(id);
+        window.dispatchEvent(new Event(DEV_PANEL_REQUEST_EVENT));
+      },
+    });
+  bookmark('alps', 'Bokmärke: Alperna (RTS-kamera)');
+  bookmark('himalaya', 'Bokmärke: Himalaya (RTS-kamera)');
+  bookmark('andes', 'Bokmärke: Anderna (RTS-kamera)');
+  bookmark('capital', 'Bokmärke: din huvudstad (F)');
   registerDevMode({ id: 'seed-7', label: 'Seed 7', params: { seed: '7' } });
   registerDevMode({ id: 'seed', label: 'Seed', field: { param: 'seed', placeholder: '1', pattern: /^-?\d{1,10}$/ } });
   registerDevMode({ id: 'lang-en', label: 'Språk: English', params: { lang: 'en' } });
