@@ -11,6 +11,7 @@ import { TICK_HZ } from './rules';
 import { isPlayableClass } from './terrain';
 import { seatToOwner, type GameState } from './state';
 import { landShareQ15 } from './territory';
+import type { StructureView } from './structureRules';
 
 /** An array you can index and measure but not write to (the type of a typed array without its mutators). */
 export interface ReadonlyNumbers {
@@ -86,6 +87,10 @@ export interface SimView {
    * once per ownerVersion.
    */
   contactLength(a: number, b: number): number;
+  /** The structure table (M09 part A), read-only: arrays by structure id, `idAt(cell)`, `ownedCount(ownerId, type)`. A ViewMirror shows it empty until the M10 snapshot extension. */
+  readonly structures: StructureView;
+  /** The tick until which a cell is fallout, 0 = not (the FALLOUT_UNTIL layer: zero until M14). */
+  falloutUntilAt(cell: number): number;
   /**
    * Whether `attacker` has an attack running on `target` right now (owner ids; owner 0 = unowned land). An attack ends silently when
    * its troops or its front run out, so a seat that wants to call one off (CancelAttack) or to answer one asks first: the sim refuses
@@ -256,6 +261,12 @@ export class StateView implements SimView {
   }
   contactLength(a: number, b: number): number {
     return this.state.borders.contact(a, b);
+  }
+  get structures(): StructureView {
+    return this.state.structures;
+  }
+  falloutUntilAt(): number {
+    return 0;
   }
   attackRunning(attacker: number, target: number): boolean {
     const slots = this.state.attacks.slots;

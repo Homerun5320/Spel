@@ -213,3 +213,10 @@ Everything here would shorten `verify` further; each needs a per-test reset cont
 - A more exact card database (device ids, per-model tiers, a "known bad driver" list) instead of the regular expressions of `src/render/gpuClass.ts`.
 - A Dev-panel / settings choice that stores the tier in the pref `quality` (the pref is read already, nothing writes it).
 - The tip card makes the start screen scroll at 960x540; a one-line tip or a separate corner badge would avoid it.
+
+### M09a
+
+- A `validateUpgrade` / `validateDelete` in `src/sim/public.ts` for the UI (the rules exist as `checkUpgrade` / `checkDelete`; only `validateBuild` is exported in part A).
+- Structure rows in the M10 snapshot so a `ViewMirror` shows the real table (today it is empty).
+- The AI never builds yet (M09b); the effects (City income and cap, Factory, Port trade, Post, SAM / Silo radius) and conquest of structures are M09b.
+- Spacing is a linear scan of the live slots (about 300 in a normal match); a per-cell grid index would only pay off with thousands.

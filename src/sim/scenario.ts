@@ -93,6 +93,16 @@ export function scenarioBodies(seed: number, turn: number, seats: number, cells:
     else out.push({ kind: 'Attack', seat, target, pct });
   }
   if (hash2(seed, turn, 510) % 40 === 0) out.push({ kind: 'CancelAttack', seat: hash2(seed, turn, 511) % seats, target: hash2(seed, turn, 512) % ownerSlots(seats) });
+  // Structures (M09 part A): a Build of a random type on a random cell about one turn in 3 (most are refused: not the seat's land, the
+  // terrain rules, spacing, the purse), an Upgrade of a low id about one turn in 31, a Delete about one turn in 97, and a few with a
+  // type or id out of range.
+  if (cells > 0 && hash2(seed, turn, 600) % 3 === 0) {
+    const seat = hash2(seed, turn, 601) % seats;
+    const type = hash2(seed, turn, 602) % 8;
+    out.push({ kind: 'Build', seat, type, cell: hash2(seed, turn, 603) % cells });
+  }
+  if (hash2(seed, turn, 610) % 31 === 0) out.push({ kind: 'Upgrade', seat: hash2(seed, turn, 611) % seats, structure: hash2(seed, turn, 612) % 12 });
+  if (hash2(seed, turn, 620) % 97 === 0) out.push({ kind: 'Delete', seat: hash2(seed, turn, 621) % seats, structure: hash2(seed, turn, 622) % 12 });
   if (seats >= 2 && cells > 0 && hash2(seed, turn, 200) % 8 === 0) {
     const cell = hash2(seed, turn, 201) % cells;
     const high = 1 + (hash2(seed, turn, 202) % (seats - 1));

@@ -8,8 +8,26 @@
 // must not keep it. Diffs that arrive before the first answer are queued and the ones older than it dropped.
 import { ownerSlots } from '../sim/state';
 import { PHASE_PLAY, phaseAt, phaseTicksLeft, type MatchPhase } from '../sim/flow';
+import type { StructureView } from '../sim/structureRules';
 import { countContacts, statsViewOf, type ReadonlyNumbers, type SeatStatsView, type SimView } from '../sim/view';
 import type { HostEvent, SimHost, Speed, StateDiff, Unsubscribe, ViewSnapshot } from './protocol';
+
+const NO_NUMBERS: ArrayLike<number> = new Uint8Array(0);
+const EMPTY_STRUCTURES: StructureView = Object.freeze({
+  capacity: 0,
+  highWater: 0,
+  liveCount: 0,
+  type: NO_NUMBERS,
+  owner: NO_NUMBERS,
+  cell: NO_NUMBERS,
+  level: NO_NUMBERS,
+  buildTick: NO_NUMBERS,
+  readyTick: NO_NUMBERS,
+  upgradeReadyTick: NO_NUMBERS,
+  idAt: () => -1,
+  ownedCount: () => 0,
+  deleteReadyTick: () => 0,
+});
 
 export type FrameListener = (mirror: ViewMirror, diff: StateDiff) => void;
 
@@ -67,6 +85,15 @@ export class ViewMirror implements SimView {
     const flags = this.attackFlags;
     flags.fill(0);
     for (let i = 0; i + 1 < pairs.length; i += 2) flags[(pairs[i] as number) * this.slots + (pairs[i + 1] as number)] = 1;
+  }
+
+  /** Empty until the M10 snapshot extension carries the structure table to the page. */
+  get structures(): StructureView {
+    return EMPTY_STRUCTURES;
+  }
+
+  falloutUntilAt(): number {
+    return 0;
   }
 
   attackRunning(attacker: number, target: number): boolean {

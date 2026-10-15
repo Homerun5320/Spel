@@ -13,14 +13,19 @@
 //      enclave queue: ENCLAVE_FLIP_TICKS x (count u32, count x cell u32)
 //      ONLY when config flag 8 (homeRules) is on: country u8 x n, homeLand u8 x (seats+1), portMilli u16 x (seats+1),
 //               defenceMilli u16 x (seats+1)   (D112: a match without the flag is byte-identical to M05, so FORMAT_VERSION stays 5)
+//      structures (M09 part A, always present): highWater u32, recycledCount u32, recycled u32 x recycledCount, deleteReady u32 x (seats+1),
+//               liveCount u32, then per live slot by ascending id: id type owner cell level buildTick readyTick upgradeReadyTick (u32 each)
 //   end: checksum u32 = hashState(state)                                      (n = width * height)
 // The outbox and the derived parts (grid, aggregates, scratch) are not part of the format. deserialize() never throws:
 // any byte string gives a state or an error result.
 import { Attack, AttackTable } from './attacks';
 import { EnclaveQueues, enclaveBucket } from './enclaveQueue';
 import { TRAIT_MAX_MILLI, TRAIT_MIN_MILLI, type HomeRules } from './homeRules';
+import { foldStructures } from './structures';
 import { FNV_OFFSET, finishHash, foldBytes, foldU16, foldU32, foldWord } from './hash';
-import { D_MAX_CELLS, ENCLAVE_FLIP_TICKS, MICRO_CELLS_PER_CELL, MICRO_QT_PER_QT, MILLI_QT_PER_QT, PROGRESS_DEBT_MAX } from './rules';
+import { BUILD_TICKS, D_MAX_CELLS, ENCLAVE_FLIP_TICKS, MICRO_CELLS_PER_CELL, MICRO_QT_PER_QT, MILLI_QT_PER_QT, PROGRESS_DEBT_MAX, STRUCT_CAPACITY, STRUCT_MAX_LEVEL } from './rules';
+import { STRUCT_TYPE_SLOTS } from './structureRules';
+import { StructureTable } from './structures';
 import {
   ENGINE_VERSION,
   MAX_SEATS,
@@ -34,8 +39,8 @@ import {
   type MatchHeader,
 } from './state';
 
-/** Bumped when the byte layout above changes. 2: owner u16 (D71). 3: players, rowCos and the per-owner economy arrays (M04). 4: attacks and the enclave queue (M04 conquest). 5: the exposure array (M04 fix pass). */
-export const FORMAT_VERSION = 5;
+/** Bumped when the byte layout above changes. 2: owner u16 (D71). 3: players, rowCos and the per-owner economy arrays (M04). 4: attacks and the enclave queue (M04 conquest). 5: the exposure array (M04 fix pass). 6: the structure table (M09 part A). */
+export const FORMAT_VERSION = 6;
 /** 'SPEL' as a little-endian u32. */
 export const MAGIC = 0x4c455053;
 export const HEADER_BYTES = 64;
@@ -48,6 +53,10 @@ const BYTES_PER_ROW = 2;
 const BYTES_PER_OWNER = 16;
 /** Attack table header (seq, count) and the counts of the enclave buckets: what a state without attacks and candidates adds. */
 const EMPTY_TABLES_BYTES = 8 + ENCLAVE_FLIP_TICKS * 4;
+/** The structure block of a state without structures: highWater, recycledCount, liveCount (the Delete cooldowns add 4 bytes per ownerId). */
+const EMPTY_STRUCTURE_BYTES = 12;
+/** One live structure: id, type, owner, cell, level, buildTick, readyTick, upgradeReadyTick. */
+const BYTES_PER_STRUCTURE = 32;
 /** One attack record without its frontier: nine u32. */
 const BYTES_PER_ATTACK = 36;
 /** One frontier bag: depth and count, then its cells (4 bytes each). */
@@ -67,6 +76,7 @@ export type DeserializeError =
   | 'attack-range'
   | 'enclave-range'
   | 'home-range'
+  | 'structure-range'
   | 'checksum';
 
 export type DeserializeResult =
@@ -75,7 +85,7 @@ export type DeserializeResult =
 
 /** Number of bytes serialize() produces for a size when no attack is running and no enclave candidate is queued. */
 export function serializedLength(width: number, height: number, seats: number): number {
-  return HEADER_BYTES + width * height * BYTES_PER_CELL + height * BYTES_PER_ROW + ownerSlots(seats) * BYTES_PER_OWNER + EMPTY_TABLES_BYTES + CHECKSUM_BYTES;
+  return HEADER_BYTES + width * height * BYTES_PER_CELL + height * BYTES_PER_ROW + ownerSlots(seats) * BYTES_PER_OWNER + EMPTY_TABLES_BYTES + EMPTY_STRUCTURE_BYTES + ownerSlots(seats) * 4 + CHECKSUM_BYTES;
 }
 
 /** Number of non-empty frontier bags of an attack. */
@@ -95,6 +105,7 @@ export function serializedLengthOf(state: GameState): number {
   let n = serializedLength(state.width, state.height, state.header.seats);
   for (const a of state.attacks.list) n += BYTES_PER_ATTACK + a.size * 4 + bagsOf(a) * BYTES_PER_BAG;
   if (state.home !== null) n += homeBytes(state.width * state.height, state.header.seats);
+  n += state.structures.liveCount * BYTES_PER_STRUCTURE + state.structures.recycledCount * 4;
   return n + state.enclaves.length * 4;
 }
 
@@ -157,6 +168,7 @@ export function hashState(state: GameState): number {
     x = foldU16(x, home.portMilli);
     x = foldU16(x, home.defenceMilli);
   }
+  x = foldStructures(x, state.structures);
   return finishHash(x);
 }
 
@@ -255,6 +267,29 @@ export function serialize(state: GameState): Uint8Array {
     p += home.homeLand.length;
     p = putU16s(v, p, home.portMilli);
     p = putU16s(v, p, home.defenceMilli);
+  }
+  const st = state.structures;
+  v.setUint32(p, st.highWater, true);
+  v.setUint32(p + 4, st.recycledCount, true);
+  p += 8;
+  for (let i = 0; i < st.recycledCount; i++) {
+    v.setUint32(p, st.recycled[i] as number, true);
+    p += 4;
+  }
+  p = putU32s(v, p, st.deleteReady);
+  v.setUint32(p, st.liveCount, true);
+  p += 4;
+  for (let id = 0; id < st.highWater; id++) {
+    if (st.owner[id] === 0) continue;
+    v.setUint32(p, id, true);
+    v.setUint32(p + 4, st.type[id] as number, true);
+    v.setUint32(p + 8, st.owner[id] as number, true);
+    v.setUint32(p + 12, st.cell[id] as number, true);
+    v.setUint32(p + 16, st.level[id] as number, true);
+    v.setUint32(p + 20, st.buildTick[id] as number, true);
+    v.setUint32(p + 24, st.readyTick[id] as number, true);
+    v.setUint32(p + 28, st.upgradeReadyTick[id] as number, true);
+    p += BYTES_PER_STRUCTURE;
   }
   v.setUint32(p, hashState(state), true);
   return out;
@@ -414,12 +449,64 @@ export function deserialize(bytes: Uint8Array): DeserializeResult {
     }
     home = { country, homeLand, portMilli, defenceMilli };
   }
+  const structures = new StructureTable(n, slots);
+  if (p + 8 > end) return fail('size');
+  structures.highWater = v.getUint32(p, true);
+  structures.recycledCount = v.getUint32(p + 4, true);
+  p += 8;
+  if (structures.highWater > STRUCT_CAPACITY || structures.recycledCount > structures.highWater || p + structures.recycledCount * 4 + slots * 4 + 4 > end) return fail(structures.highWater > STRUCT_CAPACITY || structures.recycledCount > structures.highWater ? 'structure-range' : 'size');
+  for (let i = 0; i < structures.recycledCount; i++) {
+    const id = v.getUint32(p, true);
+    p += 4;
+    if (id >= structures.highWater) return fail('structure-range');
+    structures.recycled[i] = id;
+  }
+  p = getU32s(v, p, structures.deleteReady);
+  const liveCount = v.getUint32(p, true);
+  p += 4;
+  if (liveCount + structures.recycledCount !== structures.highWater) return fail('structure-range');
+  if (p + liveCount * BYTES_PER_STRUCTURE !== end) return fail('size');
+  let lastStruct = -1;
+  for (let k = 0; k < liveCount; k++) {
+    const id = v.getUint32(p, true);
+    const type = v.getUint32(p + 4, true);
+    const ownerId = v.getUint32(p + 8, true);
+    const cell = v.getUint32(p + 12, true);
+    const level = v.getUint32(p + 16, true);
+    const buildTick = v.getUint32(p + 20, true);
+    const readyTick = v.getUint32(p + 24, true);
+    const upgradeReadyTick = v.getUint32(p + 28, true);
+    p += BYTES_PER_STRUCTURE;
+    if (id <= lastStruct || id >= structures.highWater || type < 1 || type >= STRUCT_TYPE_SLOTS || ownerId < 1 || ownerId > seats || cell >= n) return fail('structure-range');
+    if (level < 1 || level > STRUCT_MAX_LEVEL || readyTick !== buildTick + (BUILD_TICKS[type] as number) || structures.byCell[cell] !== 0) return fail('structure-range');
+    if (upgradeReadyTick !== 0 && level >= STRUCT_MAX_LEVEL) return fail('structure-range');
+    lastStruct = id;
+    structures.type[id] = type;
+    structures.owner[id] = ownerId;
+    structures.cell[id] = cell;
+    structures.level[id] = level;
+    structures.buildTick[id] = buildTick;
+    structures.readyTick[id] = readyTick;
+    structures.upgradeReadyTick[id] = upgradeReadyTick;
+    structures.byCell[cell] = id + 1;
+  }
+  // The recycled ids must be exactly the unused slots below highWater (no duplicate, none of them alive).
+  for (let i = 0; i < structures.recycledCount; i++) {
+    const id = structures.recycled[i] as number;
+    if (structures.owner[id] !== 0) return fail('structure-range');
+    structures.owner[id] = 0xffff;
+  }
+  for (let i = 0; i < structures.recycledCount; i++) {
+    const id = structures.recycled[i] as number;
+    if (structures.owner[id] === 0) return fail('structure-range');
+    structures.owner[id] = 0;
+  }
   if (p !== end) return fail('size');
 
   const header: MatchHeader = Object.freeze({ engineVersion, mapHash, seed, config: Object.freeze(config), seats, players });
   let state: GameState;
   try {
-    state = assembleState({ header, width, height, tick: v.getUint32(36, true), rejects: v.getUint32(40, true), rng, terrain, elevation, owner, stamp, exposure, rowCos, troops, troopFrac, gold, capital, attacks, enclaves, home });
+    state = assembleState({ header, width, height, tick: v.getUint32(36, true), rejects: v.getUint32(40, true), rng, terrain, elevation, owner, stamp, exposure, rowCos, troops, troopFrac, gold, capital, attacks, enclaves, structures, home });
   } catch {
     return fail('header');
   }

@@ -4,12 +4,13 @@
 // Every intent has a seat (0-based) and an id (unsigned 32 bit, unique per seat, handed out by an IdAllocator).
 // Inside one turn intents run in the canonical order (seat, id, kind, payload); the id is the tie-break between the
 // intents of one seat, so the result never depends on the order in which they arrived.
+import { STRUCT_CAPACITY } from './rules';
 import { MAX_SEATS } from './state';
 
-export type IntentKind = 'Noop' | 'DebugPaint' | 'Spawn' | 'Attack' | 'CancelAttack' | 'DebugGive';
+export type IntentKind = 'Noop' | 'DebugPaint' | 'Spawn' | 'Attack' | 'CancelAttack' | 'DebugGive' | 'Build' | 'Upgrade' | 'Delete';
 
 /** The intent kinds in wire order (the index is the kind byte of the codec). Append only: a published code never changes meaning. */
-export const INTENT_KINDS: readonly IntentKind[] = ['Noop', 'DebugPaint', 'Spawn', 'Attack', 'CancelAttack', 'DebugGive'];
+export const INTENT_KINDS: readonly IntentKind[] = ['Noop', 'DebugPaint', 'Spawn', 'Attack', 'CancelAttack', 'DebugGive', 'Build', 'Upgrade', 'Delete'];
 
 /** Does nothing; valid for any seat. Exists to prove the pipeline (and as the heartbeat of a lockstep client). */
 export interface NoopBody {
@@ -75,8 +76,33 @@ export interface DebugGiveBody {
   readonly troops: number;
 }
 
+/**
+ * A seat builds a structure of `type` (1 City, 2 Factory, 3 Port, 4 Silo, 5 SAM, 6 Post: src/sim/structureRules.ts) on `cell`. The
+ * price is taken at once; the structure works when its build time (BUILD_TICKS) has run out. The refusals are the REJECT_BUILD_* codes.
+ */
+export interface BuildBody {
+  readonly kind: 'Build';
+  readonly seat: number;
+  readonly type: number;
+  readonly cell: number;
+}
+
+/** A seat upgrades its structure `structure` (a table id) one level; the price is taken at once, the level rises when the build time has run out. */
+export interface UpgradeBody {
+  readonly kind: 'Upgrade';
+  readonly seat: number;
+  readonly structure: number;
+}
+
+/** A seat removes its structure `structure` (a table id); nothing is refunded and the seat may not Delete again for DELETE_COOLDOWN_TICKS. */
+export interface DeleteBody {
+  readonly kind: 'Delete';
+  readonly seat: number;
+  readonly structure: number;
+}
+
 /** An intent before it has an id (what the UI submits to a host). */
-export type IntentBody = NoopBody | DebugPaintBody | SpawnBody | AttackBody | CancelAttackBody | DebugGiveBody;
+export type IntentBody = NoopBody | DebugPaintBody | SpawnBody | AttackBody | CancelAttackBody | DebugGiveBody | BuildBody | UpgradeBody | DeleteBody;
 
 export type Intent = IntentBody & { readonly id: number };
 
@@ -89,6 +115,15 @@ export function attackBody(seat: number, target: number, pct: number): AttackBod
 }
 export function cancelAttackBody(seat: number, target: number): CancelAttackBody {
   return { kind: 'CancelAttack', seat, target };
+}
+export function buildBody(seat: number, type: number, cell: number): BuildBody {
+  return { kind: 'Build', seat, type, cell };
+}
+export function upgradeBody(seat: number, structure: number): UpgradeBody {
+  return { kind: 'Upgrade', seat, structure };
+}
+export function deleteBody(seat: number, structure: number): DeleteBody {
+  return { kind: 'Delete', seat, structure };
 }
 
 /** The intents of one turn: all intents that run in the step that starts at tick `turn`. */
@@ -132,6 +167,42 @@ export const REJECT_PHASE = 18;
 export const REJECT_IMMUNE = 19;
 /** DebugGive with a gold or troops amount that is not an integer in 0..DEBUG_GIVE_MAX. */
 export const REJECT_AMOUNT = 20;
+/** Build of a type that is not 1..6. */
+export const REJECT_BUILD_TYPE = 21;
+/** Build on a cell the seat does not own. */
+export const REJECT_BUILD_NOT_OWNED = 22;
+/** Build on a Peak (nothing can be built there). */
+export const REJECT_BUILD_PEAK = 23;
+/** Build on a Mountain of anything but SAM, Post or Silo. */
+export const REJECT_BUILD_MOUNTAIN = 24;
+/** A Port on Hills. */
+export const REJECT_BUILD_HILLS = 25;
+/** A Silo in Forest. */
+export const REJECT_BUILD_FOREST = 26;
+/** A Port on a cell that is not on the coast. */
+export const REJECT_BUILD_NO_COAST = 27;
+/** Build on a cell that already has a structure. */
+export const REJECT_BUILD_OCCUPIED = 28;
+/** Build closer than SPACING_CELLS to a structure in the spacing scope. */
+export const REJECT_BUILD_SPACING = 29;
+/** Build on fallout. */
+export const REJECT_BUILD_FALLOUT = 30;
+/** A Silo without a finished Factory of the same seat. */
+export const REJECT_BUILD_NO_FACTORY = 31;
+/** Build or Upgrade the purse cannot pay. */
+export const REJECT_BUILD_GOLD = 32;
+/** Build while the structure table is full. */
+export const REJECT_BUILD_FULL = 33;
+/** Upgrade / Delete of a structure id that does not exist. */
+export const REJECT_STRUCT_ID = 34;
+/** Upgrade / Delete of another seat's structure. */
+export const REJECT_STRUCT_NOT_OWNER = 35;
+/** Upgrade of a structure that is at the top level. */
+export const REJECT_STRUCT_MAX_LEVEL = 36;
+/** Upgrade of a structure that is still being built or upgraded. */
+export const REJECT_STRUCT_BUSY = 37;
+/** Delete inside the seat's Delete cooldown. */
+export const REJECT_DELETE_COOLDOWN = 38;
 
 export interface ValidateContext {
   readonly seats: number;
@@ -152,7 +223,7 @@ function isIntegerIn(v: unknown, lo: number, hi: number): boolean {
 /** Why an intent is not valid in this match (REJECT_*), or REJECT_NONE. Total: any value whatsoever may be passed in. */
 export function validateIntent(x: unknown, ctx: ValidateContext): number {
   if (typeof x !== 'object' || x === null) return REJECT_SHAPE;
-  const o = x as { kind?: unknown; seat?: unknown; id?: unknown; cell?: unknown; target?: unknown; pct?: unknown; gold?: unknown; troops?: unknown };
+  const o = x as { kind?: unknown; seat?: unknown; id?: unknown; cell?: unknown; target?: unknown; pct?: unknown; gold?: unknown; troops?: unknown; type?: unknown; structure?: unknown };
   const code = kindCode(o.kind);
   if (code < 0) return REJECT_KIND;
   if (!isIntegerIn(o.seat, 0, MAX_SEATS - 1) || (o.seat as number) >= ctx.seats) return REJECT_SEAT;
@@ -170,6 +241,11 @@ export function validateIntent(x: unknown, ctx: ValidateContext): number {
   } else if (o.kind === 'DebugGive') {
     if (!ctx.debugIntents) return REJECT_DISABLED;
     if (!isIntegerIn(o.gold, 0, DEBUG_GIVE_MAX) || !isIntegerIn(o.troops, 0, DEBUG_GIVE_MAX)) return REJECT_AMOUNT;
+  } else if (o.kind === 'Build') {
+    if (!isIntegerIn(o.type, 1, 6)) return REJECT_BUILD_TYPE;
+    if (!isIntegerIn(o.cell, 0, ctx.cells - 1)) return REJECT_CELL;
+  } else if (o.kind === 'Upgrade' || o.kind === 'Delete') {
+    if (!isIntegerIn(o.structure, 0, STRUCT_CAPACITY - 1)) return REJECT_STRUCT_ID;
   }
   return REJECT_NONE;
 }
@@ -181,6 +257,8 @@ function comparePayload(a: Intent, b: Intent): number {
   if (a.kind === 'Attack' && b.kind === 'Attack') return a.target !== b.target ? a.target - b.target : a.pct - b.pct;
   if (a.kind === 'CancelAttack' && b.kind === 'CancelAttack') return a.target - b.target;
   if (a.kind === 'DebugGive' && b.kind === 'DebugGive') return a.gold !== b.gold ? a.gold - b.gold : a.troops - b.troops;
+  if (a.kind === 'Build' && b.kind === 'Build') return a.type !== b.type ? a.type - b.type : a.cell - b.cell;
+  if ((a.kind === 'Upgrade' && b.kind === 'Upgrade') || (a.kind === 'Delete' && b.kind === 'Delete')) return a.structure - b.structure;
   return 0;
 }
 
@@ -204,7 +282,7 @@ export const INVALID_BODY: IntentBody = Object.freeze({ kind: 'Noop', seat: -1 }
  */
 export function copyBody(x: unknown): IntentBody {
   if (typeof x !== 'object' || x === null) return INVALID_BODY;
-  const o = x as { kind?: unknown; seat?: unknown; cell?: unknown; target?: unknown; pct?: unknown; gold?: unknown; troops?: unknown };
+  const o = x as { kind?: unknown; seat?: unknown; cell?: unknown; target?: unknown; pct?: unknown; gold?: unknown; troops?: unknown; type?: unknown; structure?: unknown };
   const seat = typeof o.seat === 'number' ? o.seat : -1;
   if (o.kind === 'Noop') return { kind: 'Noop', seat };
   if (o.kind === 'DebugPaint') return { kind: 'DebugPaint', seat, cell: typeof o.cell === 'number' ? o.cell : -1 };
@@ -212,6 +290,9 @@ export function copyBody(x: unknown): IntentBody {
   if (o.kind === 'Attack') return { kind: 'Attack', seat, target: typeof o.target === 'number' ? o.target : -1, pct: typeof o.pct === 'number' ? o.pct : -1 };
   if (o.kind === 'CancelAttack') return { kind: 'CancelAttack', seat, target: typeof o.target === 'number' ? o.target : -1 };
   if (o.kind === 'DebugGive') return { kind: 'DebugGive', seat, gold: typeof o.gold === 'number' ? o.gold : -1, troops: typeof o.troops === 'number' ? o.troops : -1 };
+  if (o.kind === 'Build') return { kind: 'Build', seat, type: typeof o.type === 'number' ? o.type : -1, cell: typeof o.cell === 'number' ? o.cell : -1 };
+  if (o.kind === 'Upgrade') return { kind: 'Upgrade', seat, structure: typeof o.structure === 'number' ? o.structure : -1 };
+  if (o.kind === 'Delete') return { kind: 'Delete', seat, structure: typeof o.structure === 'number' ? o.structure : -1 };
   return INVALID_BODY;
 }
 
@@ -228,6 +309,12 @@ export function withId(body: IntentBody, id: number): Intent {
       return { kind: 'CancelAttack', seat: body.seat, target: body.target, id };
     case 'DebugGive':
       return { kind: 'DebugGive', seat: body.seat, gold: body.gold, troops: body.troops, id };
+    case 'Build':
+      return { kind: 'Build', seat: body.seat, type: body.type, cell: body.cell, id };
+    case 'Upgrade':
+      return { kind: 'Upgrade', seat: body.seat, structure: body.structure, id };
+    case 'Delete':
+      return { kind: 'Delete', seat: body.seat, structure: body.structure, id };
     default:
       return { kind: 'Noop', seat: body.seat, id };
   }

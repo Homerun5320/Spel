@@ -5,6 +5,7 @@ import { economyTick } from '../../../src/sim/economy';
 import { enclavePhase } from '../../../src/sim/enclaves';
 import { compareIntents, REJECT_DUPLICATE, REJECT_NONE, validateIntent, type Intent } from '../../../src/sim/intents';
 import { OUTBOX_REJECT } from '../../../src/sim/outbox';
+import { structuresPhase } from '../../../src/sim/structures';
 import { nextU32 } from '../../../src/sim/rng';
 import { MAX_INTENTS_PER_TURN } from '../../../src/sim/rules';
 import type { StepFn } from '../../../src/sim/step';
@@ -47,6 +48,7 @@ function makeStep(opts: { sort: boolean; dedupe: boolean; conquest?: boolean; en
     if (opts.conquest !== false) conquestPhase(state);
     if (opts.enclaves !== false) enclavePhase(state);
     if (opts.economy !== false) economyTick(state);
+    structuresPhase(state);
     if (rejected > 0) state.rejects = (state.rejects + rejected) >>> 0;
     nextU32(state.rng);
     state.tick = (state.tick + 1) >>> 0;

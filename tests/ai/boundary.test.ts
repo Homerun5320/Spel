@@ -126,7 +126,11 @@ describe('types: what src/sim/public.ts lets the AI reach', () => {
         'AI_WAR_MIN_RATIO_PCT',
         'AI_WAR_START_TICKS',
         'AttackBody',
+        'BUILD_BASE_GOLD',
+        'BUILD_TICKS',
+        'BuildBody',
         'CancelAttackBody',
+        'DeleteBody',
         'Intent',
         'IntentBody',
         'MatchPhase',
@@ -135,6 +139,20 @@ describe('types: what src/sim/public.ts lets the AI reach', () => {
         'PHASE_IMMUNITY',
         'PHASE_PLAY',
         'PHASE_SPAWN',
+        'REJECT_BUILD_FALLOUT',
+        'REJECT_BUILD_FOREST',
+        'REJECT_BUILD_FULL',
+        'REJECT_BUILD_GOLD',
+        'REJECT_BUILD_HILLS',
+        'REJECT_BUILD_MOUNTAIN',
+        'REJECT_BUILD_NOT_OWNED',
+        'REJECT_BUILD_NO_COAST',
+        'REJECT_BUILD_NO_FACTORY',
+        'REJECT_BUILD_OCCUPIED',
+        'REJECT_BUILD_PEAK',
+        'REJECT_BUILD_SPACING',
+        'REJECT_BUILD_TYPE',
+        'REJECT_NONE',
         'RNG_WORDS',
         'ReadonlyNumbers',
         'STAT_COUNT',
@@ -143,11 +161,24 @@ describe('types: what src/sim/public.ts lets the AI reach', () => {
         'SimView',
         'SpawnBody',
         'START_DISC_RADIUS_CELLS',
+        'STRUCT_CITY',
+        'STRUCT_FACTORY',
+        'STRUCT_MAX_LEVEL',
+        'STRUCT_PORT',
+        'STRUCT_POST',
+        'STRUCT_SAM',
+        'STRUCT_SILO',
         'StatField',
+        'StructureView',
+        'UpgradeBody',
         'WEIGHT_ONE',
         'attackBody',
+        'buildBody',
+        'buildPriceGold',
+        'buildPriceMilli',
         'cancelAttackBody',
         'createRng',
+        'deleteBody',
         'isPlayableClass',
         'nextBelow',
         'nextU32',
@@ -157,6 +188,9 @@ describe('types: what src/sim/public.ts lets the AI reach', () => {
         'phaseTicksLeft',
         'seatToOwner',
         'spawnBody',
+        'upgradeBody',
+        'upgradePriceGold',
+        'validateBuild',
       ].sort(),
     );
   });
@@ -178,6 +212,18 @@ describe('types: what src/sim/public.ts lets the AI reach', () => {
     }
   });
 
+  it('every property of StructureView is readonly and no array in it is a writable typed array', () => {
+    const sym = exports.find((x) => x.name === 'StructureView') as ts.Symbol;
+    const type = checker.getDeclaredTypeOfSymbol(sym.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(sym) : sym);
+    const props = checker.getPropertiesOfType(type);
+    expect(props.length).toBeGreaterThanOrEqual(10);
+    for (const p of props) {
+      const decl = p.valueDeclaration as ts.Declaration;
+      if (!ts.isMethodSignature(decl)) expect((ts.getCombinedModifierFlags(decl) & ts.ModifierFlags.Readonly) !== 0, `StructureView.${p.name} is readonly`).toBe(true);
+      expect(checker.typeToString(checker.getTypeOfSymbolAtLocation(p, decl)), p.name).not.toMatch(/(Uint|Int|Float)(8|16|32|64)(Clamped)?Array/);
+    }
+  });
+
   it('every property of SimView and SeatStatsView is readonly and no array in them is a writable typed array', () => {
     for (const interfaceName of ['SimView', 'SeatStatsView']) {
       const sym = exports.find((s) => s.name === interfaceName) as ts.Symbol;
@@ -196,4 +242,37 @@ describe('types: what src/sim/public.ts lets the AI reach', () => {
       }
     }
   });
+});
+
+describe('types: code that writes through a SimView does not compile (M09 part A)', () => {
+  const VIRTUAL = path.resolve('tests/ai/virtualWrite.ts');
+  const options: ts.CompilerOptions = { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, strict: true, noEmit: true, skipLibCheck: true, types: [], lib: ['lib.es2023.d.ts'] };
+  function errors(body: string): string[] {
+    const code = `import type { SimView } from '../../src/sim/public';\nexport function f(v: SimView): number {\n${body}\n  return 0;\n}\n`;
+    const host = ts.createCompilerHost(options);
+    const getSourceFile = host.getSourceFile.bind(host);
+    host.getSourceFile = (name, ...rest) => (path.resolve(name) === VIRTUAL ? ts.createSourceFile(name, code, ts.ScriptTarget.ES2022, true) : getSourceFile(name, ...rest));
+    const fileExists = host.fileExists.bind(host);
+    host.fileExists = (name) => path.resolve(name) === VIRTUAL || fileExists(name);
+    const program = ts.createProgram([VIRTUAL], options, host);
+    return ts.getPreEmitDiagnostics(program, program.getSourceFile(VIRTUAL)).map((d) => ts.flattenDiagnosticMessageText(d.messageText, '\n'));
+  }
+
+  it('reads compile (the control)', () => {
+    expect(errors('  return v.structures.type[0] + v.structures.owner[1] + v.structures.idAt(3) + v.owner[0] + v.falloutUntilAt(0);')).toEqual([]);
+  });
+
+  for (const [name, line] of [
+    ['a structure type', '  v.structures.type[0] = 1;'],
+    ['a structure level', '  v.structures.level[2] = 3;'],
+    ['the structure table itself', '  v.structures = v.structures;'],
+    ['a count', '  v.structures.liveCount = 0;'],
+    ['the owner layer', '  v.owner[0] = 1;'],
+    ['the terrain layer', '  v.terrainClass[0] = 1;'],
+    ['the statistics', '  v.stats.goldMilli[0] = 1;'],
+  ] as Array<[string, string]>) {
+    it(`refuses a write to ${name}`, () => {
+      expect(errors(line).length, line).toBeGreaterThan(0);
+    });
+  }
 });

@@ -725,6 +725,18 @@ ACCEPTANS
 - [x] `e2e/artifact.test.ts` green (globe drawn, zero console errors, no 404)
 - [ ] The spike is published as an Artifact (or the local-run guide is complete); the reply ends with the question: syns klotet?
 
+### M09a: the structure table, the Build / Upgrade / Delete intents, the placement rules and the prices (items 1 to 5 of M09; no rendering, no UI)
+
+Part M09b (effects, conquest, AI driver and AI build move, the scenario economy report) is NOT built here; the table is laid out for it (D-M09a-9).
+
+GÖR
+- [x] 1. `src/sim/structures.ts`: the SoA table (capacity 4096), the deterministic free list (`highWater` plus a recycle stack), the derived cell index and per-owner counts rebuilt on deserialize, `StructureTable`
+- [x] 2. Intents `Build{type,cell}`, `Upgrade{structure}`, `Delete{structure}` (wire kinds 6 to 8), codec, validation, reason codes `REJECT_BUILD_*` / `REJECT_STRUCT_*` / `REJECT_DELETE_COOLDOWN` (21 to 38)
+- [x] 3. `src/sim/public.ts`: `validateBuild` first, price helpers, the type numbers, the read-only `StructureView`; `SimView.structures` and `SimView.falloutUntilAt(cell)` (zero until M14); the sim's Build calls the same `checkBuild`; export list pinned
+- [x] 4. The placement rules in `src/sim/structureRules.ts` (`checkBuild`)
+- [x] 5. Prices, build times, Delete cooldown, spacing in `src/sim/rules.ts` and `docs/BALANCE.md`
+- [x] Tests: `tests/sim/structures.test.ts` (one test per rule and per price rule, round trip, restored run equals straight run), `tests/ai/boundary.test.ts` (pinned list, writing through a SimView does not compile), `tests/structures.perf.test.ts`; golden scenario extended with Build / Upgrade / Delete, both golden files re-pinned once (ENGINE_VERSION 7, FORMAT_VERSION 6)
+
 ## Next
 
 - CamFix is built (D158); the user looks at it in the Artifact (PREVIEW 17aa) in their own window shape. Then the M08 gate items below stand as before.

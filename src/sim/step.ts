@@ -2,7 +2,7 @@
 //
 // A step runs the turn whose index equals state.tick: it validates the turn's intents, puts the valid ones in the
 // canonical order (seat, id, kind, payload), applies them, runs the conquest (every attack takes its cells) and the enclave
-// check, runs the economy, draws once from the state's generator and increments the tick.
+// check, runs the economy and the structure phase (finished upgrades), draws once from the state's generator and increments the tick.
 // An intent that is invalid in this match becomes a no-op and raises state.rejects. step() never throws for bad data: a
 // turn that cannot be run at all (wrong index, not a list, too long) is reported as an error result and leaves the state
 // untouched.
@@ -15,6 +15,7 @@ import { MAX_INTENTS_PER_TURN } from './rules';
 import { OUTBOX_REJECT } from './outbox';
 import { nextU32 } from './rng';
 import { applySpawn } from './spawn';
+import { applyBuild, applyDelete, applyUpgrade, structuresPhase } from './structures';
 import { seatToOwner, type GameState } from './state';
 import { setOwner } from './territory';
 
@@ -46,6 +47,12 @@ export function applyIntent(state: GameState, intent: Intent): number {
       return applyCancelAttack(state, intent.seat, intent.target);
     case 'DebugGive':
       return applyDebugGive(state, intent.seat, intent.gold, intent.troops);
+    case 'Build':
+      return applyBuild(state, intent.seat, intent.type, intent.cell);
+    case 'Upgrade':
+      return applyUpgrade(state, intent.seat, intent.structure);
+    case 'Delete':
+      return applyDelete(state, intent.seat, intent.structure);
     default:
       return REJECT_NONE;
   }
@@ -92,10 +99,11 @@ export function step(state: GameState, turn: TurnIntents): StepResult {
       applied++;
     }
   }
-  // Phases of a tick: 1 intents (above), 2 conquest, 3 enclaves, 4 economy, 5 the generator, 6 the tick.
+  // Phases of a tick: 1 intents (above), 2 conquest, 3 enclaves, 4 economy, 5 structures (finished upgrades), 6 the generator, 7 the tick.
   conquestPhase(state);
   enclavePhase(state);
   economyTick(state);
+  structuresPhase(state);
   if (rejected > 0) state.rejects = (state.rejects + rejected) >>> 0;
   nextU32(state.rng);
   state.tick = (state.tick + 1) >>> 0;

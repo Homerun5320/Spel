@@ -17,7 +17,7 @@ import {
 
 describe('Attack and CancelAttack on the wire', () => {
   it('kind codes 3 and 4, appended after Noop, DebugPaint and Spawn (published codes never change)', () => {
-    expect(INTENT_KINDS).toEqual(['Noop', 'DebugPaint', 'Spawn', 'Attack', 'CancelAttack', 'DebugGive']); // M05 appended DebugGive (kind 5); the first five codes are unchanged
+    expect(INTENT_KINDS).toEqual(['Noop', 'DebugPaint', 'Spawn', 'Attack', 'CancelAttack', 'DebugGive', 'Build', 'Upgrade', 'Delete']); // M05 appended DebugGive (kind 5), M09 part A Build, Upgrade, Delete (6 to 8); the first five codes are unchanged
     expect([kindCode('Attack'), kindCode('CancelAttack')]).toEqual([3, 4]);
   });
 

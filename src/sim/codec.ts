@@ -2,7 +2,7 @@
 // the same number is an error), so every accepted byte string has exactly one meaning and re-encodes to itself.
 //
 //   intent  = kind:u8  seat:u8  id:varint  [payload]
-//     payload: DebugPaint and Spawn: cell:varint;  Attack: target:varint pct:varint;  CancelAttack: target:varint;  DebugGive: gold:varint troops:varint;  Noop: none
+//     payload: DebugPaint and Spawn: cell:varint;  Attack: target:varint pct:varint;  CancelAttack: target:varint;  DebugGive: gold:varint troops:varint;  Build: type:varint cell:varint;  Upgrade and Delete: structure:varint;  Noop: none
 //   turn    = turn:varint  count:varint  intent*count
 //
 // Decoding is total: any bytes give either a value or an error result; nothing throws. The decoder checks only what the
@@ -55,6 +55,11 @@ function intentSize(i: Intent): number {
       return head + varintSize(i.target);
     case 'DebugGive':
       return head + varintSize(i.gold) + varintSize(i.troops);
+    case 'Build':
+      return head + varintSize(i.type) + varintSize(i.cell);
+    case 'Upgrade':
+    case 'Delete':
+      return head + varintSize(i.structure);
     default:
       return head;
   }
@@ -72,7 +77,10 @@ function putIntent(out: Uint8Array, at: number, i: Intent): number {
   else if (i.kind === 'DebugGive') {
     p = putVarint(out, p, i.gold);
     p = putVarint(out, p, i.troops);
-  }
+  } else if (i.kind === 'Build') {
+    p = putVarint(out, p, i.type);
+    p = putVarint(out, p, i.cell);
+  } else if (i.kind === 'Upgrade' || i.kind === 'Delete') p = putVarint(out, p, i.structure);
   return p;
 }
 
@@ -87,6 +95,11 @@ function payloadEncodable(i: Intent): boolean {
       return isU32(i.target);
     case 'DebugGive':
       return isU32(i.gold) && isU32(i.troops);
+    case 'Build':
+      return isU32(i.type) && isU32(i.cell);
+    case 'Upgrade':
+    case 'Delete':
+      return isU32(i.structure);
     default:
       return true;
   }
@@ -186,6 +199,15 @@ class Reader {
       const gold = this.varint();
       const troops = this.varint();
       return this.error === null ? { kind, seat, id, gold, troops } : null;
+    }
+    if (kind === 'Build') {
+      const type = this.varint();
+      const cell = this.varint();
+      return this.error === null ? { kind, seat, id, type, cell } : null;
+    }
+    if (kind === 'Upgrade' || kind === 'Delete') {
+      const structure = this.varint();
+      return this.error === null ? { kind, seat, id, structure } : null;
     }
     return this.error === null ? { kind, seat, id } : null;
   }

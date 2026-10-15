@@ -175,7 +175,8 @@ describe('the trait cap of +-10 %', () => {
     const s = corridor(true);
     const bytes = serialize(s);
     const slots = 5; // seats + 1
-    const portAt = bytes.length - 4 - slots * 2 * 2; // the two u16 blocks end just before the checksum
+    const structureBytes = 12 + slots * 4; // M09 part A: the (empty) structure block sits between the home block and the checksum
+    const portAt = bytes.length - 4 - structureBytes - slots * 2 * 2; // the two u16 blocks end just before the structure block
     for (const [offset, value] of [[portAt + 2 * 2, 1101], [portAt + 2 * 2, 899], [portAt + slots * 2 + 3 * 2, 1500], [portAt + slots * 2 + 3 * 2, 0]] as const) {
       const bad = bytes.slice();
       new DataView(bad.buffer).setUint16(offset, value, true);

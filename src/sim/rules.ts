@@ -254,3 +254,27 @@ export const TRAIT_MOUNTAIN_MID_PERMILLE = 150;
 /** Defence multiplier change in thousandths per thousandth of mountain share, as a percent. A defence multiplier above 1000 makes an attacker pay more. */
 export const TRAIT_MOUNTAIN_GAIN_PCT = 50;
 
+
+// ---------------------------------------------------------------------------------------------------------------
+// Structures (M09 part A): the table, the prices, the build times and the placement rules. The structure types are numbered 1..6
+// in this order (src/sim/structureRules.ts: CITY, FACTORY, PORT, SILO, SAM, POST); the arrays below are indexed by that number
+// (index 0 is the empty type and holds 0). Prices are PROVISIONAL (the M09a block of docs/DECISIONS.md): they are measured against the income of the solo scenario.
+
+/** Slots of the structure table (a structural limit, not a tunable): ids 0..STRUCT_CAPACITY - 1. */
+export const STRUCT_CAPACITY = 4096;
+/** The highest level of a structure; a new structure is level 1. */
+export const STRUCT_MAX_LEVEL = 3;
+/** Base price in gold per type (City, Factory, Port, Silo, SAM, Post). */
+export const BUILD_BASE_GOLD = [0, 400, 500, 400, 1000, 600, 250];
+/** Build time in ticks per type (tick = 0.1 s): City 15 s, Factory 20 s, Port 12 s, Silo 25 s, SAM 20 s, Post 8 s. An upgrade takes the same time. */
+export const BUILD_TICKS = [0, 150, 200, 120, 250, 200, 80];
+/** Price escalation in halves: the price of the next structure of a type is base * min(PRICE_ESCALATION_MAX_HALVES, PRICE_ESCALATION_ONE_HALVES + n) / PRICE_ESCALATION_ONE_HALVES, n = structures of that type the seat owns (also unfinished ones). */
+export const PRICE_ESCALATION_ONE_HALVES = 2;
+/** The cap of the escalation in halves (12 halves = x6). */
+export const PRICE_ESCALATION_MAX_HALVES = 12;
+/** After a Delete the same seat may not Delete again for this many ticks (30 s). */
+export const DELETE_COOLDOWN_TICKS = 300;
+/** Two structures in the spacing scope must be at least this many sim cells apart (a Euclidean distance, x wrapping, no latitude weight). */
+export const SPACING_CELLS = 16;
+/** Which structures the spacing applies between: 0 = the same type, any owner; 1 = the same type, same owner; 2 = any type, any owner. M19 may change it. */
+export const SPACING_SCOPE = 0;
