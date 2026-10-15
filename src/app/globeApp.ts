@@ -30,7 +30,11 @@ import { createBuildBar, type BuildBar } from '../ui/buildBar';
 import { buildRejectKey } from '../ui/buildReasons';
 import { mountToasts, showToast, tickToasts, visibleToastKeys } from '../ui/toast';
 import { createPlacementMode, type PlacementMode, type PlacementState } from './placement';
-import { STRUCT_CITY, buildBody, validateBuild } from '../sim/public';
+import { STRUCT_CITY, buildBody, deleteBody, upgradeBody, validateBuild } from '../sim/public';
+import { CLASS_MOUNTAIN } from '../sim/terrain';
+import { createSelectionPanel, type SelectionPanel } from '../ui/selectionPanel';
+import { rangeRingCells, selectionInfo } from '../ui/structureInfo';
+import { createSelectionMode, pickStructure, type SelectionMode } from './structureSelect';
 import { createMatchHud, notConquerableText, rejectText, type MatchHud, type MatchHudModel } from '../ui/matchHud';
 import { getLanguage, onLanguageChange, setStrictI18n, t, type TextKey } from '../ui/i18n';
 import { GPU_TIP_PREF_KEY, START_FLY_KM, START_SPIN_DEG_PER_S, SETUP_IDLE_DIST_KM } from '../ui/uiConfig';
@@ -119,6 +123,11 @@ export interface PropsInfo {
   toasts: string[];
   /** Whether the build bar is shown, and the price on the City button. */
   buildBar: { visible: boolean; cityPrice: number };
+  /** M10-4: the selected structure id (-1 = none), the ring mesh, the icons and the lit night lights. */
+  selection: { id: number; panelVisible: boolean; ring: { visible: boolean; rangeCells: number; drawIndices: number } };
+  icons: number;
+  /** Lit city lights (levels of finished Cities on the night side). */
+  litLights: number;
 }
 
 /** The terrain numbers of the last rendered frame (`__test.state().terrain`, `__test.terrain()`). */
@@ -458,6 +467,10 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   /** The structure type being placed (0 = none) and its mode on the input stack. */
   let placing = 0;
   let placementMode = null as PlacementMode | null;
+  /** M10-4: the selected structure (-1 = none), its mode on the input stack and the panel. */
+  let selectedId = -1;
+  let selectionMode = null as SelectionMode | null;
+  let selectPanel = null as SelectionPanel | null;
   let startScreen = null as StartScreen | null;
   let setupScreen = null as SetupScreen | null;
   const ownerCss: string[] = [];
@@ -498,6 +511,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     wrapper.appendChild(buildRoot);
     buildBar = createBuildBar(buildRoot, { select: (type) => enterPlacement(type) });
     buildBarWanted = !params.test || ctx.state.raw.hud === '1';
+    selectPanel = createSelectionPanel(buildRoot, { upgrade: (id) => s.submit(upgradeBody(s.localSeat, id)), remove: (id) => s.submit(deleteBody(s.localSeat, id)) });
     buildBar.setVisible(false);
     // The two link chips of the start page sit above the HUD (they are outside the wrapper); the Dev panel lists the same pages.
     setLinkChipsHidden(true);
@@ -551,6 +565,16 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       buildBar.setVisible(buildBarWanted && (session.view.stats.capital[L] as number) !== 0);
       buildBar.update(session.view, L, placing);
     }
+    if (selectedId >= 0) {
+      const info = selectionInfo(session.view, L, selectedId);
+      if (info === null || !info.owned) {
+        exitSelection(); // destroyed, deleted or conquered
+      } else {
+        const onMountain = session.view.terrainClass[session.view.structures.cell[selectedId] as number] === CLASS_MOUNTAIN;
+        globe.structures.setSelection(selectedId, rangeRingCells(info.type, info.level, onMountain));
+        selectPanel?.update(buildBarWanted ? info : null, onMountain);
+      }
+    }
     const refused = session.takeNewReject();
     if (refused !== 0) hud.toast(rejectText(refused), fxNow());
   };
@@ -580,6 +604,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     const sess = session;
     if (sess === null) return;
     if (pick === null) return;
+    if (trySelectStructure(x, y)) return;
     const v = sess.view;
     const L = sess.localSeat;
     const cell = resolveClickCell(pick, v.terrainClass, v.width, v.height);
@@ -800,6 +825,56 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   };
   const inputStack = new InputStack(createBaseMode(inputTarget));
   tickInput = (now) => inputStack.tick(now);
+  // --- Selection (M10-4): a click on an own structure selects it (outline ring, panel; Esc or a click on empty ground deselects) -------------------------------
+  const exitSelection = (): void => {
+    if (selectionMode !== null && inputStack.top === selectionMode) inputStack.pop();
+    selectPanel?.update(null, false);
+  };
+  const structureAtCell = (cell: number): number => {
+    const sess = session;
+    return sess === null ? -1 : pickStructure(sess.view.structures, world.sim.width, world.sim.height, cell, sess.localOwner);
+  };
+  const cellAt = (x: number, y: number): number | null => {
+    const h = globe.pickGroundAt(x, y);
+    return h === null ? null : latLonToCell(h.lat, h.lon, world.sim.width, world.sim.height).index;
+  };
+  const selectStructure = (id: number): void => {
+    if (selectionMode !== null && selectedId === id) return;
+    if (selectionMode !== null) {
+      selectedId = id; // the mode stays on the stack, the selection moved
+      return;
+    }
+    selectedId = id;
+    const mode = createSelectionMode(id, {
+      pickCell: cellAt,
+      structureAt: structureAtCell,
+      reselect: (next) => {
+        selectedId = next;
+        refreshHud();
+      },
+      ended: () => {
+        selectedId = -1;
+        selectionMode = null;
+        globe.structures.setSelection(-1);
+        selectPanel?.update(null, false);
+      },
+      exit: exitSelection,
+    });
+    selectionMode = mode;
+    inputStack.push(mode);
+    refreshHud();
+  };
+  /** The base mode's click: true when it selected a structure (then it does not also attack). */
+  const trySelectStructure = (x: number, y: number): boolean => {
+    const sess = session;
+    if (sess === null || placing !== 0 || (sess.view.stats.capital[sess.localSeat] as number) === 0) return false;
+    const cell = cellAt(x, y);
+    if (cell === null) return false;
+    const id = structureAtCell(cell);
+    if (id < 0) return false;
+    selectStructure(id);
+    return true;
+  };
   // --- Placement (M10): key 1 or the build button pushes the placement mode; the ghost is the layer's, the rules are the sim's (validateBuild) --------------
   const exitPlacement = (): void => {
     if (placementMode !== null && inputStack.top === placementMode) inputStack.pop();
@@ -810,6 +885,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     const L = sess.localSeat;
     if ((sess.view.stats.capital[L] as number) === 0) return; // nothing to build on before the spawn
     const same = placing === type;
+    exitSelection();
     exitPlacement();
     if (same) return; // the key or the button again leaves the mode
     placing = type;
@@ -999,6 +1075,9 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       ghost: placementMode === null ? null : placementMode.state(),
       toasts: visibleToastKeys(),
       buildBar: { visible: buildBar !== null && !buildBar.root.hidden, cityPrice: price },
+      selection: { id: selectedId, panelVisible: selectPanel !== null && !selectPanel.root.hidden, ring: layer.ringInfo() },
+      icons: layer.iconCount(),
+      litLights: layer.litLights(),
     };
   };
   const matchState = (): MatchStateInfo | null => {

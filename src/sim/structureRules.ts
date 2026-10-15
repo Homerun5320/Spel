@@ -211,3 +211,19 @@ export function checkDelete(structures: StructureView, tick: number, seat: numbe
 export function validateBuild(view: SimView, seat: number, type: number, cell: number): number {
   return checkBuild(view, view.stats.goldMilli[seat] as number, seat, type, cell);
 }
+
+// ---- M10-4: the public face of the Upgrade / Delete checks ----------------------------------------------------------------------------------------------
+
+/**
+ * Why `seat` could not Upgrade structure `id` right now in the snapshot `view` (REJECT_NONE = it could): REJECT_STRUCT_ID (no such structure),
+ * REJECT_STRUCT_NOT_OWNER, REJECT_STRUCT_MAX_LEVEL, REJECT_STRUCT_BUSY (still under construction or already upgrading) or REJECT_BUILD_GOLD.
+ * The sim's `applyUpgrade` runs the same `checkUpgrade`.
+ */
+export function validateUpgrade(view: SimView, seat: number, structureId: number): number {
+  return checkUpgrade(view.structures, view.tick, view.stats.goldMilli[seat] as number, seat, structureId);
+}
+
+/** Why `seat` could not Delete structure `id` right now (REJECT_STRUCT_ID, REJECT_STRUCT_NOT_OWNER, REJECT_DELETE_COOLDOWN); the sim's `applyDelete` runs the same `checkDelete`. */
+export function validateDelete(view: SimView, seat: number, structureId: number): number {
+  return checkDelete(view.structures, view.tick, seat, structureId);
+}

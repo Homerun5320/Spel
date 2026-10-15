@@ -90,3 +90,21 @@ export {
   START_DISC_RADIUS_CELLS,
   WEIGHT_ONE,
 } from './rules';
+
+// M10-4: the Upgrade / Delete checks and reason codes, and the effect numbers the selection panel shows (each has a row in docs/BALANCE.md).
+export { validateDelete, validateUpgrade } from './structureRules';
+export { REJECT_DELETE_COOLDOWN, REJECT_STRUCT_BUSY, REJECT_STRUCT_ID, REJECT_STRUCT_MAX_LEVEL, REJECT_STRUCT_NOT_OWNER } from './intents';
+export { samRadiusCells } from './structureEffects';
+export {
+  CAP_CITY_LEVEL_TROOPS,
+  CITY_GOLD_MILLI_PER_SEC_PER_LEVEL,
+  DELETE_COOLDOWN_TICKS,
+  FACTORY_CITY_BONUS_PCT,
+  FACTORY_GOLD_MILLI_PER_SEC,
+  FACTORY_RADIUS_CELLS,
+  PORT_GOLD_MILLI_PER_SEC,
+  POST_COST_DEN,
+  POST_COST_NUM,
+  POST_RADIUS_CELLS,
+  TICK_HZ,
+} from './rules';

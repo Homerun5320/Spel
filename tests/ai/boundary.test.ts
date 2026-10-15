@@ -201,6 +201,7 @@ describe('types: what src/sim/public.ts lets the AI reach', () => {
         'upgradeBody',
         'upgradePriceGold',
         'validateBuild',
+        'validateUpgrade', 'validateDelete', 'REJECT_DELETE_COOLDOWN', 'REJECT_STRUCT_BUSY', 'REJECT_STRUCT_ID', 'REJECT_STRUCT_MAX_LEVEL', 'REJECT_STRUCT_NOT_OWNER', 'samRadiusCells', 'CAP_CITY_LEVEL_TROOPS', 'CITY_GOLD_MILLI_PER_SEC_PER_LEVEL', 'DELETE_COOLDOWN_TICKS', 'FACTORY_CITY_BONUS_PCT', 'FACTORY_GOLD_MILLI_PER_SEC', 'FACTORY_RADIUS_CELLS', 'PORT_GOLD_MILLI_PER_SEC', 'POST_COST_DEN', 'POST_COST_NUM', 'POST_RADIUS_CELLS', 'TICK_HZ', // M10-4
       ].sort(),
     );
   });

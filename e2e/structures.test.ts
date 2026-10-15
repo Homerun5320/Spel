@@ -8,6 +8,7 @@ import type { Browser, Page } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
 import { OUT_DIR, compareGolden, decodePng, analyzeImage, launchBrowser, openPage } from '../scripts/shot.mjs';
 import { timeForSubsolarLon } from '../src/render/geo';
+import { CITY_LIGHT_COUNT } from '../src/render/structureModels';
 import { REJECT_BUILD_PEAK, REJECT_BUILD_SPACING, REJECT_NONE } from '../src/sim/intents';
 import { STRUCT_CITY } from '../src/sim/structureRules';
 import { CLASS_PEAK } from '../src/sim/terrain';
@@ -254,7 +255,8 @@ describe('the City on the terrain', () => {
       expect(props.cityTriangles).toBeLessThanOrEqual(300);
       expect(withCity.drawCalls - base.drawCalls).toBeGreaterThanOrEqual(1);
       expect(withCity.drawCalls - base.drawCalls).toBeLessThanOrEqual(2);
-      expect(withCity.triangles - base.triangles).toBe(props.cityTriangles);
+      // M10-4: the City's three bulbs (8 triangles each) ride in its instance buffers and its far icon is one quad (2 triangles)
+      expect(withCity.triangles - base.triangles).toBe(props.cityTriangles + CITY_LIGHT_COUNT * 8 + 2);
       const png = await page.screenshot({ type: 'png' });
       fs.writeFileSync(path.join(SHOT_DIR, 'structures-city-closeup.png'), png);
       await t.view(farView);

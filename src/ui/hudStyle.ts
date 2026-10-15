@@ -83,6 +83,17 @@ export function hudCss(): string {
 .toast { width: max-content; max-width: min(30em, calc(100vw - 2em)); text-align: center; padding: 0.45em 1em; border-radius: 0.6em; background: ${C.panel}; color: ${C.text}; border: 1px solid ${C.panelBorder}; box-shadow: 0 0.15em 0.7em rgba(0, 0, 0, 0.5); }
 .toast[data-kind="error"] { border-color: ${C.danger}; }
 .toast[data-kind="warn"] { border-color: ${C.barWarning}; }
+/* M10-4: the selection panel sits bottom left above the status panel and wraps on a narrow window. */
+.sel-panel { position: absolute; left: 0.6em; bottom: 9.6em; width: 17.5em; max-width: calc(100vw - 1.2em); padding: 0.45em 0.6em 0.5em; display: flex; flex-direction: column; gap: 0.25em; pointer-events: auto; }
+.sel-panel[hidden] { display: none !important; }
+.sel-name { font-weight: 800; font-size: 1.05em; }
+.sel-level, .sel-note { color: ${C.textDim}; font-size: 0.85em; }
+.sel-state { color: ${C.barWarning}; font-size: 0.85em; }
+.sel-fx { font-size: 0.9em; }
+.sel-row { display: flex; flex-wrap: wrap; gap: 0.4em; margin-top: 0.2em; }
+.sel-btn { min-height: ${target}; padding: 0 0.8em; border-radius: 0.5em; border: 1px solid ${C.buttonBorder}; background: ${C.button}; color: ${C.text}; font: inherit; font-weight: 700; cursor: pointer; touch-action: manipulation; }
+.sel-btn:hover { background: ${C.buttonActive}; }
+.sel-btn[data-state="dim"] { opacity: 0.5; border-style: dashed; cursor: not-allowed; }
 
 /* Narrow screens (a phone held upright, D107): the banner takes the whole top row left of the Dev button, with the countdown beside the
    text; the leaderboard sits below it, so nothing overlaps the banner, the board or the Dev button (48 px + 8 px margins). */
@@ -101,6 +112,7 @@ export function hudCss(): string {
   .build-btn { min-width: 0; padding: 0 0.4em; gap: 0.3em; }
   .build-name { font-size: 0.8em; }
   .toast-stack { bottom: 28em; }
+  .sel-panel { left: 8px; bottom: 21em; width: auto; max-width: min(17.5em, calc(100vw - 16px)); }
 }
 
 .start-root { position: absolute; inset: 0; z-index: ${Z_START_SCREEN}; display: flex; align-items: safe center; justify-content: center; padding: 1em; background: radial-gradient(ellipse at center, ${C.scrim} 0%, ${C.scrimEdge} 100%); overflow: auto; }

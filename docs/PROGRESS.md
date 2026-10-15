@@ -798,6 +798,18 @@ Base: 3d1a2bd. Slice: ONLY the three military models, buttons and keys 4 to 6. F
 - [x] 3. Both golden hash files re-pinned once; no version bump (no layout change)
 - [x] Tests: `tests/sim/structureLevels.test.ts`, `tests/ai/richUpgrade.test.ts`, `tests/sim/economyScript.test.ts` (band [1.0, 1.5]); pace, driver, perf unchanged and green
 
+### M10-4: selection panel, range rings, night lights, far icons (slice 4 of M10; own worktree; the orchestrator owns merging, pushing and the Artifact)
+
+Base: f42fac3. Slice: the rest of the M10 prompt's items 3 and 4 that was open after M10-3.
+
+- [x] 0. Base repair: `src/render/structureModels.ts` at the base did not compile (the merge of M10-2 and M10-3 lost the closing `return m.done(); }` of `buildPort` and left two methods called `prism`); the M10-2 one is now `column` (same geometry, so the Factory golden is unchanged)
+- [x] 1. Selection: a click on an own structure (the cell or the nearest own one within one cell) selects it; panel with name, level, sim effect numbers, upgrade price, delete cooldown; Upgrade / Delete send the intents; Esc or a click on empty ground deselects; dimmed buttons with the reason as tooltip; `validateUpgrade` / `validateDelete` in `src/sim/public.ts` (the sim's own validation runs the same `checkUpgrade` / `checkDelete`)
+- [x] 2. Range rings for the selected SAM (sim radius per level, +20 % on a Mountain) and Defense Post, in the same ring mesh as the selection ring (one draw call)
+- [x] 3. Night lights: the City's level 1 to 3 gives 1 to 3 bulbs lit on the night side (vertex shader, no draw call), `__test.props().litLights`
+- [x] 4. Far icons: an owner-coloured badge per structure (a shape per type in the fragment shader), one draw call for all types, cross-fade by the model's projected radius
+- [x] 5. i18n sv + en (`sel.*`), HUD hint line in the panel
+- [x] ACCEPTANS: `tests/sim/structureValidators.test.ts`, `tests/app/structureSelect.test.ts` (pure selection, ring and icon numbers), `e2e/structuresSelect.test.ts` (select, panel numbers, Upgrade, Delete and cooldown, Esc, SAM / Post ring, night lights per level, far icons, portrait and landscape layout), golden `structures-select.png`; `npm run verify:fast` (see the report for its result)
+
 ## Next
 
 - CamFix is built (D158); the user looks at it in the Artifact (PREVIEW 17aa) in their own window shape. Then the M08 gate items below stand as before.

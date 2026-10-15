@@ -503,7 +503,7 @@ export class Globe {
     c.updateProjectionMatrix();
     c.lookAt(p.target[0], p.target[1], p.target[2]);
     c.updateMatrixWorld();
-    this.structures.frame(p.position, now, this.tickFraction);
+    this.structures.frame(p.position, now, this.tickFraction, this.renderer.domElement.height);
     this.chunkTerrain?.update(p);
     if (draw) {
       const timer = this.gpuTimer;

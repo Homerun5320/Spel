@@ -268,3 +268,11 @@ Everything here would shorten `verify` further; each needs a per-test reset cont
 - `think` still races on a Spawn-time Attack with no contact (REJECT_NO_CONTACT, one in Skirmish seed 3 at some gate values): the driver test with zero refusals is sensitive to every AI number. A guard in `think` (re-check the contact length two ticks ahead is impossible, so skip contacts of one cell) would remove the chaos.
 - The Factory bonus slot rule (3 Cities per Factory) is not shown anywhere in the UI.
 
+
+## M10-4
+- The Silo range ring (the provisional `SILO_PREVIEW_RANGE_CELLS`) and the hover ring of the prompt are not built; only the selected SAM and Defense Post draw a ring.
+- Clicking an ENEMY structure does not select it (it attacks the cell as before); an info panel for other owners' buildings would need its own rules.
+- A right click does not deselect (Escape and a click on empty ground do).
+- The icon badges have no night dimming and no hover tooltip; at the globe's limb they can sit half behind the horizon.
+- The City lights are floating diamonds; lamp posts or window quads would read better close up.
+- The selection panel shows no owner name (own structures only) and no per-level preview of the next level's numbers.
