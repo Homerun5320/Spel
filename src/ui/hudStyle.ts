@@ -72,8 +72,13 @@ export function hudCss(): string {
 .build-btn[data-state="poor"] { opacity: 0.55; border-color: ${C.panelBorder}; }
 .build-key { color: ${C.textDim}; font-size: 0.8em; }
 .build-price { color: ${C.gold}; font-variant-numeric: tabular-nums; }
+/* M10-3: six buttons do not fit one row at 960 px or on a phone: the bar wraps and shrinks its labels. */
+.build-bar { flex-wrap: wrap; justify-content: center; max-width: min(23em, calc(100vw - 1em)); }
+.build-btn[data-state="locked"] { opacity: 0.45; border-style: dashed; }
+@media (max-width: 1100px) { .build-btn { padding: 0 0.5em; gap: 0.35em; } .build-name { font-size: 0.85em; } }
+.build-bar ~ .build-hint { bottom: 10.8em; }
 .build-hint { position: absolute; left: 50%; bottom: 4.6em; transform: translateX(-50%); width: max-content; max-width: min(20em, calc(100vw - 2em)); text-align: center; padding: 0.35em 0.9em; pointer-events: none; font-size: 0.9em; }
-.toast-stack { position: absolute; left: 50%; bottom: 14em; transform: translateX(-50%); display: flex; flex-direction: column; gap: 0.35em; align-items: center; z-index: ${Z_HUD + 1}; pointer-events: none; font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; font-size: ${fontSize}; }
+.toast-stack { position: absolute; left: 50%; bottom: 17em; transform: translateX(-50%); display: flex; flex-direction: column; gap: 0.35em; align-items: center; z-index: ${Z_HUD + 1}; pointer-events: none; font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; font-size: ${fontSize}; }
 .toast { width: max-content; max-width: min(30em, calc(100vw - 2em)); text-align: center; padding: 0.45em 1em; border-radius: 0.6em; background: ${C.panel}; color: ${C.text}; border: 1px solid ${C.panelBorder}; box-shadow: 0 0.15em 0.7em rgba(0, 0, 0, 0.5); }
 .toast[data-kind="error"] { border-color: ${C.danger}; }
 .toast[data-kind="warn"] { border-color: ${C.barWarning}; }
@@ -90,8 +95,9 @@ export function hudCss(): string {
   .hud-row { min-height: 1.5em; }
   .hud-toast { bottom: 17em; }
   .build-bar { bottom: 11.5em; }
-  .build-hint { bottom: 16em; }
-  .toast-stack { bottom: 23em; }
+  .build-bar { left: auto; right: 8px; transform: none; max-width: calc(100vw - 11.5em); justify-content: flex-end; }
+  .build-bar ~ .build-hint { left: auto; right: 8px; transform: none; bottom: 23em; }
+  .toast-stack { bottom: 30em; }
 }
 
 .start-root { position: absolute; inset: 0; z-index: ${Z_START_SCREEN}; display: flex; align-items: safe center; justify-content: center; padding: 1em; background: radial-gradient(ellipse at center, ${C.scrim} 0%, ${C.scrimEdge} 100%); overflow: auto; }

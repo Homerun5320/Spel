@@ -174,6 +174,14 @@ const sv = {
   'toast.build.noFactory': 'En silo kräver en färdig fabrik.',
   'toast.build.gold': 'För lite guld.',
   'toast.build.full': 'Det finns inte plats för fler byggnader.',
+  'hud.build.silo': 'Missilsilo',
+  'hud.build.siloTip': 'Bygg en silo (tangent 4). Kräver en färdig egen fabrik. Pris: {price} guld.',
+  'hud.build.sam': 'Luftvärn',
+  'hud.build.samTip': 'Bygg ett luftvärn (SAM, tangent 5). Kan stå på berg. Pris: {price} guld.',
+  'hud.build.post': 'Försvarspost',
+  'hud.build.postTip': 'Bygg en försvarspost (tangent 6). Kan stå på berg. Pris: {price} guld.',
+  'hud.build.tooPoorOf': 'För lite guld: {name} kostar {price} guld.',
+  'hud.build.needFactory': '{name} kräver en färdig egen fabrik.',
 } as const;
 
 export type TextKey = keyof typeof sv;
@@ -341,6 +349,14 @@ const en: Record<TextKey, string> = {
   'toast.build.noFactory': 'A silo needs a finished factory.',
   'toast.build.gold': 'Not enough gold.',
   'toast.build.full': 'There is no room for more buildings.',
+  'hud.build.silo': 'Silo',
+  'hud.build.siloTip': 'Build a silo (key 4). Needs a finished factory of your own. Price: {price} gold.',
+  'hud.build.sam': 'SAM site',
+  'hud.build.samTip': 'Build a SAM site (key 5). Can stand on mountains. Price: {price} gold.',
+  'hud.build.post': 'Defense post',
+  'hud.build.postTip': 'Build a defense post (key 6). Can stand on mountains. Price: {price} gold.',
+  'hud.build.tooPoorOf': 'Not enough gold: {name} costs {price} gold.',
+  'hud.build.needFactory': '{name} needs a finished factory of your own.',
 };
 
 /** The two tables, for the parity test and for tools. Treat as read-only. */

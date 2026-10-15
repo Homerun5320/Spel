@@ -18,6 +18,7 @@ uniform float uTime;       // fx seconds
 uniform float uTick;       // the sim tick as a fraction
 uniform float uPopSeconds;
 uniform float uBuildMin;
+uniform float uSpin;       // the angle (rad, 0..2pi) of a part flagged to turn (aTint >= 2: the SAM dish); the layer wraps fx time x speed so the sine stays precise
 
 attribute vec3 aColor;
 attribute float aTint;
@@ -61,13 +62,18 @@ void main() {
   float cy = cos(aParams.y);
   float sy = sin(aParams.y);
   vec3 p = position;
+  float spins = step(1.5, aTint);
+  float sa = uSpin * spins; // the turning part (flag in aTint) sweeps round the model's y axis; the instance's yaw is its phase
+  float cs = cos(sa);
+  float ss = sin(sa);
+  p = vec3(p.x * cs - p.z * ss, p.y, p.x * ss + p.z * cs);
   vec3 local = vec3(p.x * cy - p.z * sy, p.y * hs, p.x * sy + p.z * cy) * (k * popScale);
   vec3 rel = rel0 + east * local.x + up * local.y + north * local.z;
   vRel = rel;
   vColor = aColor;
   vOwner = aOwner;
-  vTint = aTint;
-  vUp = p.y;
+  vTint = aTint - 2.0 * spins;
+  vUp = position.y;
   vProgress = progress;
   vUpDir = up;
   gl_Position = projectionMatrix * vec4(mat3(viewMatrix) * rel, 1.0);

@@ -251,3 +251,9 @@ Everything here would shorten `verify` further; each needs a per-test reset cont
 - The ghost goes red on a cell the player already sent a Build for in the same frame batch (the table is updated one diff later); Shift + click on one cell twice sends two intents and the sim refuses the second (a toast shows that).
 - The distant look: the City is a 10 px speck from 1 500 km with its pale rim as the only contrast on the owner's own colour; a flag or an outline would read better. No atmosphere haze is applied to structures.
 - `buildProgress` is drawn as height growth and a stipple; a scaffold or crane silhouette would say more.
+
+## From M10-3 (slice 3: Silo, SAM site, Defense Post)
+- The Silo's missile is cut by the top of the close-up crop in the golden sheet; a taller crop or a lower pitch would show it whole.
+- The Silo and SAM have no range ring yet (SAM radius from the sim, the provisional Silo ring), no launch or firing animation (M14), no night lights.
+- The Defense Post wall ring and the Silo pad are decoration; a level-dependent look (a second tower at level 3) would make an upgrade visible.
+- A heavier test of the dish at orbit distances: from far away the scale policy makes all three types the same speck; the icon LOD is what would tell them apart.

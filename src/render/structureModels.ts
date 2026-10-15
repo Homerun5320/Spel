@@ -6,7 +6,7 @@
 // reaches below it so that the base never floats over a slope). `radiusM` is what one unit is in metres at true size; the layer multiplies
 // by it, by the level scale and by the scale policy. Every vertex has a colour and a TINT: tint 1 takes the owner's colour, 0 keeps the
 // model's own. Normals are not stored: the fragment shader takes the flat normal from screen derivatives (the stylised look of the terrain).
-import { STRUCT_CITY } from '../sim/public';
+import { STRUCT_CITY, STRUCT_POST, STRUCT_SAM, STRUCT_SILO } from '../sim/public';
 
 export interface ModelData {
   /** x, y, z per vertex, three vertices per triangle (non-indexed). */
@@ -109,6 +109,49 @@ class MeshBuilder {
     for (let k = 0; k < n; k++) this.tri([0, y, 0], ring(k + 1), ring(k), color, tint);
   }
 
+  /** A tapered n-sided prism (a frustum) around (cx, cz): radius r0 at y0, r1 at y1, side walls plus a top cap (tint `topTint`); no bottom. */
+  prism(n: number, cx: number, cz: number, r0: number, r1: number, y0: number, y1: number, side: Rgb, top: Rgb, topTint: number, sideTint = 0, turn = 0): void {
+    const ring = (k: number, r: number, y: number): Rgb => [cx + Math.cos(((k + 0.5) / n) * Math.PI * 2 + turn) * r, y, cz + Math.sin(((k + 0.5) / n) * Math.PI * 2 + turn) * r];
+    const c: Rgb = [cx, y1, cz];
+    for (let k = 0; k < n; k++) {
+      this.quad(ring(k, r0, y0), ring(k + 1, r0, y0), ring(k + 1, r1, y1), ring(k, r1, y1), side, sideTint);
+      if (r1 > 0) this.tri(c, ring(k + 1, r1, y1), ring(k, r1, y1), top, topTint);
+    }
+  }
+
+  /** A square-sectioned beam from point a to point b with half-width h (open ends capped). Used for tubes and rails at an angle. */
+  beam(a: Rgb, b: Rgb, h: number, color: Rgb, tint: number, cap: Rgb = color): void {
+    const d = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+    const len = Math.hypot(d[0] as number, d[1] as number, d[2] as number);
+    const f = [(d[0] as number) / len, (d[1] as number) / len, (d[2] as number) / len];
+    // a side vector perpendicular to the axis (the axis is never vertical in the models that use it, or the cross product falls back to x)
+    let sx = f[2] as number;
+    const sy = 0;
+    let sz = -(f[0] as number);
+    const sl = Math.hypot(sx, sz);
+    if (sl < 1e-6) {
+      sx = 1;
+      sz = 0;
+    } else {
+      sx /= sl;
+      sz /= sl;
+    }
+    // u = f x s
+    const ux = (f[1] as number) * sz - (f[2] as number) * sy;
+    const uy = (f[2] as number) * sx - (f[0] as number) * sz;
+    const uz = (f[0] as number) * sy - (f[1] as number) * sx;
+    const corner = (p: Rgb, i: number): Rgb => {
+      const a1 = i === 0 || i === 3 ? -1 : 1;
+      const b1 = i < 2 ? -1 : 1;
+      return [p[0] + (sx * a1 + ux * b1) * h, p[1] + (sy * a1 + uy * b1) * h, p[2] + (sz * a1 + uz * b1) * h];
+    };
+    for (let i = 0; i < 4; i++) {
+      const j = (i + 1) % 4;
+      this.quad(corner(a, i), corner(a, j), corner(b, j), corner(b, i), color, tint);
+    }
+    this.quad(corner(b, 0), corner(b, 1), corner(b, 2), corner(b, 3), cap, tint);
+  }
+
   done(): ModelData {
     return { positions: Float32Array.from(this.p), colors: Float32Array.from(this.c), tints: Float32Array.from(this.t), triangles: this.p.length / 9 };
   }
@@ -159,9 +202,90 @@ function buildCity(): ModelData {
   return m.done();
 }
 
+// --- M10-3: Silo, SAM site, Defense Post ---------------------------------------------------------------------------------------------
+// Each sits on the same kind of owner-coloured plate as the City (so the owner reads from above), with a silhouette of its own: the Silo is LOW
+// with a missile standing on a pad, the SAM site is a launcher rack with a big turning dish, the Post is the only TALL SLIM tower inside a wall ring.
+const CONCRETE: Rgb = [0.62, 0.62, 0.6];
+const CONCRETE_DARK: Rgb = [0.4, 0.4, 0.42];
+const HATCH: Rgb = [0.22, 0.23, 0.26];
+const PAD: Rgb = [0.3, 0.3, 0.32];
+const MISSILE: Rgb = [0.93, 0.93, 0.9];
+const OLIVE: Rgb = [0.36, 0.42, 0.3];
+const STONE: Rgb = [0.74, 0.7, 0.62];
+const STONE_DARK: Rgb = [0.55, 0.52, 0.47];
+const SPIN = 2; // aTint offset: the part turns round the model's y axis (the SAM dish)
+
+/** The Silo: a squat round bunker with a split hatch opening in a V, and a launch pad with a missile standing on it. */
+function buildSilo(): ModelData {
+  const m = new MeshBuilder();
+  m.plate(8, 1.0, -0.22, 0.04, PLATE_RIM, 0, PLATE_SIDE);
+  m.disc(8, 0.8, 0.055, PLATE_TOP, 1);
+  // the bunker: a wide low frustum with a flat roof, west of the centre
+  m.prism(10, -0.28, 0, 0.5, 0.4, 0.05, 0.3, CONCRETE, CONCRETE_DARK, 0);
+  // the hatch: a dark slot in the roof with two door leaves swung up in a V
+  m.box(-0.28, 0, 0.5, 0.3, 0.3, 0.31, 0, HATCH, HATCH, 0);
+  m.quad([-0.53, 0.31, -0.15], [-0.03, 0.31, -0.15], [-0.03, 0.46, -0.3], [-0.53, 0.46, -0.3], CONCRETE_DARK, 0);
+  m.quad([-0.03, 0.31, 0.15], [-0.53, 0.31, 0.15], [-0.53, 0.46, 0.3], [-0.03, 0.46, 0.3], CONCRETE_DARK, 0);
+  // the pad: a dark slab east of the bunker with an owner-coloured stripe, and the missile standing on it
+  m.box(0.52, 0, 0.5, 0.56, 0.05, 0.1, 0, PAD, PAD, 0);
+  m.box(0.52, 0.2, 0.5, 0.06, 0.1, 0.105, 0, PAD, PLATE_TOP, 1);
+  m.box(0.52, -0.2, 0.5, 0.06, 0.1, 0.105, 0, PAD, PLATE_TOP, 1);
+  m.prism(6, 0.52, 0, 0.1, 0.1, 0.1, 0.72, MISSILE, MISSILE, 0);
+  m.prism(6, 0.52, 0, 0.1, 0, 0.72, 0.98, PLATE_TOP, PLATE_TOP, 1, 1); // the nose cone takes the owner colour
+  m.beam([0.52, 0.1, 0.1], [0.52, 0.28, 0.24], 0.02, MISSILE, 0); // two small fins
+  m.beam([0.52, 0.1, -0.1], [0.52, 0.28, -0.24], 0.02, MISSILE, 0);
+  return m.done();
+}
+
+/** The SAM site: a hexagonal pedestal with a rack of two angled launch tubes, and a tall mast with a big dish that turns (aTint >= 2). */
+function buildSam(): ModelData {
+  const m = new MeshBuilder();
+  m.plate(8, 1.0, -0.22, 0.04, PLATE_RIM, 0, PLATE_SIDE);
+  m.disc(8, 0.8, 0.055, PLATE_TOP, 1);
+  m.prism(6, 0, 0, 0.3, 0.22, 0.05, 0.22, CONCRETE, CONCRETE_DARK, 0);
+  // the launcher rack: two tubes pointing up and to the west, a frame between them
+  m.beam([-0.12, 0.16, -0.26], [-0.62, 0.5, -0.26], 0.07, OLIVE, 0, HATCH);
+  m.beam([-0.12, 0.16, 0.26], [-0.62, 0.5, 0.26], 0.07, OLIVE, 0, HATCH);
+  m.beam([-0.4, 0.34, -0.26], [-0.4, 0.34, 0.26], 0.035, CONCRETE_DARK, 0);
+  // the turning part: a mast and a dish on an arm to the east. The dish is a cone opening towards +x with a rim.
+  m.prism(5, 0, 0, 0.05, 0.05, 0.22, 0.84, CONCRETE, CONCRETE, SPIN);
+  m.beam([0, 0.82, 0], [0.12, 0.9, 0], 0.025, HATCH, SPIN);
+  const apex: Rgb = [0.12, 0.9, 0];
+  const rim = (k: number, x: number, r: number): Rgb => [x, 0.96 + Math.cos(((k + 0.5) / 7) * Math.PI * 2) * r, Math.sin(((k + 0.5) / 7) * Math.PI * 2) * r];
+  for (let k = 0; k < 7; k++) {
+    m.tri(apex, rim(k, 0.46, 0.3), rim(k + 1, 0.46, 0.3), MISSILE, SPIN + 1); // the dish face: a shallow bowl in the owner colour
+    m.quad(rim(k, 0.46, 0.3), rim(k, 0.4, 0.26), rim(k + 1, 0.4, 0.26), rim(k + 1, 0.46, 0.3), CONCRETE_DARK, SPIN);
+  }
+  m.beam([0.12, 0.9, 0], [0.42, 0.96, 0], 0.025, HATCH, SPIN); // the feed horn
+  return m.done();
+}
+
+/** The Defense Post: a slim tower with a crenellated top and an owner-coloured flag, inside a low octagonal wall ring with corner posts. */
+function buildPost(): ModelData {
+  const m = new MeshBuilder();
+  m.plate(8, 1.0, -0.22, 0.04, PLATE_RIM, 0, PLATE_SIDE);
+  m.disc(8, 0.78, 0.055, PLATE_TOP, 1);
+  // the wall ring: eight short wall segments round a circle of radius 0.78
+  for (let k = 0; k < 8; k++) {
+    const a = ((k + 0.5) / 8) * Math.PI * 2;
+    m.box(Math.cos(a) * 0.74, Math.sin(a) * 0.74, 0.5, 0.07, 0.04, 0.17, a + Math.PI / 2, STONE, STONE_DARK, 0);
+  }
+  // the tower: a tall slim frustum, a wider crenellated platform and a flag
+  m.prism(4, 0, 0, 0.3, 0.2, 0.04, 0.82, STONE, STONE_DARK, 0, 0, Math.PI / 4);
+  m.box(0, 0, 0.5, 0.5, 0.82, 0.9, 0.0, STONE_DARK, STONE_DARK, 0);
+  for (const [x, z] of [[-0.21, -0.21], [0.21, -0.21], [0.21, 0.21], [-0.21, 0.21]] as Array<[number, number]>) m.box(x, z, 0.12, 0.12, 0.9, 1.0, 0, STONE, STONE, 0);
+  m.beam([0, 0.9, 0], [0, 1.28, 0], 0.012, HATCH, 0);
+  m.quad([0, 1.28, 0], [0.34, 1.23, 0], [0.34, 1.12, 0], [0, 1.15, 0], PLATE_TOP, 1);
+  return m.done();
+}
+
 /** The registry: structure type number -> model. A type without an entry is not drawn (yet). */
 export const STRUCTURE_MODELS: Readonly<Record<number, StructureModel>> = {
   [STRUCT_CITY]: { name: 'city', radiusM: 700, build: buildCity },
+  // M10-3
+  [STRUCT_SILO]: { name: 'silo', radiusM: 560, build: buildSilo },
+  [STRUCT_SAM]: { name: 'sam', radiusM: 520, build: buildSam },
+  [STRUCT_POST]: { name: 'post', radiusM: 450, build: buildPost },
 };
 
 /** The type numbers that have a model, ascending. */

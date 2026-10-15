@@ -7,7 +7,7 @@ import { STRUCTURE_MODELS, modelledTypes } from '../../src/render/structureModel
 
 describe('the structure models', () => {
   it('registers the City (the other types are not modelled yet) with level scales 1.0, 1.25 and 1.5', () => {
-    expect(modelledTypes()).toEqual([STRUCT_CITY]);
+    expect(modelledTypes()).toContain(STRUCT_CITY); // M10-3 and M10-2 add their types to the registry (D-M10-3)
     expect(STRUCT_LEVEL_SCALE).toEqual([0, 1.0, 1.25, 1.5]);
   });
 

@@ -428,6 +428,8 @@ export const STRUCT_POP_SECONDS = 0.45;
 export const STRUCT_BUILD_MIN_HEIGHT = 0.3;
 /** The triangle allowance of the structure layer per tier; the instance cap of a type is this divided by the triangles of its model. */
 export const STRUCT_TRIANGLE_BUDGET: Record<'test' | 'low' | 'medium' | 'high', number> = { test: 15000, low: 30000, medium: 60000, high: 120000 };
+/** M10-3: the SAM site's radar dish turns this many radians per fx second (a slow sweep; the angle is computed in the vertex shader). */
+export const STRUCT_DISH_RAD_PER_SEC = 0.9;
 /** Ghost colours (placement preview), sRGB 0 to 1, and how far they pull the model's own colours. */
 export const GHOST_OK_RGB: readonly [number, number, number] = [0.25, 0.95, 0.4];
 export const GHOST_BAD_RGB: readonly [number, number, number] = [1.0, 0.25, 0.2];
