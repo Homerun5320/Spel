@@ -9,6 +9,7 @@ import { countryEligibility, startCellEligibility } from './eligibility';
 import { CUSTOM_COLORS, DIFFICULTIES, matchSetupConfig, type Difficulty, type MatchSetupConfig } from './matchSetup';
 import type { PreparedWorld } from './matchWorld';
 import { SETUP_AI_NATIONS_DEFAULT, SETUP_AI_NATIONS_MAX } from '../sim/rules';
+import { DEFAULT_WIN_DRAFT, clampWinDraft, isWinDraft, winConfigOf, type WinDraft } from './winSetup';
 
 export type SetupTab = 'real' | 'custom';
 
@@ -29,6 +30,8 @@ export interface SetupDraft {
   readonly neutral: boolean;
   /** The seed as typed (an integer, or text that is not one yet). */
   readonly seed: string;
+  /** The win conditions (M18-2). */
+  readonly win: WinDraft;
 }
 
 export function defaultDraft(seed: number, name: string): SetupDraft {
@@ -45,6 +48,7 @@ export function defaultDraft(seed: number, name: string): SetupDraft {
     difficulty: 'normal',
     neutral: false,
     seed: String(seed),
+    win: DEFAULT_WIN_DRAFT,
   };
 }
 
@@ -74,7 +78,8 @@ export function checkDraft(world: PreparedWorld, draft: SetupDraft, debugIntents
   const seed = parseSeed(draft.seed);
   if (seed === null) return { ok: false, config: null, key: 'setup.need.seed', params: null };
   const analysis = world.analyse(draft.region);
-  const options = { seed, region: draft.region, aiNations: draft.aiNations, tribes: draft.tribes, difficulty: draft.difficulty, debugIntents };
+  const win = winConfigOf(draft.win, draft.region);
+  const options = { seed, region: draft.region, aiNations: draft.aiNations, tribes: draft.tribes, difficulty: draft.difficulty, debugIntents, ...(win === undefined ? {} : { win }) };
   if (draft.tab === 'real') {
     if (draft.countryId === 0) return { ok: false, config: null, key: 'setup.need.country', params: null };
     const country = world.byId.get(draft.countryId);
@@ -109,6 +114,8 @@ export interface StoredSetup {
   readonly difficulty: Difficulty;
   readonly neutral: boolean;
   readonly seed: string;
+  /** M18-2; an older stored setup has none (the defaults apply). */
+  readonly win?: WinDraft;
 }
 
 export const SETUP_PREF_KEY = 'setup';
@@ -128,6 +135,7 @@ export function storedOf(draft: SetupDraft, world: PreparedWorld): StoredSetup {
     difficulty: draft.difficulty,
     neutral: draft.neutral,
     seed: draft.seed,
+    win: draft.win,
   };
 }
 
@@ -172,5 +180,6 @@ export function draftFromStored(stored: StoredSetup, world: PreparedWorld, base:
     difficulty: (DIFFICULTIES as readonly string[]).includes(stored.difficulty) ? (stored.difficulty as Difficulty) : base.difficulty,
     neutral: stored.neutral,
     seed: parseSeed(stored.seed) === null ? base.seed : stored.seed.trim(),
+    win: isWinDraft(stored.win) ? clampWinDraft(stored.win) : base.win,
   };
 }

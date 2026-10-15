@@ -51,8 +51,14 @@ import { countryEligibility } from './eligibility';
 import { regionMask, type RegionId } from '../data/regions';
 import { prepareWorld, type PreparedWorld } from './matchWorld';
 import { mountSetupScreen, type SetupScreen } from './setupScreen';
-import { SETUP_PREF_KEY, defaultDraft, draftFromStored, isStoredSetup, parseSeed, storedOf, type SetupDraft, type StoredSetup } from './setupModel';
+import { SETUP_PREF_KEY, checkDraft, defaultDraft, draftFromStored, isStoredSetup, parseSeed, storedOf, type SetupDraft, type StoredSetup } from './setupModel';
 import { hashBuiltMatch } from './match';
+import { createMatchPanels, type MatchPanels, type ResultView } from '../ui/matchPanels';
+import { MatchWatcher, RESTART_PREF, humanStatus, reasonLine, resultRows } from '../ui/matchFlow';
+import { createSeatLabels, type SeatLabels } from '../ui/seatLabels';
+import { winInfoOfView, winSummaryText } from './winSetup';
+import { nextFlagSeed } from './setupScreen';
+import type { MatchView } from '../sim/public';
 import { PHASE_IMMUNITY, PHASE_SPAWN } from '../sim/flow';
 import { REJECT_NOT_SPAWNED } from '../sim/intents';
 import { seatToOwner } from '../sim/state';
@@ -222,6 +228,10 @@ export interface GlobeTestHooks {
    */
   onContext(fn: ContextHandler): void;
   onPause(fn: () => void): void;
+  /** M18-2 (test only): makes the panels see this seat (0-based) as eliminated, whatever the sim says; -1 undoes it. */
+  forceEliminated(seat: number): void;
+  /** M18-2 (test only): the sim's match view as plain data (result and per-seat statistics), null before the match exists. */
+  matchInfo(): { ended: boolean; winnerSeat: number; reason: number; endTick: number; players: number; score: number[]; landStd: number[]; peakLand: number[]; built: number[]; conquered: number[]; eliminated: number[] } | null;
   /** M08: `groundHeightAt` (the very function `heightAt`, render metres, all octaves unless given) bound to the page's raster. */
   groundHeightAt(lat: number, lon: number, octaves?: number): number;
   /**
@@ -455,6 +465,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     tickInput(fxNow());
     tickToasts(fxNow());
     if (session !== null) {
+      updateMatchFlow();
       // the structures follow the snapshot's table; the construction look follows the interpolated tick
       globe.structures.setTable(session.view.structures, session.view.structuresVersion);
       globe.districts.setTable(session.view.structures, session.view.districts, session.view.structuresVersion); // Districts-2b
@@ -510,6 +521,131 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       if (chip) chip.hidden = hidden || params.test;
     }
   };
+  // --- The match flow (M18-2): pause menu, result screen, elimination, spectating, restart --------------------------------------------
+  // The rules live in the sim (`session.view.match`); this block only shows them. The game is paused behind every panel. "Restart", "Play again"
+  // and "To the menu" reload the page: a restart leaves the one-shot pref `RESTART_PREF` that the next boot reads (the same stored setup, a new seed).
+  let panels = null as MatchPanels | null;
+  let stopPanelLang = null as (() => void) | null;
+  const watcher = new MatchWatcher();
+  let flowLabels = null as SeatLabels | null;
+  let pausedBeforeMenu = false;
+  let flowEnded = false;
+  let elimHandled = false;
+  let forcedElim = -1;
+  let forcedFrom = null as MatchView | null;
+  let forcedView = null as MatchView | null;
+  /** The match view the panels read: the sim's, or (test hook) the sim's with one seat forced to eliminated. */
+  const flowMatch = (): MatchView => {
+    const m = (session as MatchSession).view.match;
+    if (forcedElim < 0) return m;
+    if (forcedFrom !== m || forcedView === null || forcedView.eliminated[forcedElim] !== 1) {
+      const eliminated = Uint32Array.from(m.eliminated);
+      eliminated[forcedElim] = 1;
+      forcedFrom = m;
+      forcedView = { ...m, eliminated };
+    }
+    return forcedView;
+  };
+  const nameOfSeat = (seat: number): string => flowLabels?.name(seat) ?? '';
+  const resultView = (): ResultView | null => {
+    const s = session;
+    if (s === null) return null;
+    const m = flowMatch();
+    const landShare = s.view.stats.landShareQ15;
+    return {
+      reason: reasonLine(m, s.localSeat, nameOfSeat),
+      rows: resultRows(m, s.view.players, s.localSeat, nameOfSeat, seatColor, (seat) => ((landShare[seat] as number) / 32768) * 100),
+    };
+  };
+  const reloadPage = (): void => {
+    window.location.reload();
+  };
+  /** Restart / play again: the same setup with the next seed, through a reload. */
+  const restartMatch = (): void => {
+    const s = session;
+    if (s === null) return;
+    if (s.built === null) {
+      setPref(RESTART_PREF, 'standard');
+    } else {
+      const stored = getPref<StoredSetup | null>(SETUP_PREF_KEY, null, isStoredSetup as (v: unknown) => v is StoredSetup);
+      if (stored === null) setPref(RESTART_PREF, null);
+      else {
+        const seed = parseSeed(stored.seed);
+        setPref(SETUP_PREF_KEY, { ...stored, seed: String(nextFlagSeed(seed ?? s.built.config.seed)) });
+        setPref(RESTART_PREF, 'built');
+      }
+    }
+    reloadPage();
+  };
+  const toMenu = (): void => {
+    setPref(RESTART_PREF, null);
+    reloadPage();
+  };
+  const resumeFromMenu = (): void => {
+    if (session === null || panels === null || !panels.pauseOpen) return;
+    panels.closePause();
+    session.setPaused(pausedBeforeMenu);
+  };
+  /** Escape with an empty input stack (the stack itself closes a mode first): opens the pause menu, or closes it again. */
+  const togglePauseMenu = (): void => {
+    if (session === null || panels === null) return;
+    if (panels.pauseOpen) {
+      resumeFromMenu();
+      return;
+    }
+    if (panels.modalOpen || flowEnded) return;
+    pausedBeforeMenu = session.isPaused;
+    session.setPaused(true);
+    panels.openPause();
+  };
+  /** Once per frame: the toasts for other nations' elimination and capital loss, the elimination panel, the result screen. Allocates only when something happens. */
+  const updateMatchFlow = (): void => {
+    const s = session;
+    if (s === null || panels === null || flowEnded) return;
+    const m = flowMatch();
+    const ev = watcher.scan(m, s.view.players, s.localSeat);
+    if (ev !== null) {
+      if (ev.eliminated.length > 0) showToast('toast.eliminated', { names: ev.eliminated.map(nameOfSeat).join(', ') }, 'info');
+      if (ev.capitalLost.length > 0) showToast('toast.capitalLost', { names: ev.capitalLost.map(nameOfSeat).join(', ') }, 'warn');
+    }
+    const status = humanStatus(m, s.localSeat);
+    if (status === 'over') {
+      flowEnded = true;
+      panels.setSpectating(false);
+      panels.hideEliminated();
+      panels.closePause();
+      s.setPaused(true); // the match is decided: the clock stops
+      panels.showResult();
+    } else if (status === 'eliminated' && !elimHandled) {
+      elimHandled = true;
+      s.setPaused(true);
+      panels.showEliminated();
+    }
+  };
+  const mountFlow = (s: MatchSession): void => {
+    flowLabels = s.labels ?? createSeatLabels([], s.view.players, s.localSeat);
+    flowEnded = false;
+    elimHandled = false;
+    panels = createMatchPanels(
+      wrapper,
+      {
+        resume: resumeFromMenu,
+        restart: restartMatch,
+        toMenu,
+        setSpeed: (sp) => s.setSpeed(sp),
+        spectate: () => {
+          elimHandled = true;
+          panels?.hideEliminated();
+          panels?.setSpectating(true);
+          s.setPaused(false);
+        },
+        playAgain: restartMatch,
+      },
+      { summary: () => winSummaryText(winInfoOfView(s.view.match)), speed: () => (s.speed === 0 ? 1 : s.speed), result: resultView },
+    );
+    stopPanelLang = onLanguageChange(() => panels?.refresh());
+    setPauseHandler(togglePauseMenu);
+  };
   /** Everything that follows a started session (the globe shows its ownership, the HUD is built and filled before its first frame). */
   const attachSession = (s: MatchSession): void => {
     session = s;
@@ -536,6 +672,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       close: () => closeCity(),
     });
     buildBar.setVisible(false);
+    mountFlow(s);
     // The two link chips of the start page sit above the HUD (they are outside the wrapper); the Dev panel lists the same pages.
     setLinkChipsHidden(true);
     refreshHud(); // the HUD is filled before its first frame is drawn
@@ -814,6 +951,8 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     buildBar?.dispose();
     buildRoot?.remove();
     unmountToasts();
+    stopPanelLang?.();
+    panels?.dispose();
     startScreen?.dispose();
     setupScreen?.dispose();
     stopNames();
@@ -1114,6 +1253,33 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     );
   };
 
+  /** The boot of the menus: a restart (see `restartMatch`) starts its match at once, the plain boot shows the start screen. */
+  const autoStartBuilt = async (): Promise<void> => {
+    const prepared = await loadPrepared(world);
+    if (!alive || session !== null) return;
+    const base = defaultDraft(1, t('setup.nation.defaultName'));
+    const stored = getPref<StoredSetup | null>(SETUP_PREF_KEY, null, isStoredSetup as (v: unknown) => v is StoredSetup);
+    if (stored === null) return;
+    const check = checkDraft(prepared, draftFromStored(stored, prepared, base), params.test);
+    if (!check.ok) return;
+    await nextPaint();
+    const r = createMatch(prepared, check.config);
+    if (!r.ok || !alive || session !== null) return;
+    await startBuilt(r.match);
+    startScreen?.dispose();
+    startScreen = null;
+  };
+  const bootMenu = (): void => {
+    const pending = getPref<string | null>(RESTART_PREF, null);
+    if (pending !== null) setPref(RESTART_PREF, null);
+    if (pending === 'standard') {
+      void startMatch();
+      return;
+    }
+    mountMenu();
+    if (pending === 'built') void autoStartBuilt();
+  };
+
   // --- Test hooks or the frame loop ---------------------------------------------------------------------------------
   const terrainState = (): TerrainStateInfo => {
     const t = globe.terrainInfo();
@@ -1194,7 +1360,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   };
   if (params.test) {
     // Test mode has no start screen: the match exists from the first line of the test. `#menu` asks for the menus instead (the setup tests).
-    if (ctx.state.raw.menu === '1') mountMenu();
+    if (ctx.state.raw.menu === '1') bootMenu();
     else await startMatch();
     refreshHud();
     const hooks: GlobeTestHooks = {
@@ -1353,6 +1519,26 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       pick: (x, y) => globe.pick(x, y),
       onContext: (fn) => setContextHandler(fn),
       onPause: (fn) => setPauseHandler(fn),
+      forceEliminated: (seat) => {
+        forcedElim = seat;
+      },
+      matchInfo: () => {
+        if (session === null) return null;
+        const m = session.view.match;
+        return {
+          ended: m.ended,
+          winnerSeat: m.winnerSeat,
+          reason: m.reason,
+          endTick: m.endTick,
+          players: session.view.players,
+          score: Array.from(m.score),
+          landStd: Array.from(m.landStd),
+          peakLand: Array.from(m.peakLand),
+          built: Array.from(m.built),
+          conquered: Array.from(m.conquered),
+          eliminated: Array.from(m.eliminated),
+        };
+      },
       readTexels: (name, points) => Array.from(globe.readTexels(name, points)),
       setExaggeration: (x) => globe.setExaggeration(x),
       setBorderStrength: (x) => globe.setBorderStrength(x),
@@ -1407,7 +1593,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   // The performance scene has no menu and no match: it draws the orbit view once, measures the display's refresh with empty callbacks,
   // then flies the script (src/app/perfScene.ts).
   if (perfRun !== null) renderFrame();
-  else mountMenu();
+  else bootMenu();
   let last = performance.now();
   let sinceOverlay = 0;
   let overlayAt = 0; // the animation-frame time of the last overlay refresh while the performance scene runs

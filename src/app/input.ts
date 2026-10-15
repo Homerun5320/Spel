@@ -25,7 +25,7 @@
 import { WHEEL_ZOOM_RATE } from '../render/config';
 import { ClickTracker } from '../ui/clickTracker';
 import { LONG_PRESS_S } from '../ui/uiConfig';
-import { typingInField } from './matchKeys';
+import { escapeAction, typingInField } from './matchKeys';
 
 export type PointerKind = 'mouse' | 'touch' | 'pen';
 
@@ -287,7 +287,7 @@ export class InputStack {
     if ((e.ctrlKey || e.altKey) && e.key !== 'Escape') return false;
     if (e.key === 'Escape') {
       if (e.repeat === true) return true;
-      if (this.modes.length > 0) {
+      if (escapeAction(this.modes.length) === 'close-mode') {
         this.pop();
       } else {
         pauseHandler();

@@ -124,6 +124,32 @@ export const FLAG_PREVIEW_H = 64;
 /** The small flags in the leaderboard and next to your nation's name in the HUD (CSS px; the canvas is drawn once at twice this). */
 export const FLAG_ROW_W = 24;
 export const FLAG_ROW_H = 16;
+/** M18-2: the win-condition controls of the setup screen. The land share is a slider in whole percent; the score limit is one of the minute choices (0 = the default of the area). */
+export const WIN_SETUP = {
+  pctMin: 40,
+  pctMax: 80,
+  pctStep: 1,
+  pctDefault: 60,
+  /** The minute choices of "points after time"; `0` stands for the area's own limit (12 minutes for a cut-out, 25 for the world). */
+  minuteChoices: [0, 5, 8, 12, 20],
+  /** The pref key of the remembered choice. */
+  prefKey: 'winDraft',
+} as const;
+
+/** M18-2: the match panels (pause menu, result screen, elimination panel, spectator bar). Sizes in em of the HUD font, colours from UI_COLORS. */
+export const MATCH_PANELS = {
+  /** Above the HUD and the toasts, below the Dev panel (40). */
+  z: 36,
+  cardWidthEm: 30,
+  resultWidthEm: 46,
+  /** The result card never grows past this share of the window height; the table scrolls inside it. */
+  maxHeightVh: 92,
+  scrim: 'rgba(3, 6, 14, 0.55)',
+  /** The pause menu sits this far from the top, so the spawn countdown banner stays uncovered. */
+  pauseTopEm: 6.5,
+  winnerBorder: '#ffd666',
+} as const;
+
 /** The default name of a custom nation is not a UI string but a key (see setup.nation.defaultName); the trimmed name may be at most CUSTOM_NAME_MAX_CHARS. */
 /** After a match built by the setup screen starts, the camera flies to your capital and stands this far away (km). */
 export const START_FLY_KM = 3600;
