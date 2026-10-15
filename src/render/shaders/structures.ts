@@ -129,8 +129,12 @@ void main() {
   float diff = clamp(dot(n, sun), 0.0, 1.0);
   vec3 ambient = mix(uAmbientNight, uAmbientDay, day) + vec3(0.05);
   vec3 lit = toLinear(own) * (ambient * 2.2 + uSunColor * day * (0.12 + 0.95 * diff));
-  // the owner's colour keeps a faint glow on the night side so a base stays readable
-  lit += toLinear(vOwner) * (0.05 * vTint * (1.0 - day));
+  // Polish-1: night-side readability. The model keeps a floor of its own colour (a dark blob on dark territory becomes a lit shape), the owner colour
+  // glows on tinted parts and a rim of the owner colour outlines the silhouette against the dark ground; all maths on values the shader already has.
+  float nightK = 1.0 - day;
+  lit = max(lit, toLinear(mix(own, vOwner, 0.3) + vec3(0.12)) * (0.55 * nightK));
+  float rim = pow(1.0 - clamp(dot(n, viewDir), 0.0, 1.0), 2.0);
+  lit += toLinear(vOwner) * ((0.16 * vTint + 0.22 * rim) * nightK);
   gl_FragColor = vec4(toDisplay(lit), uAlpha);
 }
 `;
@@ -149,6 +153,7 @@ attribute vec3 aHi;
 attribute vec3 aLo;
 attribute vec3 aDir;
 attribute vec2 aSideKind;  // x: side (-1 / +1), y: kind (0 range, 1 select)
+attribute float aLift;     // Polish-1: Earth radii the selection ring's vertex stands above the structure's ground (the ring follows a slope)
 varying float vKind;
 void main() {
   vec3 base = aHi + aLo;
@@ -157,7 +162,7 @@ void main() {
   float dist = length(rel0);
   float hw = max(uHalfMin, dist * uHalfFrac);
   float kind = aSideKind.y;
-  vec3 rel = rel0 + aDir * (kind * uSelR + aSideKind.x * hw) + up * (hw * 2.0);
+  vec3 rel = rel0 + aDir * (kind * uSelR + aSideKind.x * hw) + up * (hw * 2.0 + aLift);
   vKind = kind;
   gl_Position = projectionMatrix * vec4(mat3(viewMatrix) * rel, 1.0);
 }

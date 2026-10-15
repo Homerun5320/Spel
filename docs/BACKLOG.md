@@ -309,3 +309,12 @@ Not done in the Fix-UI slice (the sim, host and AI findings belong to Fix-Sim):
 - Missiles and the air milestones may want Walls / Housing effects against blasts (M14); `previewBlast` is not district aware.
 - `collectWalls` scans the structure table per attack tick (like `collectPosts`); a per-owner cache next to `effHousingQt` would make it O(walls) if a match ever holds thousands of Cities.
 
+
+
+## Polish-1 leftovers
+
+- A pixel-level night readability test (the night-lights texture is brighter than the structures, so a contrast metric does not discriminate); only the shader source is pinned.
+- The six types at 150 to 1500 km were checked for four of them in screenshots (the Port needs a coast cell in the test match); a coast scene would cover it.
+- Ring lifts are sampled at the true-size radius only; a ring widened by the scale policy at mid distance uses the same lifts.
+- Fix-UI low-priority items (6) were not worked through beyond what Fix-UI already did.
+- The tip still sits below the Play button on a 560 px window (the card scrolls); Play itself is always reachable.

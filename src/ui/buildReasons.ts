@@ -18,11 +18,18 @@ import {
   REJECT_STRUCT_MAX_LEVEL,
   REJECT_STRUCT_NOT_OWNER,
 } from '../sim/public';
-import { REJECT_PHASE } from './hudCodes';
+import { PHASE_SPAWN, REJECT_PHASE } from './hudCodes';
 import type { TextKey } from './i18n';
+
+/** Polish-1: true while the sim refuses Build / Upgrade / Delete (a match with a spawn phase, still in it). The UI mirrors the sim's own gate. */
+export function spawnPhaseBlocks(view: { readonly flow: boolean; readonly phase: number }): boolean {
+  return view.flow && view.phase === PHASE_SPAWN;
+}
 
 export function buildRejectKey(reason: number): TextKey {
   switch (reason) {
+    case REJECT_PHASE:
+      return 'toast.build.phase';
     case REJECT_BUILD_NOT_OWNED:
       return 'toast.build.notOwned';
     case REJECT_BUILD_PEAK:

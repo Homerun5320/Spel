@@ -34,6 +34,8 @@ import {
   validateUpgrade,
   type SimView,
 } from '../sim/public';
+import { spawnPhaseBlocks } from './buildReasons';
+import { REJECT_PHASE } from './hudCodes';
 import { formatFixed, formatInt, type TextKey, type TextParams } from './i18n';
 
 export interface EffectLine {
@@ -121,6 +123,11 @@ export interface SelectionInfo {
   readonly cooldownSeconds: number;
 }
 
+/** Polish-1: in the spawn phase the sim refuses every Upgrade / Delete of the seat's own structure with REJECT_PHASE; a foreign or missing one keeps its own reason. */
+function phaseFirst(view: SimView, reason: number): number {
+  return (reason === 0 || reason === REJECT_STRUCT_BUSY || reason === REJECT_BUILD_GOLD || reason === REJECT_DELETE_COOLDOWN || reason === REJECT_STRUCT_MAX_LEVEL) && spawnPhaseBlocks(view) ? REJECT_PHASE : reason;
+}
+
 /** The panel's numbers for structure `id`, or null when it no longer exists. */
 export function selectionInfo(view: SimView, seat: number, id: number): SelectionInfo | null {
   const s = view.structures;
@@ -137,8 +144,8 @@ export function selectionInfo(view: SimView, seat: number, id: number): Selectio
     finished: view.tick >= (s.readyTick[id] as number),
     upgrading: (s.upgradeReadyTick[id] as number) !== 0,
     upgradePrice: level >= STRUCT_MAX_LEVEL ? 0 : upgradePriceGold(type, level + 1),
-    upgradeReason: validateUpgrade(view, seat, id),
-    deleteReason: validateDelete(view, seat, id),
+    upgradeReason: phaseFirst(view, validateUpgrade(view, seat, id)),
+    deleteReason: phaseFirst(view, validateDelete(view, seat, id)),
     deleteSeconds: Math.ceil(wait / TICK_HZ),
     cooldownSeconds: DELETE_COOLDOWN_TICKS / TICK_HZ,
   };
@@ -157,6 +164,8 @@ export function upgradeWhyKey(reason: number): TextKey {
       return 'sel.why.gold';
     case REJECT_STRUCT_ID:
       return 'sel.why.gone';
+    case REJECT_PHASE:
+      return 'sel.why.phase';
     default:
       return 'reject.other';
   }
@@ -171,6 +180,8 @@ export function deleteWhyKey(reason: number): TextKey {
       return 'sel.why.cooldown';
     case REJECT_STRUCT_ID:
       return 'sel.why.gone';
+    case REJECT_PHASE:
+      return 'sel.why.phase';
     default:
       return 'reject.other';
   }

@@ -22,3 +22,21 @@ export const SELECT_RING_FACTOR = 1.35;
 export function selectRingRadiusM(distM: number, sizeM: number, level: number): number {
   return modelRadiusM(distM, sizeM, level) * SELECT_RING_FACTOR;
 }
+
+/**
+ * Polish-1: how far the ground under each vertex of the selection ring stands above (+) or below (-) the ground under the structure, in metres of the drawn
+ * (exaggerated) terrain. Vertex `i` of `segments + 1` is at angle `2 pi i / segments` from east towards north, `radiusM` away from the centre. The layer
+ * samples this when the selection or the structure changes and the vertex shader adds it along the local up, so the ring follows a steep slope instead
+ * of being cut into a "D" by the terrain. `groundAt(lat, lon)` is `groundHeightAt`; `earthRadiusM` converts the offset to degrees.
+ */
+export function selectRingLiftsM(lat: number, lon: number, radiusM: number, segments: number, exaggeration: number, earthRadiusM: number, groundAt: (lat: number, lon: number) => number, out: Float32Array): void {
+  const base = groundAt(lat, lon);
+  const cosLat = Math.max(0.05, Math.cos((lat * Math.PI) / 180));
+  for (let i = 0; i <= segments; i++) {
+    const a = (i / segments) * Math.PI * 2;
+    const vlat = lat + ((Math.sin(a) * radiusM) / earthRadiusM) * (180 / Math.PI);
+    const vlon = lon + ((Math.cos(a) * radiusM) / (earthRadiusM * cosLat)) * (180 / Math.PI);
+    const lift = exaggeration * (groundAt(Math.max(-89.9, Math.min(89.9, vlat)), vlon) - base);
+    out[i] = lift;
+  }
+}

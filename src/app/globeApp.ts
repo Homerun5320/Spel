@@ -27,7 +27,8 @@ import { buildPerfReport, createPerfOverlay, type PerfContext, type PerfOverlay,
 import type { PerfSceneSection } from '../ui/perfSceneReport';
 import { PerfSceneRun, type PerfSceneHost } from './perfScene';
 import { createBuildBar, type BuildBar } from '../ui/buildBar';
-import { buildRejectKey } from '../ui/buildReasons';
+import { buildRejectKey, spawnPhaseBlocks } from '../ui/buildReasons';
+import { REJECT_PHASE } from '../ui/hudCodes';
 import { mountToasts, showToast, tickToasts, visibleToastKeys } from '../ui/toast';
 import { createPlacementMode, type PlacementMode, type PlacementState } from './placement';
 import { STRUCT_CITY, buildBody, deleteBody, upgradeBody, validateBuild } from '../sim/public';
@@ -289,6 +290,8 @@ export interface GlobeTestHooks {
   /** CamFix (D158): the tilt the camera shows (the user's tilt eased down at the far distances where the whole globe has to fit) and the farthest distance of this window, km. */
   shownTilt(): number;
   maxDist(): number;
+  /** Polish-1: what a window resize does (the camera rig's viewport and the buffer), at CSS size `w` x `h` (test mode has no resize listener). */
+  resize(w: number, h: number): void;
   /** Text of the hover tooltip for a pick, as the page shows it. */
   tooltip(x: number, y: number): string | null;
   /** M06: the countries of the setup as the page sees them in a region (eligibility included), prepared on first use. */
@@ -900,7 +903,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
         const h = globe.pickGroundAt(x, y);
         return h === null ? null : latLonToCell(h.lat, h.lon, world.sim.width, world.sim.height).index;
       },
-      validate: (ty, cell) => validateBuild(sess.view, L, ty, cell),
+      validate: (ty, cell) => (spawnPhaseBlocks(sess.view) ? REJECT_PHASE : validateBuild(sess.view, L, ty, cell)),
       send: (ty, cell) => sess.submit(buildBody(L, ty, cell)),
       setGhost: (ty, cell, ok) => globe.structures.setGhost(ty, cell, ok),
       clearGhost: () => globe.structures.clearGhost(),
@@ -1293,6 +1296,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       view: () => globe.rig.view,
       shownTilt: () => globe.rig.shownTilt,
       maxDist: () => globe.rig.maxDistKm,
+      resize: (w, h) => globe.resize(w, h, 1),
       tooltip: tipFor,
       async setupCountries(region = 'world'): Promise<SetupCountryInfo[]> {
         const prepared = await loadPrepared(world);

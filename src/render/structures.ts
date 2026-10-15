@@ -10,7 +10,7 @@
 import { BufferAttribute, BufferGeometry, DoubleSide, DynamicDrawUsage, InstancedBufferAttribute, InstancedBufferGeometry, Mesh, ShaderMaterial, Vector3, Vector4 } from 'three';
 import { STRUCT_CITY, type StructureView } from '../sim/public';
 import { EARTH_RADIUS_KM, GHOST_ALPHA, GHOST_BAD_RGB, GHOST_MIX, GHOST_OK_RGB, HEIGHT_EXAGGERATION, STRUCT_BUILD_MIN_HEIGHT, STRUCT_DISH_RAD_PER_SEC, STRUCT_LEVEL_SCALE, STRUCT_MAX_SCALE, STRUCT_POP_SECONDS, STRUCT_SCREEN_FRAC, STRUCT_TRIANGLE_BUDGET, AMBIENT_DAY, AMBIENT_NIGHT, SUN_COLOR, ICON_FADE_PX_HI, ICON_FADE_PX_LO, ICON_HALF_PX, NIGHT_LIGHT_SUN_DOT, RANGE_RING_RGB, RING_HALF_WIDTH_FRAC, RING_HALF_WIDTH_M, RING_SEGMENTS, SELECT_RING_RGB } from './config';
-import { selectRingRadiusM } from './rings';
+import { selectRingLiftsM, selectRingRadiusM } from './rings';
 import { latLonToVec } from './geo';
 import type { QualityTier } from './quality';
 import { CITY_LIGHT_COUNT, STRUCTURE_MODELS, cityLights, modelledTypes, type ModelData } from './structureModels';
@@ -62,6 +62,7 @@ interface RingState {
   readonly lo: Float32Array;
   readonly dir: Float32Array;
   readonly sk: Float32Array;
+  readonly lift: Float32Array;
   readonly attrs: BufferAttribute[];
 }
 
@@ -153,6 +154,7 @@ export class StructureLayer {
   private selId = -1;
   private selRangeCells = 0;
   private selVisible = false;
+  private readonly liftScratch = new Float32Array(RING_SEGMENTS + 1);
   private selX = 0;
   private selY = 0;
   private selZ = 0;
@@ -223,6 +225,7 @@ export class StructureLayer {
       const lo = new Float32Array(V * 3);
       const dir = new Float32Array(V * 3);
       const sk = new Float32Array(V * 2);
+      const lift = new Float32Array(V); // Polish-1: per vertex ground offset (Earth radii) of the selection ring
       const index: number[] = [];
       for (let ringNo = 0; ringNo < 2; ringNo++) {
         for (let i = 0; i < RING_SEGMENTS; i++) {
@@ -238,12 +241,13 @@ export class StructureLayer {
         }
       }
       const geometry = new BufferGeometry();
-      const attrs = [new BufferAttribute(hi, 3), new BufferAttribute(lo, 3), new BufferAttribute(dir, 3), new BufferAttribute(sk, 2)];
+      const attrs = [new BufferAttribute(hi, 3), new BufferAttribute(lo, 3), new BufferAttribute(dir, 3), new BufferAttribute(sk, 2), new BufferAttribute(lift, 1)];
       for (const a of attrs) a.setUsage(DynamicDrawUsage);
       geometry.setAttribute('aHi', attrs[0] as BufferAttribute);
       geometry.setAttribute('aLo', attrs[1] as BufferAttribute);
       geometry.setAttribute('aDir', attrs[2] as BufferAttribute);
       geometry.setAttribute('aSideKind', attrs[3] as BufferAttribute);
+      geometry.setAttribute('aLift', attrs[4] as BufferAttribute);
       geometry.setAttribute('position', new BufferAttribute(hi, 3));
       geometry.setIndex(index);
       geometry.setDrawRange(0, 0);
@@ -268,7 +272,7 @@ export class StructureLayer {
       mesh.visible = false;
       mesh.renderOrder = 4;
       this.meshes.push(mesh);
-      this.ring = { mesh, geometry, material, hi, lo, dir, sk, attrs };
+      this.ring = { mesh, geometry, material, hi, lo, dir, sk, lift, attrs };
     }
     // The far icons: one quad per structure, every type in one draw call.
     {
@@ -571,6 +575,15 @@ export class StructureLayer {
       r.dir[v * 3 + 1] = dy;
       r.dir[v * 3 + 2] = dz;
     };
+    // Polish-1: the ground under the ring's vertices (sampled here, when the selection or the structure changes; never per frame). The ring stands at the
+    // radius of the true-size model; at a distance the ring is wider but then the relief under it is below a pixel.
+    const lifts = this.liftScratch;
+    selectRingLiftsM(c.lat, c.lon, selectRingRadiusM(0, this.selSizeM, this.selLevel), RING_SEGMENTS, this.exaggeration, EARTH_RADIUS_KM * 1000, groundHeightAt, lifts);
+    for (let i = 0; i <= RING_SEGMENTS; i++) {
+      const lf = (lifts[i] as number) / (EARTH_RADIUS_KM * 1000);
+      r.lift[i * 2] = lf;
+      r.lift[i * 2 + 1] = lf;
+    }
     for (let i = 0; i <= RING_SEGMENTS; i++) {
       const a = (i / RING_SEGMENTS) * Math.PI * 2;
       const ca = Math.cos(a);

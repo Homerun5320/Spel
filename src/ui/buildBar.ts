@@ -3,6 +3,7 @@
 // (`buildPriceMilli` on the snapshot's table), never a number of the UI. A button the player cannot afford is dimmed and its tooltip says why;
 // it still starts the placement mode (the ghost then shows the same reason in red). The bar only reports a choice: placing is `src/app/placement.ts`.
 import { STRUCT_CITY, STRUCT_FACTORY, STRUCT_PORT, STRUCT_POST, STRUCT_SAM, STRUCT_SILO, buildPriceMilli, hasFinishedFactory, seatToOwner, type SimView } from '../sim/public';
+import { spawnPhaseBlocks } from './buildReasons';
 import { languageVersion, t, type TextKey } from './i18n';
 
 interface BuildItem {
@@ -81,20 +82,21 @@ export function createBuildBar(parent: HTMLElement, actions: { select(type: numb
         const priceMilli = buildPriceMilli(view.structures, owner, e.item.type);
         const gp = Math.floor(priceMilli / 1000);
         const poor = gold < priceMilli;
+        const waiting = spawnPhaseBlocks(view);
         const locked = e.item.needsFactory === true && !hasFinishedFactory(view, owner);
-        const sig = `${gp}|${poor ? 1 : 0}|${locked ? 1 : 0}|${active === e.item.type ? 1 : 0}|${l}`;
+        const sig = `${gp}|${poor ? 1 : 0}|${locked ? 1 : 0}|${waiting ? 1 : 0}|${active === e.item.type ? 1 : 0}|${l}`;
         if (sig === e.shown && lang === l) continue;
         e.shown = sig;
         e.b.dataset.price = String(gp);
-        e.b.dataset.state = locked ? 'locked' : poor ? 'poor' : 'ok';
+        e.b.dataset.state = waiting ? 'waiting' : locked ? 'locked' : poor ? 'poor' : 'ok';
         e.b.dataset.active = active === e.item.type ? '1' : '0';
         e.b.setAttribute('aria-pressed', active === e.item.type ? 'true' : 'false');
-        if (poor || locked) e.b.setAttribute('aria-disabled', 'true');
+        if (poor || locked || waiting) e.b.setAttribute('aria-disabled', 'true');
         else e.b.removeAttribute('aria-disabled');
         e.name.textContent = t(e.item.nameKey);
         e.price.textContent = t('hud.build.cityCost', { price: gp });
         const name = t(e.item.nameKey);
-        const tip = locked ? t('hud.build.needFactory', { name }) : poor ? t(e.item.poorKey, { price: gp, name }) : t(e.item.tipKey, { price: gp });
+        const tip = waiting ? t('hud.build.waitPhase') : locked ? t('hud.build.needFactory', { name }) : poor ? t(e.item.poorKey, { price: gp, name }) : t(e.item.tipKey, { price: gp });
         e.b.title = tip;
         e.b.setAttribute('aria-label', `${t(e.item.nameKey)} ${gp}`);
       }
