@@ -7,10 +7,14 @@
 import { isqrt } from './detmath';
 import {
   CITY_GOLD_MILLI_PER_SEC_PER_LEVEL,
-  FACTORY_CITY_BONUS_PCT,
-  FACTORY_GOLD_MILLI_PER_SEC,
-  FACTORY_RADIUS_CELLS,
-  PORT_GOLD_MILLI_PER_SEC,
+  FACTORY_BONUS_MAX_CITIES,
+  FACTORY_CITY_BONUS_PCT_BY_LEVEL,
+  FACTORY_GOLD_MILLI_BY_LEVEL,
+  FACTORY_RADIUS_CELLS_BY_LEVEL,
+  PORT_GOLD_MILLI_BY_LEVEL,
+  PORT_INCOME_MAX_MILLI_PER_SEC,
+  PORT_TRADE_PCT_BY_LEVEL,
+  STRUCT_CAPACITY,
   POST_COST_DEN,
   POST_COST_NUM,
   POST_RADIUS_CELLS,
@@ -32,6 +36,8 @@ const NEVER = 0xffffffff;
 /** Scratch for the nearest partners of one Port (ids and squared distances). */
 const bestId = new Int32Array(TRADE_MAX_PARTNERS);
 const bestD2 = new Int32Array(TRADE_MAX_PARTNERS);
+/** Scratch: how many Cities each Factory slot has boosted in this recompute. */
+const boosted = new Uint8Array(STRUCT_CAPACITY);
 
 /** The squared distance in sim cells between two cells (x wrapping, no latitude weight). */
 export function dist2Cells(width: number, a: number, b: number): number {
@@ -74,7 +80,7 @@ function recompute(state: GameState): void {
   t.effPortMilli.fill(0);
   let next = NEVER;
   const high = t.highWater;
-  const factoryR2 = FACTORY_RADIUS_CELLS * FACTORY_RADIUS_CELLS;
+  boosted.fill(0, 0, high);
   const minD2 = TRADE_MIN_DIST_CELLS * TRADE_MIN_DIST_CELLS;
   for (let id = 0; id < high; id++) {
     const o = t.owner[id] as number;
@@ -91,19 +97,31 @@ function recompute(state: GameState): void {
       const level = t.level[id] as number;
       t.effCityLevels[o] = (t.effCityLevels[o] as number) + level;
       let income = CITY_GOLD_MILLI_PER_SEC_PER_LEVEL * level;
+      // The best finished Factory of the owner in reach that still has a free slot (highest level, then lowest id) boosts this City.
       const cell = t.cell[id] as number;
+      let bestF = -1;
+      let bestFLevel = 0;
       for (let f = 0; f < high; f++) {
         if (t.owner[f] !== o || t.type[f] !== STRUCT_FACTORY || tick < (t.readyTick[f] as number)) continue;
-        if (dist2Cells(w, cell, t.cell[f] as number) <= factoryR2) {
-          income += Math.floor((income * FACTORY_CITY_BONUS_PCT) / 100);
-          break;
+        const fl = t.level[f] as number;
+        if (fl <= bestFLevel || (boosted[f] as number) >= FACTORY_BONUS_MAX_CITIES) continue;
+        const r = FACTORY_RADIUS_CELLS_BY_LEVEL[fl] as number;
+        if (dist2Cells(w, cell, t.cell[f] as number) <= r * r) {
+          bestF = f;
+          bestFLevel = fl;
         }
+      }
+      if (bestF >= 0) {
+        boosted[bestF] = (boosted[bestF] as number) + 1;
+        income += Math.floor((income * (FACTORY_CITY_BONUS_PCT_BY_LEVEL[bestFLevel] as number)) / 100);
       }
       t.effFixedMilli[o] = (t.effFixedMilli[o] as number) + income;
     } else if (type === STRUCT_FACTORY) {
-      t.effFixedMilli[o] = (t.effFixedMilli[o] as number) + FACTORY_GOLD_MILLI_PER_SEC;
+      t.effFixedMilli[o] = (t.effFixedMilli[o] as number) + (FACTORY_GOLD_MILLI_BY_LEVEL[t.level[id] as number] as number);
     } else if (type === STRUCT_PORT) {
-      let income = PORT_GOLD_MILLI_PER_SEC;
+      const portLevel = t.level[id] as number;
+      let income = PORT_GOLD_MILLI_BY_LEVEL[portLevel] as number;
+      let trade = 0;
       const cell = t.cell[id] as number;
       let n = 0;
       for (let q = 0; q < high; q++) {
@@ -125,8 +143,10 @@ function recompute(state: GameState): void {
       }
       for (let k = 0; k < n; k++) {
         const partnerOwner = t.owner[bestId[k] as number] as number;
-        income += tradeMilliPerSec(isqrt(bestD2[k] as number), partnerOwner === o, t.embargoed(o, partnerOwner));
+        trade += tradeMilliPerSec(isqrt(bestD2[k] as number), partnerOwner === o, t.embargoed(o, partnerOwner));
       }
+      income += Math.floor((trade * (PORT_TRADE_PCT_BY_LEVEL[portLevel] as number)) / 100);
+      if (income > PORT_INCOME_MAX_MILLI_PER_SEC) income = PORT_INCOME_MAX_MILLI_PER_SEC;
       t.effPortMilli[o] = (t.effPortMilli[o] as number) + income;
     }
   }
