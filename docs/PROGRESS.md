@@ -864,6 +864,27 @@ PerfGate (same sandbox, node, 1024x512, 100 000 cells in one tick; D132):
 | samples per test | 7 after 2 warm-ups | 21 after 3 warm-ups, worlds built and gc'd outside the clock |
 | perf project (6 files, 18 tests) | about 8 s | about 8 s |
 
+## Measurements CamFix (logged; the camera numbers are pinned by tests/render/mountainCalm.test.ts, the fit numbers by tests/render/fit.test.ts)
+
+Window and distances (`src/render/fit.ts`, FOV 30 degrees vertical, `FIT_FILL_SAFE` 0.92): aspect 16:9, 21:9, 4:3 (and everything at least as wide as high): maximum distance 32 000 km (the disc fills 62.8 % of the half-height), the eased tilt is 0 from 20 247 km; 9:16: 61 198 km and 40 014 km (62.8 % of the half-width); 0.4: 88 439 km and 58 553 km; 0.25: 145 117 km (the ceiling 150 000 km does not bind above 0.25). The old 42 000 km filled 50 % of a 16:9 half-height, 88 % of a 9:16 half-width and did not fit 0.4. Before the fix at 42 000 km and 72 degrees (16:9): the centre of the disc 7.85 degrees from the middle (not 8.6), the far edge at 1.08 half-heights (cut), and the globe low in the picture; after: the lit-pixel bounding box of the real screenshots (`e2e/zoomOut.test.ts`, with the atmosphere's glow) has at least 3 % free on every side and its centre within 3 % of the middle in all 12 pictures (4 windows, tilts 0, 40, 72, headings 0, 200, 90); the disc of the maths itself (projected outline of the sphere): margin >= 5 % in 80 random windows and in all 54 combinations of window, tilt and heading at the maximum distance; the wheel runs (6 windows x 4 tilts x 3 headings = 72, from 3 000 km) end centred to 1e-15 of the half-extent with a heading change of at most 0.005 degrees and a latitude change of at most 0.004 degrees.
+
+Per-frame change of a wheel zoom through the eased tilt (60 fps, fx steps of 1/60 s, real height field, tilt 60 to 72, from 3 000 to 26 000 km): one notch moves the camera at most 2.9 % of its distance and turns the look direction at most 2.2 degrees per frame (worst at 14 000 km); three notches at once 9.9 % and 7.6 degrees; five notches at once 16.6 % and 12.8 degrees (the zoom itself is moving the camera a sixth of its distance in its fastest frame). Zoom out to the maximum and the same number of notches back: the user's tilt within 1 degree in six window shapes.
+
+Camera over mountains (the same script in the M08 head and in a git worktree of `ec44223` = version 9; 60 fps in fx steps; six pans of 500 px each; `hfShare` = the camera's radius slower than 1 s over the ground's, `shake` = faster than 1/6 s over the ground's, dip = the deepest the camera went under the height it holds as a share of it):
+
+| hold | M08 fast pan (625 px/s): hfShare, shake, dip, lowest height, end | M08 steady pan (312 px/s): hfShare, shake, dip, lowest, end | v9 fast pan: lowest height, end height |
+|------|------|------|------|
+| Alps 0.3 km, tilt 60 | 0.90, 1.01, 0, 300 m, 300 m | 0.92, 0.84, 0, 300 m, 300 m | -2 170 m, 30 700 m |
+| Alps 3 km, tilt 55 | 0.53, 0.34, 0.08, 2 760 m, 3 000 m | 0.46, 0.32, 0.06, 2 830 m, 3 000 m | -564 m, 31 600 m |
+| Alps 20 km, tilt 55 | 0.62, 0.27, 0.26, 14 800 m, 20 000 m | 0.62, 0.29, 0.22, 15 700 m, 20 000 m | 17 200 m, 45 500 m |
+| Himalaya 0.3 km, tilt 60 | 0.57, 0.47, 0, 300 m, 300 m | 0.63, 0.38, 0, 300 m, 300 m | 1 000 m, 75 100 m |
+| Himalaya 3 km, tilt 55 | 0.57, 0.33, 0.79, 632 m, 3 000 m | 0.59, 0.28, 0.70, 888 m, 3 000 m | 1 000 m, 67 100 m |
+| Himalaya 20 km, tilt 55 | 0.64, 0.29, 0.29, 14 100 m, 20 000 m | 0.56, 0.26, 0.22, 15 600 m, 20 000 m | 11 700 m, 77 700 m |
+
+(v9 has no held height: its camera keeps its distance to the sea-level point, so the height over the ground wanders; its 1 km rows: lowest 71 m (Alps) and 368 m (Himalaya), ends 30 300 m and 66 400 m; M08 1 km: lowest 887 m and 926 m, ends 1 000 m.) The wheel (eight notches, in, in, out, out, in a lot, out a lot, out, in, with 1.5 s between): 0 extra direction reversals of the camera's radius at 1, 3 and 20 km over both places in M08 and in v9; the largest change of the height over the ground in one frame 4 to 9 % in M08 (v9 4 to 11 %); M08 ends within 0.5 % of where it started (v9 at 1 km ends at 1 380 m: its old floor of 1 000 m). The follower copies the ground fully when it is made instant (`RTS_FOLLOW_TAU_S` 1e-9): hfShare and shake 1.0, which is what the named tests kill. Look-ahead (aim at the higher of the ground here and the ground 0.25 s ahead along the camera's own motion; REJECTED, not in the code): dip Alps 3 km 0.08 to 0.015 and Himalaya 3 km 0.79 to 0.32, but shake 0.34 to 0.64 and 0.33 to 0.70, direction reversals 7 to 53 and 1 to 23, and the largest acceleration tenfold.
+
+Costs: `e2e/zoomOut.test.ts` 33 s (7 tests, 2 to 3 s a window shape, 14 s a wheel run: the camera is at 3 000 km, where the terrain is dear in SwiftShader); `tests/render/fit.test.ts` 0.5 s, `tests/render/fitCamera.test.ts` 14 s (dominated by the real height field in the wheel runs), `tests/render/mountainCalm.test.ts` 1.4 s. The camera's per-frame cost: see the perf test of the verify run below.
+
 ## Measurements M07a part A (logged, not asserted)
 
 Cloud sandbox, SwiftShader, test tier 960x540 unless said:
