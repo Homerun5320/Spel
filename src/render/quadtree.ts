@@ -257,6 +257,8 @@ export class ChunkQuadtree {
   private readonly halfSin: Float64Array;
   private readonly halfCos: Float64Array;
   private readonly levelK: Float64Array;
+  private readonly baseK: Float64Array;
+  private scale = 1;
 
   // Per-update camera constants.
   private cam: QuadCamera = makeQuadCamera();
@@ -310,6 +312,7 @@ export class ChunkQuadtree {
     this.halfSin = new Float64Array(levels);
     this.halfCos = new Float64Array(levels);
     this.levelK = new Float64Array(levels);
+    this.baseK = new Float64Array(levels);
     for (let l = 0; l < levels; l++) {
       this.size[l] = chunkSizeRad(l);
       this.halfSin[l] = Math.sin(0.5 * (this.size[l] as number));
@@ -317,8 +320,27 @@ export class ChunkQuadtree {
       // 0 at eight texels per cell and above, 1 at 1/8 texel and below (six octaves, geometric in between).
       const cellTexels = (this.size[l] as number) / params.cells / params.texelRad;
       const deep = Math.min(1, Math.max(0, (3 - Math.log2(cellTexels)) / 6));
-      this.levelK[l] = params.splitK * (1 - deep) + params.deepK * deep;
+      this.baseK[l] = params.splitK * (1 - deep) + params.deepK * deep;
+      this.levelK[l] = this.baseK[l] as number;
     }
+  }
+
+  /**
+   * Scales every split distance (and so the merge distance, `splitDistance` and the chunk count that follows) by `scale`: the run-time lever of the
+   * chunk density (`Globe.setChunkDensity`; 1 = the tier's own). The cap on the leaves is not touched. Forget the hysteresis after changing it.
+   */
+  setSplitScale(scale: number): void {
+    this.scale = scale;
+    for (let l = 0; l < this.levelK.length; l++) this.levelK[l] = (this.baseK[l] as number) * scale;
+  }
+
+  get splitScale(): number {
+    return this.scale;
+  }
+
+  /** The distance (Earth radii) under which a node of this level splits: its split distance in node sides times the node's side (the merge distance is (1 + hysteresis) times it). */
+  splitDistance(level: number): number {
+    return (this.levelK[level] as number) * (this.size[level] as number);
   }
 
   /** Forgets the hysteresis state (the next update decides every node by the split distance alone). */

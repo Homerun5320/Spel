@@ -218,6 +218,9 @@ export class HeightSampler {
   private readonly block = new Float64Array(16);
   private readonly seeds = new Uint32Array(DETAIL_OCTAVES_MAX);
   private readonly maxM: number;
+  /** Of the last `heightSeenM` call: the octaves it drew and the distance (Earth radii) it measured (so `heightAt(lat, lon, lastSeenOctaves)` is the same height). */
+  lastSeenOctaves = 0;
+  lastSeenDistance = 0;
 
   constructor(source: HeightSource, opts: SamplerOptions = {}) {
     this.source = source;
@@ -382,6 +385,8 @@ export class HeightSampler {
     const r0 = 1 + (exaggeration * h0) / (EARTH_RADIUS_KM * 1000);
     const d0 = Math.hypot(dx * r0 - cam[0], dy * r0 - cam[1], dz * r0 - cam[2]);
     const n = Math.max(0, Math.min(lv, octavesAtDistance(d0, lod)));
+    this.lastSeenOctaves = n;
+    this.lastSeenDistance = d0;
     return this.heightOfSample(dx, dy, dz, n);
   }
 }
@@ -394,6 +399,19 @@ let bound: HeightSampler | null = null;
 export function bindHeightSource(source: HeightSource | HeightSampler | null): HeightSampler | null {
   bound = source === null ? null : source instanceof HeightSampler ? source : new HeightSampler(source);
   return bound;
+}
+
+/**
+ * The height (render metres, before the exaggeration) of the surface a CAMERA SEES at a position: the octaves are the smaller of the level's and
+ * the distance law's (see `HeightSampler.heightSeenM`), so it is the surface the chunk shader draws and the one `HeightField.pick` hits. It is NOT
+ * `heightAt`: `heightAt` (M08's `groundHeightAt`) carries all 12 octaves, the seen surface fewer the farther the camera is, and they differ by the
+ * octaves that were removed (metres at 5 km, tens of metres at 40 km, REAL metres: x12 on the screen). A hit of the pick equals
+ * `radiusOf(seenHeightAt(...))` within 0.05 m (tests/render/detailPicking.test.ts); a prop that must stand on the ground a camera sees uses this one,
+ * the camera floor and everything that must be above EVERY surface uses `heightAt`. Throws if no height source is bound.
+ */
+export function seenHeightAt(latDeg: number, lonDeg: number, cam: readonly [number, number, number], exaggeration: number, lod: DetailLod, levelOctaves: number = DETAIL_OCTAVES_MAX): number {
+  if (!bound) throw new Error('seenHeightAt: no height source is bound (bindHeightSource)');
+  return bound.heightSeenM(latDeg, lonDeg, cam, exaggeration, lod, levelOctaves);
 }
 
 /**

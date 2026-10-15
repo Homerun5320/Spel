@@ -115,6 +115,12 @@ export class ChunkTerrain {
     this.lastKey.fill(NaN);
   }
 
+  /** Scales the split distances of the quadtree (the chunk density lever of `Globe.setChunkDensity`); the next update rebuilds the instance data. */
+  setSplitScale(scale: number): void {
+    this.tree.setSplitScale(scale);
+    this.reset();
+  }
+
   /** Forgets the LOD hysteresis (a camera jump: the next update decides every chunk by the split distance alone) and forces the next update to run. */
   reset(): void {
     this.tree.reset();

@@ -224,6 +224,12 @@ export const DETAIL_AMP = 0.2;
 export const DETAIL_RIDGE_MEAN = 0.5;
 /** Local relief (max minus min of the base height over 3x3 raster texels) is never below this (metres). */
 export const DETAIL_RELIEF_FLOOR_M = 100;
+/** The factor `uMottleScale` takes when the near-view mottling is switched off: the pixel is this many times wider to it, so every octave is faded out (the first one's wavelength is 1/16 cell, the fade starts at `SHADE_MOTTLE_FADE_PX[0]` pixels). */
+export const MOTTLE_OFF_SCALE = 1000;
+/** The offset of the distance law when the law is switched off (the control of the pop tests): so large that the level's own octave count always binds. */
+export const OCTAVE_LAW_OFF_OFFSET = 99;
+/** The most octaves `Globe.setDetailBias` may take away from the tier's distance law (the node intervals of the quadtree hold for the coarse octaves less one, so this stays small). */
+export const DETAIL_BIAS_MIN = -3;
 /** Octaves of the first pass that only places the vertex to find its distance from the camera. */
 export const DETAIL_PROBE_OCTAVES = 3;
 /** The land coverage (share of land among the four texels around a point, 0.5 = the coast line) where the coast fade starts and ends. */

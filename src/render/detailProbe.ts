@@ -86,7 +86,8 @@ void main() {
 }
 `;
 
-const HEIGHT_FRAGMENT = (enc: ProbeEncoding): string => /* glsl */ `
+/** `quantity` 'height': the vertex height; 'relief': the local relief of the sample in metres (the 3x3 rule, the floor and the polar fade of `detSample`). */
+const HEIGHT_FRAGMENT = (enc: ProbeEncoding, quantity: 'height' | 'relief' = 'height'): string => /* glsl */ `
 uniform sampler2D uHeight;
 uniform ivec2 uHeightSize;
 uniform float uHeightMaxM;
@@ -99,8 +100,8 @@ void main() {
   vec4 b = texelFetch(uIn, ivec2(p.x, 2 * p.y + 1), 0); // the unit direction
   float v = (90.0 - a.x) / 180.0;
   float u = (v <= 0.0 || v >= 1.0) ? ${POLE_HEIGHT_U.toFixed(1)} : (a.y + 180.0) / 360.0;
-  DetSample s = detSample(vec2(u, v), a.z > 0.0);
-  float h = detHeight(s, detRotate(b.xyz), a.z);
+  DetSample s = detSample(vec2(u, v), ${quantity === 'relief' ? 'true' : 'a.z > 0.0'});
+  float h = ${quantity === 'relief' ? 's.land > 0.5 ? s.relief : -1.0' : 'detHeight(s, detRotate(b.xyz), a.z)'};
   ${enc === 'float' ? 'gl_FragColor = vec4(h, 0.0, 0.0, 1.0);' : `uint bits = floatBitsToUint(h);\n  ${writeBits(enc)}`}
 }
 `;
@@ -211,13 +212,15 @@ export function probeHashes(renderer: WebGLRenderer, items: ReadonlyArray<readon
 /**
  * The height (render metres, before the exaggeration) of the GLSL function for each point (latitude, longitude in degrees, octaves),
  * read from the very texture the terrain uploads. Latitude and longitude are float32 on the GPU: the caller compares against `heightAt`
- * evaluated at the same `Math.fround` values.
+ * evaluated at the same `Math.fround` values. With `quantity` 'relief' the result is the GLSL local relief in metres instead (-1 on sea): the
+ * rule "max minus min of the 3x3 texels, floor 100 m, bilinear, polar fade" read back, not only its effect on a height.
  */
 export function probeHeights(
   renderer: WebGLRenderer,
   height: { texture: Texture; width: number; height: number; maxM: number },
   points: ReadonlyArray<readonly [number, number, number]>,
   encoding: ProbeEncoding = probeEncoding(renderer),
+  quantity: 'height' | 'relief' = 'height',
 ): Float32Array {
   const rows = Math.max(1, Math.ceil(points.length / WIDTH));
   const data = new Float32Array(WIDTH * rows * 2 * 4);
@@ -237,7 +240,7 @@ export function probeHeights(
     encoding,
     input: inputTexture(data, rows * 2),
     rows,
-    fragment: HEIGHT_FRAGMENT(encoding),
+    fragment: HEIGHT_FRAGMENT(encoding, quantity),
     heights: { texture: height.texture, size: [height.width, height.height], maxM: height.maxM },
   });
   return decodeFloats(px, points.length, encoding);

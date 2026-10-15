@@ -52,6 +52,16 @@ const STEEP_VIEW: View = { name: 'steep', lat: 46.5, lon: 8, altAglM: 15_000, ti
 // The coast of west Norway seen from the sea: land, a shore and open water in one picture.
 const SHORE_VIEW: View = { name: 'shore', lat: 62.3, lon: 5.6, altAglM: 20_000, tilt: 55, heading: 90, sunLon: -35 };
 
+/** The ice sheet of Greenland (glacier class: stays white, no rock streaks) and two forests of the same height band at 62 N (central Sweden) and 50 N (Bohemia): the boreal tone. */
+const GREENLAND_VIEW: View = { name: 'greenland', lat: 72, lon: -40, altAglM: 12_000, tilt: 55, heading: 0, sunLon: -45 };
+const BOREAL_NORTH_VIEW: View = { name: 'boreal-north', lat: 62, lon: 15, altAglM: 8000, tilt: 55, heading: 0, sunLon: 10 };
+const BOREAL_SOUTH_VIEW: View = { name: 'boreal-south', lat: 50, lon: 14, altAglM: 8000, tilt: 55, heading: 0, sunLon: 10 };
+/**
+ * Blue over red of the Forest class at 62 N over the same at 50 N. Both views are lit differently (the sun, the haze), so the ratio of the two is 1.58 WITHOUT the
+ * boreal tone (the statement switched off in the shader) and 1.68 with it; the threshold sits between (the scene is deterministic: fixed seed, view and sun).
+ */
+const BOREAL_MARGIN = 1.63;
+
 /** The Himalaya from the south at 1 500 km (tilt 50): the Tibetan plateau fills the upper half of the picture. In M07a it read as a flat white wash. */
 const PLATEAU_VIEW: View = { name: 'plateau', lat: 29, lon: 85, altAglM: 0, tilt: 50, heading: 0, sunLon: 50 };
 
@@ -158,6 +168,44 @@ describe('shading statistics over fixed views (terrain region = the land under s
       expect(st.rock).toBeGreaterThan(fl.rock);
       expect(st.rock, 'steep view: rock grey share').toBeGreaterThanOrEqual(0.3);
       expect(fl.rock, 'flat view: rock grey share').toBeLessThanOrEqual(0.05);
+      expect(messages).toEqual([]);
+    } finally {
+      await page.close();
+    }
+  });
+
+  it('an ice sheet stays white and a boreal forest is bluer than a southern one: over Greenland nearly all land pixels are snow-white with no rock grey, and the Forest class at 62 N is bluer (blue over red) than the same class at 50 N in the same height band', async () => {
+    const { page, messages } = await open();
+    try {
+      await setView(page, GREENLAND_VIEW);
+      const gShot = await shoot(page, 'greenland');
+      const g = classShares(gShot.img, await scan(page, 12), CLASS_FOREST);
+      console.log(`[shading] Greenland view: ${g.samples} land samples, snow ${pct(g.snow)}, rock grey ${pct(g.rock)}`);
+      expect(g.samples).toBeGreaterThan(800);
+      expect(g.snow, 'the ice sheet is white').toBeGreaterThanOrEqual(0.85);
+      expect(g.rock, 'no rock streaks on the ice').toBeLessThanOrEqual(0.03);
+      // the boreal tone: forest-class pixels of the same height band (150 to 600 m), blue over red averaged in display space
+      const tone = async (v: View, name: string): Promise<{ ratio: number; n: number }> => {
+        await setView(page, v);
+        const shot = await shoot(page, name);
+        let sum = 0;
+        let n = 0;
+        const sc = await scan(page, 12);
+        for (const p of sc) {
+          if (!p.land || p.classId !== CLASS_FOREST || p.heightM < 150 || p.heightM > 600) continue;
+          const c = pixelAt(shot.img, p.x, p.y);
+          if (lumaOf(c) < 0.08 || c[0] === 0) continue;
+          sum += c[2] / c[0];
+          n++;
+        }
+        return { ratio: n > 0 ? sum / n : 0, n };
+      };
+      const north = await tone(BOREAL_NORTH_VIEW, 'boreal-north');
+      const south = await tone(BOREAL_SOUTH_VIEW, 'boreal-south');
+      console.log(`[shading] forest tone, blue over red: 62 N ${north.ratio.toFixed(3)} (${north.n} pixels), 50 N ${south.ratio.toFixed(3)} (${south.n} pixels)`);
+      expect(north.n).toBeGreaterThan(100);
+      expect(south.n).toBeGreaterThan(100);
+      expect(north.ratio / south.ratio, 'the boreal tone makes the northern forest bluer').toBeGreaterThan(BOREAL_MARGIN);
       expect(messages).toEqual([]);
     } finally {
       await page.close();

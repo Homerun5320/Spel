@@ -47,7 +47,7 @@ export class HeightField {
   private readonly height8: Uint8Array;
   /** The detail sampler of the displaced surface (null = the filtered raster alone). */
   readonly sampler: HeightSampler | null;
-  private readonly lod: DetailLod | null;
+  private lod: DetailLod | null;
   private readonly octaves: boolean;
 
   constructor(o: HeightFieldOptions) {
@@ -59,6 +59,15 @@ export class HeightField {
     this.sampler = o.detail ? new HeightSampler({ codes: o.height8, width: this.width, height: this.height, maxM: this.maxM }, o.detail.seed === undefined ? {} : { seed: o.detail.seed }) : null;
     this.lod = o.detail ? o.detail.lod : null;
     this.octaves = o.detail?.octaves !== false;
+  }
+
+  /** The law of detail the field sees the surface with (the same one the chunk material carries as `uDetailLod`): `Globe.setDetailBias` keeps the two in step. Null without detail. */
+  get detailLod(): DetailLod | null {
+    return this.lod;
+  }
+
+  setDetailLod(lod: DetailLod): void {
+    if (this.lod) this.lod = lod;
   }
 
   /** Raw code at a pixel (longitude wraps, latitude clamps). */

@@ -3,14 +3,14 @@
 import { BufferAttribute, BufferGeometry, Color, Mesh, PerspectiveCamera, Points, Scene, type ShaderMaterial, SphereGeometry, type Vector3, WebGLRenderer } from 'three';
 import { type City, type RenderPack, type SimGrid, type WorldMeta } from '../data';
 import { CameraRig, clipPlanes, setViewAtAgl, viewFromGroundCamera, type GroundCameraSpec, type ViewState } from './camera';
-import { ATMOSPHERE_TOP, EARTH_RADIUS_KM, HEIGHT_EXAGGERATION, OCEAN_WAVE_SPEED } from './config';
+import { ATMOSPHERE_TOP, DETAIL_BIAS_MIN, DETAIL_OCTAVES_MAX, MOTTLE_OFF_SCALE, OCTAVE_LAW_OFF_OFFSET, EARTH_RADIUS_KM, HEIGHT_EXAGGERATION, OCEAN_WAVE_SPEED } from './config';
 import { fxNow } from './clock';
 import { CameraFlight, type FlyOptions } from './flyTo';
 import { BORDER_STRENGTH, COUNTRY_TINT } from './config';
 import { selectionBytes } from './selection';
 import { describeAt, type GlobePick } from './describe';
 import { ChunkTerrain, type ChunkStats } from './chunkTerrain';
-import { bindHeightSource, detailLod } from './detail';
+import { bindHeightSource, detailLod, type DetailLod } from './detail';
 import { sunDirectionAt, vecToLatLon, type Vec3 } from './geo';
 import { buildGlobeGeometry } from './globeMesh';
 import { HeightField } from './heightField';
@@ -54,6 +54,8 @@ export interface GlobeOptions {
   chunkDebug?: boolean;
   /** M07b: the terrain detail of the chunk terrain (default true; `?detail=0` switches it off, the base heights only). The fixed mesh has none. */
   detail?: boolean;
+  /** M07b audit: the near-view colour mottling of the fragment shader (default true; `?mottle=0` switches it off). A run-time lever: `Globe.setFineDetail`. */
+  fineDetail?: boolean;
 }
 
 export interface GlobeInfo {
@@ -120,6 +122,11 @@ export class Globe {
   private height: number;
   private dpr: number;
   private readonly world: WorldData;
+  /** The law of detail of the tier (offset of the distance law and level bias) before `setDetailBias` moved it. */
+  private detailLodBase: DetailLod | null = null;
+  private detailBiasOctaves = 0;
+  private densityScale = 1;
+  private octaveMode: 'law' | 'level' | 'none' = 'law';
 
   constructor(o: GlobeOptions) {
     this.quality = o.quality;
@@ -159,7 +166,8 @@ export class Globe {
     this.look = createLookTextures(o.world.cities ?? []);
     this.ownership = new OwnershipTexture(o.world.sim.width, o.world.sim.height, o.world.sim.terrainClass);
     this.terrainMode = o.terrain ?? 'chunks';
-    const tm = createTerrainMaterial(this.textures, o.world.render, o.world.sim, o.world.meta, this.look, this.ownership, this.terrainMode, o.quality.chunkCells, { kMin: Math.min(o.quality.chunkSplitK, o.quality.chunkDeepK), on: this.detail });
+    const tm = createTerrainMaterial(this.textures, o.world.render, o.world.sim, o.world.meta, this.look, this.ownership, this.terrainMode, o.quality.chunkCells, { kMin: Math.min(o.quality.chunkSplitK, o.quality.chunkDeepK), on: this.detail, fineDetail: o.fineDetail !== false });
+    this.detailLodBase = this.field.detailLod;
     this.material = tm.material;
     this.sun = tm.sun;
     if (this.terrainMode === 'chunks') {
@@ -206,6 +214,74 @@ export class Globe {
     this.field.exaggeration = x;
     (this.material.uniforms.uExag as { value: number }).value = x;
     this.chunkTerrain?.setExaggeration(x);
+  }
+
+  /**
+   * RUN-TIME LEVERS of the terrain's cost (M07b audit, for M24a's quality regulator). The vertex octaves and the near-view mottling are the two costs the
+   * detail added; both can be changed without rebuilding anything:
+   *  - `setDetailBias(octaves)` moves the distance law of the octaves by that many octaves (0 = the tier's law, -1 = one octave fewer everywhere, down to
+   *    `DETAIL_BIAS_MIN`; a positive value is clamped to 0: more than the tier's law would ask a chunk for octaves that its mesh cannot show). It writes the
+   *    GPU uniform `uDetailLod.x` AND the law the CPU surface sees (`HeightField`, picking), so the drawn and the picked surface stay one. The quadtree and its
+   *    node intervals do not depend on it (they use the octaves a LEVEL carries, `octavesForLevel`); the camera floor uses the finest surface.
+   *  - `setChunkDensity(scale)` scales the quadtree's split distances (below).
+   *  - `setFineDetail(on)` switches the mottling of the fragment shader (`uMottleScale`: 1 on, `MOTTLE_OFF_SCALE` off = every octave of it is faded out, no loop runs).
+   */
+  setDetailBias(octaves: number): void {
+    this.detailBiasOctaves = Math.min(0, Math.max(DETAIL_BIAS_MIN, octaves));
+    this.applyDetailLod();
+  }
+
+  /**
+   * The chunk density lever: every split distance of the quadtree times `scale` (clamped to 0.5 .. 2; 1 = the tier's own, below 1 = fewer and coarser chunks,
+   * above 1 = more). Below 1 the chunks are drawn nearer than the distance the octave law was set for (the tier's `deepK` sides), so the law moves with them
+   * (`log2(scale)` octaves, the same offset on the GPU and on the CPU surface) and a chunk is never asked for more octaves than its level carries.
+   * The cap on the chunks is the tier's and does not change.
+   */
+  setChunkDensity(scale: number): void {
+    this.densityScale = Math.min(2, Math.max(0.5, scale));
+    this.chunkTerrain?.setSplitScale(this.densityScale);
+    this.applyDetailLod();
+  }
+
+  /**
+   * The CONTROLS of the pop tests (D147, D154), never used by the game. `'law'` is the real thing: the octaves of a vertex are the smaller of its chunk's
+   * level and the distance law. `'level'` switches the distance law off, so a vertex takes the octaves of its chunk's LEVEL alone and a vertex shared by a
+   * level L and a level L + 1 chunk gets different octave sets (the pop the law removes). `'none'` switches every limit off: all 12 octaves everywhere,
+   * aliased on the coarse chunks and different on the fine ones (the "no detail fade at all" mutant).
+   */
+  setOctaveLimit(mode: 'law' | 'level' | 'none'): void {
+    this.octaveMode = mode;
+    this.applyDetailLod();
+  }
+
+  get chunkDensity(): number {
+    return this.densityScale;
+  }
+
+  private applyDetailLod(): void {
+    const u = this.material.uniforms.uDetailLod as { value: { x: number; y: number } } | undefined;
+    const base = this.detailLodBase;
+    if (!u || !base) return;
+    const lod: DetailLod = {
+      offset: this.octaveMode === 'law' ? base.offset + this.detailBiasOctaves + Math.min(0, Math.log2(this.densityScale)) : OCTAVE_LAW_OFF_OFFSET,
+      levelBias: this.octaveMode === 'none' ? DETAIL_OCTAVES_MAX : base.levelBias,
+    };
+    u.value.x = lod.offset;
+    u.value.y = lod.levelBias;
+    this.field.setDetailLod(lod);
+  }
+
+  get detailBias(): number {
+    return this.detailBiasOctaves;
+  }
+
+  setFineDetail(on: boolean): void {
+    const u = this.material.uniforms.uMottleScale as { value: number } | undefined;
+    if (u) u.value = on ? 1 : MOTTLE_OFF_SCALE;
+  }
+
+  get fineDetail(): boolean {
+    return ((this.material.uniforms.uMottleScale as { value: number } | undefined)?.value ?? MOTTLE_OFF_SCALE) < 1.5;
   }
 
   /** `?chunks=1`: colours every chunk by its key (chunk terrain only). */
@@ -412,6 +488,12 @@ export class Globe {
   probeHeights(points: ReadonlyArray<readonly [number, number, number]>, encoding?: ProbeEncoding): Float32Array {
     const r = this.world.render;
     return probeHeights(this.renderer, { texture: this.textures.height, width: r.width, height: r.height, maxM: this.world.meta.encoding.heightSqrt.maxM }, points, encoding);
+  }
+
+  /** The local relief in metres of each [latitude, longitude] (-1 on sea) as the GLSL `detSample` computes it: the 3x3 rule, the floor and the polar fade. */
+  probeReliefs(points: ReadonlyArray<readonly [number, number]>, encoding?: ProbeEncoding): Float32Array {
+    const r = this.world.render;
+    return probeHeights(this.renderer, { texture: this.textures.height, width: r.width, height: r.height, maxM: this.world.meta.encoding.heightSqrt.maxM }, points.map((p) => [p[0], p[1], 0] as const), encoding, 'relief');
   }
 
   /** The 3D value noise of the GLSL function at each [x, y, z, seed] (or its ridge value). */

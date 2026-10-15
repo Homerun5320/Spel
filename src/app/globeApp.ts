@@ -140,6 +140,18 @@ export interface GlobeTestHooks {
   probeEncoding(): 'float' | 'bytes';
   probeHash(items: Array<[number, number, number, number]>, encoding?: 'float' | 'bytes'): number[];
   probeHeight(points: Array<[number, number, number]>, encoding?: 'float' | 'bytes'): number[];
+  /** M07b audit: the GLSL local relief in metres of each [latitude, longitude] (-1 on sea): the 3x3 rule, the 100 m floor and the polar fade read back. */
+  probeRelief(points: Array<[number, number]>, encoding?: 'float' | 'bytes'): number[];
+  /** M07b audit (run-time levers of the terrain cost, M24a): `setDetailBias(octaves)` moves the distance law of the vertex octaves (0 .. -3, GPU and picking together), `setFineDetail(on)` switches the near-view mottling of the fragment shader; the getters return the current values. */
+  setDetailBias(octaves: number): void;
+  detailBias(): number;
+  setFineDetail(on: boolean): void;
+  fineDetail(): boolean;
+  /** M07b audit: the controls of the pop tests (D154): `setOctaveLimit('level')` switches the distance law of the octaves off (octaves by the chunk's level alone), `'none'` every limit (12 octaves everywhere), `'law'` is the real thing. */
+  setOctaveLimit(mode: 'law' | 'level' | 'none'): void;
+  /** M07b audit: the chunk density lever (every split distance times `scale`, 0.5 .. 2; the octave law follows below 1) and the current value. */
+  setChunkDensity(scale: number): void;
+  chunkDensity(): number;
   /** M07b: the 3D value noise of the GLSL function at each [x, y, z, seed], or with `ridge` true its ridge value 1 - |2 n - 1|. */
   probeNoise(items: Array<[number, number, number, number]>, ridge?: boolean): number[];
   /** M07b: the vertex path of the detail: the height the chunk vertex shader draws at each [latitude, longitude, chunk level, camera x, y, z in Earth radii] (octaves = the smaller of the level's and the distance law's). */
@@ -289,7 +301,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   }
   canvas.style.touchAction = 'none';
 
-  const globe = new Globe({ canvas, width, height, dpr, quality, world, preserveDrawingBuffer: params.test, terrain: ctx.state.terrain.terrain, chunkDebug: ctx.state.terrain.chunkDebug, detail: ctx.state.raw.detail !== '0' });
+  const globe = new Globe({ canvas, width, height, dpr, quality, world, preserveDrawingBuffer: params.test, terrain: ctx.state.terrain.terrain, chunkDebug: ctx.state.terrain.chunkDebug, detail: ctx.state.raw.detail !== '0', fineDetail: ctx.state.raw.mottle !== '0' });
   globe.setView(DEFAULT_START_VIEW);
   const groundView = ctx.state.view !== null && globe.terrainMode === 'chunks' ? GROUND_VIEWS[ctx.state.view] : null; // `?view=alps-valley` (M07a)
   if (groundView !== null) globe.setGroundView(groundView);
@@ -819,6 +831,14 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       probeEncoding: () => globe.probeEncoding(),
       probeHash: (items, encoding) => Array.from(globe.probeHashes(items, encoding)),
       probeHeight: (points, encoding) => Array.from(globe.probeHeights(points, encoding)),
+      probeRelief: (points, encoding) => Array.from(globe.probeReliefs(points, encoding)),
+      setDetailBias: (octaves) => globe.setDetailBias(octaves),
+      detailBias: () => globe.detailBias,
+      setOctaveLimit: (mode) => globe.setOctaveLimit(mode),
+      setChunkDensity: (scale) => globe.setChunkDensity(scale),
+      chunkDensity: () => globe.chunkDensity,
+      setFineDetail: (on) => globe.setFineDetail(on),
+      fineDetail: () => globe.fineDetail,
       probeNoise: (items, ridge = false) => Array.from(globe.probeNoiseValues(items, ridge)),
       probeVertex: (points, encoding) => Array.from(globe.probeVertexHeights(points, encoding)),
       detailLod: () => globe.detailLodUniform(),

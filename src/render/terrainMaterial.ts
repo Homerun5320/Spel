@@ -31,6 +31,8 @@ export interface TerrainMaterial {
 export interface TerrainDetailOptions {
   kMin?: number;
   on?: boolean;
+  /** The near-view colour mottling (`uMottleScale` 1 or `MOTTLE_OFF_SCALE`, a run-time switch: `Globe.setFineDetail`); default on. */
+  fineDetail?: boolean;
 }
 
 const v3 = (c: readonly [number, number, number]): Vector3 => new Vector3(c[0], c[1], c[2]);
@@ -114,7 +116,7 @@ export function createTerrainMaterial(
       uSkyZenith: { value: v3(C.SKY_ZENITH) },
       uSkyNight: { value: v3(C.SKY_NIGHT) },
       // Chunk terrain only: the skirts switch (a debug flag of the crack test) and the `?chunks=1` colouring.
-      ...(chunks ? { uSkirtsOn: { value: 1 }, uChunkDebug: { value: 0 }, uChunkCells: { value: chunkCells }, uDetailLod: { value: new Vector3(lod.offset, lod.levelBias, detail.on === false ? 0 : 1) }, uCamHi: { value: new Vector3() }, uCamLo: { value: new Vector3() }, uSkirt: { value: new Vector2(C.CHUNK_SKIRT_CELLS, C.CHUNK_SKIRT_OUT_CELLS) }, uSkirtSame: { value: C.CHUNK_SKIRT_SAME_SHARE } } : {}),
+      ...(chunks ? { uSkirtsOn: { value: 1 }, uChunkDebug: { value: 0 }, uChunkCells: { value: chunkCells }, uMottleScale: { value: detail.fineDetail === false ? C.MOTTLE_OFF_SCALE : 1 }, uDetailLod: { value: new Vector3(lod.offset, lod.levelBias, detail.on === false ? 0 : 1) }, uCamHi: { value: new Vector3() }, uCamLo: { value: new Vector3() }, uSkirt: { value: new Vector2(C.CHUNK_SKIRT_CELLS, C.CHUNK_SKIRT_OUT_CELLS) }, uSkirtSame: { value: C.CHUNK_SKIRT_SAME_SHARE } } : {}),
       ...shared,
     },
   });

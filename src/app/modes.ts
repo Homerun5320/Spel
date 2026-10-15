@@ -15,6 +15,8 @@ export function registerAppModes(): void {
   registerDevMode({ id: 'chunks', label: 'Visa chunkens färger och kanter', params: { chunks: '1' }, toggle: true });
   registerDevMode({ id: 'detail-off', label: 'Terrängdetalj av (bara rasterhöjden)', params: { detail: '0' } });
   registerDevMode({ id: 'detail-on', label: 'Terrängdetalj på (standard)', params: { detail: '1' } });
+  registerDevMode({ id: 'mottle-off', label: 'Närbildens färgfläckar av (kostnadsjämförelse)', params: { mottle: '0' } });
+  registerDevMode({ id: 'mottle-on', label: 'Närbildens färgfläckar på (standard)', params: { mottle: '1' } });
   registerDevMode({ id: 'chunktier-high', label: 'Testläge: chunk-täthet som hög kvalitet', params: { chunktier: 'high' } });
   registerDevMode({ id: 'view-alps-valley', label: 'Vy: Alpdal, 2 km över marken', params: { view: 'alps-valley' } });
   registerDevMode({ id: 'view-himalaya-valley', label: 'Vy: Himalayadal, 2 km över marken', params: { view: 'himalaya-valley' } });

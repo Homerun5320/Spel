@@ -128,7 +128,7 @@ vec2 fineMottle(ivec2 b, vec2 o, float pc, float hM) {
  * per chunk with a darker rim, so the chunks and their levels can be seen); the fixed mesh has no such uniform.
  */
 export function buildTerrainFragmentShader(chunk: boolean): string {
-  const chunkDecl = chunk ? 'uniform float uChunkDebug;\nuniform float uChunkCells;\nuniform vec3 uDetailLod;\nvarying vec4 vChunk;\nvarying float vWall;\nvarying float vH;\nflat varying vec2 vCellBase;\nvarying vec2 vCellOff;' : '';
+  const chunkDecl = chunk ? 'uniform float uChunkDebug;\nuniform float uChunkCells;\nuniform float uMottleScale;\nuniform vec3 uDetailLod;\nvarying vec4 vChunk;\nvarying float vWall;\nvarying float vH;\nflat varying vec2 vCellBase;\nvarying vec2 vCellOff;' : '';
   // The facet normal is the stylised flat shading of the mesh. A mesh cell much smaller than a raster texel only shows the texel
   // grid of the bilinear height field (blocky streaks), so the facet weight fades out below four texels per cell (the fixed mesh
   // and the orbit-level chunks have 8 or more and keep the full weight; the slope normal already carries the finer relief).
@@ -173,7 +173,7 @@ export function buildTerrainFragmentShader(chunk: boolean): string {
   vec2 cpy = vec2(dot(tpy, east) * invCos, -dot(tpy, north)) * ownerCells * vec2(0.5 / PI, 1.0 / PI);
   float pixCells = max(max(length(cpx), length(cpy)), 1e-7);
   vec2 mot2 = vec2(0.5);
-  if (landMask > 0.001) mot2 = fineMottle(ivec2(floor(vCellBase + 0.5)), vCellOff, pixCells, vH);
+  if (landMask > 0.001) mot2 = fineMottle(ivec2(floor(vCellBase + 0.5)), vCellOff, pixCells * uMottleScale, vH); // uMottleScale 1: on; 1000: off (a pixel is a thousand times wider to it, every octave is faded out, no work)
   float mot = mot2.x;`
     : 'float mot = 0.5;\n  vec2 mot2 = vec2(0.5);';
   // The vertex height samples the raster only at the mesh's own vertices: where a cell is wider than a texel (an orbit view) it misses the narrow peaks

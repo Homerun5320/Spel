@@ -235,6 +235,122 @@ describe('the height: the GLSL function equals heightAt within 1 % of the local 
   });
 });
 
+/** Where the polar rule, the southern hemisphere and the antimeridian are exercised: [name, lat from, lat to, lon from, lon to]. */
+const WIDE_REGIONS: Array<[string, number, number, number, number]> = [
+  ['Antarctic sheet', -80, -70, -180, 180],
+  ['Antarctic cap', -90, -86.5, -180, 180],
+  ['Antarctic fade ramp', -86.5, -84.5, -180, 180],
+  ['Greenland', 60, 83, -60, -20],
+  ['Andes', -40, -20, -72, -66],
+  ['Southern Alps', -45.5, -43, 169, 171.5],
+  ['Fiji, east of the antimeridian', -18, -16, 178.5, 180],
+  ['Fiji, west of the antimeridian', -18, -16, -180, -178.5],
+  ['Chukotka, both sides', 64, 69, 170, 180],
+  ['Chukotka, west longitudes', 64, 69, -180, -170],
+  ['Himalaya', 27, 30, 84, 90],
+  ['Netherlands (flat)', 51, 53, 4, 7],
+];
+
+describe('the relief and the polar rule in the GLSL (the rule itself, read back through the probe)', () => {
+  it('the GLSL relief equals the rule "3x3 texels, floor 100 m, bilinear, polar fade" on 1200 points over twelve regions (the Antarctic cap, the southern hemisphere and both sides of the antimeridian included), and flat land reads exactly 100', async () => {
+    const { page, messages } = await open();
+    try {
+      const r = rng(121);
+      const pts: Array<[number, number]> = [];
+      const names: string[] = [];
+      for (let i = 0; i < 1200; i++) {
+        const reg = WIDE_REGIONS[i % WIDE_REGIONS.length] as (typeof WIDE_REGIONS)[number];
+        pts.push([f32(reg[1] + (reg[2] - reg[1]) * r()), f32(reg[3] + (reg[4] - reg[3]) * r())]);
+        names.push(reg[0]);
+      }
+      const gpu: number[] = await page.evaluate((it) => (window as any).__test.probeRelief(it), pts);
+      const gpuBytes: number[] = await page.evaluate((it) => (window as any).__test.probeRelief(it, 'bytes'), pts);
+      expect(gpuBytes, 'the two encodings return the same float32 values').toEqual(gpu);
+      const fade = (lat: number): number => {
+        const t = Math.min(1, Math.max(0, (Math.abs(lat) - 84.5) / 2));
+        return 1 - t * t * (3 - 2 * t);
+      };
+      let land = 0;
+      let worst = 0;
+      let flat = 0;
+      let capLand = 0;
+      let rugged = 0;
+      pts.forEach((p, i) => {
+        const g = gpu[i] as number;
+        const ts = sampler.sampleAt((p[1] + 180) / 360, (90 - p[0]) / 180, true);
+        if (!ts.land) {
+          expect(g, `${names[i]} ${p}`).toBe(-1);
+          return;
+        }
+        land++;
+        const want = localRelief(p[0], p[1]) * fade(p[0]);
+        worst = Math.max(worst, Math.abs(g - want) / Math.max(want, 100));
+        expect(Math.abs(g - want), `${names[i]} at ${p}: GLSL ${g}, rule ${want}`).toBeLessThan(0.002 * Math.max(want, 100));
+        expect(Math.abs(g - ts.relief)).toBeLessThan(0.002 * Math.max(ts.relief, 100));
+        if (names[i]!.startsWith('Antarctic cap')) {
+          expect(g, `cap ${p}`).toBe(0);
+          capLand++;
+        }
+        if (names[i] === 'Netherlands (flat)' && want < 100.0001) {
+          expect(g, `flat land ${p}`).toBeCloseTo(100, 2);
+          flat++;
+        }
+        if (want > 1000) rugged++;
+      });
+      console.log(`[relief probe] 1200 points (${land} land): the GLSL relief differs from the rule by at most ${(100 * worst).toFixed(4)} % (${flat} flat points read 100 m, ${capLand} cap points read 0, ${rugged} points above 1000 m)`);
+      expect(land).toBeGreaterThan(600);
+      expect(flat).toBeGreaterThan(10);
+      expect(capLand).toBeGreaterThan(20);
+      expect(rugged).toBeGreaterThan(40);
+      expect(messages).toEqual([]);
+    } finally {
+      await page.close();
+    }
+  });
+
+  it('the GLSL height equals heightAt within 1 % of the relief on the same twelve regions with 12 octaves, over the Antarctic cap the GLSL detail is exactly zero (12 octaves and none give the same height), and at 80 S it is not', async () => {
+    const { page, messages } = await open();
+    try {
+      const r = rng(122);
+      const pts: Array<[number, number, number]> = [];
+      const names: string[] = [];
+      for (let i = 0; i < 1200; i++) {
+        const reg = WIDE_REGIONS[i % WIDE_REGIONS.length] as (typeof WIDE_REGIONS)[number];
+        pts.push([f32(reg[1] + (reg[2] - reg[1]) * r()), f32(reg[3] + (reg[4] - reg[3]) * r()), 12]);
+        names.push(reg[0]);
+      }
+      const gpu: number[] = await page.evaluate((it) => (window as any).__test.probeHeight(it), pts);
+      const none: number[] = await page.evaluate((it) => (window as any).__test.probeHeight(it.map((p: number[]) => [p[0], p[1], 0])), pts);
+      let worst = 0;
+      let cap = 0;
+      let sheet = 0;
+      let sheetDetail = 0;
+      pts.forEach((p, i) => {
+        const ts = sampler.heightAt(p[0], p[1], 12);
+        const relief = Math.max(localRelief(p[0], p[1]), 100);
+        const share = Math.abs(ts - (gpu[i] as number)) / relief;
+        worst = Math.max(worst, share);
+        expect(share, `${names[i]} at ${p}: GLSL ${gpu[i]}, TypeScript ${ts}`).toBeLessThan(0.01);
+        if (names[i] === 'Antarctic cap' && (gpu[i] as number) > 0) {
+          expect(gpu[i], `the GLSL detail over the cap at ${p}`).toBe(none[i]);
+          cap++;
+        }
+        if (names[i] === 'Antarctic sheet' && (gpu[i] as number) > 0) {
+          sheet++;
+          if (Math.abs((gpu[i] as number) - (none[i] as number)) > 1) sheetDetail++;
+        }
+      });
+      console.log(`[polar probe] worst height difference ${(100 * worst).toFixed(4)} % of the relief; ${cap} cap points have no detail in the GLSL, ${sheetDetail} of ${sheet} points of the sheet at 70 to 80 S have more than 1 m of it`);
+      expect(cap).toBeGreaterThan(20);
+      expect(sheet).toBeGreaterThan(50);
+      expect(sheetDetail, 'the detail is not switched off everywhere in the south').toBeGreaterThan(0.7 * sheet);
+      expect(messages).toEqual([]);
+    } finally {
+      await page.close();
+    }
+  });
+});
+
 describe('the vertex path: octaves from the level and from the distance to the camera', () => {
   it('the GLSL detVertexHeight equals heightSeenM on 600 vertices at 1 to 50 km from the camera with mixed levels (within 1 % of the relief), and the level-only rule would not', async () => {
     const { page, messages } = await open();
@@ -359,6 +475,73 @@ describe('the page: switch, hooks and pictures', () => {
       const pts: Array<[number, number]> = Array.from({ length: 50 }, () => [27 + 3 * r(), 84 + 6 * r()]);
       const res: number[] = await page.evaluate((it) => it.map(([la, lo]) => (window as any).__test.heightAt(la, lo)), pts);
       pts.forEach((p, i) => expect(res[i]).toBeCloseTo(sampler.heightAt(p[0], p[1]), 6));
+      expect(messages).toEqual([]);
+    } finally {
+      await page.close();
+    }
+  });
+
+  it('the run-time levers of the cost work (M24a): setDetailBias(-1) moves the GPU law and the picked surface together (the probe and pickSurface agree at the new law), setFineDetail(false) removes the mottling, and putting both back restores the picture byte for byte', async () => {
+    const { page, messages } = await open('test=1&ai=0', { width: 640, height: 360 });
+    try {
+      const view = { lat: 28.2, lon: 86.8, heading: 0, pitchDeg: 25, aglM: 2000, time: 1465 };
+      const shoot = async (): Promise<Uint8Array> => {
+        await page.evaluate((v) => {
+          const h = (window as any).__test;
+          h.setGroundView(v);
+          h.render();
+        }, view);
+        return decodePng(await page.screenshot({ type: 'png' })).data as Uint8Array;
+      };
+      const share = (a: Uint8Array, b: Uint8Array): number => {
+        let n = 0;
+        for (let i = 0; i < a.length; i += 4) if (Math.abs((a[i] as number) - (b[i] as number)) + Math.abs((a[i + 1] as number) - (b[i + 1] as number)) + Math.abs((a[i + 2] as number) - (b[i + 2] as number)) > 24) n++;
+        return n / (a.length / 4);
+      };
+      const base = await shoot();
+      const lod0: [number, number, number] = await page.evaluate(() => (window as any).__test.detailLod());
+      // the vertex octaves: one fewer everywhere
+      await page.evaluate(() => (window as any).__test.setDetailBias(-1));
+      const lod1: [number, number, number] = await page.evaluate(() => (window as any).__test.detailLod());
+      expect(lod1[0]).toBeCloseTo(lod0[0] - 1, 6);
+      expect(lod1[1]).toBe(lod0[1]);
+      expect(await page.evaluate(() => (window as any).__test.detailBias())).toBe(-1);
+      const biased = await shoot();
+      console.log(`[levers] one octave fewer: ${(100 * share(base, biased)).toFixed(2)} % of the pixels change`);
+      expect(share(base, biased), 'the bias changes the picture').toBeGreaterThan(0.001);
+      // the picked surface IS the drawn one at the new law: the radius of a pick equals the GLSL height from the same camera (1 % of the relief)
+      const picks: Array<{ lat: number; lon: number; radius: number }> = [];
+      for (let i = 0; i < 12; i++) {
+        const hit = await page.evaluate(([px, py]) => (window as any).__test.pickSurface(px, py), [40 + (i % 4) * 160, 90 + Math.floor(i / 4) * 80] as const);
+        if (hit) picks.push(hit);
+      }
+      expect(picks.length).toBeGreaterThanOrEqual(8);
+      const cam: [number, number, number] = await page.evaluate(() => (window as any).__test.cameraPosition());
+      const input = picks.map((p) => [f32(p.lat), f32(p.lon), 17, f32(cam[0]), f32(cam[1]), f32(cam[2])] as [number, number, number, number, number, number]);
+      const gpu: number[] = await page.evaluate((it) => (window as any).__test.probeVertex(it), input);
+      let worst = 0;
+      picks.forEach((p, i) => {
+        const pickedHeightM = ((p.radius - 1) * EARTH_RADIUS_KM * 1000) / HEIGHT_EXAGGERATION;
+        worst = Math.max(worst, Math.abs(pickedHeightM - (gpu[i] as number)) / localRelief(p.lat, p.lon));
+      });
+      console.log(`[levers] ${picks.length} picks with the bias: height of the picked point against the GLSL height at the new law: at most ${(100 * worst).toFixed(4)} % of the relief`);
+      expect(worst).toBeLessThan(0.01);
+      // the bias is clamped: it only takes octaves away, and not more than three
+      await page.evaluate(() => (window as any).__test.setDetailBias(+2));
+      expect(await page.evaluate(() => (window as any).__test.detailBias())).toBe(0);
+      await page.evaluate(() => (window as any).__test.setDetailBias(-9));
+      expect(await page.evaluate(() => (window as any).__test.detailBias())).toBe(-3);
+      await page.evaluate(() => (window as any).__test.setDetailBias(0));
+      // the mottling
+      expect(await page.evaluate(() => (window as any).__test.fineDetail())).toBe(true);
+      await page.evaluate(() => (window as any).__test.setFineDetail(false));
+      expect(await page.evaluate(() => (window as any).__test.fineDetail())).toBe(false);
+      const plain = await shoot();
+      console.log(`[levers] mottling off: ${(100 * share(base, plain)).toFixed(2)} % of the pixels change`);
+      expect(share(base, plain), 'the mottling is visible in a ground view and the switch removes it').toBeGreaterThan(0.003);
+      await page.evaluate(() => (window as any).__test.setFineDetail(true));
+      const back = await shoot();
+      expect(Buffer.from(back).equals(Buffer.from(base)), 'both levers back at their defaults: the very same picture').toBe(true);
       expect(messages).toEqual([]);
     } finally {
       await page.close();

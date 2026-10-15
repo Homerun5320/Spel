@@ -242,3 +242,88 @@ describe('the night speckle is smooth (no hard squares)', () => {
     expect(chunkFrag).toContain('if (speckFade > 0.0 && nightF * land * lightTex > 0.001)'); // no work where there is nothing to modulate
   });
 });
+
+// ---- the glacier rule and the boreal tone, evaluated from the REAL shader statements (M07b audit) -----------------------------------------
+// `landRules` above replaces the shader's own `iceKeep` statement with an input, so the expression that decides which class is a glacier was never
+// evaluated: inverting it, dropping it from the boreal mix or switching the boreal tone off all passed. These tests feed the real albedo of each
+// terrain class (src/render/config.ts CLASS_ALBEDO) through the statements of the shader text.
+const REAL_NAMES = ['aLat', 'snowLine', 'treeLine', 'steep', 'alpine', 'iceKeep', 'bare', 'hSnow', 'snow'];
+const CLASS = { Plains: 2, Forest: 3, Hills: 4, Mountain: 5, Peak: 6, Ice: 7 } as const;
+
+function realRules(hD: number, latDeg: number, tanR: number, cls: number): { iceKeep: number; bare: number; snow: number } {
+  const [r, g, b] = C.CLASS_ALBEDO[cls] as readonly [number, number, number];
+  return evalScalars(chunkFrag, REAL_NAMES, { latDeg, hD, tanR, albedoLand: { x: r, y: g, z: b, r, g, b }, mot2: { x: 0.5, y: 0.5 } }) as { iceKeep: number; bare: number; snow: number };
+}
+
+/** The per-channel factor the boreal statement `albedoLand *= mix(vec3(1.0), BOREAL_TINT, amount)` applies, `amount` taken from the shader text. */
+function borealFactor(latDeg: number, cls: number): [number, number, number] {
+  const m = /albedoLand \*= mix\(vec3\(1\.0\), BOREAL_TINT, ([^;]+)\);/.exec(chunkFrag);
+  if (!m) throw new Error('no boreal statement "albedoLand *= mix(vec3(1.0), BOREAL_TINT, ...)" in the shader');
+  const k = constants(chunkFrag);
+  const iceKeep = realRules(0, latDeg, 0, cls).iceKeep;
+  const env: Record<string, unknown> = { ...k, smoothstep, aLat: Math.abs(latDeg), iceKeep };
+  const keys = Object.keys(env);
+  const amount = new Function(...keys, `return ${m[1]};`)(...keys.map((key) => env[key])) as number;
+  const t = k['BOREAL_TINT'] as { x: number; y: number; z: number };
+  return [mix(1, t.x, amount), mix(1, t.y, amount), mix(1, t.z, amount)];
+}
+
+describe('a glacier class stays white (the shader\'s own iceKeep expression, with the real class albedo)', () => {
+  it('Ice (blue 0.98) keeps nothing of the rock rules (iceKeep 0) and every land class with a lower blue channel is a normal class (iceKeep 1)', () => {
+    expect(realRules(0, 70, 0, CLASS.Ice).iceKeep).toBe(0);
+    for (const cls of [CLASS.Plains, CLASS.Forest, CLASS.Hills, CLASS.Mountain, CLASS.Peak]) expect(realRules(0, 70, 0, cls).iceKeep, `class ${cls}`).toBe(1);
+    // the thresholds sit between the classes, with a margin on both sides
+    const blue = (cls: number): number => (C.CLASS_ALBEDO[cls] as readonly number[])[2] as number;
+    expect(blue(CLASS.Ice)).toBeGreaterThan(0.9);
+    expect(blue(CLASS.Peak)).toBeLessThan(0.82);
+  });
+
+  it('an ice sheet has no rock streaks: a steep face of Ice stays at bare = 0, a steep face of Hills is rock; above the tree line likewise', () => {
+    const steep = Math.tan((60 * Math.PI) / 180);
+    expect(realRules(1500, 78, steep, CLASS.Ice).bare, 'ice, steep').toBe(0);
+    expect(realRules(1500, 78, steep, CLASS.Hills).bare, 'hills, steep').toBeGreaterThanOrEqual(C.SHADE_ROCK_STRENGTH - 1e-9);
+    expect(realRules(2800, 70, 0.05, CLASS.Ice).bare, 'ice above the tree line').toBe(0);
+    expect(realRules(2800, 70, 0.05, CLASS.Mountain).bare, 'mountain above the tree line').toBeGreaterThan(0.6);
+  });
+});
+
+describe('the boreal tone (the shader\'s own statement, from the latitude and the class)', () => {
+  it('is the identity at 40 N (and in the tropics and the south), the full BOREAL_TINT from 66 degrees, and rises smoothly between 48 and 66', () => {
+    for (const lat of [0, 25, 40, 47.9, -30, -40]) {
+      const f = borealFactor(lat, CLASS.Forest);
+      expect(f, `lat ${lat}`).toEqual([1, 1, 1]);
+    }
+    const tint = C.SHADE_BOREAL_TINT;
+    const north = borealFactor(70, CLASS.Forest);
+    for (let k = 0; k < 3; k++) expect(north[k]).toBeCloseTo(tint[k] as number, 12);
+    // 62 N (west Norway) is already most of the way
+    const f62 = borealFactor(62, CLASS.Forest);
+    for (let k = 0; k < 3; k++) {
+      expect(f62[k]).toBeLessThan(1);
+      expect(f62[k]).toBeGreaterThanOrEqual(tint[k] as number);
+    }
+    expect(f62[0]).toBeLessThan(0.9); // red is the channel it takes most of (0.8)
+    let last = 1;
+    for (let lat = 40; lat <= 70; lat += 1) {
+      const red = borealFactor(lat, CLASS.Forest)[0];
+      expect(red).toBeLessThanOrEqual(last + 1e-12); // monotone
+      last = red;
+    }
+    // the southern hemisphere is not toned (the rule is on |lat| but the south has no boreal forest at 62 S in the data: Antarctica is Ice)
+    expect(borealFactor(-62, CLASS.Forest)[0]).toBeCloseTo(f62[0], 12);
+  });
+
+  it('leaves a glacier alone: Ice at 62 N keeps its colour (factor 1), Forest and Plains at 62 N take the tone', () => {
+    expect(borealFactor(62, CLASS.Ice), 'ice at 62 N').toEqual([1, 1, 1]);
+    expect(borealFactor(80, CLASS.Ice), 'ice at 80 N').toEqual([1, 1, 1]);
+    for (const cls of [CLASS.Forest, CLASS.Plains, CLASS.Hills]) expect(borealFactor(62, cls)[0], `class ${cls}`).toBeLessThan(0.9);
+  });
+
+  it('the tone is bluer than the Swedish one at the same height: Forest at 62 N against 58 N, the ratio blue / red rises', () => {
+    const [r62, , b62] = borealFactor(62, CLASS.Forest);
+    const [r58, , b58] = borealFactor(58, CLASS.Forest);
+    const forest = C.CLASS_ALBEDO[CLASS.Forest] as readonly number[];
+    const ratio = (rf: number, bf: number): number => ((forest[2] as number) * bf) / ((forest[0] as number) * rf);
+    expect(ratio(r62, b62)).toBeGreaterThan(ratio(r58, b58));
+  });
+});
