@@ -121,7 +121,7 @@ class MeshBuilder {
   }
 
   /** A tapered n-sided prism (a frustum) around (cx, cz): radius r0 at y0, r1 at y1, side walls plus a top cap (tint `topTint`); no bottom. */
-  prism(n: number, cx: number, cz: number, r0: number, r1: number, y0: number, y1: number, side: Rgb, top: Rgb, topTint: number, sideTint = 0, turn = 0): void {
+  taperedPrism(n: number, cx: number, cz: number, r0: number, r1: number, y0: number, y1: number, side: Rgb, top: Rgb, topTint: number, sideTint = 0, turn = 0): void {
     const ring = (k: number, r: number, y: number): Rgb => [cx + Math.cos(((k + 0.5) / n) * Math.PI * 2 + turn) * r, y, cz + Math.sin(((k + 0.5) / n) * Math.PI * 2 + turn) * r];
     const c: Rgb = [cx, y1, cz];
     for (let k = 0; k < n; k++) {
@@ -262,6 +262,9 @@ function buildPort(): ModelData {
   m.box(-0.3, -0.38, 0.3, 0.14, 0.04, 0.16, 0.1, CONTAINER_A, PLATE_TOP, 1);
   m.box(-0.02, -0.4, 0.3, 0.14, 0.04, 0.16, 0.1, CONTAINER_B, PLATE_TOP, 1);
   m.box(-0.16, -0.38, 0.3, 0.14, 0.16, 0.28, 0.1, CONTAINER_A, PLATE_TOP, 1);
+  return m.done();
+}
+
 // --- M10-3: Silo, SAM site, Defense Post ---------------------------------------------------------------------------------------------
 // Each sits on the same kind of owner-coloured plate as the City (so the owner reads from above), with a silhouette of its own: the Silo is LOW
 // with a missile standing on a pad, the SAM site is a launcher rack with a big turning dish, the Post is the only TALL SLIM tower inside a wall ring.
@@ -281,7 +284,7 @@ function buildSilo(): ModelData {
   m.plate(8, 1.0, -0.22, 0.04, PLATE_RIM, 0, PLATE_SIDE);
   m.disc(8, 0.8, 0.055, PLATE_TOP, 1);
   // the bunker: a wide low frustum with a flat roof, west of the centre
-  m.prism(10, -0.28, 0, 0.5, 0.4, 0.05, 0.3, CONCRETE, CONCRETE_DARK, 0);
+  m.taperedPrism(10, -0.28, 0, 0.5, 0.4, 0.05, 0.3, CONCRETE, CONCRETE_DARK, 0);
   // the hatch: a dark slot in the roof with two door leaves swung up in a V
   m.box(-0.28, 0, 0.5, 0.3, 0.3, 0.31, 0, HATCH, HATCH, 0);
   m.quad([-0.53, 0.31, -0.15], [-0.03, 0.31, -0.15], [-0.03, 0.46, -0.3], [-0.53, 0.46, -0.3], CONCRETE_DARK, 0);
@@ -290,8 +293,8 @@ function buildSilo(): ModelData {
   m.box(0.52, 0, 0.5, 0.56, 0.05, 0.1, 0, PAD, PAD, 0);
   m.box(0.52, 0.2, 0.5, 0.06, 0.1, 0.105, 0, PAD, PLATE_TOP, 1);
   m.box(0.52, -0.2, 0.5, 0.06, 0.1, 0.105, 0, PAD, PLATE_TOP, 1);
-  m.prism(6, 0.52, 0, 0.1, 0.1, 0.1, 0.72, MISSILE, MISSILE, 0);
-  m.prism(6, 0.52, 0, 0.1, 0, 0.72, 0.98, PLATE_TOP, PLATE_TOP, 1, 1); // the nose cone takes the owner colour
+  m.taperedPrism(6, 0.52, 0, 0.1, 0.1, 0.1, 0.72, MISSILE, MISSILE, 0);
+  m.taperedPrism(6, 0.52, 0, 0.1, 0, 0.72, 0.98, PLATE_TOP, PLATE_TOP, 1, 1); // the nose cone takes the owner colour
   m.beam([0.52, 0.1, 0.1], [0.52, 0.28, 0.24], 0.02, MISSILE, 0); // two small fins
   m.beam([0.52, 0.1, -0.1], [0.52, 0.28, -0.24], 0.02, MISSILE, 0);
   return m.done();
@@ -302,13 +305,13 @@ function buildSam(): ModelData {
   const m = new MeshBuilder();
   m.plate(8, 1.0, -0.22, 0.04, PLATE_RIM, 0, PLATE_SIDE);
   m.disc(8, 0.8, 0.055, PLATE_TOP, 1);
-  m.prism(6, 0, 0, 0.3, 0.22, 0.05, 0.22, CONCRETE, CONCRETE_DARK, 0);
+  m.taperedPrism(6, 0, 0, 0.3, 0.22, 0.05, 0.22, CONCRETE, CONCRETE_DARK, 0);
   // the launcher rack: two tubes pointing up and to the west, a frame between them
   m.beam([-0.12, 0.16, -0.26], [-0.62, 0.5, -0.26], 0.07, OLIVE, 0, HATCH);
   m.beam([-0.12, 0.16, 0.26], [-0.62, 0.5, 0.26], 0.07, OLIVE, 0, HATCH);
   m.beam([-0.4, 0.34, -0.26], [-0.4, 0.34, 0.26], 0.035, CONCRETE_DARK, 0);
   // the turning part: a mast and a dish on an arm to the east. The dish is a cone opening towards +x with a rim.
-  m.prism(5, 0, 0, 0.05, 0.05, 0.22, 0.84, CONCRETE, CONCRETE, SPIN);
+  m.taperedPrism(5, 0, 0, 0.05, 0.05, 0.22, 0.84, CONCRETE, CONCRETE, SPIN);
   m.beam([0, 0.82, 0], [0.12, 0.9, 0], 0.025, HATCH, SPIN);
   const apex: Rgb = [0.12, 0.9, 0];
   const rim = (k: number, x: number, r: number): Rgb => [x, 0.96 + Math.cos(((k + 0.5) / 7) * Math.PI * 2) * r, Math.sin(((k + 0.5) / 7) * Math.PI * 2) * r];
@@ -331,7 +334,7 @@ function buildPost(): ModelData {
     m.box(Math.cos(a) * 0.74, Math.sin(a) * 0.74, 0.5, 0.07, 0.04, 0.17, a + Math.PI / 2, STONE, STONE_DARK, 0);
   }
   // the tower: a tall slim frustum, a wider crenellated platform and a flag
-  m.prism(4, 0, 0, 0.3, 0.2, 0.04, 0.82, STONE, STONE_DARK, 0, 0, Math.PI / 4);
+  m.taperedPrism(4, 0, 0, 0.3, 0.2, 0.04, 0.82, STONE, STONE_DARK, 0, 0, Math.PI / 4);
   m.box(0, 0, 0.5, 0.5, 0.82, 0.9, 0.0, STONE_DARK, STONE_DARK, 0);
   for (const [x, z] of [[-0.21, -0.21], [0.21, -0.21], [0.21, 0.21], [-0.21, 0.21]] as Array<[number, number]>) m.box(x, z, 0.12, 0.12, 0.9, 1.0, 0, STONE, STONE, 0);
   m.beam([0, 0.9, 0], [0, 1.28, 0], 0.012, HATCH, 0);
