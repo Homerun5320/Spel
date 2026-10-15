@@ -66,6 +66,7 @@ export function hudCss(): string {
 
 .build-bar { position: absolute; left: 50%; bottom: 0.6em; transform: translateX(-50%); display: flex; align-items: center; gap: 0.4em; padding: 0.3em; pointer-events: auto; }
 .build-bar[hidden], .build-hint[hidden] { display: none !important; }
+.build-bar { flex-wrap: wrap; justify-content: center; max-width: min(46em, calc(100vw - 1em)); } /* M10-2: six buttons wrap on a narrow window */
 .build-btn { min-width: ${target}; min-height: ${target}; padding: 0 0.8em; display: flex; align-items: baseline; gap: 0.5em; border-radius: 0.5em; border: 1px solid ${C.buttonBorder}; background: ${C.button}; color: ${C.text}; font: inherit; font-weight: 700; cursor: pointer; touch-action: manipulation; }
 .build-btn:hover { background: ${C.buttonActive}; }
 .build-btn[data-active="1"] { background: ${C.buttonActive}; border-color: ${C.accent}; box-shadow: inset 0 0 0 1px ${C.accent}; }
@@ -89,7 +90,7 @@ export function hudCss(): string {
   .hud-board[data-labels="1"] { width: 15.5em; }
   .hud-row { min-height: 1.5em; }
   .hud-toast { bottom: 17em; }
-  .build-bar { bottom: 11.5em; }
+  .build-bar { bottom: 11.5em; left: auto; right: 8px; transform: none; max-width: calc(100vw - 20em); justify-content: flex-end; } /* M10-2: right of the gold panel, wraps upward */
   .build-hint { bottom: 16em; }
   .toast-stack { bottom: 23em; }
 }

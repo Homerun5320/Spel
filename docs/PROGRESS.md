@@ -1022,3 +1022,13 @@ Reading: (1) the fixed part grows with the triangle count (about 3 ms per 1000 t
 
 | date | after milestone | 5h % | week % | note |
 |------|-----------------|------|--------|------|
+
+### M10-2: Factory and Port on the terrain (slice 2 of M10; one builder in its own worktree; the orchestrator owns merging, pushing, the pull request and the Artifact)
+
+Base: 3d1a2bd (branch worktree-wf_18008882-291-1). Slice: ONLY the Factory (key 2) and the Port (key 3) on top of M10a.
+
+- [x] 1. Factory and Port models as `STRUCTURE_MODELS` entries (about 140 and 120 triangles, owner-coloured base), the Port's pier turned to the sea (`seaward`)
+- [x] 2. Build bar buttons 2 and 3 (price from the sim, dimmed with a reason tooltip), keys 2 and 3 through `InputTarget.build`, the ghost shows the right model, the bar wraps at 540 x 960
+- [x] 3. i18n sv + en (`hud.build.factory*`, `hud.build.port*`; the `toast.build.*` keys already covered every reason)
+- [x] ACCEPTANS: unit `tests/render/structureModelsFactoryPort.test.ts`; e2e `e2e/structuresFactoryPort.test.ts` (key 2 + click builds, the price goes up, key 3 inland is red with the Port reason and a toast, key 3 on a coast cell builds, the pier points to the water, heights within 1 m of `groundHeightAt`, draw calls within 10, six buttons fit 540 x 960, golden `structures-factory-port.png`); `npm run verify:fast` green; the full `verify` is the orchestrator's
+- Not in this slice: Silo, SAM, Post (M10-3), upgrade / delete / selection panel, icon LOD, night lights.
