@@ -17,6 +17,7 @@ import { BOOKMARKS, CAPITAL_BOOKMARK, DEFAULT_START_TIME, DEFAULT_START_VIEW, GR
 import { cellToLatLon, groundHeightAt, latLonToCell } from '../render/transforms';
 import { STRUCTURE_MODELS } from '../render/structureModels';
 import type { DrawnStructure } from '../render/structures';
+import type { DrawnDistrict } from '../render/districts';
 import { setBookmarkHandler } from './bookmarks';
 import { InputStack, attachDomInput, attachDomKeys, createBaseMode, setContextHandler, setPauseHandler, type ContextHandler, type InputTarget } from './input';
 import { isQualityTier, resolveQualityChoice } from '../render/quality';
@@ -120,6 +121,8 @@ export interface PropsInfo {
   cityTriangles: number;
   /** The drawn structures with their float64 placement (id, type, owner, cell, level, lat, lon, base radius, base height in render metres after the exaggeration). */
   list: readonly DrawnStructure[];
+  /** Districts-2b: the district layer: instances per kind (index = kind), the total, the triangles in the draw, the left-out count, whether the mesh is drawn, the drawn districts. */
+  districts: { counts: readonly number[]; total: number; triangles: number; dropped: number; drawn: boolean; list: readonly DrawnDistrict[] };
   /** The placement mode: the type being placed (0 = none) and the ghost. */
   placing: number;
   ghost: PlacementState | null;
@@ -454,6 +457,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     if (session !== null) {
       // the structures follow the snapshot's table; the construction look follows the interpolated tick
       globe.structures.setTable(session.view.structures, session.view.structuresVersion);
+      globe.districts.setTable(session.view.structures, session.view.districts, session.view.structuresVersion); // Districts-2b
       globe.setTickFraction(session.view.tick + (params.test ? 0 : session.alpha()));
     }
     globe.render(draw);
@@ -1138,6 +1142,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       dropped: layer.dropped,
       cityTriangles: layer.trianglesOf(STRUCT_CITY),
       list: layer.instances(),
+      districts: { counts: globe.districts.counts(), total: globe.districts.total(), triangles: globe.districts.trianglesDrawn, dropped: globe.districts.dropped, drawn: globe.districts.drawnNow, list: globe.districts.instances() },
       placing,
       ghost: placementMode === null ? null : placementMode.state(),
       toasts: visibleToastKeys(),

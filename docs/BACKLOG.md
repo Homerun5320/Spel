@@ -328,3 +328,10 @@ Not done in the Fix-UI slice (the sim, host and AI findings belong to Fix-Sim):
 - A small-map look (isometric tiles, district icons drawn on the tiles) is simpler than wished: icons are flat SVG; Districts-2b draws the districts on the 3D city.
 - The totals show finished districts only; a "when finished" preview of running builds is not shown.
 - A toast when a district intent is refused is wired through the existing reject path; the dimmed buttons make most refusals impossible, so the toasts are only seen on races (gold spent in the same turn).
+
+## Districts-2b leftovers
+- Walls model reads weaker than the other three from afar (the arc is short); a longer arc or a pale slab would help. Housing and the City's own blocks look alike.
+- A far icon for districts (a small pip on the City's icon per built district) was not built; they simply vanish beyond about 60 km camera distance.
+- An upgrade look (a scaffold or stipple while a district upgrades, from `districtUpgradeReadyTick`).
+- Per-tier budget of 9 000 / 18 000 / 36 000 / 72 000 triangles is a first guess; measure on the school laptop with `#perf`.
+- Barracks flag and Market awning do not animate (a wind sway on the fx clock would be one uniform).

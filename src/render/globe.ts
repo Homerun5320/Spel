@@ -18,6 +18,7 @@ import { GpuTimer, type TimerGl } from './gpuTimer';
 import { groundPickerOf, pickGround, type GroundHit } from './transforms';
 import { OwnershipTexture } from './ownership';
 import { StructureLayer } from './structures';
+import { DistrictLayer } from './districts';
 import { meshTriangles, type QualitySettings } from './quality';
 import { buildStars } from './stars';
 import { createTerrainMaterial, type TerrainMode } from './terrainMaterial';
@@ -138,6 +139,8 @@ export class Globe {
   readonly ownership: OwnershipTexture;
   /** The structures of the match (M10): instanced models standing on the ground, and the placement ghost. */
   readonly structures: StructureLayer;
+  /** Districts-2b: the districts on the Cities (one instanced draw call). */
+  readonly districts: DistrictLayer;
   /** The sim tick as a fraction (set by the page every frame; drives the construction look of the structures). */
   private tickFraction = 0;
   readonly quality: QualitySettings;
@@ -254,7 +257,8 @@ export class Globe {
     this.stars.frustumCulled = false;
     this.stars.renderOrder = -10;
     this.structures = new StructureLayer({ tier: o.quality.tier, gridWidth: o.world.sim.width, gridHeight: o.world.sim.height, sun: this.sun });
-    this.scene.add(this.stars, this.mesh, ...this.structures.meshes, this.shell);
+    this.districts = new DistrictLayer({ tier: o.quality.tier, gridWidth: o.world.sim.width, gridHeight: o.world.sim.height, sun: this.sun });
+    this.scene.add(this.stars, this.mesh, ...this.structures.meshes, ...this.districts.meshes, this.shell);
   }
 
   /** The sim tick including the fraction of the tick in progress (the page sets it every frame). */
@@ -270,6 +274,7 @@ export class Globe {
   setExaggeration(x: number): void {
     this.field.exaggeration = x;
     this.structures.setExaggeration(x);
+    this.districts.setExaggeration(x);
     (this.material.uniforms.uExag as { value: number }).value = x;
     this.chunkTerrain?.setExaggeration(x);
   }
@@ -441,6 +446,7 @@ export class Globe {
     tex.image.data.set(rgba);
     tex.needsUpdate = true;
     this.structures.setOwnerPalette(rgba);
+    this.districts.setOwnerPalette(rgba);
   }
 
   resize(width: number, height: number, dpr: number): void {
@@ -504,6 +510,7 @@ export class Globe {
     c.lookAt(p.target[0], p.target[1], p.target[2]);
     c.updateMatrixWorld();
     this.structures.frame(p.position, now, this.tickFraction, this.renderer.domElement.height);
+    this.districts.frame(p.position, now, this.tickFraction, this.renderer.domElement.height, Math.tan((p.fovDeg * Math.PI) / 360));
     this.chunkTerrain?.update(p);
     if (draw) {
       const timer = this.gpuTimer;
@@ -689,6 +696,7 @@ export class Globe {
 
   dispose(): void {
     this.structures.dispose();
+    this.districts.dispose();
     this.gpuTimer?.dispose();
     this.chunkTerrain?.dispose();
     this.mesh.geometry.dispose();

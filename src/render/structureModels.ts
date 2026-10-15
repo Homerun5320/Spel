@@ -27,10 +27,10 @@ export interface StructureModel {
   build(): ModelData;
 }
 
-type Rgb = readonly [number, number, number];
+export type Rgb = readonly [number, number, number];
 
 /** Accumulates triangles. Winding is counter-clockwise seen from outside; the layer draws double-sided anyway, so a flipped face only shades differently. */
-class MeshBuilder {
+export class MeshBuilder {
   private readonly p: number[] = [];
   private readonly c: number[] = [];
   private readonly t: number[] = [];
