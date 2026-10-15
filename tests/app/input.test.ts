@@ -364,6 +364,23 @@ describe('right click without a drag = exactly one context command with the righ
   });
 });
 
+describe('a lost release does not freeze the camera', () => {
+  it('a mouse press after a press whose release never came starts over (M05 overwrote its mode on every press): the second drag works and the first one is closed', () => {
+    const h = harness({ lat: 46.5, lon: 8, heading: 0, tilt: 50 }, 20_000);
+    h.stack.pointerDown(mouse(400, 300)); // ... and the pointerup is lost
+    h.stack.pointerMove(mouse(430, 300));
+    h.stack.pointerDown(mouse(500, 300)); // a new press
+    const before = h.rig.view;
+    h.stack.pointerMove(mouse(560, 330));
+    h.stack.pointerUp(mouse(560, 330));
+    expect(h.rig.view).not.toEqual(before);
+    expect(h.clicks).toEqual([]);
+    h.stack.pointerDown(mouse(300, 300));
+    h.stack.pointerUp(mouse(300, 300));
+    expect(h.clicks).toEqual([[300, 300]]);
+  });
+});
+
 describe('the wheel zooms toward the cursor', () => {
   it('the ground point under the cursor stays under it while the height shrinks (RTS), and the wheel ends a flight', () => {
     const h = harness({ lat: 46.5, lon: 8, heading: 0, tilt: 50 }, 30_000);

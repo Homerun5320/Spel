@@ -300,7 +300,14 @@ export function createBaseMode(target: InputTarget, clickThresholdPx?: number): 
         }
         return true;
       }
-      if (gesture !== 'none') return true; // a second mouse button while one is held: ignored
+      if (gesture !== 'none') {
+        // A mouse press while the base mode still thinks one is held: the browser sends no second pointerdown for a second button, so the
+        // release of the first one was lost (the window lost focus, a menu opened): start over with this press, as M05 did.
+        if (gesture === 'drag' || gesture === 'pinch') target.camera.dragEnd(target.now());
+        clicks.cancel();
+        rightClicks.cancel();
+        endAll();
+      }
       a.id = e.id;
       a.x = e.x;
       a.y = e.y;

@@ -45,6 +45,7 @@ Project rules for every session. Keep this file under 200 lines. Constitution: `
 - Remembered choices (language, menu options, settings) go through `getPref` / `setPref` in `src/app/prefs.ts`, never through `localStorage` directly: the page must work with storage blocked (memory fallback).
 - A match is built by `createMatch(world, config)` in `src/app/matchSetup.ts` (pure and seeded, the fair start of `docs/DECISIONS.md` D112); `e2e/goldens/match-hashes.json` pins four built matches and follows the golden rule below (`UPDATE_GOLDENS=1`).
 - Docs may only mention files that exist or are created now; future files are marked "(later)". Gitignored generated folders (the bake cache, the Artifact pack folder, dist) are written without backticks: `tests/docs.test.ts` checks every backticked path, and a fresh checkout (CI) lacks them.
+- Input: pointer, wheel and key events go through the mode stack of `src/app/input.ts` (`InputStack`, M08); a later mode pushes itself and pops on Escape. The keys 1 to 6, E, H, F and Escape are reserved for it (`RESERVED_KEYS`): no other code binds them. The right click without a drag is `setContextHandler`, the pause menu is `setPauseHandler`.
 - `PROMPTLISTA.md` in the repo root is the user's own prompt list: do not read it, do not change it, do not reference it.
 
 ## Time rule
