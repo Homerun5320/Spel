@@ -186,6 +186,13 @@ describe('selectionInfo', () => {
     expect(info?.cooldownSeconds).toBe(DELETE_COOLDOWN_TICKS / 10);
     expect(info?.deleteSeconds).toBeGreaterThan(0);
     expect(info?.deleteSeconds).toBeLessThanOrEqual(info?.cooldownSeconds ?? 0);
+    // rounded UP to whole seconds, one tick before the end still says 1 s
+    const v = new StateView(s);
+    const wait = v.structures.deleteReadyTick(1) - v.tick;
+    expect(wait % 10).not.toBe(0); // a tick that is not a whole second, so that up and down differ
+    expect(info?.deleteSeconds).toBe(Math.ceil(wait / 10));
+    idle(s, wait - 1);
+    expect(selectionInfo(new StateView(s), 0, b)?.deleteSeconds).toBe(1);
   });
 });
 

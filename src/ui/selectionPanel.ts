@@ -1,6 +1,7 @@
 // The selection panel (M10-4): bottom left above the HUD status panel, shows the selected structure's name, level, what it gives (the sim's numbers,
 // see structureInfo.ts), the upgrade price and the delete cooldown, with the buttons Upgrade and Delete. The panel only reports clicks: the page sends
 // the intents. A button the sim would refuse is dimmed (aria-disabled) and its tooltip says why.
+import { fxNow } from '../render/clock';
 import { languageVersion, t } from './i18n';
 import { deleteArmed, deleteClick, deleteWhyKey, effectLines, structureNameKey, upgradeWhyKey, type DeleteArm, type SelectionInfo } from './structureInfo';
 import { STRUCT_MAX_LEVEL } from '../sim/public';
@@ -37,7 +38,7 @@ export function createSelectionPanel(parent: HTMLElement, actions: { upgrade(id:
   });
   // Delete takes two clicks: the first arms it for DELETE_ARM_MS (label "Bekräfta"), the second deletes; the next frame's update shows the label
   let arm: DeleteArm | null = null;
-  const clock = (): number => (typeof performance === 'undefined' ? Date.now() : performance.now());
+  const clock = (): number => fxNow() * 1000; // the fx clock in ms (the same clock as the toasts)
   del.addEventListener('click', () => {
     if (current < 0 || del.getAttribute('aria-disabled') === 'true') return;
     const r = deleteClick(arm, current, clock());
