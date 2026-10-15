@@ -1,7 +1,8 @@
 // The outline of the globe's disc on the screen of a camera rig, from first principles (CamFix, D158): the points of the sphere where a ray from the camera just touches it
 // (a circle on the sphere, perpendicular to the direction to the planet's centre), projected with `CameraRig.project`. It does not use `src/render/fit.ts`, so it can check it.
-import type { CameraRig } from '../../src/render/camera';
-import { add, cross, dot, normalize, scale, type Vec3 } from '../../src/render/geo';
+import { CameraRig } from '../../src/render/camera';
+import { EARTH_RADIUS_KM } from '../../src/render/config';
+import { add, cross, dot, eastAt, latLonToVec, normalize, northAt, scale, sub, type Vec3 } from '../../src/render/geo';
 
 export interface DiscBox {
   minX: number;
@@ -81,4 +82,20 @@ export function discBox(rig: CameraRig, samples = 1440): DiscBox {
 /** True when the unit vectors point the same way within `eps`. */
 export function sameDirection(a: Vec3, b: Vec3, eps = 1e-9): boolean {
   return 1 - dot(a, b) < eps;
+}
+
+/**
+ * A rig (1000 pixels high, `aspect` times as wide) at the pose of a focus at 20 N 10 E, a distance, a tilt and a heading EXACTLY as the formulas of src/render/fit.ts see it:
+ * `setPose` takes it as it is, with no eased tilt, so this is the camera the old limits allowed (42 000 km at tilt 72) and the camera the maths describes.
+ */
+export function rawPoseRig(aspect: number, distKm: number, tilt: number, heading: number): CameraRig {
+  const h = 1000;
+  const rig = new CameraRig(Math.round(h * aspect), h);
+  const DEG = Math.PI / 180;
+  const F = latLonToVec(20, 10);
+  const T = add(scale(northAt(20, 10), Math.cos(heading * DEG)), scale(eastAt(10), Math.sin(heading * DEG)));
+  const t = tilt * DEG;
+  const offset = sub(scale(F, Math.cos(t)), scale(T, Math.sin(t)));
+  rig.setPose(add(F, scale(offset, distKm / EARTH_RADIUS_KM)), scale(offset, -1));
+  return rig;
 }

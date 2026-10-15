@@ -54,10 +54,10 @@ export function rigOver(w: RtsWorld, place: MountainPlace, aglM: number, tilt: n
 }
 
 /**
- * Six drags of 500 px to the right (0.8 s each, 625 px/s, a small wobble of the cursor up and down as a hand has), the cursor held still for 0.1 s and released, 0.2 s of rest,
- * then 2 s of rest: the camera's height over the ground is the one the user holds throughout.
+ * Six drags of 500 px to the right (`strokeFrames` frames each: 48 is 0.8 s, 625 px/s, a fast pan; 96 is 312 px/s, a steady one; a small wobble of the cursor up and down as a
+ * hand has), the cursor held still for 0.1 s and released, 0.2 s of rest, then 2 s of rest: the camera's height over the ground is the one the user holds throughout.
  */
-export function runDrag(rig: CameraRig): FrameLog {
+export function runDrag(rig: CameraRig, strokeFrames = 48): FrameLog {
   const log = newLog();
   let t = 0;
   const frame = (): void => {
@@ -68,9 +68,9 @@ export function runDrag(rig: CameraRig): FrameLog {
   for (let stroke = 0; stroke < 6; stroke++) {
     log.inputs.push(log.agl.length);
     rig.dragStart(200, 330, t);
-    for (let k = 1; k <= 48; k++) {
+    for (let k = 1; k <= strokeFrames; k++) {
       t += 1 / 60;
-      rig.dragMove(200 + (500 * k) / 48, 330 - 40 * Math.sin(k / 6), t);
+      rig.dragMove(200 + (500 * k) / strokeFrames, 330 - 40 * Math.sin(k / 6), t);
       rig.update(t);
       sampleFrame(rig, log);
     }

@@ -2,7 +2,6 @@
 // extent of the disc is checked against a camera that projects the real outline of the sphere (tests/helpers/silhouette.ts).
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
-import { CameraRig } from '../../src/render/camera';
 import { CAMERA_FOV_DEG, DIST_ABS_MAX_KM, DIST_MAX_KM, EARTH_RADIUS_KM, FIT_ASPECT_MIN, FIT_FILL_SAFE, FIT_REFERENCE_ASPECT, FIT_TILT_FREE_KM } from '../../src/render/config';
 import {
   TILT_CAP_FREE_DEG,
@@ -18,8 +17,7 @@ import {
   tiltCapAt,
   tiltEaseEndKm,
 } from '../../src/render/fit';
-import { add, eastAt, latLonToVec, northAt, scale, sub } from '../../src/render/geo';
-import { discBox } from '../helpers/silhouette';
+import { discBox, rawPoseRig } from '../helpers/silhouette';
 
 const ASPECTS = [0.4, 9 / 16, 3 / 4, 1, 4 / 3, 16 / 9, 21 / 9, 3];
 const aspectArb = fc.double({ min: 0.4, max: 3, noNaN: true });
@@ -28,17 +26,7 @@ const windowAspectArb = fc.integer({ min: 400, max: 3000 }).map((w) => w / 1000)
 const DEG = Math.PI / 180;
 const HALF_TAN = Math.tan((CAMERA_FOV_DEG * DEG) / 2);
 
-/** A rig at the pose of (focus, distance, tilt, heading) EXACTLY as the formulas of fit.ts see it (setPose: no eased tilt), in a window of `aspect`. */
-function rigAtPose(aspect: number, distKm: number, tilt: number, heading: number): CameraRig {
-  const h = 1000;
-  const rig = new CameraRig(Math.round(h * aspect), h);
-  const F = latLonToVec(20, 10);
-  const T = add(scale(northAt(20, 10), Math.cos(heading * DEG)), scale(eastAt(10), Math.sin(heading * DEG)));
-  const t = tilt * DEG;
-  const offset = sub(scale(F, Math.cos(t)), scale(T, Math.sin(t)));
-  rig.setPose(add(F, scale(offset, distKm / EARTH_RADIUS_KM)), scale(offset, -1));
-  return rig;
-}
+const rigAtPose = rawPoseRig;
 
 describe('the window and the disc: the numbers', () => {
   it('the aspect ratio is clamped: nothing that is not a positive finite number reaches the maths, and a very narrow window is the narrowest one it handles', () => {
