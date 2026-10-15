@@ -11,10 +11,11 @@ import {
   CLIP_FAR_MARGIN,
   CLIP_NEAR_FRACTION,
   CLIP_NEAR_MIN,
-  DIST_MAX_KM,
   DIST_MIN_GROUND_KM,
   DIST_MIN_KM,
   EARTH_RADIUS_KM,
+  FIT_REFERENCE_ASPECT,
+  FIT_TILT_FREE_KM,
   INERTIA_TAU_S,
   LAT_LIMIT_DEG,
   ROTATE_DEG_PER_PX,
@@ -49,6 +50,7 @@ import {
   wrapLon,
   type Vec3,
 } from './geo';
+import { maxDistKm, shownTiltAt, tiltCapAt, tiltEaseEndKm } from './fit';
 import { nearestSpherePoint, raySphere } from './heightField';
 import { rtsMix, shortestAngle, tiltBounds, viewFromPose } from './rts';
 
@@ -120,14 +122,22 @@ interface Dolly {
   anchorP: Vec3 | null;
 }
 
-/** The camera position (Earth radii) of a view; the same formula as `CameraRig.pose().position` (a test keeps them in step). */
-export function cameraPositionFor(s: ViewState): Vec3 {
+/**
+ * The camera position (Earth radii) of a view in a window of `aspect`; the same formula as `CameraRig.pose().position` (a test keeps them in step).
+ * The tilt is the SHOWN tilt (D158): the view's tilt, eased down to 0 at the distances where the whole globe has to fit (`maxTiltForDist`), which
+ * depends on the window; the view's own tilt is what the user chose and is kept.
+ */
+export function cameraPositionFor(s: ViewState, aspect: number = FIT_REFERENCE_ASPECT): Vec3 {
+  return positionWithTilt(s, s.distKm <= FIT_TILT_FREE_KM ? s.tilt : shownTiltAt(s.tilt, s.distKm, tiltEaseEndKm(aspect)));
+}
+
+function positionWithTilt(s: ViewState, tiltDeg: number): Vec3 {
   const F = latLonToVec(s.lat, s.lon);
   const E = eastAt(s.lon);
   const N = northAt(s.lat, s.lon);
   const h = s.heading * DEG;
   const T = add(scale(N, Math.cos(h)), scale(E, Math.sin(h)));
-  const t = s.tilt * DEG;
+  const t = tiltDeg * DEG;
   const offset = sub(scale(F, Math.cos(t)), scale(T, Math.sin(t)));
   return add(F, scale(offset, s.distKm / EARTH_RADIUS_KM));
 }
@@ -138,12 +148,12 @@ export function cameraPositionFor(s: ViewState): Vec3 {
  * clears the ground, by a geometric scan and bisection (a fixed-point iteration does not converge on a steep slope: the ground moves
  * faster than the camera). The result is the lowest distance that has that height, so it is also the terrain-aware zoom minimum.
  */
-export function distForAgl(v: ViewState, surfaceRadius: GroundRadius, altAglM: number): number {
+export function distForAgl(v: ViewState, surfaceRadius: GroundRadius, altAglM: number, aspect: number = FIT_REFERENCE_ASPECT): number {
   const target = altAglM / (EARTH_RADIUS_KM * 1000);
   const probe: ViewState = { ...v, distKm: 0.001 };
   const f = (distRadii: number): number => {
     probe.distKm = distRadii * EARTH_RADIUS_KM;
-    const p = cameraPositionFor(probe);
+    const p = cameraPositionFor(probe, aspect);
     const { lat, lon } = vecToLatLon(p);
     return length(p) - surfaceRadius(lat, lon) - target;
   };
@@ -207,15 +217,53 @@ export class CameraRig {
   // The wheel zoom under way in the RTS regime (null in the globe regime and between zooms).
   private dolly: Dolly | null = null;
   private followStamp = { lat: NaN, lon: NaN, distKm: NaN, heading: NaN, tilt: NaN, hold: NaN };
+  // CamFix (D158): what the window's shape decides, cached by `refit` (the window's aspect changes only at a resize): the farthest distance and the distance
+  // from which the shown tilt is 0.
+  private maxKm = maxDistKm(FIT_REFERENCE_ASPECT);
+  private tiltEndKm = tiltEaseEndKm(FIT_REFERENCE_ASPECT);
+  // True after `setPose` (a flight places the camera by its pose and the pose must come out as placed, whatever the tilt and the distance) until the next
+  // thing the user's hands or a hook does to the view: the shown tilt is the view's tilt as it is while it is set.
+  private freePose = false;
 
   constructor(width: number, height: number) {
     this.width = width;
     this.height = height;
+    this.refit();
   }
 
   setViewport(width: number, height: number): void {
     this.width = width;
     this.height = height;
+    this.refit();
+  }
+
+  /** The window's aspect decides the farthest distance and the eased tilt: recomputed here, and a distance beyond the new maximum is brought to it. */
+  private refit(): void {
+    const aspect = this.width / this.height;
+    this.maxKm = maxDistKm(aspect);
+    this.tiltEndKm = tiltEaseEndKm(aspect);
+    if (this.s.distKm > this.maxKm) this.s = { ...this.s, distKm: this.maxKm };
+    if (this.targetDistKm > this.maxKm) this.targetDistKm = this.maxKm;
+  }
+
+  /** The farthest distance (km from the focus) of this window: the whole disc of the globe is in the picture with room to spare (`maxDistKm`). */
+  get maxDistKm(): number {
+    return this.maxKm;
+  }
+
+  /** The tilt the camera SHOWS: the user's tilt (`view.tilt`) eased down to 0 where the whole globe has to fit (`maxTiltForDist`); equal to it at every distance of 8 000 km and less. */
+  get shownTilt(): number {
+    const s = this.s;
+    return this.freePose || s.distKm <= FIT_TILT_FREE_KM ? s.tilt : shownTiltAt(s.tilt, s.distKm, this.tiltEndKm);
+  }
+
+  private viewAspect(): number {
+    return this.width / this.height;
+  }
+
+  /** The camera position of a view in THIS window (`cameraPositionFor` with the window's cached limits). */
+  private positionOf(s: ViewState): Vec3 {
+    return positionWithTilt(s, this.freePose || s.distKm <= FIT_TILT_FREE_KM ? s.tilt : shownTiltAt(s.tilt, s.distKm, this.tiltEndKm));
   }
 
   get view(): ViewState {
@@ -299,7 +347,7 @@ export class CameraRig {
   /** The camera's height above the ground under it, in metres (needs `setGround`). */
   aglM(s: ViewState = this.s): number {
     if (!this.ground) return Number.POSITIVE_INFINITY;
-    const p = cameraPositionFor(s);
+    const p = this.positionOf(s);
     const { lat, lon } = vecToLatLon(p);
     return (length(p) - this.ground(lat, lon)) * EARTH_RADIUS_KM * 1000;
   }
@@ -312,7 +360,7 @@ export class CameraRig {
     if (!this.ground) return DIST_MIN_KM;
     // beyond this distance the camera is above any displaced ground whatever the tilt (the floor is at most a few hundred km): no search needed
     if (!exact && s.distKm > FLOOR_SEARCH_KM && this.aglM(s) > ZOOM_MIN_AGL_M * 4) return DIST_MIN_GROUND_KM;
-    return Math.max(DIST_MIN_GROUND_KM, distForAgl(s, this.ground, ZOOM_MIN_AGL_M));
+    return Math.max(DIST_MIN_GROUND_KM, distForAgl(s, this.ground, ZOOM_MIN_AGL_M, this.viewAspect()));
   }
 
   /** The viewport in pixels. */
@@ -336,6 +384,7 @@ export class CameraRig {
     this.dragging = false;
     this.grip = null;
     this.holdAglM = null;
+    this.freePose = false;
   }
 
   /** Sets the view directly (no animation). Values are clamped to the limits; latitude may reach +-90. */
@@ -347,11 +396,11 @@ export class CameraRig {
     this.s = {
       lat: clamp(n.lat, -90, 90),
       lon: wrapLon(n.lon),
-      distKm: clamp(n.distKm, this.ground ? DIST_MIN_GROUND_KM : DIST_MIN_KM, DIST_MAX_KM),
+      distKm: clamp(n.distKm, this.ground ? DIST_MIN_GROUND_KM : DIST_MIN_KM, this.maxKm),
       heading: wrapLon(n.heading),
       tilt: clamp(n.tilt, 0, TILT_MAX_DEG),
     };
-    if (this.ground) this.s.distKm = clamp(this.s.distKm, this.floorKm(this.s), DIST_MAX_KM);
+    if (this.ground) this.s.distKm = clamp(this.s.distKm, this.floorKm(this.s), this.maxKm);
     this.resetMotion();
   }
 
@@ -375,11 +424,13 @@ export class CameraRig {
   setPose(position: Vec3, forward: Vec3): void {
     this.s = viewFromPose(position, forward, this.s.heading);
     this.resetMotion();
+    this.freePose = true;
   }
 
   /** Camera pose for the current view. */
   pose(): CameraPose {
-    const { lat, lon, heading, tilt, distKm } = this.s;
+    const { lat, lon, heading, distKm } = this.s;
+    const tilt = this.shownTilt; // CamFix: the tilt the user chose, eased down where the whole globe has to fit (the same number everywhere a pose is used: picking, the anchor, the clearance)
     const F = latLonToVec(lat, lon);
     const E = eastAt(lon);
     const N = northAt(lat, lon);
@@ -463,7 +514,7 @@ export class CameraRig {
 
   /** The largest turn about the planet's centre one anchor or grip correction may make (radians) while it holds `point` (a world position, or a direction scaled to its radius): see `RTS_ALIGN_MAX_RANGES`. */
   private alignCap(point: Vec3): number {
-    const range = length(sub(cameraPositionFor(this.s), point));
+    const range = length(sub(this.positionOf(this.s), point));
     return Math.max(RTS_ALIGN_MAX_RANGES * range, RTS_ALIGN_MIN_M / R_M);
   }
 
@@ -532,6 +583,7 @@ export class CameraRig {
   // --- Mouse ------------------------------------------------------------------------------------------------------
 
   dragStart(px: number, py: number, now: number): void {
+    this.freePose = false;
     this.dragging = true;
     this.velRate = 0;
     this.anchor = null;
@@ -610,9 +662,17 @@ export class CameraRig {
    * so the first drag never jumps the picture. In the RTS regime the turn is about the ground point at the centre of the screen.
    */
   rotateBy(dxPx: number, dyPx: number): void {
+    this.freePose = false;
     const w = this.rtsWeight;
     if (w <= 0) {
-      this.setViewKeepMotion({ heading: wrapLon(this.s.heading + dxPx * ROTATE_DEG_PER_PX), tilt: clamp(this.s.tilt + dyPx * ROTATE_DEG_PER_PX, 0, Math.max(TILT_MAX_DEG, this.s.tilt)) });
+      // the user's tilt is kept when only the heading turns; a change of the tilt starts from the SHOWN one (a camera that is far out shows less than the
+      // user chose: dragging down must not be dead for the part that is not shown) and stops at the eased limit (dragging up must not store a tilt that is not shown)
+      let tilt = this.s.tilt;
+      if (dyPx !== 0) {
+        const shown = this.shownTilt;
+        tilt = Math.min(clamp(shown + dyPx * ROTATE_DEG_PER_PX, 0, Math.max(TILT_MAX_DEG, shown)), Math.max(tiltCapAt(this.s.distKm, this.tiltEndKm), shown));
+      }
+      this.setViewKeepMotion({ heading: wrapLon(this.s.heading + dxPx * ROTATE_DEG_PER_PX), tilt });
       return;
     }
     const b = this.tiltLimits(w);
@@ -628,6 +688,7 @@ export class CameraRig {
 
   /** Two-finger rotate: the compass heading turns by `deg` about the ground point the fingers hold (or the centre of the screen). */
   yawBy(deg: number): void {
+    this.freePose = false;
     const w = this.rtsWeight;
     const pivot = this.grip ? scale(this.grip.dir, this.grip.r) : this.pivotPoint(w);
     this.turnAbout(pivot, deg, 0);
@@ -688,6 +749,7 @@ export class CameraRig {
    * to its target and the sea-level point under the cursor is held.
    */
   zoomAt(px: number, py: number, wheelDelta: number): void {
+    this.freePose = false;
     const f = Math.exp(wheelDelta * WHEEL_ZOOM_RATE);
     // the height the zoom heads for already: a zoom under way keeps adding to its goal (quick wheel turns accumulate), after a globe zoom it is
     // the height of the target view
@@ -704,10 +766,10 @@ export class CameraRig {
       // far behind, above `RTS_ZOOM_MAX_AGL_M`, is this one too: it is the globe's.)
       const agl = base;
       this.targetAglM = Math.max(agl * f, ZOOM_MIN_AGL_M);
-      this.targetDistKm = clamp(distForAgl(this.s, this.ground, this.targetAglM), DIST_MIN_GROUND_KM, DIST_MAX_KM);
+      this.targetDistKm = clamp(distForAgl(this.s, this.ground, this.targetAglM, this.viewAspect()), DIST_MIN_GROUND_KM, this.maxKm);
       this.holdAglM = null;
     } else {
-      this.targetDistKm = clamp(this.targetDistKm * f, DIST_MIN_KM, DIST_MAX_KM);
+      this.targetDistKm = clamp(this.targetDistKm * f, DIST_MIN_KM, this.maxKm);
     }
     this.anchor = { x: px, y: py, r: 1 };
     this.velRate = 0;
@@ -807,7 +869,7 @@ export class CameraRig {
     const total = remaining;
     this.lastNow = now;
     if (!(remaining > 0)) return;
-    if (this.dolly === null && this.targetAglM !== null && this.ground) this.targetDistKm = clamp(distForAgl(this.s, this.ground, this.targetAglM), DIST_MIN_GROUND_KM, DIST_MAX_KM);
+    if (this.dolly === null && this.targetAglM !== null && this.ground) this.targetDistKm = clamp(distForAgl(this.s, this.ground, this.targetAglM, this.viewAspect()), DIST_MIN_GROUND_KM, this.maxKm);
     while (remaining > 1e-9) {
       const dt = Math.min(remaining, CAMERA_MAX_STEP_S);
       remaining -= dt;
@@ -827,7 +889,7 @@ export class CameraRig {
         // (the nearest point of the sphere is not under the cursor: aligning to it threw the camera across the planet)
         const before = anchor ? this.grabHit(anchor.x, anchor.y, anchor.r) : null;
         const next = this.s.distKm * Math.exp(logGap * (1 - Math.exp(-dt / ZOOM_TAU_S)));
-        this.s = { ...this.s, distKm: clamp(next, this.ground ? DIST_MIN_GROUND_KM : DIST_MIN_KM, DIST_MAX_KM) };
+        this.s = { ...this.s, distKm: clamp(next, this.ground ? DIST_MIN_GROUND_KM : DIST_MIN_KM, this.maxKm) };
         // a zoom in brings the tilt into the RTS limits WHILE it runs, so the anchored point stays under the cursor through the pitch too
         if (anchor) this.pitchIntoLimits(dt);
         if (before && anchor) {
@@ -907,7 +969,7 @@ export class CameraRig {
       // 1. the tilt back into the limits: the camera pitches in place (a turn about the ground point would lift it by the leverage of the distance)
       if (this.pitchIntoLimits(dt)) changed = true;
       // 2. the height over the ground
-      const p = cameraPositionFor(this.s);
+      const p = this.positionOf(this.s);
       const g = vecToLatLon(p);
       const r = length(p);
       const wantR = this.ground(g.lat, g.lon) + hold / R_M;
@@ -981,7 +1043,7 @@ export class CameraRig {
    */
   private liftToClearance(): boolean {
     if (!this.ground) return false;
-    const p = cameraPositionFor(this.s);
+    const p = this.positionOf(this.s);
     const g = vecToLatLon(p);
     const r = length(p);
     const wantR = this.ground(g.lat, g.lon) + (ZOOM_MIN_AGL_M + 1e-3) / R_M;
@@ -1001,7 +1063,7 @@ export class CameraRig {
  */
 export function setViewAtAgl(rig: CameraRig, surfaceRadius: GroundRadius, v: Partial<ViewState>, altAglM: number): void {
   rig.setViewUnclamped({ ...v, distKm: 0.001 });
-  rig.setViewUnclamped({ distKm: distForAgl(rig.view, surfaceRadius, altAglM) });
+  rig.setViewUnclamped({ distKm: distForAgl(rig.view, surfaceRadius, altAglM, rig.viewport.width / rig.viewport.height) });
 }
 
 /** A camera named by where it IS: over `lat`, `lon`, `aglM` metres above the displaced ground there, looking along `heading` with its axis `pitchDeg` below the horizon. */

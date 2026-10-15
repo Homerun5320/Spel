@@ -231,6 +231,9 @@ export interface GlobeTestHooks {
   /** Strength of the country border lines (0 = none). */
   setBorderStrength(x: number): void;
   view(): ViewState;
+  /** CamFix (D158): the tilt the camera shows (the user's tilt eased down at the far distances where the whole globe has to fit) and the farthest distance of this window, km. */
+  shownTilt(): number;
+  maxDist(): number;
   /** Text of the hover tooltip for a pick, as the page shows it. */
   tooltip(x: number, y: number): string | null;
   /** M06: the countries of the setup as the page sees them in a region (eligibility included), prepared on first use. */
@@ -983,6 +986,8 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       setExaggeration: (x) => globe.setExaggeration(x),
       setBorderStrength: (x) => globe.setBorderStrength(x),
       view: () => globe.rig.view,
+      shownTilt: () => globe.rig.shownTilt,
+      maxDist: () => globe.rig.maxDistKm,
       tooltip: tipFor,
       async setupCountries(region = 'world'): Promise<SetupCountryInfo[]> {
         const prepared = await loadPrepared(world);

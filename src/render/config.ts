@@ -142,7 +142,15 @@ export const OWNER_NIGHT_LEVEL = 0.62;
 export const CAMERA_FOV_DEG = 30;
 /** Zoom limits: camera distance to the focus point at sea level, in km. */
 export const DIST_MIN_KM = 220;
-export const DIST_MAX_KM = 42000;
+/**
+ * The farthest the camera goes in a window at least as wide as it is high (CamFix, D158). The globe's disc then fills `tan(radius) / tan(half
+ * the vertical field)` = 63 % of the half-height, which is in the 55 to 80 % the acceptance asks for. A window narrower than it is high needs
+ * more (its narrowest direction is the horizontal one): `maxDistKm(aspect)` in `src/render/fit.ts` is the distance with the same fill in the
+ * narrowest direction, and `DIST_ABS_MAX_KM` is the ceiling it never passes. M02 to M08 had 42 000 km for every window, which is 50 % of a
+ * 16:9 window's half-height and more than 100 % of a 9:16 window's half-width.
+ */
+export const DIST_MAX_KM = 32000;
+export const DIST_ABS_MAX_KM = 150000;
 /**
  * Terrain-aware zoom (M07a, the chunk terrain), M08: the mouse, `setView` and every flight stop the camera this high above the displaced
  * ground under it, whatever the ground (sea level or the x12 Himalaya), and never closer than DIST_MIN_GROUND_KM to the focus point.
@@ -152,6 +160,22 @@ export const ZOOM_MIN_AGL_M = 300;
 export const DIST_MIN_GROUND_KM = 0.3;
 /** Tilt limit in degrees from straight down (a horizon view is never allowed). */
 export const TILT_MAX_DEG = 72;
+
+// --- Fitting the globe in the window (CamFix, D158) ------------------------------------------------------------------------------------
+/** The aspect ratio (width / height) the unit tests and the default arguments of the pure camera maths assume: a 16:9 window. */
+export const FIT_REFERENCE_ASPECT = 16 / 9;
+/** Narrower windows than this (width / height) are treated as this one: the maximum distance has a ceiling (`DIST_ABS_MAX_KM`) and 1:4 is about where it binds. */
+export const FIT_ASPECT_MIN = 0.25;
+/** The disc of the globe may take at most this share of the half-width and of the half-height: the free margin on every side is the rest (8 %, the acceptance asks for 5 %). */
+export const FIT_FILL_SAFE = 0.92;
+/**
+ * The eased tilt (D158): the camera's tilt about the focus is the user's tilt as long as the distance is at most `FIT_TILT_FREE_KM` (above that
+ * distance the RTS camera of M08 never works: its zoom stops at 5 000 km of height over the ground), then it is brought down to 0 with a smoothstep
+ * of the logarithm of the distance, and it is 0 from the distance where the disc fills `FIT_FILL_SAFE` of the narrowest half-extent at tilt 0 (a
+ * tilt there would push the far edge of the disc out of the picture: the margin is 8 % and the disc moves by its radius times sin t): from there the
+ * whole globe is in the picture, centred, whatever tilt the user came with.
+ */
+export const FIT_TILT_FREE_KM = 8000;
 /** Focus latitude limit while the user drags (setView may go to +-90). */
 export const LAT_LIMIT_DEG = 88;
 /** Inertia: angular velocity decays with this time constant (fx seconds). */

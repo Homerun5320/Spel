@@ -22,6 +22,30 @@ Resume: Läs CLAUDE.md och docs/PROGRESS.md, kör git log -10 och npm run verify
 
 ## Now
 
+### CamFix: the whole globe in view when zoomed out, and a calm camera over mountains (USER GATE; one part; the orchestrator owns pushing, the pull request and the Artifact)
+
+Previous merge SHA (origin/main at start): f29121a8d1607ca169e6675b5f22a52d76c42ef7 (unchanged; nothing is merged, M00 to M08 live on this branch and in draft pull request #1; M08 is Done here, Artifact version 10). HEAD at start f814131. The user's feedback on version 9: "Kameran när man kör med texturerade berg var väldigt jobbig och man kan enbart se den övre delen av världen när man zoomat ut". Facts found while reproducing (D158): the prompt's screenshot script zoomout.mjs set only the Playwright viewport, so in test mode the canvas stayed 960x540 and the 9:16 / 21:9 shots are a 960x540 canvas cut by the viewport (and its mouse sat off the canvas centre): the 16:9 shots show the real fault, the 9:16 and 21:9 ones do not; the new e2e passes `w` and `h`.
+
+GÖR
+- [ ] 1. This checklist
+- [ ] 2. src/render/fit.ts (pure, no three): `narrowHalfTan`, `discFill`, `fitDistKm`, `maxDistKm(aspect)`, `discExtent` (the exact four extreme points of the disc for a distance, tilt and aspect), `maxTiltForDist(distKm, aspect)` (the eased envelope, continuous, monotone), `geometricTiltLimit`; constants in `src/render/config.ts`; the margin and the fills are in D158; ARCHITECTURE row
+- [ ] 3. The maximum distance is `maxDistKm(aspect)` from the rig's width and height (updated by `setViewport`), used by `setView`, the update loop, the wheel, flights and everything else that clamped to `DIST_MAX_KM` (which goes away: it clashed with aspect 0.4)
+- [ ] 4. The shown tilt = min(the user's tilt, `maxTiltForDist`) in `pose()` and in every place that needs the camera position (picking, anchor, AGL), the user's tilt is kept (zoom out and in gives it back), a right drag that rotates the tilt at a far distance works on the shown tilt
+- [ ] 5. A wheel zoom straight out with the cursor at the centre keeps the heading (at most 1 degree) and the disc centred (3 %), whatever tilt and heading it came with
+- [ ] 6. Hunting over mountains: the scripted measurement (tests/render/mountainCalm.test.ts, real height field, fx steps of 1/60 s, Alps and Himalaya, drag at constant height plus wheel in and out), compared with the M07b baseline `ec44223` (git worktree) and the M08 head; numbers in Measurements; a pinning test with the two mutations ("no smoothing", "clearance removed") killed by named tests
+- [ ] 7. Tests: unit (tests/render/fit.test.ts, property tests over aspect 0.4 to 3, tilt 0 to 80, distance up to the maximum), camera (tests/render/fitCamera.test.ts: wheel out in six formats, tilt back, no NaN, pick round trip at far poses, per-frame change), e2e e2e/zoomOut.test.ts (settle, openPage, bounding box of the non-black pixels at maximum distance in 16:9, 21:9, 4:3, 9:16 with several tilts and yaws)
+- [ ] 8. M08's low-altitude feel unchanged (the ground tests, the bookmarks, `#view-alps-valley` pass untouched)
+- [ ] 9. SLUT: PROGRESS Done row "CamFix" and Measurements, DECISIONS D158, ARCHITECTURE, BACKLOG, PREVIEW (Swedish); `npm run verify` green; `npm run build && npm run artifact:pack`
+
+ACCEPTANS
+- [ ] At maximum distance the whole disc is in view with at least 5 % margin on every side for aspects 0.4, 9:16, 4:3, 16:9, 21:9 and 3, tilts 0, 40 and 72, headings 0, 90 and 200 (unit test and screenshot test)
+- [ ] The disc fills 55 to 80 % of the narrowest half-extent at maximum distance
+- [ ] A wheel zoom out from 3000 km and tilt 60 gives the whole globe centred within 3 % and a yaw change of at most 1 degree
+- [ ] Zoom out and in gives the user's tilt back within 1 degree; no frame changes the pose more than M08's bound
+- [ ] The pick round trip (at most 1 pixel) holds at zoomed-out poses with a tilt; M08's tests stand unchanged
+- [ ] The hunting measurement exists, its numbers are in Measurements below, a test pins them, and the mutations "no smoothing" and "clearance removed" are killed by named tests
+- [ ] `npm run verify` green; `npm run build && npm run artifact:pack` green
+
 ### M08 audit pass (D157): one blocker and eleven majors of the independent audit, fixed or answered (one session; the orchestrator owns pushing, the pull request and the Artifact)
 
 - [x] Blocker: a wheel notch at a high tilt and a low height threw the camera thousands of km (fallback to the nearest point of a missed sphere, no cap): `CameraRig.surfaceHit` (sphere above, tangent plane below, grazing and missing rays hold nothing), caps of one correction, the dolly (D157 (1), (2)); `tests/render/rtsZoom.test.ts`, `e2e/rts.test.ts`
