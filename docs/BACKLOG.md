@@ -276,3 +276,13 @@ Everything here would shorten `verify` further; each needs a per-test reset cont
 - The icon badges have no night dimming and no hover tooltip; at the globe's limb they can sit half behind the horizon.
 - The City lights are floating diamonds; lamp posts or window quads would read better close up.
 - The selection panel shows no owner name (own structures only) and no per-level preview of the next level's numbers.
+
+## Audit 1 leftovers (Fix-Sim)
+
+- AI price check at emission versus execution 2 ticks later: REJECT_BUILD_GOLD about twice in 10 000 intents. A one-structure margin in `buildMove` pushed the AI below the economy band (`tests/sim/economyScript.test.ts`, `tests/ai/driver.test.ts`); to do it, re-tune `AI_BUILD_RICH_PCT` / the band together and apply AI intents at T+2 in `tools/sim/scenario.ts`.
+- The placement ghost (`validateBuild` / `checkBuild`) knows no match phase: it can be green in the spawn phase where the sim now answers REJECT_PHASE. Give `BuildSource` a phase or let Fix-UI grey the build bar in the spawn phase.
+- `deserialize`: check that a structure's owner equals `owner[cell]` and that the embargo matrix is symmetric (Z05 / Z07 of the audit were dead code or unforgeable through `serialize`).
+- AI mutants left (all documented minor or equivalent): A11 (tie between a City upgrade and the next City: the rich path upgrades anyway), A12 (cheaperUpgrade border test), A18 / A19 (gold exactly equal to the price), A33 (the `build:false` option of `AiDriver`), A34 (an AI blob with trailing words is accepted), R04 / R05 (perf report fallbacks 'unknown').
+- A landlocked nation wants a Port for ever, so it never builds a Defense Post (sequence City, City, Factory, City, City, Factory, ...). Decide whether a Post may pre-empt a Port that has no place.
+- Not in this slice (other tracks or later): the finding list items on adaptive.ts, camera.ts, the UI pure functions, placement / pickStructure mutants, `rejectKey` for the structure codes, budgets row 0, the jitter test.
+- A guard test for the engine version: hash all `UPPER_SNAKE` constants of the sim part of `src/sim/rules.ts` and pin the digest next to `ENGINE_VERSION`, so a rule change fails until both are updated (suggested by the audit, not built).

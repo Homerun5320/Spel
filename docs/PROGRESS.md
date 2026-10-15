@@ -810,6 +810,13 @@ Base: f42fac3. Slice: the rest of the M10 prompt's items 3 and 4 that was open a
 - [x] 5. i18n sv + en (`sel.*`), HUD hint line in the panel
 - [x] ACCEPTANS: `tests/sim/structureValidators.test.ts`, `tests/app/structureSelect.test.ts` (pure selection, ring and icon numbers), `e2e/structuresSelect.test.ts` (select, panel numbers, Upgrade, Delete and cooldown, Esc, SAM / Post ring, night lights per level, far icons, portrait and landscape layout), golden `structures-select.png`; `npm run verify:fast` (see the report for its result)
 
+### Fix-Sim: audit 1 fixes for the sim, host and AI (headless; no visible change except that Build is refused in the spawn phase)
+
+- [x] 1. `ENGINE_VERSION` 9 (M09c changed the rules), both golden hash files re-pinned once with `UPDATE_GOLDENS=1`, a test that a snapshot of another engine version is refused (`tests/sim/fixSim.test.ts`)
+- [x] 2. Mutation holes closed, each test shown to fail on its mutant: `tests/sim/fixSim.test.ts` (coast on every side and seam, capacity / full, exact-price Upgrade, setEmbargo cache, freeing a cell, trade and Factory ties, HUD income stat), `tests/sim/structureForged.test.ts` (every deserialize guard of the structure block, a full table), `tests/host/structureSignature.test.ts`, `tests/ai/fixSim.test.ts`, GPU rows in `tests/gpuClass.test.ts`
+- [x] 3. Build / Upgrade / Delete refused with `REJECT_PHASE` in the spawn phase of a match (the AI already waits there)
+- [ ] Left over: see "Audit 1 leftovers (Fix-Sim)" in `docs/BACKLOG.md`
+
 ## Next
 
 - CamFix is built (D158); the user looks at it in the Artifact (PREVIEW 17aa) in their own window shape. Then the M08 gate items below stand as before.
