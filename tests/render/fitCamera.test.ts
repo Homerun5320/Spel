@@ -304,7 +304,8 @@ describe('the window shape follows a resize', () => {
     rig.setView({ lat: 0, lon: 0, distKm: 1e9, tilt: 0 });
     expect(rig.view.distKm).toBe(maxDistKm(960 / 540));
     rig.setViewport(300, 540);
-    expect(rig.maxDistKm).toBeGreaterThan(rig.view.distKm);
+    expect(rig.maxDistKm).toBeGreaterThan(maxDistKm(960 / 540)); // Polish-1 (D-Polish-1): a camera at the old maximum follows it, so it now sits AT the new maximum
+    expect(rig.view.distKm).toBe(rig.maxDistKm);
     rig.setView({ distKm: 1e9 });
     expect(rig.view.distKm).toBe(maxDistKm(300 / 540));
     rig.setViewport(1260, 540);

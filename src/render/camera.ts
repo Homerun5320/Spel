@@ -262,10 +262,13 @@ export class CameraRig {
   /** The window's aspect decides the farthest distance and the eased tilt: recomputed here, and a distance beyond the new maximum is brought to it. */
   private refit(): void {
     const aspect = this.width / this.height;
+    const prevMax = this.maxKm;
     this.maxKm = maxDistKm(aspect);
     this.tiltEndKm = tiltEaseEndKm(aspect);
-    if (this.s.distKm > this.maxKm) this.s = { ...this.s, distKm: this.maxKm };
-    if (this.targetDistKm > this.maxKm) this.targetDistKm = this.maxKm;
+    // Polish-1: a camera sitting at (or within 2 percent of) the old maximum follows the maximum to the new window shape, so the whole globe stays in view.
+    const atMax = (km: number): boolean => Number.isFinite(prevMax) && prevMax > 0 && km >= prevMax * 0.98;
+    if (this.s.distKm > this.maxKm || atMax(this.s.distKm)) this.s = { ...this.s, distKm: this.maxKm };
+    if (this.targetDistKm > this.maxKm || atMax(this.targetDistKm)) this.targetDistKm = this.maxKm;
   }
 
   /** The farthest distance (km from the focus) of this window: the whole disc of the globe is in the picture with room to spare (`maxDistKm`). */

@@ -30,6 +30,14 @@ Resume: Läs CLAUDE.md och docs/PROGRESS.md, kör git log -10 och npm run verify
 
 ## Now
 
+### Polish-1: spawn phase in the build UI, night readability, ring on slopes, compact GPU tip, resize while zoomed out (one slice; the orchestrator owns merging)
+- [x] 1. Ghost red with the phase reason (`toast.build.phase` on a click), build buttons dimmed (`data-state="waiting"`, tooltip), selection panel Upgrade / Delete dimmed (`sel.why.phase`); `e2e/polishPhase.test.ts`.
+- [x] 2. Night floor and owner rim in the structure fragment shader (no draw call, no texture); looked at night and day screenshots at 150, 600 and 1500 km (models are badges from about 600 km). No pixel assert: the night-lights texture is brighter than the structure, so only a shader-source test exists (`tests/render/polish1.test.ts`).
+- [x] 3. The selection ring follows the ground (`selectRingLiftsM`, per-vertex `aLift` set when the selection changes); unit test on the lifts.
+- [x] 4. GPU tip is one line plus More / Less and Close; Play stays reachable at 1366x640, 1280x560, 960x540, 540x960.
+- [x] 5. `CameraRig.setViewport` moves a camera at (within 2 percent of) the old maximum to the new maximum; unit and e2e (`__test.resize`).
+- [ ] 6. Not done: see Polish-1 leftovers in `docs/BACKLOG.md`.
+
 ### M10a: the City on the terrain, placement mode, build bar, toasts (slice 1 of M10; one builder in its own worktree; the orchestrator owns merging, pushing, the pull request and the Artifact)
 
 Base: 1c51073 (branch worktree-wf_65782ab4-761-1). Previous merge SHA unchanged (nothing is merged). Slice: ONLY the City, with infrastructure the other five types plug into (D-M10a-1).

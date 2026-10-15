@@ -1,6 +1,9 @@
 // Polish-1 pure parts: the selection ring's per-vertex ground lift, and the spawn-phase refusals of the selection panel.
 import { describe, expect, it } from 'vitest';
 import { selectRingLiftsM } from '../../src/render/rings';
+import { structureFragmentShader } from '../../src/render/shaders/structures';
+import { CameraRig } from '../../src/render/camera';
+import { maxDistKm } from '../../src/render/fit';
 import { selectionInfo, deleteWhyKey, upgradeWhyKey } from '../../src/ui/structureInfo';
 import { spawnPhaseBlocks } from '../../src/ui/buildReasons';
 import { PHASE_PLAY, PHASE_SPAWN } from '../../src/sim/flow';
@@ -33,5 +36,34 @@ describe('spawn phase gate', () => {
     expect(upgradeWhyKey(REJECT_PHASE)).toBe('sel.why.phase');
     expect(deleteWhyKey(REJECT_PHASE)).toBe('sel.why.phase');
     expect(typeof selectionInfo).toBe('function');
+  });
+});
+
+describe('resize while zoomed out', () => {
+  it('a camera at the old maximum follows it to the new window shape; one clearly inside keeps its distance', () => {
+    const rig = new CameraRig(960, 540);
+    rig.setView({ lat: 0, lon: 0, distKm: 1e9, tilt: 0 });
+    expect(rig.view.distKm).toBe(maxDistKm(960 / 540));
+    rig.setViewport(540, 960); // portrait: the maximum is farther
+    expect(rig.view.distKm).toBe(maxDistKm(540 / 960));
+    expect(rig.view.distKm).toBeGreaterThan(maxDistKm(960 / 540));
+    rig.setViewport(960, 540);
+    expect(rig.view.distKm).toBe(maxDistKm(960 / 540)); // and back down
+    rig.setView({ distKm: maxDistKm(960 / 540) * 0.9 }); // 10 percent inside: stays
+    const before = rig.view.distKm;
+    rig.setViewport(540, 960);
+    expect(rig.view.distKm).toBe(before);
+    rig.setViewport(960, 540);
+    rig.setView({ distKm: maxDistKm(960 / 540) * 0.99 }); // within 2 percent of the max: follows
+    rig.setViewport(540, 960);
+    expect(rig.view.distKm).toBe(maxDistKm(540 / 960));
+  });
+});
+
+describe('night-side structure shading', () => {
+  it('the fragment shader keeps a night floor of the model colour and an owner-coloured rim, with no extra uniform or texture', () => {
+    expect(structureFragmentShader).toMatch(/lit = max\(lit, toLinear\(mix\(own, vOwner, [0-9.]+\)[^;]*nightK\)\);/);
+    expect(structureFragmentShader).toMatch(/rim = pow\(1\.0 - clamp\(dot\(n, viewDir\)/);
+    expect(structureFragmentShader).not.toMatch(/sampler2D/);
   });
 });

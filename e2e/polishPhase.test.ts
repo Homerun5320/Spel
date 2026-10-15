@@ -95,3 +95,22 @@ describe('Polish-1: the start card with the graphics tip', () => {
     }
   });
 });
+
+describe('Polish-1: resize while zoomed out', () => {
+  it('a camera at the maximum distance follows the maximum when the window changes shape', async () => {
+    const { page } = await openPage(browser, baseUrl, 'test=1&seed=7&ai=0', { width: 960, height: 540 });
+    try {
+      await ev(page, 'setView', { lat: 20, lon: 10, distKm: 1e9, tilt: 0 });
+      await ev(page, 'settle', 0, 1);
+      expect((await ev<{ distKm: number }>(page, 'view')).distKm).toBe(await ev<number>(page, 'maxDist'));
+      const wide = await ev<number>(page, 'maxDist');
+      await ev(page, 'resize', 300, 540);
+      await ev(page, 'settle', 0, 2);
+      const tall = await ev<number>(page, 'maxDist');
+      expect(tall).not.toBe(wide);
+      expect((await ev<{ distKm: number }>(page, 'view')).distKm).toBe(tall);
+    } finally {
+      await page.close();
+    }
+  });
+});

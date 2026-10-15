@@ -300,3 +300,11 @@ Not done in the Fix-UI slice (the sim, host and AI findings belong to Fix-Sim):
 - `buildBar` / `selectionPanel` DOM states have no unit tests (no DOM setup in the unit project); the pure functions behind them are tested. `hudLogic` / `structureInfo` mutants of boundary kind (exact equality) are left. Mutants U07-style of the host mirror and `cloneStructures` aliasing (V10, V11), L01 / L04 / L05 / L11 / L12 of the placement mode, `tiltCapAt` smoothstep flatness (F10), GPU class rows WARP / lavapipe / Mesa offscreen are left.
 - The docs lag of PROGRESS Done rows and stale BACKLOG lines (the audit's docs finding) is left to the orchestrator.
 
+
+## Polish-1 leftovers
+
+- A pixel-level night readability test (the night-lights texture is brighter than the structures, so a contrast metric does not discriminate); only the shader source is pinned.
+- The six types at 150 to 1500 km were checked for four of them in screenshots (the Port needs a coast cell in the test match); a coast scene would cover it.
+- Ring lifts are sampled at the true-size radius only; a ring widened by the scale policy at mid distance uses the same lifts.
+- Fix-UI low-priority items (6) were not worked through beyond what Fix-UI already did.
+- The tip still sits below the Play button on a 560 px window (the card scrolls); Play itself is always reachable.
