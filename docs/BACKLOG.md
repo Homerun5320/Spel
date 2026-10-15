@@ -241,3 +241,4 @@ Everything here would shorten `verify` further; each needs a per-test reset cont
 ## From CamFix-2
 - `PERF_ORBIT_KM` (21 500 km) and the `earth` canonical view are not run through `fitViewDistKm`: in a tall window they are cut. Only the live start view is fitted. (The perf scene host needs the window's aspect.)
 - The Himalaya wall dive (79 % at 3 km, fast pan) stays: the follower's lag over a steep slope; a look-ahead was tried and made the camera shiver (D158 (9)).
+- The last step of a long wheel dolly (14 notches from 4 000 km over open sea) lands a hair under the sea-level sphere: `viewFromPose` reads the camera from the far side (distance 11 000 km, tilt 150) and the dolly flies out and back before it settles at 300 m (before and after CamFix-2; the CamFix-2 regression only made it end wrong). A guard in `stepDolly` (never let a finishing step end under `ZOOM_MIN_AGL_M`) would make the zoom direct.

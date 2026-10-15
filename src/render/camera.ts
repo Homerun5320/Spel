@@ -275,8 +275,17 @@ export class CameraRig {
 
   /** The tilt the camera SHOWS: the user's tilt (`view.tilt`) eased down to 0 where the whole globe has to fit (`maxTiltForDist`); equal to it at every distance of 8 000 km and less. */
   get shownTilt(): number {
-    const s = this.s;
-    return s.tilt < this.capNow ? s.tilt : this.capNow;
+    return this.shownOf(this.s.tilt);
+  }
+
+  /**
+   * The tilt shown for a stored tilt: the stored one while the limit is not in force (`capNow` at `TILT_CAP_FREE_DEG`, which is every distance of 8 000 km
+   * and less), else the lower of the two. The free limit must not clamp: a stored tilt is an angle at the sea-level focus and is above 90 degrees for a camera
+   * that has dipped under the sea-level sphere (a wheel zoom that ends a hair low over open water), and the pose is then only the pose when it is shown as
+   * stored (a clamp at 90 put that camera thousands of kilometres away, CamFix-2 regression).
+   */
+  private shownOf(tilt: number): number {
+    return tilt < this.capNow || this.capNow >= TILT_CAP_FREE_DEG ? tilt : this.capNow;
   }
 
   private viewAspect(): number {
@@ -285,7 +294,7 @@ export class CameraRig {
 
   /** The camera position of a view in THIS window (`cameraPositionFor` with the window's cached limits). */
   private positionOf(s: ViewState): Vec3 {
-    return positionWithTilt(s, s.tilt < this.capNow ? s.tilt : this.capNow);
+    return positionWithTilt(s, this.shownOf(s.tilt));
   }
 
   get view(): ViewState {
@@ -449,7 +458,7 @@ export class CameraRig {
     this.s = viewFromPose(position, forward, this.s.heading);
     this.resetMotion();
     this.freePose = true;
-    this.capNow = this.s.tilt; // the pose is shown as placed; the limit starts exactly at it, so that the eased limit takes over by sliding down from here (CamFix-2)
+    this.capNow = Math.min(this.s.tilt, TILT_CAP_FREE_DEG); // the pose is shown as placed; the limit starts exactly at it, so that the eased limit takes over by sliding down from here (CamFix-2)
   }
 
   /** Camera pose for the current view. */
