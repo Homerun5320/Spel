@@ -2,6 +2,7 @@
 // session and CI always used: the SwiftShader argument array below is a committed copy of the baseline.
 // What this file cannot prove: that a real GPU renders anything (no GPU in the sandbox), see docs/LOCAL.md "Known limitations".
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -11,8 +12,10 @@ import {
   SWIFTSHADER_ARGS,
   candidateBrowserPaths,
   chromiumArgs,
+  downgradeDriverHints,
   e2eWorkerCount,
   goldenCompareMode,
+  isDriverPerformanceHint,
   isLocalGpu,
   localWorkerCount,
   resolveLocalBrowserPath,
@@ -155,5 +158,48 @@ describe('LOCAL_GPU=1', () => {
       expect(() => compareGolden(encodePng(image(7)), 'x', { ...d, env: { ...env, UPDATE_GOLDENS: '1' } })).toThrow(/refused/);
       expect(fs.existsSync(d.goldenDir)).toBe(false);
     });
+  });
+});
+
+describe('driver performance hints (a real GPU reports them as console warnings)', () => {
+  const hint = '[.WebGL-0xac00118200]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels';
+  const fallback = '[GroupMarkerNotSet(crbug.com/242999)!:A07020007C270000]Automatic fallback to software WebGL has been deprecated.';
+
+  it('only the GL Driver Message performance hints match; the software fallback and real errors do not', () => {
+    expect(isDriverPerformanceHint(hint)).toBe(true);
+    expect(isDriverPerformanceHint('[.WebGL-0x1]GL Driver Message (OpenGL, Performance, GL_FOO, Medium): something')).toBe(true);
+    expect(isDriverPerformanceHint(fallback)).toBe(false); // means: the GPU is NOT used, must stay visible
+    expect(isDriverPerformanceHint('[.WebGL-0x1]GL Driver Message (OpenGL, Error, GL_INVALID_OPERATION, High): bad call')).toBe(false);
+    expect(isDriverPerformanceHint('Uncaught TypeError: x is not a function')).toBe(false);
+  });
+
+  class FakeMessage {
+    constructor(
+      private readonly kind: string,
+      private readonly body: string,
+    ) {}
+    type(): string {
+      return this.kind;
+    }
+    text(): string {
+      return this.body;
+    }
+  }
+
+  it('downgradeDriverHints turns such a warning into debug, leaves every other message alone, and is idempotent', () => {
+    downgradeDriverHints(FakeMessage.prototype);
+    downgradeDriverHints(FakeMessage.prototype);
+    expect(new FakeMessage('warning', hint).type()).toBe('debug');
+    expect(new FakeMessage('warning', fallback).type()).toBe('warning');
+    expect(new FakeMessage('error', hint).type()).toBe('error');
+    expect(new FakeMessage('log', 'hello').type()).toBe('log');
+  });
+
+  it('the pinned playwright-core still has the ConsoleMessage class that LOCAL_GPU mode patches by path', () => {
+    const require = createRequire(import.meta.url);
+    const dir = require.resolve('playwright-core/package.json').replace(/package\.json$/, '');
+    const { ConsoleMessage } = require(`${dir}lib/client/consoleMessage.js`);
+    const m = new ConsoleMessage({}, { type: 'warning', text: hint, args: [], location: {} }, null);
+    expect([m.type(), m.text()]).toEqual(['warning', hint]);
   });
 });

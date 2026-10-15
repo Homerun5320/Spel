@@ -13,3 +13,5 @@ export function resolveLocalBrowserPath(opts: {
 export function localWorkerCount(cpuCount?: number): number;
 export function e2eWorkerCount(env?: Record<string, string | undefined>, cpuCount?: number, fallback?: number): number;
 export function goldenCompareMode(env?: Record<string, string | undefined>): 'warn' | 'fail';
+export function isDriverPerformanceHint(text: string): boolean;
+export function downgradeDriverHints<T extends { type(): string; text(): string }>(proto: T): T;

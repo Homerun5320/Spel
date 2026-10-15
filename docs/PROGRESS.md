@@ -16,6 +16,7 @@ Resume: Läs CLAUDE.md och docs/PROGRESS.md, kör git log -10 och npm run verify
 | M06 | (set after the squash merge) | Menu: real country or own nation with a procedural flag, fair start (exactly K = 197 cells for every nation), Skirmish regions, search in two languages, flyTo, home land and traits, prefs, createMatch. Published in the Artifact as version 6. Previous merge SHA (origin/main at start): f29121a8d1607ca169e6675b5f22a52d76c42ef7 (nothing is merged yet) |
 | M07a | (set after the squash merge) | Terrain LOD A (user gate): the terrain is a quadtree of instanced chunks with skirts (one draw call, hard chunk cap per tier), the territory and the selection outline on it with finer organic border warp, a terrain-aware orbit zoom down to 1 km above the ground, `#view-alps-valley` and `#view-himalaya-valley`, six contact-sheet goldens. Previous merge SHA (origin/main at start): f29121a8d1607ca169e6675b5f22a52d76c42ef7 (nothing is merged; M00 to M06 live on this branch and in draft pull request #1) Published in the Artifact as version 7. |
 | Tempo | (set after the squash merge) | Pace pass after the user's feedback ("too slow", "needed 4x"): conquest K 123 to 420, troop regeneration about 3x, AI war grace and share cap, `npm run sim:pace` report tool, ENGINE_VERSION 6, solo band moved with the reason "user feedback: too slow". 1x now feels like the old 4x (a 197-cell disc in about 55 s, 500 cells in about 106 s at troop parity and 100 % commitment). Published in the Artifact as version 8. |
+| TestSpeed | (set after the squash merge) | Infrastructure pass, no game change (D144): `npm run verify` from about 14:50 to 7:51 on the 4-core sandbox (e2e project 802 s to about 390 s): `settle` test hook (one draw for n frames), shared browser context per file, sleeps replaced by conditions, live-page waits by timer, typecheck + lint + unit side by side, e2e on 3 workers, heap / leak / time tests in the serial e2e project, `scripts/verify.mjs`; LOCAL GPU MODE (`LOCAL_GPU=1`, `npm run verify:local`, `docs/LOCAL.md` in Swedish for the user's Windows PC, untested on a real GPU); test inventory script (149 cases / 918 `expect(` before, 150 / 926 after). Previous merge SHA (origin/main at start): f29121a8d1607ca169e6675b5f22a52d76c42ef7 (nothing is merged). No visible change; the Artifact is NOT republished. |
 
 ## Now
 
@@ -27,17 +28,17 @@ GÖR
 - [x] S1. MEASURE: per-file and per-test time table of the e2e project and the 15 slowest unit files, written into D144 of `docs/DECISIONS.md`; where the time goes
 - [x] S2. Test inventory script (every test name per file, before and after) and its report; the number of cases per file is equal or higher afterwards
 - [x] S3. Speed up e2e without losing coverage (shared page per file where tests only read, no duplicate scene loads, sleeps replaced by waitForFunction on hook values, smaller viewports only where no golden or pixel rule needs 960x540, cached pack bytes, warm pages)
-- [ ] S4. Evaluate e2e parallelism (2 workers x 5 runs against sequential x 5 runs); adopt only if everything passes and the gain is real; perf, heap, leak and timing tests stay isolated and sequential; rewrite the CLAUDE.md "never concurrent with another Chromium" rule truthfully
+- [x] S4. Evaluate e2e parallelism (2 workers x 5 runs against sequential x 5 runs); adopt only if everything passes and the gain is real; perf, heap, leak and timing tests stay isolated and sequential; rewrite the CLAUDE.md "never concurrent with another Chromium" rule truthfully
 - [x] S5. LOCAL GPU MODE: `LOCAL_GPU=1` in `scripts/shot.mjs` and the e2e fixtures (no SwiftShader flags, CHROME_PATH, golden compare warn, worker count from the CPU count, perf through perfguard), `npm run verify:local` as a node script, unit test that the default Chromium argument array is byte-identical to the committed baseline
 - [x] S6. `docs/LOCAL.md` in Swedish for a non-developer on Windows; mention it in CLAUDE.md "Where things are", ARCHITECTURE and DECISIONS
-- [ ] S7. `npm run verify` green TWICE in a row (background + log) with the new wall times per stage; build and pack only if something user-visible changed (nothing should); local commits
+- [x] S7. `npm run verify` green TWICE in a row (background + log) with the new wall times per stage; build and pack only if something user-visible changed (nothing should); local commits
 
 ACCEPTANS
 - [x] The e2e project runs measurably faster with the same or more test cases and assertions per file (inventory report: 149 cases / 918 expect() before, 150 / 926 after, nothing lost), and the five sleep-based flakes are gone (e2e project 802 s -> about 415 s)
-- [ ] `npm run verify` under 8 minutes on this machine, or the honest floor documented in D144
+- [x] `npm run verify` under 8 minutes on this machine: 7:51 (7:39 to 7:53 over five runs with the final configuration), margin about 10 s; the floor and what would lower it are in D144 (8)
 - [x] Default Chromium arguments byte-identical without the switch (unit test `tests/localGpu.test.ts`); local mode plumbing unit-tested; what a real GPU would change is listed as untested (D144 (9), `docs/LOCAL.md` section 9)
 - [x] `docs/LOCAL.md` exists, is Swedish, mentions every step the task lists
-- [ ] `npm run verify` green twice in a row
+- [x] `npm run verify` green twice in a row (the two final runs: 7:52 and 7:51; unit 136 files / 1 536 tests, perf 8 / 24, e2e 16 / 143, e2e-serial 4 / 7); nothing user-visible changed, so no build and pack and no republication
 
 ### Tempo: a balance pass on HEAD ef06bc0 after the user's feedback "Att erövra länder tar för lång tid" / "Jag behövde köra 4x för att den ens skulle vara spelbart" (USER GATE; one part; the orchestrator owns pushing, the pull request and the Artifact)
 
@@ -627,6 +628,7 @@ ACCEPTANS
 - M07a part A: the golden test of `e2e/looks.test.ts` (six globe views) fails against the committed PNGs (0.4 % of the pixels on europe50, limit 0.2 %) because the default terrain is the chunk quadtree now; Part C regenerates the goldens ONCE with `UPDATE_GOLDENS=1` (D134). Everything else of `npm run verify` is green.
 - M07a part A: the whole e2e project takes about 716 s in this sandbox (480 s before); the plan to shard it over CI jobs is in `docs/BACKLOG.md`.
 - M07a part A: from 300 m above a coast the surface under the sea pixels next to the land is raised (a wedge of water), D133 (7) and `docs/BACKLOG.md`.
+- TestSpeed (D144): `LOCAL_GPU=1` and `docs/LOCAL.md` are untested on a real GPU and on Windows (the plumbing is unit-tested). The 8-minute budget of `verify` is met with a margin of about 10 s on the 4-core sandbox at 100 % CPU; the next milestone that adds browser frames can push it over (D144 (8), BACKLOG "TestSpeed ideas not built"). One sleep stays on purpose (`e2e/globe.test.ts`: nothing renders by itself during 400 ms of wall clock).
 
 ## Skipped
 
@@ -771,6 +773,16 @@ Cloud sandbox, SwiftShader, test tier 960x540 unless said:
 | LOD levels in the two ground views | 9 to 11, chunk count 148 to 150 of 150 (test tier) |
 | contact sheets | 6 files, 1.6 MB, 0 px differ against themselves, byte-identical in one launch |
 | whole e2e project (17 files, 149 tests) | 776 s in `npm run verify`; 796 s before the goldens were regenerated |
+
+## Measurements TestSpeed (logged, not asserted)
+Wall times of `npm run verify` on the 4-core, no-GPU sandbox (the stage table is printed by `scripts/verify.mjs`; logs in test-results/verify-*.log, gitignored). `slow` = lines `[guard] slow call` (a browser call over half of the 20 s hang guard): zero in every run.
+| run | e2e workers | typecheck / lint / unit (side by side) | perf | e2e | e2e-serial | total |
+|-----|-------------|-----------------------------------------|------|-----|------------|-------|
+| HEAD, sequential | 1 | 8 s / 9 s / 64 s (one after the other) | 11 s | 802 s (778 s profiled) | (inside e2e) | about 14:50 |
+| 2 workers, final suite, runs 1 to 5 | 2 | 20 s / 20 s / 61 s; 19 / 17 / 1:10; 20 / 18 / 59; 18 / 19 / 59; 18 / 17 / 57 | 10 to 11 s | 6:59, 7:01, 6:55, 6:57, 6:48 | 13, 13, 14, 13, 12 s | 8:23, 8:34, 8:18, 8:19, 8:07 |
+| 3 workers, runs 1 to 3 | 3 | about 18 s / 18 s / 58 to 60 s | 10 s | 6:31, 6:25, 6:18 | 13, 13, 12 s | 7:53, 7:48, 7:39 |
+| 3 workers, the two final runs (default) | 3 | 17 / 17 / 59 s; 20 / 19 / 59 s | 10 s | 6:29, 6:30 | 13, 12 s | 7:52, 7:51 |
+Counts of the final run: unit 136 files / 1 536 tests, perf 8 / 24, e2e 16 / 143, e2e-serial 4 / 7 (150 browser tests; HEAD had 149 in the e2e project).
 
 ## Usage
 

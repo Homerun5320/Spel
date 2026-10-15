@@ -142,7 +142,7 @@ function writeLocalReport(summary, workers, cores) {
   const softwareGl = /swiftshader|llvmpipe|software/i.test(rendererLine);
   const perfLines = readLog('perf')
     .split('\n')
-    .filter((l) => /\[perfguard\]|median|budget|p99/i.test(l))
+    .filter((l) => l.startsWith('[') && /perfguard|perf\]|median|p95|p99|budget/i.test(l))
     .slice(0, 80);
   const slow = readLog('e2e')
     .split('\n')

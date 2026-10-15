@@ -3,13 +3,14 @@
 // Used by: `npm run shots` (CLI at the bottom), the e2e tests (via import) and CI.
 // Rules (docs/DECISIONS.md): no wall-clock assertions except the 20 s hang guard; times are logged only.
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { chromium } from 'playwright-core';
 import { PNG } from 'pngjs';
 import pixelmatch from 'pixelmatch';
-import { SWIFTSHADER_ARGS, chromiumArgs, goldenCompareMode, isLocalGpu, resolveLocalBrowserPath } from './localGpu.mjs';
+import { SWIFTSHADER_ARGS, chromiumArgs, downgradeDriverHints, goldenCompareMode, isLocalGpu, resolveLocalBrowserPath } from './localGpu.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const REPO_ROOT = path.resolve(here, '..');
@@ -213,8 +214,21 @@ export function assertShotOk(shot, thresholds = THRESHOLDS) {
 // Browser
 // ---------------------------------------------------------------------------------------------
 
+/** LOCAL_GPU only: driver performance hints are console warnings on a real GPU (see localGpu.mjs); playwright-core is pinned, so its class is patched by path. */
+function quietDriverHints() {
+  try {
+    const require = createRequire(import.meta.url);
+    const dir = path.dirname(require.resolve('playwright-core/package.json'));
+    const { ConsoleMessage } = require(path.join(dir, 'lib', 'client', 'consoleMessage.js'));
+    downgradeDriverHints(ConsoleMessage.prototype);
+  } catch (err) {
+    console.warn(`[shot] LOCAL_GPU: could not quiet the driver performance hints (${err instanceof Error ? err.message : err})`);
+  }
+}
+
 export async function launchBrowser(options = {}) {
   const executablePath = options.executablePath ?? resolveChromiumPath();
+  if (isLocalGpu()) quietDriverHints();
   const browser = await guard(
     chromium.launch({ executablePath, headless: true, args: chromiumArgs() }),
     'chromium.launch',

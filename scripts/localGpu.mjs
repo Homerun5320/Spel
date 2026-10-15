@@ -84,3 +84,27 @@ export function goldenCompareMode(env = process.env) {
   if (env.GOLDEN_COMPARE === 'fail') return 'fail';
   return isLocalGpu(env) ? 'warn' : 'fail';
 }
+
+/**
+ * A real GPU driver (ANGLE on D3D11, Metal, ...) reports performance hints of the form
+ * `[.WebGL-0x...]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels` as console WARNINGS, and the
+ * tests read pixels back on purpose; SwiftShader never says it. They are not errors of the game, so in LOCAL_GPU mode they are not warnings.
+ * "Automatic fallback to software WebGL" is NOT in this class: it means the GPU is not used and must stay visible.
+ */
+const DRIVER_PERFORMANCE_HINT = /^\[[^\]]*\]GL Driver Message \(OpenGL, Performance,/;
+
+export function isDriverPerformanceHint(text) {
+  return DRIVER_PERFORMANCE_HINT.test(text);
+}
+
+/** Makes `type()` of a Playwright ConsoleMessage class report such hints as 'debug'. Idempotent. Returns the prototype. */
+export function downgradeDriverHints(proto) {
+  if (proto.__driverHintsDowngraded) return proto;
+  const original = proto.type;
+  proto.type = function type() {
+    const t = original.call(this);
+    return t === 'warning' && isDriverPerformanceHint(this.text()) ? 'debug' : t;
+  };
+  proto.__driverHintsDowngraded = true;
+  return proto;
+}
