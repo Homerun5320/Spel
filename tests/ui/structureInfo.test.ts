@@ -249,3 +249,10 @@ describe('the two-step Delete', () => {
     expect(DELETE_ARM_MS).toBe(3000);
   });
 });
+
+describe('a refusal in the spawn phase (Fix-Sim phase gate)', () => {
+  it('maps the sim REJECT_PHASE of a Build / Upgrade / Delete to the phase text, not the generic one', async () => {
+    const { REJECT_PHASE } = await import('../../src/ui/hudCodes');
+    expect(structureRefusalKey(REJECT_PHASE)).toBe('reject.phase');
+  });
+});

@@ -66,6 +66,7 @@ async function spawned(query = 'test=1&seed=7&ai=0&hud=1', gold = 6000, viewport
   await t.advance(0.1, 4);
   const { capitals } = await t.cells();
   expect((await t.state()).local.spawned).toBe(true);
+  await t.advance(0.1, 210); // Fix-Sim: Build / Upgrade / Delete are refused in the 20 s spawn phase, so the helper plays past it
   return { page, messages: consoleMessages, capital: capitals[0] as number };
 }
 

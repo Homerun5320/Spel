@@ -37,6 +37,7 @@ async function cityPage(): Promise<{ page: Page; messages: Array<{ type: string;
   await call('advance', 0.1, 5);
   await call('give', 0, { gold: 6000 });
   await call('advance', 0.1, 4);
+  await call('advance', 0.1, 210); // Fix-Sim: Build is refused in the 20 s spawn phase, so play past it
   const { capitals } = await call<{ capitals: number[] }>('seatCells');
   const at = cellToLatLon(capitals[0] as number, 1024, 512);
   await call('submit', { kind: 'Build', seat: 0, type: STRUCT_CITY, cell: capitals[0] });

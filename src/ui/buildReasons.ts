@@ -18,6 +18,7 @@ import {
   REJECT_STRUCT_MAX_LEVEL,
   REJECT_STRUCT_NOT_OWNER,
 } from '../sim/public';
+import { REJECT_PHASE } from './hudCodes';
 import type { TextKey } from './i18n';
 
 export function buildRejectKey(reason: number): TextKey {
@@ -67,6 +68,8 @@ export function structureRefusalKey(reason: number): TextKey {
       return 'toast.struct.busy';
     case REJECT_DELETE_COOLDOWN:
       return 'toast.struct.cooldown';
+    case REJECT_PHASE: // Fix-Sim: Build / Upgrade / Delete are refused in the spawn phase like Attack
+      return 'reject.phase';
     default:
       return buildRejectKey(reason);
   }

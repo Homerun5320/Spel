@@ -61,6 +61,7 @@ async function spawned(lat: number, lon: number, query = 'test=1&seed=7&ai=0&hud
   await page.evaluate(() => (window as any).__test.give(0, { gold: 9000 }));
   await t.advance(0.1, 4);
   expect((await t.state()).local.spawned).toBe(true);
+  await t.advance(0.1, 210); // Fix-Sim: Build / Upgrade / Delete are refused in the 20 s spawn phase, so the helper plays past it
   return { page, messages: consoleMessages, capital: await t.capital() };
 }
 
