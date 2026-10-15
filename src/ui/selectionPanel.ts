@@ -2,7 +2,7 @@
 // see structureInfo.ts), the upgrade price and the delete cooldown, with the buttons Upgrade and Delete. The panel only reports clicks: the page sends
 // the intents. A button the sim would refuse is dimmed (aria-disabled) and its tooltip says why.
 import { languageVersion, t } from './i18n';
-import { deleteWhyKey, effectLines, structureNameKey, upgradeWhyKey, type SelectionInfo } from './structureInfo';
+import { deleteArmed, deleteClick, deleteWhyKey, effectLines, structureNameKey, upgradeWhyKey, type DeleteArm, type SelectionInfo } from './structureInfo';
 import { STRUCT_MAX_LEVEL } from '../sim/public';
 
 export interface SelectionPanel {
@@ -35,8 +35,20 @@ export function createSelectionPanel(parent: HTMLElement, actions: { upgrade(id:
   up.addEventListener('click', () => {
     if (current >= 0 && up.getAttribute('aria-disabled') !== 'true') actions.upgrade(current);
   });
+  // Delete takes two clicks: the first arms it for DELETE_ARM_MS (label "Bekräfta"), the second deletes; the next frame's update shows the label
+  let arm: DeleteArm | null = null;
+  const clock = (): number => (typeof performance === 'undefined' ? Date.now() : performance.now());
   del.addEventListener('click', () => {
-    if (current >= 0 && del.getAttribute('aria-disabled') !== 'true') actions.remove(current);
+    if (current < 0 || del.getAttribute('aria-disabled') === 'true') return;
+    const r = deleteClick(arm, current, clock());
+    arm = r.arm;
+    if (r.send) actions.remove(current);
+    else {
+      shown = ''; // redraw with the armed label at once
+      del.dataset.armed = '1';
+      del.textContent = t('sel.deleteConfirm');
+      del.title = t('sel.deleteConfirmTip');
+    }
   });
   return {
     root,
@@ -44,11 +56,14 @@ export function createSelectionPanel(parent: HTMLElement, actions: { upgrade(id:
       if (info === null) {
         if (!root.hidden) root.hidden = true;
         current = -1;
+        arm = null;
         shown = '';
         return;
       }
       current = info.id;
-      const sig = [info.id, info.type, info.level, info.owned ? 1 : 0, info.finished ? 1 : 0, info.upgrading ? 1 : 0, info.upgradePrice, info.upgradeReason, info.deleteReason, info.deleteSeconds, onMountain ? 1 : 0, languageVersion()].join('|');
+      const armed = deleteArmed(arm, info.id, clock());
+      if (!armed) arm = null;
+      const sig = [armed ? 1 : 0, info.id, info.type, info.level, info.owned ? 1 : 0, info.finished ? 1 : 0, info.upgrading ? 1 : 0, info.upgradePrice, info.upgradeReason, info.deleteReason, info.deleteSeconds, onMountain ? 1 : 0, languageVersion()].join('|');
       if (sig === shown && !root.hidden) return;
       shown = sig;
       root.hidden = false;
@@ -69,9 +84,10 @@ export function createSelectionPanel(parent: HTMLElement, actions: { upgrade(id:
       up.dataset.reason = String(info.upgradeReason);
       setDimmed(up, info.upgradeReason !== 0, info.upgradeReason !== 0 ? t(upgradeWhyKey(info.upgradeReason), { price: info.upgradePrice }) : t('sel.upgradeTip', { price: info.upgradePrice, level: info.level + 1 }));
       // Delete
-      del.textContent = t('sel.delete');
+      del.textContent = armed ? t('sel.deleteConfirm') : t('sel.delete');
+      del.dataset.armed = armed ? '1' : '0';
       del.dataset.reason = String(info.deleteReason);
-      setDimmed(del, info.deleteReason !== 0, info.deleteReason !== 0 ? t(deleteWhyKey(info.deleteReason), { seconds: info.deleteSeconds }) : t('sel.deleteTip', { seconds: info.cooldownSeconds }));
+      setDimmed(del, info.deleteReason !== 0, info.deleteReason !== 0 ? t(deleteWhyKey(info.deleteReason), { seconds: info.deleteSeconds }) : armed ? t('sel.deleteConfirmTip') : t('sel.deleteTip', { seconds: info.cooldownSeconds }));
       note.textContent = t('sel.hint');
     },
     dispose(): void {

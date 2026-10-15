@@ -15,6 +15,7 @@ import {
   samRadiusCells,
   type StructureView,
 } from '../../src/sim/public';
+import { formatInt } from '../../src/ui/i18n';
 import { deleteWhyKey, effectLines, rangeRingCells, upgradeWhyKey } from '../../src/ui/structureInfo';
 
 const W = 64;
@@ -143,8 +144,8 @@ describe('the panel numbers', () => {
   it('a City gives the sim numbers per level, and every refusal has its own tooltip key', () => {
     const l1 = effectLines(STRUCT_CITY, 1)[0];
     const l3 = effectLines(STRUCT_CITY, 3)[0];
-    expect(l1?.params.troops).toBe(CAP_CITY_LEVEL_TROOPS);
-    expect(l3?.params.troops).toBe(CAP_CITY_LEVEL_TROOPS * 3);
+    expect(l1?.params.troops).toBe(formatInt(CAP_CITY_LEVEL_TROOPS));
+    expect(l3?.params.troops).toBe(formatInt(CAP_CITY_LEVEL_TROOPS * 3)); // 2 400, a thin-space group in Swedish
     expect(upgradeWhyKey(REJECT_BUILD_GOLD)).toBe('sel.why.gold');
     expect(upgradeWhyKey(REJECT_STRUCT_BUSY)).toBe('sel.why.busy');
     expect(deleteWhyKey(REJECT_DELETE_COOLDOWN)).toBe('sel.why.cooldown');

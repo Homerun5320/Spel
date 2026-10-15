@@ -196,9 +196,9 @@ const sv = {
   'sel.state.upgrading': 'Uppgraderas...',
   'sel.fx.city': 'Ger {gold} guld/s och {troops} högre trupptak.',
   'sel.fx.factory': 'Ger {gold} guld/s och {pct} % mer inkomst från städer inom {radius} rutor.',
-  'sel.fx.port': 'Ger {gold} guld/s och handel med andra hamnar.',
-  'sel.fx.silo': 'Missilsilo: räckvidd {radius} rutor.',
-  'sel.fx.sam': 'Luftvärn: räckvidd {radius} rutor (20 % längre på berg).',
+  'sel.fx.port': 'Ger {gold} guld/s och handel med andra hamnar ({pct} % av handelsvärdet).',
+  'sel.fx.silo': 'Missilsilo: har ingen funktion än, missiler kommer senare.',
+  'sel.fx.sam': 'Luftvärn: räckvidd {radius} rutor ({pct} % längre på berg).',
   'sel.fx.post': 'Gör fiendens erövring {mult} gånger dyrare inom {radius} rutor.',
   'sel.upgrade': 'Uppgradera ({price})',
   'sel.upgradeMax': 'Högsta nivå',
@@ -212,6 +212,13 @@ const sv = {
   'sel.why.cooldown': 'Rivning väntar: {seconds} s kvar.',
   'sel.why.gone': 'Byggnaden finns inte längre.',
   'sel.hint': 'Esc eller klick på tom mark: avmarkera.',
+  'sel.deleteConfirm': 'Bekräfta',
+  'sel.deleteConfirmTip': 'Klicka igen inom några sekunder för att riva byggnaden. Ingen ersättning.',
+  'toast.struct.gone': 'Byggnaden finns inte längre.',
+  'toast.struct.notOwner': 'Byggnaden är inte din.',
+  'toast.struct.maxLevel': 'Byggnaden har redan högsta nivån.',
+  'toast.struct.busy': 'Byggnaden är under konstruktion eller uppgraderas.',
+  'toast.struct.cooldown': 'Rivning väntar, försök igen om en stund.',
 } as const;
 
 export type TextKey = keyof typeof sv;
@@ -401,9 +408,9 @@ const en: Record<TextKey, string> = {
   'sel.state.upgrading': 'Upgrading...',
   'sel.fx.city': 'Gives {gold} gold/s and {troops} more troop cap.',
   'sel.fx.factory': 'Gives {gold} gold/s and {pct} % more income from cities within {radius} cells.',
-  'sel.fx.port': 'Gives {gold} gold/s and trade with other ports.',
-  'sel.fx.silo': 'Missile silo: range {radius} cells.',
-  'sel.fx.sam': 'Air defence: range {radius} cells (20 % further on mountains).',
+  'sel.fx.port': 'Gives {gold} gold/s and trade with other ports ({pct} % of the trade value).',
+  'sel.fx.silo': 'Missile silo: has no function yet, missiles come later.',
+  'sel.fx.sam': 'Air defence: range {radius} cells ({pct} % further on mountains).',
   'sel.fx.post': 'Makes enemy conquest {mult} times as expensive within {radius} cells.',
   'sel.upgrade': 'Upgrade ({price})',
   'sel.upgradeMax': 'Top level',
@@ -417,6 +424,13 @@ const en: Record<TextKey, string> = {
   'sel.why.cooldown': 'Demolish is cooling down: {seconds} s left.',
   'sel.why.gone': 'The building no longer exists.',
   'sel.hint': 'Esc or a click on empty ground: deselect.',
+  'sel.deleteConfirm': 'Confirm',
+  'sel.deleteConfirmTip': 'Click again within a few seconds to demolish the building. No refund.',
+  'toast.struct.gone': 'The building no longer exists.',
+  'toast.struct.notOwner': 'This building is not yours.',
+  'toast.struct.maxLevel': 'The building is already at the top level.',
+  'toast.struct.busy': 'The building is under construction or upgrading.',
+  'toast.struct.cooldown': 'Demolish is cooling down, try again in a moment.',
 };
 
 /** The two tables, for the parity test and for tools. Treat as read-only. */

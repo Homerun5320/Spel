@@ -90,7 +90,8 @@ export function hudCss(): string {
 .sel-level, .sel-note { color: ${C.textDim}; font-size: 0.85em; }
 .sel-state { color: ${C.barWarning}; font-size: 0.85em; }
 .sel-fx { font-size: 0.9em; }
-.sel-row { display: flex; flex-wrap: wrap; gap: 0.4em; margin-top: 0.2em; }
+.sel-row { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.4em; margin-top: 0.2em; }
+.sel-btn[data-armed="1"] { border-color: ${C.danger}; box-shadow: inset 0 0 0 1px ${C.danger}; }
 .sel-btn { min-height: ${target}; padding: 0 0.8em; border-radius: 0.5em; border: 1px solid ${C.buttonBorder}; background: ${C.button}; color: ${C.text}; font: inherit; font-weight: 700; cursor: pointer; touch-action: manipulation; }
 .sel-btn:hover { background: ${C.buttonActive}; }
 .sel-btn[data-state="dim"] { opacity: 0.5; border-style: dashed; cursor: not-allowed; }
