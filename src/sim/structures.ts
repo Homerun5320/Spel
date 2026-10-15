@@ -8,7 +8,8 @@
 // allocates exactly as the straight run does.
 import { BUILD_TICKS, DELETE_COOLDOWN_TICKS, MILLI_GOLD_PER_GOLD, STRUCT_CAPACITY } from './rules';
 import { foldBytes, foldU32, foldWord } from './hash';
-import { REJECT_NONE } from './intents';
+import { REJECT_NONE, REJECT_PHASE } from './intents';
+import { PHASE_SPAWN, phaseAt } from './flow';
 import {
   STRUCT_TYPE_SLOTS,
   buildPriceMilli,
@@ -212,8 +213,14 @@ class StateBuildSource implements BuildSource {
   }
 }
 
+/** Match flow (D92, Fix-Sim): like Attack, Build / Upgrade / Delete are refused with REJECT_PHASE while a match with a spawn phase is in it. */
+function spawnPhaseRefuses(state: GameState): boolean {
+  return state.header.config.spawnPhase === true && phaseAt(state.tick) === PHASE_SPAWN;
+}
+
 /** Applies a Build: the placement rules (checkBuild), then the price is taken and the structure enters the table. Returns REJECT_NONE or the reason. */
 export function applyBuild(state: GameState, seat: number, type: number, cell: number): number {
+  if (spawnPhaseRefuses(state)) return REJECT_PHASE;
   const ownerId = seatToOwner(seat);
   const why = checkBuild(new StateBuildSource(state), state.gold[ownerId] as number, seat, type, cell);
   if (why !== REJECT_NONE) return why;
@@ -224,6 +231,7 @@ export function applyBuild(state: GameState, seat: number, type: number, cell: n
 
 /** Applies an Upgrade: pays base * (level + 1) and starts the upgrade, which finishes after the type's build time. */
 export function applyUpgrade(state: GameState, seat: number, id: number): number {
+  if (spawnPhaseRefuses(state)) return REJECT_PHASE;
   const t = state.structures;
   const ownerId = seatToOwner(seat);
   const why = checkUpgrade(t, state.tick, state.gold[ownerId] as number, seat, id);
@@ -236,6 +244,7 @@ export function applyUpgrade(state: GameState, seat: number, id: number): number
 
 /** Applies a Delete: the structure goes (no refund) and the seat's cooldown starts. */
 export function applyDelete(state: GameState, seat: number, id: number): number {
+  if (spawnPhaseRefuses(state)) return REJECT_PHASE;
   const why = checkDelete(state.structures, state.tick, seat, id);
   if (why !== REJECT_NONE) return why;
   state.structures.remove(id);

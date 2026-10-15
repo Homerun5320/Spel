@@ -40,6 +40,9 @@ const REAL: Array<[string, string, GpuClass, string | null]> = [
   ['Mesa llvmpipe (LLVM 15.0.7, 256 bits)', 'Mesa', 'software', null],
   ['ANGLE (Microsoft, Microsoft Basic Render Driver (0x0000008C) Direct3D11 vs_5_0 ps_5_0, D3D11)', 'Google Inc. (Microsoft)', 'software', 'Microsoft Basic Render Driver'],
   ['Software Rasterizer', '', 'software', null],
+  ['ANGLE (Microsoft, WARP Adapter Direct3D11 vs_5_0 ps_5_0, D3D11)', 'Google Inc. (Microsoft)', 'software', null],
+  ['ANGLE (Mesa, Vulkan 1.3.255 (lavapipe (LLVM 15.0.7 256 bits) (0x0000C0DE)), lavapipe driver)', 'Google Inc. (Mesa)', 'software', null],
+  ['Mesa Offscreen', 'Brian Paul', 'software', null],
 ];
 
 describe('classifyRenderer', () => {
