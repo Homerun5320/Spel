@@ -2,9 +2,13 @@
 // and the button "Kopiera rapport". The numbers are pushed in by the frame driver; this module reads no clock.
 import { DEV_PANEL_EVENT, rectsOverlap, type DevPanelEventDetail } from './events';
 import type { FrameStats } from './frameStats';
+import type { PerfSceneSection } from './perfSceneReport';
 import { showReport } from './report';
 
-/** Version of the perf JSON. M08 and M24a extend it (new fields, version bump), they never add a second button. */
+/**
+ * Version of the perf JSON. M08 and M24a extend it, they never add a second button. M08 added the optional `scene` section (the performance
+ * scene, `?scene=perf`) the way the match section was added at M05: additive, so the version stays 1; a reader checks for the section.
+ */
 export const PERF_SCHEMA_VERSION = 1;
 
 export interface PerfSnapshot {
@@ -30,6 +34,10 @@ export interface PerfContext {
   mode: Record<string, string>;
   /** The match numbers (M05), when a match runs: the report gets a `match` section. Additive; the schema version stays 1. */
   match?: () => MatchPerf | null;
+  /** The performance scene's section (M08, `?scene=perf`), or null when no scene runs. Additive; the schema version stays 1. */
+  scene?: () => PerfSceneSection | null;
+  /** One line about the running scene for the overlay (phase, progress); the report itself is built by `scene`. */
+  sceneLine?: () => string | null;
 }
 
 /** What the match adds to the perf report: the cost of the simulation per frame and the ownership uploads. */
@@ -59,6 +67,8 @@ export interface PerfReport {
   mode: Record<string, string>;
   userAgent: string;
   match?: MatchPerf;
+  /** M08: the performance scene's numbers (frame times, maxima, canvas, display refresh, cadence histogram, capped verdict, phases). */
+  scene?: PerfSceneSection;
 }
 
 const round = (x: number, d = 2): number => Math.round(x * 10 ** d) / 10 ** d;
@@ -81,7 +91,13 @@ export function buildPerfReport(ctx: PerfContext): PerfReport {
     mode: ctx.mode,
     userAgent: typeof navigator === 'undefined' ? '' : navigator.userAgent,
     ...matchSection(ctx),
+    ...sceneSection(ctx),
   };
+}
+
+function sceneSection(ctx: PerfContext): { scene?: PerfSceneSection } {
+  const sc = ctx.scene?.() ?? null;
+  return sc === null ? {} : { scene: sc };
 }
 
 function matchSection(ctx: PerfContext): { match?: MatchPerf } {
@@ -102,6 +118,7 @@ export function perfLines(r: PerfReport): string[] {
   const match = r.match
     ? [`match: tick ${r.match.tick}, fart ${r.match.speed}x, sim-steg per bildruta ${r.match.hostAdvanceMs.mean.toFixed(2)} ms medel / ${r.match.hostAdvanceMs.p95.toFixed(2)} p95 / ${r.match.hostAdvanceMs.max.toFixed(2)} max, ägarkarta ${r.match.ownershipUploads} uppladdn.${r.match.hudUpdateMs ? `, HUD ${r.match.hudUpdateMs.mean.toFixed(2)} ms medel / ${r.match.hudUpdateMs.p95.toFixed(2)} p95` : ''}`]
     : [];
+  const scene = r.scene ? sceneLines(r.scene) : [];
   return [
     `Renderer: ${r.renderer}`,
     `GL: ${r.glVersion}`,
@@ -109,6 +126,28 @@ export function perfLines(r: PerfReport): string[] {
     `anrop ${r.renderInfo.calls}  trianglar ${r.renderInfo.triangles}  geometrier ${r.renderInfo.geometries}  texturer ${r.renderInfo.textures}`,
     `texturminne ${r.textureMB.toFixed(1)} MB  nivå ${r.tier}  ${r.viewport.width}x${r.viewport.height} @${r.viewport.dpr}x`,
     ...match,
+    ...scene,
+  ];
+}
+
+const CAP_TEXT: Record<PerfSceneSection['cappedHint']['verdict'], string> = {
+  unknown: 'okänt (ingen uppmätt skärmfrekvens)',
+  none: 'nej, scenen går i skärmens takt',
+  'likely-capped': 'JA, låst vid en multipel av skärmens takt',
+  unclear: 'oklart, långsammare än skärmen men inte låst',
+};
+
+/** The lines the overlay adds for a performance scene report (Swedish: developer tool, D98). */
+export function sceneLines(s: PerfSceneSection): string[] {
+  const refresh = s.refresh.measured ? `${s.refresh.hz.toFixed(1)} Hz (${s.refresh.medianIntervalMs.toFixed(2)} ms)` : 'ej mätt';
+  const gpu = s.gpuMs.available ? `GPU ${s.gpuMs.mean.toFixed(1)} ms medel / ${s.gpuMs.p95.toFixed(1)} p95` : 'GPU-tid ej tillgänglig';
+  const phases = s.phases.map((p) => `${p.name} ${p.meanMs.toFixed(1)} ms (${p.frames})`).join(', ');
+  return [
+    `scen: ${s.completed ? 'klar' : 'pågår'}, ${s.frames} ramar, ${s.frameMs.mean.toFixed(1)} ms medel / ${s.frameMs.p95.toFixed(1)} p95 / ${s.frameMs.max.toFixed(1)} max`,
+    `max trianglar ${s.maxTriangles}  anrop ${s.maxDrawCalls}  chunks ${s.maxChunks}  lägsta höjd ${s.minAglM.toFixed(0)} m`,
+    `skärm ${refresh}  duk ${s.canvas.pixelWidth}x${s.canvas.pixelHeight} @${s.canvas.dpr}x (fönstret ${s.canvas.devicePixelRatio}x)  JS ${s.cpuMs.mean.toFixed(1)} ms  ${gpu}`,
+    `låst bildfrekvens: ${CAP_TEXT[s.cappedHint.verdict]}`,
+    `faser: ${phases}`,
   ];
 }
 
@@ -149,7 +188,8 @@ export function createPerfOverlay(parent: HTMLElement, ctx: PerfContext): PerfOv
   };
   window.addEventListener(DEV_PANEL_EVENT, onDevPanel);
   const update = (): void => {
-    pre.textContent = perfLines(buildPerfReport(ctx)).join('\n');
+    const head = ctx.sceneLine?.();
+    pre.textContent = (head ? `${head}\n` : '') + perfLines(buildPerfReport(ctx)).join('\n');
   };
   update();
   return {

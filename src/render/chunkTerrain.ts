@@ -243,6 +243,11 @@ export class ChunkTerrain {
     }
   }
 
+  /** Chunks of the last update (no allocation; `getStats` builds the full object). */
+  get chunkCount(): number {
+    return this.tree.count;
+  }
+
   /** The numbers of the last update (allocates; for tests, the perf overlay and `__test.state()`, not for the frame loop). */
   getStats(): ChunkStats {
     const levels: number[] = [];

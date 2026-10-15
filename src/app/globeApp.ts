@@ -18,7 +18,9 @@ import { resolveQuality } from '../render/quality';
 import type { TerrainMode } from '../render/terrainMaterial';
 import { FrameStats } from '../ui/frameStats';
 import { latLonOfCell } from './cellGeo';
-import { createPerfOverlay, type PerfOverlay } from '../ui/perfOverlay';
+import { buildPerfReport, createPerfOverlay, type PerfContext, type PerfOverlay, type PerfReport } from '../ui/perfOverlay';
+import type { PerfSceneSection } from '../ui/perfSceneReport';
+import { PerfSceneRun, type PerfSceneHost } from './perfScene';
 import { createMatchHud, notConquerableText, rejectText, type MatchHud, type MatchHudModel } from '../ui/matchHud';
 import { getLanguage, onLanguageChange, setStrictI18n, t, type TextKey } from '../ui/i18n';
 import { START_FLY_KM, START_SPIN_DEG_PER_S, SETUP_IDLE_DIST_KM } from '../ui/uiConfig';
@@ -144,6 +146,13 @@ export interface GlobeTestHooks {
   /** True while a flight is under way; `cameraMix()` is the weight of the RTS camera (0 globe .. 1 RTS) and `holdAgl()` the height it keeps over the ground (null: none). */
   flightActive(): boolean;
   cameraMix(): number;
+  /**
+   * M08 (the performance scene): runs the SHORTENED script (`?scene=perf` in test mode; flights of one fx second, rests of 0.2, fx steps of `dt`
+   * seconds, default 0.1) frame by frame with a real draw each and returns the section of the report; `perfReport()` is the whole report the
+   * overlay's "Kopiera rapport" shows (with the scene section once a run exists). The numbers are logged, never asserted against wall time.
+   */
+  runPerfScene(o?: { dt?: number; maxFrames?: number }): PerfSceneSection;
+  perfReport(): PerfReport;
   holdAgl(): number | null;
   /** M08: the ground under a pixel (`pickGround`): latitude, longitude, radius (Earth radii) and seen height (render metres) of the hit; null when the ray misses the globe. */
   pickGround(x: number, y: number): { lat: number; lon: number; radius: number; seenHeightM: number } | null;
@@ -555,25 +564,48 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   );
 
   // --- Performance overlay (?perf=1 / #perf) ------------------------------------------------------------------------
-  const stats = new FrameStats();
+  const isPerfScene = ctx.scene.scene === 'perf';
+  const stats = new FrameStats(isPerfScene ? 6000 : 600); // the scene's whole run (about 40 s) fits the window
   let perf: PerfOverlay | null = null;
-  if (ctx.state.perf) {
-    perf = createPerfOverlay(wrapper, {
-      snapshot: () => globe.info(),
-      stats,
-      mode: { test: params.test ? '1' : '0', quality: quality.tier, scene: ctx.scene.scene },
-      match: () =>
-        session === null
-          ? null
-          : {
-              tick: session.view.tick,
-              speed: session.speed,
-              hostAdvanceMs: { mean: hostAdvance.meanMs(), p95: hostAdvance.p95Ms(), max: hostAdvance.maxMs(), frames: hostAdvance.frames },
-              hudUpdateMs: { mean: hudCost.meanMs(), p95: hudCost.p95Ms(), max: hudCost.maxMs(), frames: hudCost.frames },
-              ownershipUploads: globe.ownership.uploads,
-              ownershipGpuUploads: globe.ownership.gpuUploads,
-            },
-    });
+  // The performance scene (M08): the run object exists in the live page from the start and in test mode once `runPerfScene` ran.
+  let perfRun: PerfSceneRun | null = null;
+  const perfHost: PerfSceneHost = {
+    setView: (v) => globe.setView(v),
+    flyTo: (lat, lon, distKm, options) => globe.flyTo(lat, lon, distKm, options),
+    flightActive: () => globe.flight.active,
+    cameraAglM: () => globe.cameraAglM(),
+    counters: () => globe.frameCounters(),
+    canvas: () => {
+      const i = globe.info();
+      return { cssWidth: i.width, cssHeight: i.height, pixelWidth: canvas.width, pixelHeight: canvas.height, dpr: i.dpr, devicePixelRatio: window.devicePixelRatio || 1 };
+    },
+    gpuMs: () => globe.takeGpuMs(),
+    gpuAvailable: () => gpuTimerOk,
+  };
+  let gpuTimerOk = false;
+  const perfContext: PerfContext = {
+    snapshot: () => globe.info(),
+    stats,
+    mode: { test: params.test ? '1' : '0', quality: quality.tier, scene: ctx.scene.scene },
+    scene: () => perfRun?.section() ?? null,
+    sceneLine: () => perfRun?.line() ?? null,
+    match: () =>
+      session === null
+        ? null
+        : {
+            tick: session.view.tick,
+            speed: session.speed,
+            hostAdvanceMs: { mean: hostAdvance.meanMs(), p95: hostAdvance.p95Ms(), max: hostAdvance.maxMs(), frames: hostAdvance.frames },
+            hudUpdateMs: { mean: hudCost.meanMs(), p95: hudCost.p95Ms(), max: hudCost.maxMs(), frames: hudCost.frames },
+            ownershipUploads: globe.ownership.uploads,
+            ownershipGpuUploads: globe.ownership.gpuUploads,
+          },
+  };
+  // `?scene=perf` turns the overlay on by itself: it carries the progress line and the button that copies the report.
+  if (ctx.state.perf || isPerfScene) perf = createPerfOverlay(wrapper, perfContext);
+  if (isPerfScene && !params.test) {
+    gpuTimerOk = globe.enableGpuTimer();
+    perfRun = new PerfSceneRun(perfHost, { quick: false, now: fxNow });
   }
   const disposeAll = (): void => {
     if (!alive) return;
@@ -625,9 +657,16 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     focusCapital: () => focusCapital(),
   };
   const inputStack = new InputStack(createBaseMode(inputTarget));
-  attachDomInput(canvas, inputStack, () => {
-    tip.style.display = 'none';
-  }, signal);
+  let inputOn = false;
+  const attachInput = (): void => {
+    if (inputOn) return;
+    inputOn = true;
+    attachDomInput(canvas, inputStack, () => {
+      tip.style.display = 'none';
+    }, signal);
+  };
+  // The live performance scene flies the camera by itself: the mouse is off until the run is over (a touched camera would spoil the numbers).
+  if (!(isPerfScene && !params.test)) attachInput();
 
   // --- The menus: the start screen (Play = the standard match, or the setup) and the setup screen ----------------------------------
   // Building a match takes a moment on the main thread: let the button show "loading" first (two frames), then start.
@@ -841,6 +880,26 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       bookmark: (name, durationS) => flyToBookmark(name, durationS),
       flightActive: () => globe.flight.active,
       cameraMix: () => globe.rig.rtsWeight,
+      runPerfScene(o = {}): PerfSceneSection {
+        const dt = o.dt ?? 0.1;
+        gpuTimerOk = globe.enableGpuTimer();
+        const run = new PerfSceneRun(perfHost, { quick: true, now: fxNow });
+        perfRun = run;
+        let prev = performance.now();
+        for (let i = 0; i < (o.maxFrames ?? 2000) && !run.done; i++) {
+          advanceFx(dt);
+          run.beforeFrame();
+          const t0 = performance.now();
+          renderFrame();
+          globe.sync(); // no frame is presented between the calls: wait until the GPU is done with this one (finish() only flushes)
+          const t1 = performance.now();
+          run.afterFrame(t1 - prev, t1 - t0);
+          prev = t1;
+        }
+        perf?.update();
+        return run.section();
+      },
+      perfReport: () => buildPerfReport(perfContext),
       holdAgl: () => globe.rig.holdAgl,
       pickGround: (x, y) => {
         const h = globe.pickGroundAt(x, y);
@@ -961,16 +1020,29 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
 
   window.addEventListener('resize', () => globe.resize(window.innerWidth, window.innerHeight, Math.min(window.devicePixelRatio || 1, quality.maxDpr)), { signal });
   // The normal page opens with the start screen; the match begins when Play is pressed (or Start on the setup screen).
-  mountMenu();
+  // The performance scene has no menu and no match: it draws the orbit view once, measures the display's refresh with empty callbacks,
+  // then flies the script (src/app/perfScene.ts).
+  if (perfRun !== null) renderFrame();
+  else mountMenu();
   let last = performance.now();
   let sinceOverlay = 0;
   const loop = (now: number): void => {
     if (!alive) return;
     const dt = (now - last) / 1000;
     last = now;
+    if (perfRun !== null && perfRun.probing) {
+      // Nothing is drawn and the fx clock stands still: the interval of an empty requestAnimationFrame is the display's refresh interval.
+      if (dt > 0) perfRun.probeFrame(dt * 1000);
+      if (++sinceOverlay >= 15) {
+        sinceOverlay = 0;
+        perf?.update();
+      }
+      requestAnimationFrame(loop);
+      return;
+    }
     if (dt > 0) {
       fps = fps * 0.9 + (1 / dt) * 0.1;
-      stats.push(dt * 1000);
+      if (perfRun === null || !perfRun.done) stats.push(dt * 1000);
       advanceFx(Math.min(dt, 0.1));
       if (groundView === null && startScreen !== null && setupScreen === null && session === null) globe.setView({ lon: wrapLon(globe.rig.view.lon + Math.min(dt, 0.1) * START_SPIN_DEG_PER_S) }); // the globe turns slowly behind the start screen
       updateMarker();
@@ -984,7 +1056,13 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
         hudCost.push(performance.now() - h0);
       }
     }
+    perfRun?.beforeFrame();
+    const drawStart = performance.now();
     renderFrame();
+    if (perfRun !== null) {
+      perfRun.afterFrame(dt * 1000, performance.now() - drawStart);
+      if (perfRun.done) attachInput(); // the run is over: the camera is the player's again
+    }
     if (!overlay.hidden) refreshOverlay();
     if (perf && ++sinceOverlay >= 15) {
       sinceOverlay = 0;

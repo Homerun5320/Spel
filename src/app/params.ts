@@ -87,17 +87,17 @@ export function parseParams(search: string, hash = ''): AppParams {
   return appParamsOf(parseRaw(search, hash));
 }
 
-export type SceneName = 'globe' | 'spike';
+export type SceneName = 'globe' | 'spike' | 'perf';
 
 export interface SceneParams {
-  /** `?scene=spike` keeps the M00 spike; everything else is the stylised Earth. */
+  /** `?scene=spike` keeps the M00 spike, `?scene=perf` (`#scene-perf`, M08) is the performance scene on the Earth; everything else is the stylised Earth. */
   scene: SceneName;
   /** `?quality=test|low|medium|high` (raw value; `src/render/quality.ts` validates it). */
   quality: string | null;
 }
 
 function sceneParamsOf(q: RawParams): SceneParams {
-  return { scene: q.scene === 'spike' ? 'spike' : 'globe', quality: q.quality ?? null };
+  return { scene: q.scene === 'spike' ? 'spike' : q.scene === 'perf' ? 'perf' : 'globe', quality: q.quality ?? null };
 }
 
 /** M02 additions, kept apart from `parseParams` (its result shape is pinned by an M00 test). */

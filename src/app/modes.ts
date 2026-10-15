@@ -9,6 +9,8 @@ export function registerAppModes(): void {
   registerDevMode({ id: 'test', label: 'Testläge (fast bild)', params: { test: '1' }, toggle: true });
   registerDevMode({ id: 'scene-spike', label: 'Scen: M00-spiken', params: { scene: 'spike' } });
   registerDevMode({ id: 'scene-globe', label: 'Scen: jorden', params: { scene: 'globe' } });
+  // M08: the scripted flight orbit -> continent -> valley -> 300 m over the Himalaya, with the report to copy (it turns the perf overlay on itself).
+  registerDevMode({ id: 'scene-perf', label: 'Prestandascen', params: { scene: 'perf' } });
   registerDevMode({ id: 'quality-low', label: 'Kvalitet: låg', params: { quality: 'low' } });
   registerDevMode({ id: 'quality-medium', label: 'Kvalitet: medel', params: { quality: 'medium' } });
   registerDevMode({ id: 'quality-high', label: 'Kvalitet: hög', params: { quality: 'high' } });

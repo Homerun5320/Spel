@@ -14,6 +14,7 @@ import { bindHeightSource, detailLod, type DetailLod } from './detail';
 import { sunDirectionAt, vecToLatLon, type Vec3 } from './geo';
 import { buildGlobeGeometry } from './globeMesh';
 import { HeightField } from './heightField';
+import { GpuTimer, type TimerGl } from './gpuTimer';
 import { groundPickerOf, pickGround, type GroundHit } from './transforms';
 import { OwnershipTexture } from './ownership';
 import { meshTriangles, type QualitySettings } from './quality';
@@ -128,6 +129,9 @@ export class Globe {
   private detailBiasOctaves = 0;
   private densityScale = 1;
   private octaveMode: 'law' | 'level' | 'none' = 'law';
+  private gpuTimer: GpuTimer | null = null;
+  private readonly syncBuf = new Uint8Array(4);
+  private readonly counts = { calls: 0, triangles: 0, chunks: 0 };
 
   constructor(o: GlobeOptions) {
     this.quality = o.quality;
@@ -433,7 +437,51 @@ export class Globe {
     c.lookAt(p.target[0], p.target[1], p.target[2]);
     c.updateMatrixWorld();
     this.chunkTerrain?.update(p);
-    if (draw) this.renderer.render(this.scene, c);
+    if (draw) {
+      const timer = this.gpuTimer;
+      timer?.begin();
+      this.renderer.render(this.scene, c);
+      if (timer) {
+        timer.end();
+        timer.poll();
+      }
+    }
+  }
+
+  /**
+   * The renderer's counters of the frame drawn last, in one reused object (no allocation per frame: the performance scene reads it every
+   * frame). `chunks` is the number of terrain chunks of the last update (0 in the fixed mode).
+   */
+  frameCounters(): { calls: number; triangles: number; chunks: number } {
+    const r = this.renderer.info.render;
+    this.counts.calls = r.calls;
+    this.counts.triangles = r.triangles;
+    this.counts.chunks = this.chunkTerrain?.chunkCount ?? 0;
+    return this.counts;
+  }
+
+  /**
+   * Starts timing the draw call on the GPU (`EXT_disjoint_timer_query_webgl2`; the performance scene turns it on, nothing else). Returns
+   * whether the browser offers the extension; the finished measurements come out of `takeGpuMs`.
+   */
+  enableGpuTimer(): boolean {
+    this.gpuTimer ??= new GpuTimer(this.renderer.getContext() as unknown as TimerGl);
+    return this.gpuTimer.available;
+  }
+
+  /** The next finished GPU time of the draw call in ms, or null (timer off, not offered, or nothing ready yet). */
+  takeGpuMs(): number | null {
+    return this.gpuTimer?.take() ?? null;
+  }
+
+  /**
+   * Waits until the GPU has finished the frame drawn last (a one-pixel readback of the default framebuffer). `finish()` only flushes in Chromium;
+   * the performance scene in test mode uses this so that the software renderer's queue never backs up and every frame interval includes the
+   * drawing. Needs `preserveDrawingBuffer` (test mode); never called by the live page.
+   */
+  sync(): void {
+    const gl = this.renderer.getContext();
+    gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, this.syncBuf);
   }
 
   /**
@@ -572,6 +620,7 @@ export class Globe {
   }
 
   dispose(): void {
+    this.gpuTimer?.dispose();
     this.chunkTerrain?.dispose();
     this.mesh.geometry.dispose();
     this.material.dispose();
