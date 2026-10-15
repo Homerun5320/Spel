@@ -80,16 +80,19 @@ Under körningen skrivs det som pågår; varje steg har en rubrik som börjar me
 Sist skrivs en tabell. Exempel:
 
 ```
-PASS     typecheck                         9 s
-PASS     lint                              9 s
-PASS     unit tests                       40 s
-PASS     perf tests                       10 s
-PASS     e2e tests                       4 min 10 s
+PASS     browser and GPU check (one screenshot)   4 s
+PASS     typecheck                               9 s
+PASS     lint                                    9 s
+PASS     unit tests                             40 s
+PASS     perf tests                             10 s
+PASS     e2e tests                         4 min 10 s
+PASS     e2e tests that measure memory      15 s
+wall time 6 min 30 s
 RESULT: ALL STAGES PASSED
 ```
 
 - **PASS** är bra. **ALL STAGES PASSED** betyder att allt gick igenom.
-- **FAIL** på ett steg betyder att något brast. Loggen för steget ligger i mappen test-results (filer som heter local-unit.log, local-e2e.log och så vidare). Skicka rapporten och den loggen.
+- **FAIL** på ett steg betyder att något brast. Loggen för steget ligger i mappen test-results (filer som heter verify-unit.log, verify-e2e.log och så vidare). Skicka rapporten och den loggen.
 - **SKIPPED** betyder att webbläsarstegen hoppades över eftersom steget gpu föll (ingen webbläsare hittades, se avsnitt 7).
 - Rader som börjar med `[golden] WARN` är **inte fel**. Facit-bilderna i projektet är tagna med programvarurenderaren och ett riktigt grafikkort ritar aldrig exakt samma pixlar. I det här läget varnar jämförelsen bara och bilderna du kan titta på hamnar i mappen test-results/golden (filerna som slutar på .actual.png och .diff.png). Reglerna för pixlar (ljusstyrka, kantkontrast, tomma bilder) gäller fortfarande och kan ge FAIL.
 
@@ -132,6 +135,6 @@ Så att Claude kan läsa rapporten och rätta saker direkt i din kopia:
 - **Radslut.** Projektet tvingar LF-radslut vid utcheckning (filen `.gitattributes`), så att kontrollsummor stämmer på Windows. Har du klonat före den ändringen: ta bort mappen Spel och klona om (avsnitt 2), annars kan bake:check och några tester klaga på radslut.
 - **Drivrutinens prestandatips.** Ett riktigt grafikkort skriver ofta varningen "GL Driver Message (OpenGL, Performance, ...): GPU stall due to ReadPixels" i webbläsarens konsol, eftersom testerna läser tillbaka pixlar med flit. I det här läget räknas den som en anteckning och inte som en varning. Står det i stället "Automatic fallback to software WebGL" används inte grafikkortet (steget gpu faller då, se avsnitt 5).
 - **Antivirus och brandvägg** kan störa npm ci eller de osynliga webbläsarna. Tillåt Node.js och webbläsaren om en ruta frågar.
-- Datorns kraft: testsviten är byggd för att använda högst 4 webbläsare samtidigt. Vill du välja själv: sätt `$env:E2E_WORKERS = "2"` före kommandot.
+- Datorns kraft: i det här läget kör testsviten antalet processorkärnor delat med två webbläsare samtidigt, högst 4 (på 10 kärnor alltså 4). Vill du välja själv: sätt `$env:E2E_WORKERS = "2"` före kommandot.
 
 Mer om det vanliga flödet (Artifact och lokalt) finns i `docs/PREVIEW.md`; reglerna för tester och tider i `docs/DECISIONS.md` (D144).
