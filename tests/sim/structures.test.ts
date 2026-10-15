@@ -48,7 +48,7 @@ import {
 } from '../../src/sim/structureRules';
 import { StructureTable } from '../../src/sim/structures';
 import { CLASS_DEEP_SEA, CLASS_FOREST, CLASS_HILLS, CLASS_MOUNTAIN, CLASS_PEAK, CLASS_PLAINS } from '../../src/sim/terrain';
-import { StateView } from '../../src/sim/view';
+import { StateView, type SimView } from '../../src/sim/view';
 
 const W = 128;
 const H = 64;
@@ -237,7 +237,7 @@ describe('placement rules', () => {
     const fallout = { width: W, height: H, tick: s.tick, owner: s.owner, terrainClass: s.terrain, structures: s.structures, falloutUntilAt: (c: number) => (c === cell ? s.tick + 5 : 0) };
     expect(checkBuild(fallout, GOLD, 0, STRUCT_CITY, cell)).toBe(REJECT_BUILD_FALLOUT);
     expect(checkBuild({ ...fallout, falloutUntilAt: (c: number) => (c === cell ? s.tick : 0) }, GOLD, 0, STRUCT_CITY, cell)).toBe(REJECT_NONE); // burnt out
-    expect(view.falloutUntilAt(cell)).toBe(0);
+    expect((view as SimView).falloutUntilAt(cell)).toBe(0);
   });
 
   it('a Silo needs a FINISHED Factory of the same seat', () => {
@@ -367,9 +367,9 @@ describe('the table', () => {
     s.structures.level[0] = 3;
     expect(hashState(s)).not.toBe(h);
     s.structures.level[0] = 1;
-    s.structures.deleteReady[1] += 1;
+    s.structures.deleteReady[1] = 1;
     expect(hashState(s)).not.toBe(h);
-    s.structures.deleteReady[1] -= 1;
+    s.structures.deleteReady[1] = 0;
     const bytes = serialize(s);
     expect(deserialize(bytes).ok).toBe(true);
     // the first live record starts after highWater, recycledCount, recycled[], deleteReady[], liveCount: flip its type to 0
