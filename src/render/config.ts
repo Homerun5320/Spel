@@ -216,9 +216,9 @@ export const DETAIL_SEED = 0x2f6e2b1d;
 export const DETAIL_FREQ0 = 1024 / Math.PI;
 /** Most octaves anywhere (level 17 chunks of 32 cells: 12). */
 export const DETAIL_OCTAVES_MAX = 12;
-/** Amplitude ratio between neighbouring octaves. */
+/** Amplitude ratio between neighbouring octaves (a lattice cell halves per octave, so a ratio under 0.5 makes the slope fall towards the fine scales: the surface is steep, the exaggeration is x12). */
 export const DETAIL_PERSIST = 0.42;
-/** The detail height as a share of the local relief (sum of the octaves is about +-0.5 of this). */
+/** The detail height as a share of the local relief (the octave sum S has a standard deviation of about 0.3 and never leaves +-0.86; the largest amplitude that keeps the M07a quadtree tests green, D145). */
 export const DETAIL_AMP = 0.2;
 /** Mean of a ridged octave (r*r with r = 1 - |2n - 1|; measured 0.499 over 400 000 samples of the noise, tests/render/detail.test.ts checks it), subtracted so that the detail has no bias. */
 export const DETAIL_RIDGE_MEAN = 0.5;

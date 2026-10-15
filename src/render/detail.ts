@@ -9,7 +9,7 @@
 //   base      = the bilinear height of the codes (decoded) in metres,
 //   relief    = max minus min of the base height over 3x3 texels (never below 100 m), bilinear between the four corner texels' own 3x3
 //               ranges so that it is continuous (a per-texel step would show as a grid of the amplitude).
-// The detail is  relief * DETAIL_AMP * sum_k w_k * 0.5^k * (ridge_k - mean)  where ridge_k = (1 - |2 n_k - 1|)^2 of 3D value noise n_k
+// The detail is  relief * DETAIL_AMP * sum_k w_k * DETAIL_PERSIST^k * (ridge_k - mean)  where ridge_k = (1 - |2 n_k - 1|)^2 of 3D value noise n_k
 // on the (rotated) unit sphere at 2^k * DETAIL_FREQ0 cells per Earth radius, and w_k = clamp(octaves - k, 0, 1): `octaves` is the
 // level of detail, may be fractional, and the weight of the last octave fades it in. The height is
 //   0 on sea (coverage < 0.5), else max(g * (base + detail), 1 m) with g = smoothstep(0.5, 1, coverage),
