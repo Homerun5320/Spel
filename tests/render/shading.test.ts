@@ -67,12 +67,12 @@ describe('the snow line (evaluated from the GLSL text)', () => {
     console.log(`[snow line] 0: ${line(0).toFixed(0)}, 28 N: ${line(28).toFixed(0)}, 46 N: ${line(46).toFixed(0)}, 62 N: ${line(62).toFixed(0)}, 78 N: ${line(78).toFixed(0)}, 85 N: ${line(85).toFixed(0)}`);
     expect(line(28)).toBeGreaterThan(5200);
     expect(line(28)).toBeLessThan(5600);
-    expect(line(46)).toBeGreaterThan(2700);
-    expect(line(46)).toBeLessThan(3000);
+    expect(line(46)).toBeGreaterThan(2450);
+    expect(line(46)).toBeLessThan(2750);
     expect(line(62)).toBeGreaterThan(1500);
     expect(line(62)).toBeLessThan(1800);
     expect(line(28)).toBeGreaterThan(line(46) + 2000);
-    expect(line(46)).toBeGreaterThan(line(62) + 1000);
+    expect(line(46)).toBeGreaterThan(line(62) + 800);
     expect(line(85)).toBeLessThan(400);
     // never rises poleward of the plateau latitudes; the southern hemisphere is the mirror image
     for (let lat = 32; lat < 85; lat += 1) expect(line(lat + 1)).toBeLessThanOrEqual(line(lat) + 1e-9);
@@ -84,8 +84,8 @@ describe('the snow line (evaluated from the GLSL text)', () => {
   it('depends on the detailed height: no snow under the line, snow well above it; and a Himalayan height that is snow at 62 N is bare at 28 N', () => {
     expect(landRules(4500, 28, 0.1).snow, '4 500 m at 28 N (the plateau)').toBe(0);
     expect(landRules(6100, 28, 0.1).snow, '6 100 m at 28 N').toBeGreaterThan(0.95);
-    expect(landRules(2400, 46, 0.1).snow, '2 400 m in the Alps').toBeLessThan(0.02);
-    expect(landRules(3400, 46, 0.1).snow, '3 400 m in the Alps').toBeGreaterThan(0.95);
+    expect(landRules(2000, 46, 0.1).snow, '2 000 m in the Alps').toBeLessThan(0.02);
+    expect(landRules(3300, 46, 0.1).snow, '3 300 m in the Alps').toBeGreaterThan(0.95);
     expect(landRules(2200, 62, 0.1).snow, '2 200 m in the Scandes').toBeGreaterThan(0.95);
     expect(landRules(2200, 28, 0.1).snow, 'the same height at 28 N').toBe(0);
     let last = -1;
@@ -97,10 +97,10 @@ describe('the snow line (evaluated from the GLSL text)', () => {
   });
 
   it('depends on the slope: steep faces shed the snow, so rock stays grey and the ridges stand out (a 60 degree face above the line is bare, a 20 degree slope is white)', () => {
-    const above = 4200; // 1 400 m above the Alpine line
+    const above = 4000; // 1 400 m above the Alpine line
     const gentle = landRules(above, 46, Math.tan((20 * Math.PI) / 180)).snow;
     const steep = landRules(above, 46, Math.tan((60 * Math.PI) / 180)).snow;
-    console.log(`[snow] Alps 4 200 m: 20 degree slope ${gentle.toFixed(2)}, 60 degree slope ${steep.toFixed(2)}`);
+    console.log(`[snow] Alps 4 000 m: 20 degree slope ${gentle.toFixed(2)}, 60 degree slope ${steep.toFixed(2)}`);
     expect(gentle).toBeGreaterThan(0.95);
     expect(steep).toBeLessThan(0.1);
   });
@@ -113,9 +113,9 @@ describe('rock against grass (evaluated from the GLSL text)', () => {
     expect(landRules(600, 46, tan(15)).bare, '15 degrees').toBe(0);
     expect(landRules(600, 46, tan(45)).bare, '45 degrees').toBeGreaterThan(0.6);
     expect(landRules(600, 46, tan(60)).bare, '60 degrees').toBeGreaterThanOrEqual(C.SHADE_ROCK_STRENGTH - 1e-9);
-    // the tree line: 900 m under the snow line; above it the ground is bare even where it is flat
-    expect(landRules(1200, 46, 0.05).bare, '1 200 m at 46 N: forest and meadow').toBeLessThan(0.02);
-    expect(landRules(2400, 46, 0.05).bare, '2 400 m at 46 N: above the tree line').toBeGreaterThan(0.6);
+    // the tree line: 900 m under the snow line (1 650 m at 46 N); above it the ground is bare even where it is flat
+    expect(landRules(1000, 46, 0.05).bare, '1 000 m at 46 N: forest and meadow').toBeLessThan(0.02);
+    expect(landRules(2200, 46, 0.05).bare, '2 200 m at 46 N: above the tree line').toBeGreaterThan(0.6);
     // a glacier class stays white: no rock streaks on an ice sheet
     expect(landRules(2500, 80, tan(60), 0).bare, 'ice').toBe(0);
   });
@@ -142,7 +142,7 @@ describe('the shore foam (evaluated from the GLSL text)', () => {
 describe('the shader text wires the rules to the right inputs', () => {
   it('the chunk build reads the detailed height of the vertex shader (varying vH = the metres of detVertexHeight), the fixed mesh the raster height', () => {
     expect(chunkFrag).toContain('varying float vH;');
-    expect(chunkFrag).toContain('float hD = vH;');
+    expect(chunkFrag).toContain('float hD = mix(vH, heightM, smoothstep(0.7, 2.0, cellTexels));'); // the raster height takes over where a cell is wider than a texel (orbit views)
     expect(fixedFrag).toContain('float hD = heightM;');
     expect(fixedFrag).not.toContain('vH');
     const vs = stripComments(chunkVertexShader);

@@ -176,7 +176,9 @@ export function buildTerrainFragmentShader(chunk: boolean): string {
   if (landMask > 0.001) mot2 = fineMottle(ivec2(floor(vCellBase + 0.5)), vCellOff, pixCells, vH);
   float mot = mot2.x;`
     : 'float mot = 0.5;\n  vec2 mot2 = vec2(0.5);';
-  const heightDetailed = chunk ? 'vH' : 'heightM';
+  // The vertex height samples the raster only at the mesh's own vertices: where a cell is wider than a texel (an orbit view) it misses the narrow peaks
+  // that the per-pixel raster height still has, so the snow would vanish from the Alps seen from afar; there the pixel's raster height takes over.
+  const heightDetailed = chunk ? 'mix(vH, heightM, smoothstep(0.7, 2.0, cellTexels))' : 'heightM';
   return /* glsl */ `
 uniform sampler2D uHeight;
 uniform sampler2D uBathy;

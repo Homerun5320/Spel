@@ -244,12 +244,12 @@ export const SHADE_TREE_BELOW_SNOW_M = 900;
 export const SHADE_TREE_FADE_M = 450;
 /**
  * Snow line (metres of the DETAILED height) at three latitudes: up to 32 degrees it is the first value (the Himalaya and the Tibetan plateau at 4 500
- * to 5 400 m stay bare, the snow sits on the ridges and the high massif above about 5 400 m), by 47 degrees the second (the Alps, 2 800 m), by 62 the
+ * to 5 400 m stay bare, the snow sits on the ridges and the high massif above about 5 400 m), by 47 degrees the second (the Alps, 2 550 m: the real line is 2 700 to 3 100 m, but the 10 km raster smooths the summits to 3 300 m at most and the Alps should keep their snow), by 62 the
  * third (the Scandes, 1 650 m); poleward of 65 degrees it falls by `POLAR_DROP` towards 85 (Svalbard, the polar sheets: near sea level). The numbers
  * between are smoothstep ramps (`SHADE_SNOW_RAMPS`). Stylised, not a climate model: the real line is 5 000 to 5 500 m in the Himalaya and
  * 2 700 to 3 100 m in the Alps, and a dry plateau like Tibet carries far less snow than its height says (the 10 km raster hides the 8 000 m peaks).
  */
-export const SHADE_SNOW_LINE_M: readonly [number, number, number] = [5400, 2800, 1650];
+export const SHADE_SNOW_LINE_M: readonly [number, number, number] = [5400, 2550, 1650];
 /** |Latitude| ramps (degrees): first value to second, second value to third, and the polar drop. */
 export const SHADE_SNOW_RAMPS: readonly [number, number, number, number, number, number] = [32, 47, 47, 62, 65, 85];
 export const SHADE_SNOW_POLAR_DROP_M = 1500;
