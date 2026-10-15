@@ -202,7 +202,7 @@ export const AI_TRIBE_REACH_CELLS = 90;
 /** Random places tried for one Spawn; the clearance is halved after every quarter of them, and the second half ignores the reach, so a crowded map still finds a place. */
 export const AI_SPAWN_TRIES = 400;
 /** An AI seat expands or attacks only with at least this share of its troop cap (percent). */
-export const AI_EXPAND_TROOP_PCT = 40;
+export const AI_EXPAND_TROOP_PCT = 37;
 /** Percent of its troops an AI nation commits to an attack on unowned land / on a neighbour. A tribe commits troops / TRIBE_ATTACK_DIV whatever this says. */
 export const AI_EXPAND_COMMIT_PCT = 70;
 export const AI_WAR_COMMIT_PCT = 50;
@@ -287,12 +287,29 @@ export const SPACING_SCOPE = 0;
 export const CITY_GOLD_MILLI_PER_SEC_PER_LEVEL = 1500;
 /** A Factory pays this flat, whatever its level (2 gold/s). */
 export const FACTORY_GOLD_MILLI_PER_SEC = 2000;
-/** A Factory raises the income of the owner's Cities within FACTORY_RADIUS_CELLS by this many percent (once: Factories do not stack). */
+/** A level-1 Factory raises the income of the owner's Cities within FACTORY_RADIUS_CELLS by this many percent (once: Factories do not stack). */
 export const FACTORY_CITY_BONUS_PCT = 25;
 /** The reach of a Factory's bonus in sim cells (Euclidean, x wrapping). */
 export const FACTORY_RADIUS_CELLS = 20;
-/** A Port pays this flat before trade (2 gold/s). */
+/** A Port pays this flat before trade (2 gold/s) at level 1. */
 export const PORT_GOLD_MILLI_PER_SEC = 2000;
+
+// Level effects of the Factory and the Port (M09c). Index = level (0 is unused). Upgrade prices are base * level (Factory 1000 / 1500, Port 800 / 1200),
+// so the gains below put the payback of each upgrade at about 5 minutes in a reference setting (tests/sim/structureLevels.test.ts), against 4.4 minutes for a new City.
+/** Own gold of a Factory per level (2.0, 4.5, 8.5 gold/s). Level 1 is FACTORY_GOLD_MILLI_PER_SEC. */
+export const FACTORY_GOLD_MILLI_BY_LEVEL = [0, FACTORY_GOLD_MILLI_PER_SEC, 4500, 8500];
+/** The percent a Factory of each level adds to the Cities it boosts (25, 30, 35). */
+export const FACTORY_CITY_BONUS_PCT_BY_LEVEL = [0, FACTORY_CITY_BONUS_PCT, 30, 35];
+/** The reach of a Factory per level in sim cells (20, 22, 24). */
+export const FACTORY_RADIUS_CELLS_BY_LEVEL = [0, FACTORY_RADIUS_CELLS, 22, 24];
+/** A Factory boosts at most this many Cities (the lowest ids first); it keeps the sum a single Factory gives under the limit of 10 level-1 Cities. */
+export const FACTORY_BONUS_MAX_CITIES = 3;
+/** Own gold of a Port per level before trade (2.0, 4.5, 8.5 gold/s). Level 1 is PORT_GOLD_MILLI_PER_SEC. */
+export const PORT_GOLD_MILLI_BY_LEVEL = [0, PORT_GOLD_MILLI_PER_SEC, 4500, 8500];
+/** The percent of its trade value a Port of each level earns (100, 110, 120). */
+export const PORT_TRADE_PCT_BY_LEVEL = [0, 100, 110, 120];
+/** One Port (own gold plus trade, before the +-10 % trait) never pays more than this: 13 gold/s, so that with the +10 % trait it stays under 10 level-1 Cities (15 gold/s). */
+export const PORT_INCOME_MAX_MILLI_PER_SEC = 13000;
 /** Each Port trades with at most this many nearest partner Ports (nearest first, the lowest id on a tie). */
 export const TRADE_MAX_PARTNERS = 3;
 /** A partner must be at least this far away (sim cells). */
@@ -322,6 +339,8 @@ export const AI_BUILD_WINDOW_CELLS = 56;
 export const AI_BUILD_TRIES = 24;
 /** After a think that found no place the AI does not look again for this many ticks. */
 export const AI_BUILD_RETRY_TICKS = 50;
+/** The AI upgrades its lowest finished City / Factory / Port (the best gain first) instead of waiting, when its purse is at least this percent of the next wanted structure's price AND pays the upgrade (M09c: gold that would otherwise sit idle). */
+export const AI_BUILD_RICH_PCT = 100;
 /** One Port per this many Cities (from the second City on); one Post per this many Cities (from the fourth). */
 export const AI_BUILD_CITIES_PER_PORT = 3;
 export const AI_BUILD_CITIES_PER_POST = 4;

@@ -9,6 +9,7 @@ import {
   AI_BUILD_CITIES_PER_POST,
   AI_BUILD_CITY_TROOP_PCT,
   AI_BUILD_RETRY_TICKS,
+  AI_BUILD_RICH_PCT,
   AI_BUILD_TRIES,
   AI_BUILD_WINDOW_CELLS,
   AI_THINK_PERIOD_TICKS,
@@ -57,12 +58,38 @@ function cheaperUpgrade(view: SimView, owner: number, newCityMilli: number): num
   for (let id = 0; id < s.highWater; id++) {
     if (s.owner[id] !== owner || s.type[id] !== STRUCT_CITY || view.tick < (s.readyTick[id] as number) || (s.upgradeReadyTick[id] as number) !== 0) continue;
     const level = s.level[id] as number;
-    if (level < bestLevel) {
+    const cell = s.cell[id] as number;
+    if (level < bestLevel && interior(view, owner, cell, cell % view.width, Math.floor(cell / view.width))) {
       best = id;
       bestLevel = level;
     }
   }
   if (best < 0 || upgradePriceGold(STRUCT_CITY, bestLevel + 1) * MILLI_GOLD_PER_GOLD >= newCityMilli) return -1;
+  return best;
+}
+
+/**
+ * The structure to upgrade when the seat is rich: the finished, idle City, then Factory, then Port of the lowest level below the top whose
+ * upgrade the purse pays. Returns its id or -1. Idle and finished are read from the table, the very conditions the sim checks on an Upgrade.
+ */
+function richUpgrade(view: SimView, owner: number, goldMilli: number): number {
+  const s = view.structures;
+  let best = -1;
+  let bestKey = 1 << 30;
+  for (let id = 0; id < s.highWater; id++) {
+    const type = s.type[id] as number;
+    if (s.owner[id] !== owner || (type !== STRUCT_CITY && type !== STRUCT_FACTORY && type !== STRUCT_PORT)) continue;
+    if (view.tick < (s.readyTick[id] as number) || (s.upgradeReadyTick[id] as number) !== 0) continue;
+    const level = s.level[id] as number;
+    if (level >= STRUCT_MAX_LEVEL || upgradePriceGold(type, level + 1) * MILLI_GOLD_PER_GOLD > goldMilli) continue;
+    const cell = s.cell[id] as number;
+    if (!interior(view, owner, cell, cell % view.width, Math.floor(cell / view.width))) continue; // a border structure may change hands before the Upgrade runs
+    const key = level * 8 + type; // lowest level first, then City < Factory < Port, then the lowest id (the loop order)
+    if (key < bestKey) {
+      best = id;
+      bestKey = key;
+    }
+  }
   return best;
 }
 
@@ -83,6 +110,10 @@ export function buildMove(view: SimView, memory: AiMemory, rng: Uint32Array): In
       return (stats.goldMilli[seat] as number) >= upgradePriceGold(STRUCT_CITY, level + 1) * MILLI_GOLD_PER_GOLD ? upgradeBody(seat, up) : null;
     }
   }
+  if ((stats.goldMilli[seat] as number) * 100 >= price * AI_BUILD_RICH_PCT) {
+    const rich = richUpgrade(view, owner, stats.goldMilli[seat] as number);
+    if (rich >= 0) return upgradeBody(seat, rich);
+  }
   if ((stats.goldMilli[seat] as number) < price) return null;
   if (type === STRUCT_CITY && (stats.troopsQt[seat] as number) * 100 < (stats.capQt[seat] as number) * AI_BUILD_CITY_TROOP_PCT) return null;
   // The wanted type first; when it finds no place (a Port without a coast cell in the window) a City is tried instead, so the seat never stalls.
@@ -100,10 +131,23 @@ export function buildMove(view: SimView, memory: AiMemory, rng: Uint32Array): In
   return buildBody(seat, built, cell);
 }
 
+/** Whether the cell is `owner`'s and none of its four neighbours (x wrapping) belongs to ANOTHER owner (sea and free land are fine: a Port stands on a coast). */
+function interior(view: SimView, owner: number, cell: number, x: number, y: number): boolean {
+  const w = view.width;
+  const o = view.owner;
+  if (o[cell] !== owner) return false;
+  const e = o[y * w + ((x + 1) % w)] as number;
+  const west = o[y * w + ((x + w - 1) % w)] as number;
+  const n = y > 0 ? (o[cell - w] as number) : 0;
+  const so = y + 1 < view.height ? (o[cell + w] as number) : 0;
+  return (e === 0 || e === owner) && (west === 0 || west === owner) && (n === 0 || n === owner) && (so === 0 || so === owner);
+}
+
 /** A cell in the window around the capital where `type` can be built now, or -1. */
 function findPlace(view: SimView, memory: AiMemory, rng: Uint32Array, type: number): number {
   const seat = memory.seat;
   const w = view.width;
+  const owner = seatToOwner(seat);
   const capital = (view.stats.capital[seat] as number) - 1;
   const cx = capital % w;
   const cy = (capital - cx) / w;
@@ -115,6 +159,8 @@ function findPlace(view: SimView, memory: AiMemory, rng: Uint32Array, type: numb
     const y = cy + nextBelow(rng, span) - AI_BUILD_WINDOW_CELLS;
     if (y < 0 || y >= view.height) continue;
     const cell = y * w + x;
+    // A cell without a foreign neighbour only: the Build runs 2 ticks later and a border cell may be conquered by then (REJECT_BUILD_NOT_OWNED).
+    if (!interior(view, owner, cell, x, y)) continue;
     if (validateBuild(view, seat, type, cell) === REJECT_NONE) return cell;
   }
   return -1;

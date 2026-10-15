@@ -791,6 +791,13 @@ Base: 3d1a2bd. Slice: ONLY the three military models, buttons and keys 4 to 6. F
 - [x] 4. i18n sv + en (`hud.build.silo|sam|post`, `*Tip`, `tooPoorOf`, `needFactory`); the `toast.build.*` keys already covered every reason these types can hit
 - [x] ACCEPTANS: `tests/render/structureModelsMilitary.test.ts`; `e2e/structuresMilitary.test.ts` (key 6 + click, price 250 -> 375; key 4 red with the Factory toast; key 5 on a Mountain ridge cell builds; heights within 1 m; draw calls; dish differs one sun day apart while the Post does not; bar fits 960x540 and 540x960; golden `structures-military.png`); `npm run verify:fast` unit part green apart from machine-load timeouts (see the report)
 
+### M09c: level effects of Factory and Port, and the AI economy target (sim and AI only, headless)
+
+- [x] 1. Factory and Port level effects in `src/sim/rules.ts` and `src/sim/structureEffects.ts`; the 10x limit by a Port clamp and 3 boosted Cities per Factory; BALANCE.md rows
+- [x] 2. AI: `AI_EXPAND_TROOP_PCT` 37, upgrade when rich (`AI_BUILD_RICH_PCT`), build / upgrade only without a foreign neighbour; solo factor 1.02 of the band (was 0.90), M09b's open item closed
+- [x] 3. Both golden hash files re-pinned once; no version bump (no layout change)
+- [x] Tests: `tests/sim/structureLevels.test.ts`, `tests/ai/richUpgrade.test.ts`, `tests/sim/economyScript.test.ts` (band [1.0, 1.5]); pace, driver, perf unchanged and green
+
 ## Next
 
 - CamFix is built (D158); the user looks at it in the Artifact (PREVIEW 17aa) in their own window shape. Then the M08 gate items below stand as before.

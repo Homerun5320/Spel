@@ -261,3 +261,10 @@ Everything here would shorten `verify` further; each needs a per-test reset cont
 - The Silo and SAM have no range ring yet (SAM radius from the sim, the provisional Silo ring), no launch or firing animation (M14), no night lights.
 - The Defense Post wall ring and the Silo pad are decoration; a level-dependent look (a second tower at level 3) would make an upgrade visible.
 - A heavier test of the dish at orbit distances: from far away the scale policy makes all three types the same speck; the icon LOD is what would tell them apart.
+
+## M09c
+- A City upgrade pays back in 533 s (800 gold for 1.5 gold/s, plus 800 cap); Factory and Port upgrades about 300 s. Either lower `BUILD_BASE_GOLD` x level for Cities or raise the City gain per level if upgrading Cities should compete.
+- The AI never upgrades Posts, SAMs or Silos, and builds no SAM / Silo before M14.
+- `think` still races on a Spawn-time Attack with no contact (REJECT_NO_CONTACT, one in Skirmish seed 3 at some gate values): the driver test with zero refusals is sensitive to every AI number. A guard in `think` (re-check the contact length two ticks ahead is impossible, so skip contacts of one cell) would remove the chaos.
+- The Factory bonus slot rule (3 Cities per Factory) is not shown anywhere in the UI.
+

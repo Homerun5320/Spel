@@ -108,6 +108,7 @@ describe('types: what src/sim/public.ts lets the AI reach', () => {
         'AI_BUILD_CITIES_PER_POST',
         'AI_BUILD_CITY_TROOP_PCT',
         'AI_BUILD_RETRY_TICKS',
+        'AI_BUILD_RICH_PCT',
         'AI_BUILD_TRIES',
         'AI_BUILD_WINDOW_CELLS',
         'AI_EXPAND_COMMIT_PCT',
