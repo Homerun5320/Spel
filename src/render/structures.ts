@@ -7,13 +7,14 @@
 // (`aHi`, `aLo`), so it does not swim against the ground (rules for layers (1)). The scale policy, pop-in and the construction look are in the
 // shader (shaders/structures.ts). Nothing here allocates per frame: `frame` sets uniforms; the buffers are rewritten only when the table, the
 // palette or the exaggeration changed.
-import { DoubleSide, DynamicDrawUsage, BufferAttribute, InstancedBufferAttribute, InstancedBufferGeometry, Mesh, ShaderMaterial, Vector3, Vector4 } from 'three';
-import type { StructureView } from '../sim/public';
-import { EARTH_RADIUS_KM, GHOST_ALPHA, GHOST_BAD_RGB, GHOST_MIX, GHOST_OK_RGB, HEIGHT_EXAGGERATION, STRUCT_BUILD_MIN_HEIGHT, STRUCT_DISH_RAD_PER_SEC, STRUCT_LEVEL_SCALE, STRUCT_MAX_SCALE, STRUCT_POP_SECONDS, STRUCT_SCREEN_FRAC, STRUCT_TRIANGLE_BUDGET, AMBIENT_DAY, AMBIENT_NIGHT, SUN_COLOR } from './config';
+import { BufferAttribute, BufferGeometry, DoubleSide, DynamicDrawUsage, InstancedBufferAttribute, InstancedBufferGeometry, Mesh, ShaderMaterial, Vector3, Vector4 } from 'three';
+import { STRUCT_CITY, type StructureView } from '../sim/public';
+import { EARTH_RADIUS_KM, GHOST_ALPHA, GHOST_BAD_RGB, GHOST_MIX, GHOST_OK_RGB, HEIGHT_EXAGGERATION, STRUCT_BUILD_MIN_HEIGHT, STRUCT_DISH_RAD_PER_SEC, STRUCT_LEVEL_SCALE, STRUCT_MAX_SCALE, STRUCT_POP_SECONDS, STRUCT_SCREEN_FRAC, STRUCT_TRIANGLE_BUDGET, AMBIENT_DAY, AMBIENT_NIGHT, SUN_COLOR, ICON_FADE_PX_HI, ICON_FADE_PX_LO, ICON_HALF_PX, NIGHT_LIGHT_SUN_DOT, RANGE_RING_RGB, RING_HALF_WIDTH_FRAC, RING_HALF_WIDTH_M, RING_SEGMENTS, SELECT_RING_RGB } from './config';
+import { selectRingRadiusM } from './rings';
 import { latLonToVec } from './geo';
 import type { QualityTier } from './quality';
-import { STRUCTURE_MODELS, modelledTypes, type ModelData } from './structureModels';
-import { structureFragmentShader, structureVertexShader } from './shaders/structures';
+import { CITY_LIGHT_COUNT, STRUCTURE_MODELS, cityLights, modelledTypes, type ModelData } from './structureModels';
+import { iconFragmentShader, iconVertexShader, ringFragmentShader, ringVertexShader, structureFragmentShader, structureVertexShader } from './shaders/structures';
 import { cellToLatLon, groundHeightAt } from './transforms';
 
 /** A structure as the layer drew it (float64 numbers, for tests and the props hook). */
@@ -31,6 +32,8 @@ export interface DrawnStructure {
   heightM: number;
   /** The instance's turn (radians, model +x -> east/north): the Port's pier points along it. */
   yaw: number;
+  /** The sim tick at which it is finished (the City's lights come on from then). */
+  ready: number;
 }
 
 interface TypeLayer {
@@ -48,6 +51,32 @@ interface TypeLayer {
   readonly attrs: InstancedBufferAttribute[];
   count: number;
 }
+
+interface RingState {
+  readonly mesh: Mesh;
+  readonly geometry: BufferGeometry;
+  readonly material: ShaderMaterial;
+  readonly hi: Float32Array;
+  readonly lo: Float32Array;
+  readonly dir: Float32Array;
+  readonly sk: Float32Array;
+  readonly attrs: BufferAttribute[];
+}
+
+interface IconState {
+  readonly mesh: Mesh;
+  readonly geometry: InstancedBufferGeometry;
+  readonly material: ShaderMaterial;
+  readonly cap: number;
+  readonly hi: Float32Array;
+  readonly lo: Float32Array;
+  readonly info: Float32Array;
+  readonly rgb: Float32Array;
+  readonly attrs: InstancedBufferAttribute[];
+  count: number;
+}
+
+const RING_VERTS = (RING_SEGMENTS + 1) * 2;
 
 const FLOATS = { hi: 3, lo: 3, params: 4, owner: 3, build: 2 } as const;
 const NEVER = -1e9;
@@ -112,6 +141,18 @@ export class StructureLayer {
   /** Structures left out because a type's instance cap was reached. */
   dropped = 0;
   private fxTime = 0;
+  private viewH = 540;
+  // M10-4: the ring mesh (selection ring + range ring) and the far icons (one draw call each)
+  private readonly ring: RingState;
+  private readonly icons: IconState;
+  private selId = -1;
+  private selRangeCells = 0;
+  private selVisible = false;
+  private selX = 0;
+  private selY = 0;
+  private selZ = 0;
+  private selSizeM = 700;
+  private selLevel = 1;
 
   constructor(o: StructureLayerOptions) {
     this.gridWidth = o.gridWidth;
@@ -142,9 +183,12 @@ export class StructureLayer {
       const model = spec.build();
       const cap = Math.max(1, Math.floor(budget / model.triangles));
       const geometry = new InstancedBufferGeometry();
-      geometry.setAttribute('position', new BufferAttribute(model.positions, 3));
-      geometry.setAttribute('aColor', new BufferAttribute(model.colors, 3));
-      geometry.setAttribute('aTint', new BufferAttribute(model.tints, 1));
+      // the City's night lights ride in the same buffers (a tint code per light, lit in the vertex shader): no extra draw call
+      const extra = type === STRUCT_CITY ? cityLights() : null;
+      const cat = (a: Float32Array, b: Float32Array | undefined): Float32Array => (b === undefined ? a : Float32Array.from([...a, ...b]));
+      geometry.setAttribute('position', new BufferAttribute(cat(model.positions, extra?.positions), 3));
+      geometry.setAttribute('aColor', new BufferAttribute(cat(model.colors, extra?.colors), 3));
+      geometry.setAttribute('aTint', new BufferAttribute(cat(model.tints, extra?.tints), 1));
       const hi = new Float32Array(cap * FLOATS.hi);
       const lo = new Float32Array(cap * FLOATS.lo);
       const params = new Float32Array(cap * FLOATS.params);
@@ -164,6 +208,100 @@ export class StructureLayer {
       mesh.visible = false;
       this.meshes.push(mesh);
       this.layers.set(type, { type, model, cap, geometry, material, mesh, hi, lo, params, rgb, build, attrs, count: 0 });
+    }
+    // The ring mesh: the selection ring first, the range ring after it (drawRange picks one or both).
+    {
+      const V = RING_VERTS * 2;
+      const hi = new Float32Array(V * 3);
+      const lo = new Float32Array(V * 3);
+      const dir = new Float32Array(V * 3);
+      const sk = new Float32Array(V * 2);
+      const index: number[] = [];
+      for (let ringNo = 0; ringNo < 2; ringNo++) {
+        for (let i = 0; i < RING_SEGMENTS; i++) {
+          const a = ringNo * RING_VERTS + i * 2;
+          index.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+        }
+        for (let i = 0; i <= RING_SEGMENTS; i++) {
+          for (let side = 0; side < 2; side++) {
+            const v = ringNo * RING_VERTS + i * 2 + side;
+            sk[v * 2] = side === 0 ? -1 : 1;
+            sk[v * 2 + 1] = ringNo === 0 ? 1 : 0;
+          }
+        }
+      }
+      const geometry = new BufferGeometry();
+      const attrs = [new BufferAttribute(hi, 3), new BufferAttribute(lo, 3), new BufferAttribute(dir, 3), new BufferAttribute(sk, 2)];
+      for (const a of attrs) a.setUsage(DynamicDrawUsage);
+      geometry.setAttribute('aHi', attrs[0] as BufferAttribute);
+      geometry.setAttribute('aLo', attrs[1] as BufferAttribute);
+      geometry.setAttribute('aDir', attrs[2] as BufferAttribute);
+      geometry.setAttribute('aSideKind', attrs[3] as BufferAttribute);
+      geometry.setAttribute('position', new BufferAttribute(hi, 3));
+      geometry.setIndex(index);
+      geometry.setDrawRange(0, 0);
+      const material = new ShaderMaterial({
+        uniforms: {
+          uCamHi: this.uniforms.uCamHi as { value: unknown },
+          uCamLo: this.uniforms.uCamLo as { value: unknown },
+          uSelR: { value: 0 },
+          uHalfMin: { value: RING_HALF_WIDTH_M / (EARTH_RADIUS_KM * 1000) },
+          uHalfFrac: { value: RING_HALF_WIDTH_FRAC },
+          uSelectRgb: { value: v4(SELECT_RING_RGB) },
+          uRangeRgb: { value: v4(RANGE_RING_RGB) },
+        },
+        vertexShader: ringVertexShader,
+        fragmentShader: ringFragmentShader,
+        side: DoubleSide,
+        transparent: true,
+        depthWrite: false,
+      });
+      const mesh = new Mesh(geometry, material);
+      mesh.frustumCulled = false;
+      mesh.visible = false;
+      mesh.renderOrder = 4;
+      this.meshes.push(mesh);
+      this.ring = { mesh, geometry, material, hi, lo, dir, sk, attrs };
+    }
+    // The far icons: one quad per structure, every type in one draw call.
+    {
+      let cap = 0;
+      for (const l of this.layers.values()) cap += l.cap;
+      cap = Math.max(1, Math.min(4096, cap));
+      const geometry = new InstancedBufferGeometry();
+      geometry.setAttribute('corner', new BufferAttribute(new Float32Array([-1, -1, 1, -1, 1, 1, -1, 1]), 2));
+      geometry.setAttribute('position', new BufferAttribute(new Float32Array(12), 3));
+      geometry.setIndex([0, 1, 2, 0, 2, 3]);
+      const hi = new Float32Array(cap * 3);
+      const lo = new Float32Array(cap * 3);
+      const info = new Float32Array(cap * 4);
+      const rgb = new Float32Array(cap * 3);
+      const attrs = [this.instanced(geometry, 'aHi', hi, 3), this.instanced(geometry, 'aLo', lo, 3), this.instanced(geometry, 'aInfo', info, 4), this.instanced(geometry, 'aOwner', rgb, 3)];
+      geometry.instanceCount = 0;
+      const material = new ShaderMaterial({
+        uniforms: {
+          uCamHi: this.uniforms.uCamHi as { value: unknown },
+          uCamLo: this.uniforms.uCamLo as { value: unknown },
+          uKmPerUnit: this.uniforms.uKmPerUnit as { value: unknown },
+          uPxK: this.uniforms.uPxK as { value: unknown },
+          uMaxScale: this.uniforms.uMaxScale as { value: unknown },
+          uViewH: { value: this.viewH },
+          uFadeHi: { value: ICON_FADE_PX_HI },
+          uFadeLo: { value: ICON_FADE_PX_LO },
+          uHalfPx: { value: ICON_HALF_PX },
+        },
+        vertexShader: iconVertexShader,
+        fragmentShader: iconFragmentShader,
+        side: DoubleSide,
+        transparent: true,
+        depthWrite: false,
+      });
+      const mesh = new Mesh(geometry, material);
+      mesh.frustumCulled = false;
+      mesh.visible = false;
+      mesh.renderOrder = 3;
+      this.meshes.push(mesh);
+      this.icons = { mesh, geometry, material, cap, hi, lo, info, rgb, attrs, count: 0 };
     }
     // The ghost: one instance of the City's model (any modelled type: the first one) drawn see-through in green or red.
     const first = this.layers.values().next().value as TypeLayer | undefined;
@@ -231,7 +369,7 @@ export class StructureLayer {
   }
 
   /** Per frame: the camera position (float64, Earth radii), the fx time and the sim tick as a fraction. */
-  frame(camera: ArrayLike<number>, fxTime: number, tickFraction: number): void {
+  frame(camera: ArrayLike<number>, fxTime: number, tickFraction: number, viewH = 540): void {
     const x = camera[0] as number;
     const y = camera[1] as number;
     const z = camera[2] as number;
@@ -244,7 +382,16 @@ export class StructureLayer {
     (this.uniforms.uTick as { value: number }).value = tickFraction;
     this.fxTime = fxTime;
     (this.uniforms.uSpin as { value: number }).value = (fxTime * STRUCT_DISH_RAD_PER_SEC) % (Math.PI * 2); // the SAM dish angle: one scalar, the rest is vertex-shader work
+    this.viewH = viewH;
+    (this.icons.material.uniforms.uViewH as { value: number }).value = viewH;
     if (this.dirty) this.rebuild();
+    if (this.selVisible) {
+      const dx = x - this.selX;
+      const dy = y - this.selY;
+      const dz = z - this.selZ;
+      const distM = Math.sqrt(dx * dx + dy * dy + dz * dz) * EARTH_RADIUS_KM * 1000;
+      (this.ring.material.uniforms.uSelR as { value: number }).value = selectRingRadiusM(distM, this.selSizeM, this.selLevel) / (EARTH_RADIUS_KM * 1000);
+    }
   }
 
   /** Where an instance of a cell stands: the direction of the cell centre at the radius of the ground there (float64). */
@@ -261,6 +408,7 @@ export class StructureLayer {
     const t = this.table;
     if (t === null || this.palette === null) return;
     for (const l of this.layers.values()) l.count = 0;
+    this.icons.count = 0;
     this.drawn = [];
     this.dropped = 0;
     const palette = this.palette;
@@ -298,13 +446,26 @@ export class StructureLayer {
       if (Number.isNaN(yaw)) yaw = yawOf(id);
       layer.params[i * 4 + 1] = yaw;
       layer.params[i * 4 + 2] = this.born[id] as number;
-      layer.params[i * 4 + 3] = 0;
+      layer.params[i * 4 + 3] = level;
       layer.rgb[i * 3] = (palette[owner * 4] as number) / 255;
       layer.rgb[i * 3 + 1] = (palette[owner * 4 + 1] as number) / 255;
       layer.rgb[i * 3 + 2] = (palette[owner * 4 + 2] as number) / 255;
       layer.build[i * 2] = t.buildTick[id] as number;
       layer.build[i * 2 + 1] = t.readyTick[id] as number;
-      this.drawn.push({ id, type, owner, cell, level, lat: p.lat, lon: p.lon, radius: p.radius, heightM: p.heightM, yaw });
+      const ic = this.icons;
+      if (ic.count < ic.cap) {
+        const j = ic.count++;
+        for (let a = 0; a < 3; a++) {
+          ic.hi[j * 3 + a] = layer.hi[i * 3 + a] as number;
+          ic.lo[j * 3 + a] = layer.lo[i * 3 + a] as number;
+          ic.rgb[j * 3 + a] = layer.rgb[i * 3 + a] as number;
+        }
+        ic.info[j * 4] = type;
+        ic.info[j * 4 + 1] = STRUCTURE_MODELS[type]?.radiusM ?? 700;
+        ic.info[j * 4 + 2] = STRUCT_LEVEL_SCALE[level] ?? 1;
+        ic.info[j * 4 + 3] = 0;
+      }
+      this.drawn.push({ id, type, owner, cell, level, lat: p.lat, lon: p.lon, radius: p.radius, heightM: p.heightM, yaw, ready: t.readyTick[id] as number });
     }
     this.primed = true;
     for (const l of this.layers.values()) {
@@ -312,7 +473,131 @@ export class StructureLayer {
       l.mesh.visible = l.count > 0;
       for (const a of l.attrs) a.needsUpdate = true;
     }
+    this.icons.geometry.instanceCount = this.icons.count;
+    this.icons.mesh.visible = this.icons.count > 0;
+    for (const a of this.icons.attrs) a.needsUpdate = true;
     if (this.ghost !== null && this.ghost.cell >= 0) this.writeGhost();
+    if (this.selId >= 0) this.refreshRings();
+  }
+
+  // ---- M10-4: selection ring, range ring, icons, lights ---------------------------------------------------------------------------------
+
+  /** Selects structure `id` of the table (-1 = none). `rangeCells` > 0 also draws a range ring of that radius (sim cells; SAM and Defense Post). */
+  setSelection(id: number, rangeCells = 0): void {
+    if (id === this.selId && rangeCells === this.selRangeCells) return;
+    this.selId = id;
+    this.selRangeCells = rangeCells;
+    this.refreshRings();
+  }
+
+  /** What the ring mesh shows (tests, the props hook). */
+  ringInfo(): { selected: number; visible: boolean; rangeCells: number; drawIndices: number } {
+    return { selected: this.selId, visible: this.selVisible, rangeCells: this.selRangeCells, drawIndices: this.ring.geometry.drawRange.count };
+  }
+
+  /** Instances in the icon buffer. */
+  iconCount(): number {
+    return this.icons.count;
+  }
+
+  /** How many city lights are lit right now: the levels of the finished Cities on the night side of the sun. Same rule as the vertex shader. */
+  litLights(): number {
+    const sun = this.uniforms.uSun?.value as Vector3 | undefined;
+    if (sun === undefined) return 0;
+    const sl = Math.hypot(sun.x, sun.y, sun.z) || 1;
+    const tick = (this.uniforms.uTick as { value: number }).value;
+    let n = 0;
+    for (const d of this.drawn) {
+      if (d.type !== STRUCT_CITY || tick < d.ready) continue;
+      const u = latLonToVec(d.lat, d.lon);
+      if (((u[0] as number) * sun.x + (u[1] as number) * sun.y + (u[2] as number) * sun.z) / sl < NIGHT_LIGHT_SUN_DOT) n += Math.min(d.level, CITY_LIGHT_COUNT);
+    }
+    return n;
+  }
+
+  private refreshRings(): void {
+    const t = this.table;
+    const r = this.ring;
+    const id = this.selId;
+    if (t === null || id < 0 || id >= t.highWater || t.owner[id] === 0 || !this.layers.has(t.type[id] as number)) {
+      this.selVisible = false;
+      r.mesh.visible = false;
+      return;
+    }
+    const type = t.type[id] as number;
+    const cell = t.cell[id] as number;
+    this.selLevel = t.level[id] as number;
+    this.selSizeM = STRUCTURE_MODELS[type]?.radiusM ?? 700;
+    const c = this.place(cell);
+    this.selX = c.x;
+    this.selY = c.y;
+    this.selZ = c.z;
+    const cl = Math.hypot(c.x, c.y, c.z);
+    const ux = c.x / cl;
+    const uy = c.y / cl;
+    const uz = c.z / cl;
+    // east = cross((0,1,0), up), north = cross(up, east): the same frame as the vertex shader
+    let ex = uz;
+    let ez = -ux;
+    const el = Math.hypot(ex, ez);
+    if (el > 1e-4) {
+      ex /= el;
+      ez /= el;
+    } else {
+      ex = 1;
+      ez = 0;
+    }
+    const nx = uy * ez;
+    const ny = uz * ex - ux * ez;
+    const nz = -uy * ex;
+    const put = (v: number, x: number, y: number, z: number, dx: number, dy: number, dz: number): void => {
+      r.hi[v * 3] = Math.fround(x);
+      r.hi[v * 3 + 1] = Math.fround(y);
+      r.hi[v * 3 + 2] = Math.fround(z);
+      r.lo[v * 3] = x - (r.hi[v * 3] as number);
+      r.lo[v * 3 + 1] = y - (r.hi[v * 3 + 1] as number);
+      r.lo[v * 3 + 2] = z - (r.hi[v * 3 + 2] as number);
+      r.dir[v * 3] = dx;
+      r.dir[v * 3 + 1] = dy;
+      r.dir[v * 3 + 2] = dz;
+    };
+    for (let i = 0; i <= RING_SEGMENTS; i++) {
+      const a = (i / RING_SEGMENTS) * Math.PI * 2;
+      const ca = Math.cos(a);
+      const sa = Math.sin(a);
+      for (let side = 0; side < 2; side++) put(i * 2 + side, c.x, c.y, c.z, ex * ca + nx * sa, ny * sa, ez * ca + nz * sa);
+    }
+    if (this.selRangeCells > 0) {
+      const cx = cell % this.gridWidth;
+      const cy = (cell - cx) / this.gridWidth;
+      for (let i = 0; i <= RING_SEGMENTS; i++) {
+        const a = (i / RING_SEGMENTS) * Math.PI * 2;
+        const gx = cx + Math.cos(a) * this.selRangeCells;
+        const gy = cy + Math.sin(a) * this.selRangeCells;
+        const lat = Math.max(-89.9, Math.min(89.9, ((this.gridHeight - 2 * gy - 1) * 90) / this.gridHeight));
+        const lon = ((2 * gx + 1 - this.gridWidth) * 180) / this.gridWidth;
+        const ground = Math.max(0, groundHeightAt(lat, lon));
+        const rad = 1 + (this.exaggeration * ground) / (EARTH_RADIUS_KM * 1000);
+        const d = latLonToVec(lat, lon);
+        const px = (d[0] as number) * rad;
+        const py = (d[1] as number) * rad;
+        const pz = (d[2] as number) * rad;
+        // outward tangent at that point: (p - centre) without its radial part
+        let ox = px - c.x;
+        let oy = py - c.y;
+        let oz = pz - c.z;
+        const dot = ox * (d[0] as number) + oy * (d[1] as number) + oz * (d[2] as number);
+        ox -= (d[0] as number) * dot;
+        oy -= (d[1] as number) * dot;
+        oz -= (d[2] as number) * dot;
+        const ol = Math.hypot(ox, oy, oz) || 1;
+        for (let side = 0; side < 2; side++) put(RING_VERTS + i * 2 + side, px, py, pz, ox / ol, oy / ol, oz / ol);
+      }
+    }
+    for (const a of r.attrs) a.needsUpdate = true;
+    r.geometry.setDrawRange(0, this.selRangeCells > 0 ? RING_SEGMENTS * 12 : RING_SEGMENTS * 6);
+    this.selVisible = true;
+    r.mesh.visible = true;
   }
 
   /** The placement preview: a see-through model of `type` on `cell`, green when `ok`, red when not. */
@@ -395,6 +680,10 @@ export class StructureLayer {
       l.geometry.dispose();
       l.material.dispose();
     }
+    this.ring.geometry.dispose();
+    this.ring.material.dispose();
+    this.icons.geometry.dispose();
+    this.icons.material.dispose();
     if (this.ghost !== null) {
       this.ghost.geometry.dispose();
       this.ghost.material.dispose();

@@ -435,3 +435,20 @@ export const GHOST_OK_RGB: readonly [number, number, number] = [0.25, 0.95, 0.4]
 export const GHOST_BAD_RGB: readonly [number, number, number] = [1.0, 0.25, 0.2];
 export const GHOST_MIX = 0.55;
 export const GHOST_ALPHA = 0.7;
+
+// ---- M10-4: rings, far icons, night lights ----------------------------------------------------------------------------------------------
+/** The icon takes over from the model between these two projected model radii in pixels (full model above ICON_FADE_PX_HI, full icon below ICON_FADE_PX_LO). */
+export const ICON_FADE_PX_HI = 6;
+export const ICON_FADE_PX_LO = 3;
+/** The icon's half size on screen in pixels. */
+export const ICON_HALF_PX = 5;
+/** Ring line half width: at least this many render metres, and at least this share of the camera distance (about 1.5 px at 540 px). */
+export const RING_HALF_WIDTH_M = 25;
+export const RING_HALF_WIDTH_FRAC = 0.0022;
+/** Segments of a ring. */
+export const RING_SEGMENTS = 96;
+/** Ring colours (sRGB). */
+export const SELECT_RING_RGB: readonly [number, number, number] = [1.0, 0.92, 0.35];
+export const RANGE_RING_RGB: readonly [number, number, number] = [0.45, 0.85, 1.0];
+/** A city light is lit where the sun's elevation (dot of the surface normal and the sun) is below this value: the middle of the shader's day smoothstep (-0.10 .. 0.20). */
+export const NIGHT_LIGHT_SUN_DOT = 0.05;

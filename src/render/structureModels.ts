@@ -96,7 +96,7 @@ class MeshBuilder {
   }
 
   /** An n-sided prism (a chimney, a tank) at (cx, cz): wall from y0 to y1, top face at y1. */
-  prism(n: number, cx: number, cz: number, r: number, y0: number, y1: number, wall: Rgb, top: Rgb, topTint: number): void {
+  column(n: number, cx: number, cz: number, r: number, y0: number, y1: number, wall: Rgb, top: Rgb, topTint: number): void {
     const ring = (y: number, k: number): Rgb => [cx + Math.cos((k / n) * Math.PI * 2) * r, y, cz + Math.sin((k / n) * Math.PI * 2) * r];
     for (let k = 0; k < n; k++) {
       this.quad(ring(y0, k), ring(y0, k + 1), ring(y1, k + 1), ring(y1, k), wall, 0);
@@ -233,11 +233,11 @@ function buildFactory(): ModelData {
   m.box(-0.12, 0.08, 0.86, 0.5, 0.04, 0.34, 0, HALL, FLAT_ROOF, 0);
   m.gable(-0.12, 0.08, 0.86, 0.5, 0.34, 0.5, 0, FLAT_ROOF, 1, HALL);
   // chimneys behind the hall: tall + short
-  m.prism(6, 0.46, -0.36, 0.09, 0.04, 0.98, BRICK, SLATE, 0);
-  m.prism(6, 0.46, -0.36, 0.115, 0.82, 0.98, WALL_A, PLATE_TOP, 1);
-  m.prism(6, 0.24, -0.42, 0.065, 0.04, 0.66, BRICK, SLATE, 0);
+  m.column(6, 0.46, -0.36, 0.09, 0.04, 0.98, BRICK, SLATE, 0);
+  m.column(6, 0.46, -0.36, 0.115, 0.82, 0.98, WALL_A, PLATE_TOP, 1);
+  m.column(6, 0.24, -0.42, 0.065, 0.04, 0.66, BRICK, SLATE, 0);
   // a storage tank and a low annex in front
-  m.prism(8, -0.55, -0.5, 0.15, 0.04, 0.3, TANK, TANK, 0);
+  m.column(8, -0.55, -0.5, 0.15, 0.04, 0.3, TANK, TANK, 0);
   m.box(0.5, 0.42, 0.4, 0.28, 0.04, 0.22, 0.2, WALL_B, FLAT_ROOF, 0);
   return m.done();
 }
@@ -262,6 +262,9 @@ function buildPort(): ModelData {
   m.box(-0.3, -0.38, 0.3, 0.14, 0.04, 0.16, 0.1, CONTAINER_A, PLATE_TOP, 1);
   m.box(-0.02, -0.4, 0.3, 0.14, 0.04, 0.16, 0.1, CONTAINER_B, PLATE_TOP, 1);
   m.box(-0.16, -0.38, 0.3, 0.14, 0.16, 0.28, 0.1, CONTAINER_A, PLATE_TOP, 1);
+  return m.done();
+}
+
 // --- M10-3: Silo, SAM site, Defense Post ---------------------------------------------------------------------------------------------
 // Each sits on the same kind of owner-coloured plate as the City (so the owner reads from above), with a silhouette of its own: the Silo is LOW
 // with a missile standing on a pad, the SAM site is a launcher rack with a big turning dish, the Post is the only TALL SLIM tower inside a wall ring.
@@ -356,4 +359,37 @@ export function modelledTypes(): number[] {
   return Object.keys(STRUCTURE_MODELS)
     .map(Number)
     .sort((a, b) => a - b);
+}
+
+/** The tint code of city light `n` (1..3): 4 x n. The vertex shader lights it on the night side when the city's level reaches n (shaders/structures.ts). */
+export const CITY_LIGHT_COUNT = 3;
+const LIGHT_BULB: Rgb = [1, 0.88, 0.55];
+
+/**
+ * The City's night lights (M10-4): up to CITY_LIGHT_COUNT small bulbs above the blocks, appended to the City's buffers by the layer (they are not
+ * part of the City model, so its triangle budget and golden stay as they were). Each bulb is a flattened octahedron of 8 triangles; its vertices carry
+ * the tint code 4 x its number. In daylight the shader scales them to nothing.
+ */
+export function cityLights(): ModelData {
+  const m = new MeshBuilder();
+  for (let n = 1; n <= CITY_LIGHT_COUNT; n++) {
+    const a = ((n - 1) / CITY_LIGHT_COUNT) * Math.PI * 2 + 0.5;
+    const cx = Math.cos(a) * 0.52;
+    const cz = Math.sin(a) * 0.52;
+    const r = 0.11;
+    const y = 0.5;
+    const top: Rgb = [cx, y + r, cz];
+    const bot: Rgb = [cx, y - r, cz];
+    const ring: Rgb[] = [
+      [cx + r, y, cz],
+      [cx, y, cz + r],
+      [cx - r, y, cz],
+      [cx, y, cz - r],
+    ];
+    for (let i = 0; i < 4; i++) {
+      m.tri(ring[i] as Rgb, ring[(i + 1) % 4] as Rgb, top, LIGHT_BULB, 4 * n);
+      m.tri(ring[(i + 1) % 4] as Rgb, ring[i] as Rgb, bot, LIGHT_BULB, 4 * n);
+    }
+  }
+  return m.done();
 }
