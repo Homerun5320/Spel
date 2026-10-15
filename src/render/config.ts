@@ -231,6 +231,54 @@ export const DETAIL_COAST_FADE: readonly [number, number] = [0.5, 1];
 /** Land is never lower than this above sea level (metres): land keeps its sign against the sea whatever the detail does. */
 export const DETAIL_LAND_MIN_M = 1;
 
+// --- Terrain shading (M07b part B): rock, snow, forest tone, shore foam -------------------------------------------------------------
+// All of it is a few multiply-adds per pixel (no octave loop, no texture fetch added): the fragment shader reads the SLOPE of its own shading
+// normal (raster slope + the facet normal of the detailed mesh) and the DETAILED height of the vertex shader (`vH`, render metres, before the
+// exaggeration). The shader text takes these numbers as `const`s (src/render/shaders/terrain.ts), so they cost no uniform.
+/** Real slope (the tangent of the angle of the shading normal after the exaggeration is divided out, so 0.47 = 25 degrees, 0.84 = 40): grass and forest give way to bare rock between these two (and above the tree line). */
+export const SHADE_ROCK_SLOPE: readonly [number, number] = [0.3, 0.75];
+/** Share of bare rock at full steepness (the rest keeps a hint of the biome tone). */
+export const SHADE_ROCK_STRENGTH = 0.9;
+/** The tree line lies this far under the snow line (metres); vegetation fades to bare ground between `-FADE` and `+FADE` around it. */
+export const SHADE_TREE_BELOW_SNOW_M = 900;
+export const SHADE_TREE_FADE_M = 450;
+/**
+ * Snow line (metres of the DETAILED height) at three latitudes: up to 32 degrees it is the first value (the Himalaya and the Tibetan plateau at 4 500
+ * to 5 400 m stay bare, the snow sits on the ridges and the high massif above about 5 400 m), by 47 degrees the second (the Alps, 2 800 m), by 62 the
+ * third (the Scandes, 1 650 m); poleward of 65 degrees it falls by `POLAR_DROP` towards 85 (Svalbard, the polar sheets: near sea level). The numbers
+ * between are smoothstep ramps (`SHADE_SNOW_RAMPS`). Stylised, not a climate model: the real line is 5 000 to 5 500 m in the Himalaya and
+ * 2 700 to 3 100 m in the Alps, and a dry plateau like Tibet carries far less snow than its height says (the 10 km raster hides the 8 000 m peaks).
+ */
+export const SHADE_SNOW_LINE_M: readonly [number, number, number] = [5400, 2800, 1650];
+/** |Latitude| ramps (degrees): first value to second, second value to third, and the polar drop. */
+export const SHADE_SNOW_RAMPS: readonly [number, number, number, number, number, number] = [32, 47, 47, 62, 65, 85];
+export const SHADE_SNOW_POLAR_DROP_M = 1500;
+/** Half width of the snow edge (metres of height). */
+export const SHADE_SNOW_FADE_M = 380;
+/** On steep faces the snow line rises by this much (metres of height) between the two slopes: steep rock stays grey, ridges stand out. */
+export const SHADE_SNOW_SHED_M = 2600;
+export const SHADE_SNOW_SHED_SLOPE: readonly [number, number] = [0.45, 1.1];
+/** Colours (sRGB): warm rock at low height, cool grey rock near the snow, snow. */
+export const SHADE_ROCK_WARM: readonly [number, number, number] = [0.42, 0.36, 0.31];
+export const SHADE_ROCK_COOL: readonly [number, number, number] = [0.36, 0.36, 0.38];
+export const SHADE_SNOW_COLOR: readonly [number, number, number] = [0.88, 0.92, 0.97];
+/** Fine mottling of the colours (forest canopy, rock tone, a ragged snow edge): amplitude (of the colour) and, for the snow edge, of the height in metres. Faded out by pixel size, so orbit views pay nothing. */
+export const SHADE_MOTTLE_COLOR = 0.26;
+/** An octave of that mottling fades in between these two sizes of its wavelength in pixels (never a grain of a few pixels). */
+export const SHADE_MOTTLE_FADE_PX: readonly [number, number] = [6, 16];
+export const SHADE_MOTTLE_SNOW_M = 420;
+/** Territory tint that keeps the terrain visible: the owner's colour is multiplied by `BASE + GAIN * luminance(terrain colour)` (clamped to [LO, HI]) instead of replacing it. */
+export const OWNER_TINT_LUM: readonly [number, number, number, number] = [0.4, 1.3, 0.45, 1.55];
+/** In a close view the tint is weaker so the terrain shows through: its share (1 = no change) at the closest and the pixel size in sim cells where it is back to 1 (full at FAR) and where it is at the closest value (NEAR). */
+export const OWNER_TINT_CLOSE: readonly [number, number, number] = [0.72, 0.002, 0.02];
+/** Shore foam: a band on the sea side of the coast line (the land coverage runs from FROM to 0.5 there), as wide as `BAND_M` metres, faded out when it is narrower than a few pixels. */
+export const FOAM_FROM = 0.3;
+export const FOAM_BAND_M = 1400;
+export const FOAM_STRENGTH = 0.8;
+export const FOAM_COLOR: readonly [number, number, number] = [0.9, 0.96, 0.98];
+/** Night lights at close range: the street-light speckle is smooth value noise (lattice cells of 4.9 and 1.2 km) instead of random squares; this is the share of each octave. */
+export const LIGHTS_SPECKLE_FINE = 0.55;
+
 // --- Colours of the terrain classes (sRGB, 0..1), index = TerrainClass value of src/data/format.ts --------------------
 export const CLASS_ALBEDO: ReadonlyArray<readonly [number, number, number]> = [
   [0.02, 0.1, 0.3], // 0 DeepSea (unused on land)

@@ -43,6 +43,7 @@ varying vec3 vDir;
 varying vec3 vRel;
 varying vec4 vChunk; // x hue, y level, zw grid position
 varying float vWall;  // 1 on a skirt wall, 0 on the grid
+varying float vH;     // the detailed height of the vertex in render metres (before the exaggeration): the fragment shader's snow line and tree line
 flat varying vec2 vCellBase; // the territory's position in two parts: the whole cell of the chunk centre (flat: exactly the same everywhere in the chunk) ...
 varying vec2 vCellOff;       // ... and the offset from its corner in cells, small and so precise to a millimetre (a float32 cell coordinate is good to 2.4 m)
 
@@ -117,6 +118,7 @@ void main() {
   vDir = dir;
   vRel = rim;
   vWall = wallFlag > 0.5 ? 1.0 : 0.0;
+  vH = hM;
   vChunk = vec4(aEast.w, aOrigin.w, g);
   vCellBase = aCell.xy;
   vCellOff = aCell.zw + vec2(dlon * ${glslFloat(OWNER_GRID_W)} / TWO_PI, -dphi * ${glslFloat(OWNER_GRID_H)} / PI_);

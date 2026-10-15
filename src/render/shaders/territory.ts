@@ -16,7 +16,15 @@
 // only where the height texture says land. A sim cell that is water while the 10 km render raster is land (a coast) takes the
 // owner of its nearest land neighbour, and a border is never drawn against sea.
 
+import { OWNER_TINT_CLOSE, OWNER_TINT_LUM } from '../config';
+
+const lit = (x: number): string => (/[.e]/.test(String(x)) ? String(x) : `${x}.0`);
+
 export const GLSL_TERRITORY = /* glsl */ `
+// The tint keeps the terrain visible (M07b part B): the owner's colour is scaled by the luminance of the terrain colour under it, x + y * luminance clamped to [z, w].
+const vec4 OWNER_TINT_LUM = vec4(${OWNER_TINT_LUM.map(lit).join(', ')});
+// In a close view (pixels smaller than a few hundredths of a cell) the tint is weaker: x its share at the closest, y and z the pixel sizes (cells) where it is full and where it has reached x.
+const vec3 OWNER_TINT_CLOSE = vec3(${OWNER_TINT_CLOSE.map(lit).join(', ')});
 uniform sampler2D uOwnerTex;
 uniform sampler2D uOwnerPalette;
 uniform ivec2 uOwnerSize;
@@ -187,8 +195,10 @@ vec3 applyTerritoryAt(vec3 albedo, ivec2 b, vec2 o, vec2 dx, vec2 dy, float land
   float line = territoryEdge(b, pw, dx * (0.5 * uOwnerStyle.w), dy * (0.5 * uOwnerStyle.w), id);
   float inner = 0.5 * (territoryEdge(b, pw, dx * 2.5, dy * 2.5, id) + territoryEdge(b, pw, dx * 5.0, dy * 5.0, id));
   vec3 col = texelFetch(uOwnerPalette, ivec2(id & 255, 0), 0).rgb;
-  float fill = uOwnerStyle.x + uOwnerStyle.y * inner;
-  vec3 outAlbedo = mix(albedo, col, fill);
+  float fill = (uOwnerStyle.x + uOwnerStyle.y * inner) * mix(OWNER_TINT_CLOSE.x, 1.0, smoothstep(OWNER_TINT_CLOSE.y, OWNER_TINT_CLOSE.z, pc));
+  float lumA = dot(albedo, vec3(0.2126, 0.7152, 0.0722));
+  vec3 tint = col * clamp(OWNER_TINT_LUM.x + OWNER_TINT_LUM.y * lumA, OWNER_TINT_LUM.z, OWNER_TINT_LUM.w);
+  vec3 outAlbedo = mix(albedo, tint, fill);
   float lineW = clamp(line * 3.0, 0.0, 1.0) * uOwnerStyle.z;
   outAlbedo = mix(outAlbedo, col * uOwnerWarp.y, lineW);
   // night: interior colour, with a bright rim on the border line (a lightened owner colour)
