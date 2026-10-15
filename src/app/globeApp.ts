@@ -46,7 +46,7 @@ import { CITY_VIEW, GPU_TIP_PREF_KEY, START_FLY_KM, START_SPIN_DEG_PER_S, SETUP_
 import { mountStartScreen, type StartScreen } from '../ui/startScreen';
 import { applyStartLanguage } from './langPref';
 import { getPref, setPref } from './prefs';
-import { createMatch, type BuiltMatch, type MatchSetupConfig } from './matchSetup';
+import { createMatch, defaultWinConfig, type BuiltMatch, type MatchSetupConfig } from './matchSetup';
 import { countryEligibility } from './eligibility';
 import { regionMask, type RegionId } from '../data/regions';
 import { prepareWorld, type PreparedWorld } from './matchWorld';
@@ -682,7 +682,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     if (session !== null) return;
     const s = await MatchSession.create(
       { width: world.sim.width, height: world.sim.height, terrainClass: world.sim.terrainClass, meanElev: world.sim.meanElev, cosQ15: world.meta.sim.cosQ15 },
-      { seed: params.seed, debugIntents: params.test, interpolate: !params.test, ai: ctx.state.raw.ai !== '0' },
+      { seed: params.seed, debugIntents: params.test, interpolate: !params.test, ai: ctx.state.raw.ai !== '0', ...(params.test ? {} : { win: defaultWinConfig('world') }) },
     );
     if (!alive) {
       s.dispose();

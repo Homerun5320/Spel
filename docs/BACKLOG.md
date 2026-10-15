@@ -367,3 +367,5 @@ Not done in the Fix-UI slice (the sim, host and AI findings belong to Fix-Sim):
 - A service-ceiling check per sim cell for the start and the goal (they are cells of a nav block whose mean may be closed while the sim cell itself is low) is not built: such a query is NO_ROUTE.
 - The debug page does not draw the land labels or the nav grid; `Nav.landReachable` has no user yet (M12a, the AI).
 - Leftovers of the slice: none in the list of the prompt; the Artifact preview was not republished (orchestrator).
+
+- M18-2 follow-up (orchestrator): the plain Play match (MatchSession.create) now gets defaultWinConfig('world') outside ?test=1, so it ends like the setup matches; test mode matches never end (`options.win` absent).

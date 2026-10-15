@@ -13,6 +13,7 @@ import { hashState } from '../sim/serialize';
 import { scheduledTurn } from '../sim/time';
 import { createSimWorld, createWorldState, type SimWorldInput } from '../sim/world';
 import type { SeatLabels } from '../ui/seatLabels';
+import type { WinConfig } from '../sim/public';
 import type { BuiltMatch } from './matchSetup';
 import { COMMIT_DEFAULT_PCT, COMMIT_MAX_PCT, COMMIT_MIN_PCT, COMMIT_STEP_PCT, SPEED_STEPS } from '../ui/uiConfig';
 import { StatInterpolator } from '../ui/hudValues';
@@ -30,6 +31,8 @@ export interface MatchOptions {
   readonly interpolate?: boolean;
   /** The AI nations and the tribes act (default true). `?ai=0` / `#ai-0` turns them off: the 25 other seats stay empty, as in the first M05 parts' tests. */
   readonly ai?: boolean;
+  /** M18-2: the win conditions of the match (the live page passes the defaults; `?test=1` passes none, so the tests' matches never end). */
+  readonly win?: WinConfig;
 }
 
 /** The options of a match built by the setup screen (`createMatch`): the state is already placed, so only the live-page switches remain. */
@@ -91,7 +94,7 @@ export class MatchSession {
       seed: options.seed,
       seats: MATCH_SEATS,
       players: MATCH_PLAYERS,
-      config: { debugIntents: options.debugIntents === true, spawnPhase: true },
+      config: { debugIntents: options.debugIntents === true, spawnPhase: true, ...(options.win === undefined ? {} : { win: options.win }) },
     });
     const driver = options.ai === false ? undefined : new AiDriver(options.seed);
     const host = new MainThreadHost(state, { speed: 1, driver });
