@@ -17,6 +17,7 @@ import { HeightField } from './heightField';
 import { GpuTimer, type TimerGl } from './gpuTimer';
 import { groundPickerOf, pickGround, type GroundHit } from './transforms';
 import { OwnershipTexture } from './ownership';
+import { StructureLayer } from './structures';
 import { meshTriangles, type QualitySettings } from './quality';
 import { buildStars } from './stars';
 import { createTerrainMaterial, type TerrainMode } from './terrainMaterial';
@@ -135,6 +136,10 @@ export class Globe {
   readonly field: HeightField;
   /** Who owns each sim cell (RGBA8 texture, throttled full upload); the match writes into it. */
   readonly ownership: OwnershipTexture;
+  /** The structures of the match (M10): instanced models standing on the ground, and the placement ghost. */
+  readonly structures: StructureLayer;
+  /** The sim tick as a fraction (set by the page every frame; drives the construction look of the structures). */
+  private tickFraction = 0;
   readonly quality: QualitySettings;
   private readonly renderer: WebGLRenderer;
   private readonly scene = new Scene();
@@ -248,7 +253,13 @@ export class Globe {
     this.stars = new Points(sg, this.starsMaterial);
     this.stars.frustumCulled = false;
     this.stars.renderOrder = -10;
-    this.scene.add(this.stars, this.mesh, this.shell);
+    this.structures = new StructureLayer({ tier: o.quality.tier, gridWidth: o.world.sim.width, gridHeight: o.world.sim.height, sun: this.sun });
+    this.scene.add(this.stars, this.mesh, ...this.structures.meshes, this.shell);
+  }
+
+  /** The sim tick including the fraction of the tick in progress (the page sets it every frame). */
+  setTickFraction(t: number): void {
+    this.tickFraction = t;
   }
 
   get exaggeration(): number {
@@ -258,6 +269,7 @@ export class Globe {
   /** Sets the height exaggeration of the shader and of picking (the flat control of the tests uses 0). */
   setExaggeration(x: number): void {
     this.field.exaggeration = x;
+    this.structures.setExaggeration(x);
     (this.material.uniforms.uExag as { value: number }).value = x;
     this.chunkTerrain?.setExaggeration(x);
   }
@@ -428,6 +440,7 @@ export class Globe {
     const tex = (this.material.uniforms.uOwnerPalette as { value: { image: { data: Uint8Array }; needsUpdate: boolean } }).value;
     tex.image.data.set(rgba);
     tex.needsUpdate = true;
+    this.structures.setOwnerPalette(rgba);
   }
 
   resize(width: number, height: number, dpr: number): void {
@@ -490,6 +503,7 @@ export class Globe {
     c.updateProjectionMatrix();
     c.lookAt(p.target[0], p.target[1], p.target[2]);
     c.updateMatrixWorld();
+    this.structures.frame(p.position, now, this.tickFraction);
     this.chunkTerrain?.update(p);
     if (draw) {
       const timer = this.gpuTimer;
@@ -674,6 +688,7 @@ export class Globe {
   }
 
   dispose(): void {
+    this.structures.dispose();
     this.gpuTimer?.dispose();
     this.chunkTerrain?.dispose();
     this.mesh.geometry.dispose();

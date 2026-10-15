@@ -9,25 +9,9 @@
 import { ownerSlots } from '../sim/state';
 import { PHASE_PLAY, phaseAt, phaseTicksLeft, type MatchPhase } from '../sim/flow';
 import type { StructureView } from '../sim/structureRules';
+import { MirrorStructures } from './structureMirror';
 import { countContacts, statsViewOf, type ReadonlyNumbers, type SeatStatsView, type SimView } from '../sim/view';
 import type { HostEvent, SimHost, Speed, StateDiff, Unsubscribe, ViewSnapshot } from './protocol';
-
-const NO_NUMBERS: ArrayLike<number> = new Uint8Array(0);
-const EMPTY_STRUCTURES: StructureView = Object.freeze({
-  capacity: 0,
-  highWater: 0,
-  liveCount: 0,
-  type: NO_NUMBERS,
-  owner: NO_NUMBERS,
-  cell: NO_NUMBERS,
-  level: NO_NUMBERS,
-  buildTick: NO_NUMBERS,
-  readyTick: NO_NUMBERS,
-  upgradeReadyTick: NO_NUMBERS,
-  idAt: () => -1,
-  ownedCount: () => 0,
-  deleteReadyTick: () => 0,
-});
 
 export type FrameListener = (mirror: ViewMirror, diff: StateDiff) => void;
 
@@ -59,6 +43,7 @@ export class ViewMirror implements SimView {
   /** Attacks running, one flag per (attacker, target) pair of owner ids (index attacker * slots + target); rebuilt from every frame's snapshot. */
   private readonly attackFlags: Uint8Array;
   private readonly slots: number;
+  private readonly structureTable = new MirrorStructures();
 
   private constructor(v: ViewSnapshot) {
     if (v.owner === null || v.terrain === null) throw new Error('a mirror needs the full view (requestView)');
@@ -79,6 +64,7 @@ export class ViewMirror implements SimView {
     this.slots = ownerSlots(v.seats);
     this.attackFlags = new Uint8Array(this.slots * this.slots);
     this.setAttacks(v.attacks);
+    if (v.structures !== null) this.structureTable.adopt(v.structures);
   }
 
   private setAttacks(pairs: Uint16Array): void {
@@ -87,9 +73,13 @@ export class ViewMirror implements SimView {
     for (let i = 0; i + 1 < pairs.length; i += 2) flags[(pairs[i] as number) * this.slots + (pairs[i + 1] as number)] = 1;
   }
 
-  /** Empty until the M10 snapshot extension carries the structure table to the page. */
+  /** The structure table (M10): the copy of the last table the host sent; `structuresVersion` moves when a new one arrived. */
   get structures(): StructureView {
-    return EMPTY_STRUCTURES;
+    return this.structureTable;
+  }
+
+  get structuresVersion(): number {
+    return this.structureTable.version;
   }
 
   falloutUntilAt(): number {
@@ -179,6 +169,7 @@ export class ViewMirror implements SimView {
     this.lastRejectTick = d.view.lastRejectTick;
     this.packed.set(d.view.stats);
     this.setAttacks(d.view.attacks);
+    if (d.view.structures !== null) this.structureTable.adopt(d.view.structures);
     this.frames++;
     for (const l of this.listeners) l(this, d);
   }

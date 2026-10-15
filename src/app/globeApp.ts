@@ -14,7 +14,9 @@ import { classifyRenderer, readableGpuName, type GpuClass } from '../render/gpuC
 import type { WorldTextureName } from '../render/textures';
 import { fitViewDistKm } from '../render/fit';
 import { BOOKMARKS, CAPITAL_BOOKMARK, DEFAULT_START_TIME, DEFAULT_START_VIEW, GROUND_VIEWS, type BookmarkName } from '../render/views';
-import { cellToLatLon, groundHeightAt } from '../render/transforms';
+import { cellToLatLon, groundHeightAt, latLonToCell } from '../render/transforms';
+import { STRUCTURE_MODELS } from '../render/structureModels';
+import type { DrawnStructure } from '../render/structures';
 import { setBookmarkHandler } from './bookmarks';
 import { InputStack, attachDomInput, attachDomKeys, createBaseMode, setContextHandler, setPauseHandler, type ContextHandler, type InputTarget } from './input';
 import { isQualityTier, resolveQualityChoice } from '../render/quality';
@@ -24,6 +26,11 @@ import { latLonOfCell } from './cellGeo';
 import { buildPerfReport, createPerfOverlay, type PerfContext, type PerfOverlay, type PerfReport } from '../ui/perfOverlay';
 import type { PerfSceneSection } from '../ui/perfSceneReport';
 import { PerfSceneRun, type PerfSceneHost } from './perfScene';
+import { createBuildBar, type BuildBar } from '../ui/buildBar';
+import { buildRejectKey } from '../ui/buildReasons';
+import { mountToasts, showToast, tickToasts, visibleToastKeys } from '../ui/toast';
+import { createPlacementMode, type PlacementMode, type PlacementState } from './placement';
+import { STRUCT_CITY, buildBody, validateBuild } from '../sim/public';
 import { createMatchHud, notConquerableText, rejectText, type MatchHud, type MatchHudModel } from '../ui/matchHud';
 import { getLanguage, onLanguageChange, setStrictI18n, t, type TextKey } from '../ui/i18n';
 import { GPU_TIP_PREF_KEY, START_FLY_KM, START_SPIN_DEG_PER_S, SETUP_IDLE_DIST_KM } from '../ui/uiConfig';
@@ -89,6 +96,29 @@ export interface MatchStateInfo {
   terrainMode: TerrainMode;
   /** M07a: the terrain of the last rendered frame: chunks drawn, distinct LOD levels, triangles and draw calls of the terrain. */
   terrain: TerrainStateInfo;
+  /** M10: the structures of the snapshot (every owner): how many are alive, and per type number (index = type). */
+  structures: { count: number; byType: number[] };
+}
+
+/** What `__test.props()` reports of the structure layer and the placement mode (plain data). */
+export interface PropsInfo {
+  /** Instances in the draw per structure type number (only types with a model). */
+  counts: Record<number, number>;
+  /** All instances in the draw. */
+  total: number;
+  /** Structures left out because a type's instance cap was reached. */
+  dropped: number;
+  /** Triangles of one City instance (the model's size). */
+  cityTriangles: number;
+  /** The drawn structures with their float64 placement (id, type, owner, cell, level, lat, lon, base radius, base height in render metres after the exaggeration). */
+  list: readonly DrawnStructure[];
+  /** The placement mode: the type being placed (0 = none) and the ghost. */
+  placing: number;
+  ghost: PlacementState | null;
+  /** The text keys of the toasts on screen. */
+  toasts: string[];
+  /** Whether the build bar is shown, and the price on the City button. */
+  buildBar: { visible: boolean; cityPrice: number };
 }
 
 /** The terrain numbers of the last rendered frame (`__test.state().terrain`, `__test.terrain()`). */
@@ -216,6 +246,8 @@ export interface GlobeTestHooks {
   advance(dt: number, ticks?: number): void;
   /** The match as plain data; null before the match started (it starts at once in test mode). */
   state(): MatchStateInfo | null;
+  /** M10: the structure layer (instance counts per type, the drawn structures) and the placement mode. */
+  props(): PropsInfo;
   /** Sends a raw intent body of any seat through the host (what a UI would; used to try illegal ones). Effective T + 2 ticks later. */
   submit(body: IntentBody): void;
   /** Test-only gift: sends a DebugGive intent (valid only when the match config has debugIntents, which test mode sets). Effective T + 2 ticks later. */
@@ -396,12 +428,19 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     'font:13px/1.4 system-ui,sans-serif;pointer-events:none;white-space:nowrap;z-index:5;';
   wrapper.appendChild(tip);
 
+  const unmountToasts = mountToasts(wrapper);
   let firstFrameMs: number | null = null;
   let frames = 0;
   // the input stack's per-frame tick (the long-press timer of the touch input); set where the stack is built
   let tickInput: (now: number) => void = () => undefined;
   const renderFrame = (draw = true): void => {
     tickInput(fxNow());
+    tickToasts(fxNow());
+    if (session !== null) {
+      // the structures follow the snapshot's table; the construction look follows the interpolated tick
+      globe.structures.setTable(session.view.structures, session.view.structuresVersion);
+      globe.setTickFraction(session.view.tick + (params.test ? 0 : session.alpha()));
+    }
     globe.render(draw);
     frames++;
     if (draw && firstFrameMs === null) firstFrameMs = performance.now();
@@ -413,6 +452,12 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   // screen's Start has built a match with `createMatch`. The UI below only sends intents (`session.submit`) and reads `session.view`.
   let session = null as MatchSession | null;
   let hud = null as MatchHud | null;
+  let buildBar = null as BuildBar | null;
+  let buildRoot = null as HTMLElement | null;
+  let buildBarWanted = false;
+  /** The structure type being placed (0 = none) and its mode on the input stack. */
+  let placing = 0;
+  let placementMode = null as PlacementMode | null;
   let startScreen = null as StartScreen | null;
   let setupScreen = null as SetupScreen | null;
   const ownerCss: string[] = [];
@@ -446,6 +491,14 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     });
     hud = createMatchHud(wrapper, { setCommit: (p) => s.setCommit(p), setSpeed: (sp) => s.setSpeed(sp), togglePause: () => s.togglePause() }, { seatColor, labels: s.labels });
     hud.setVisible(!params.test || ctx.state.raw.hud === '1'); // test mode hides it (the globe goldens), `#hud` / `?hud=1` shows it
+    // The build bar (M10): its own layer over the canvas, shown with the HUD and once you have spawned.
+    buildRoot = document.createElement('div');
+    buildRoot.className = 'hud-root';
+    buildRoot.dataset.testid = 'build-root';
+    wrapper.appendChild(buildRoot);
+    buildBar = createBuildBar(buildRoot, { select: (type) => enterPlacement(type) });
+    buildBarWanted = !params.test || ctx.state.raw.hud === '1';
+    buildBar.setVisible(false);
     // The two link chips of the start page sit above the HUD (they are outside the wrapper); the Dev panel lists the same pages.
     setLinkChipsHidden(true);
     refreshHud(); // the HUD is filled before its first frame is drawn
@@ -494,6 +547,10 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     model.troops = session.stats.value('troopsQt', L, alpha) / 4;
     model.gold = session.stats.value('goldMilli', L, alpha) / 1000;
     hud.update(model, fxNow());
+    if (buildBar !== null) {
+      buildBar.setVisible(buildBarWanted && (session.view.stats.capital[L] as number) !== 0);
+      buildBar.update(session.view, L, placing);
+    }
     const refused = session.takeNewReject();
     if (refused !== 0) hud.toast(rejectText(refused), fxNow());
   };
@@ -695,6 +752,9 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     abort.abort();
     perf?.dispose();
     hud?.dispose();
+    buildBar?.dispose();
+    buildRoot?.remove();
+    unmountToasts();
     startScreen?.dispose();
     setupScreen?.dispose();
     stopNames();
@@ -736,9 +796,42 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       tip.style.display = 'none';
     },
     focusCapital: () => focusCapital(),
+    build: (type) => enterPlacement(type),
   };
   const inputStack = new InputStack(createBaseMode(inputTarget));
   tickInput = (now) => inputStack.tick(now);
+  // --- Placement (M10): key 1 or the build button pushes the placement mode; the ghost is the layer's, the rules are the sim's (validateBuild) --------------
+  const exitPlacement = (): void => {
+    if (placementMode !== null && inputStack.top === placementMode) inputStack.pop();
+  };
+  const enterPlacement = (type: number): void => {
+    const sess = session;
+    if (sess === null || setupScreen !== null || !(type in STRUCTURE_MODELS)) return; // the other build keys stay unbound until their models exist
+    const L = sess.localSeat;
+    if ((sess.view.stats.capital[L] as number) === 0) return; // nothing to build on before the spawn
+    const same = placing === type;
+    exitPlacement();
+    if (same) return; // the key or the button again leaves the mode
+    placing = type;
+    const mode = createPlacementMode(type, {
+      pickCell: (x, y) => {
+        const h = globe.pickGroundAt(x, y);
+        return h === null ? null : latLonToCell(h.lat, h.lon, world.sim.width, world.sim.height).index;
+      },
+      validate: (ty, cell) => validateBuild(sess.view, L, ty, cell),
+      send: (ty, cell) => sess.submit(buildBody(L, ty, cell)),
+      setGhost: (ty, cell, ok) => globe.structures.setGhost(ty, cell, ok),
+      clearGhost: () => globe.structures.clearGhost(),
+      refused: (reason) => showToast(buildRejectKey(reason), { code: reason }, 'error'),
+      exit: exitPlacement,
+      ended: () => {
+        placing = 0;
+        placementMode = null;
+      },
+    });
+    placementMode = mode;
+    inputStack.push(mode);
+  };
   // The reserved keys go to the stack while a match is on (the setup screen and the menus own the keyboard before it).
   attachDomKeys(window, inputStack, () => setupScreen === null && session !== null, signal);
   let inputOn = false;
@@ -879,6 +972,35 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     const t = globe.terrainInfo();
     return { chunkCount: t.chunkCount, lodLevels: t.lodLevels, triangles: t.triangles, drawCalls: t.drawCalls, levels: t.levels, capped: t.capped, finite: globe.chunks?.allFinite() ?? true };
   };
+  const structuresState = (v: { readonly structures: { readonly highWater: number; readonly owner: ArrayLike<number>; readonly type: ArrayLike<number> } }): MatchStateInfo['structures'] => {
+    const st = v.structures;
+    const byType = [0, 0, 0, 0, 0, 0, 0];
+    let count = 0;
+    for (let i = 0; i < st.highWater; i++) {
+      if ((st.owner[i] as number) === 0) continue;
+      count++;
+      byType[st.type[i] as number] = (byType[st.type[i] as number] as number) + 1;
+    }
+    return { count, byType };
+  };
+  const propsInfo = (): PropsInfo => {
+    const layer = globe.structures;
+    const counts = layer.counts();
+    let total = 0;
+    for (const n of Object.values(counts)) total += n;
+    const price = Number(buildBar?.root.querySelector('[data-testid="build-city"]')?.getAttribute('data-price') ?? 0);
+    return {
+      counts,
+      total,
+      dropped: layer.dropped,
+      cityTriangles: layer.trianglesOf(STRUCT_CITY),
+      list: layer.instances(),
+      placing,
+      ghost: placementMode === null ? null : placementMode.state(),
+      toasts: visibleToastKeys(),
+      buildBar: { visible: buildBar !== null && !buildBar.root.hidden, cityPrice: price },
+    };
+  };
   const matchState = (): MatchStateInfo | null => {
     const sess = session;
     if (sess === null) return null;
@@ -916,6 +1038,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       hostAdvance: { frames: hostAdvance.frames, meanMs: hostAdvance.meanMs(), p95Ms: hostAdvance.p95Ms(), maxMs: hostAdvance.maxMs() },
       terrainMode: globe.terrainMode,
       terrain: terrainState(),
+      structures: structuresState(v),
     };
   };
   if (params.test) {
@@ -1037,6 +1160,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
         refreshHud();
       },
       state: matchState,
+      props: propsInfo,
       submit(body): void {
         session?.submit(body);
       },

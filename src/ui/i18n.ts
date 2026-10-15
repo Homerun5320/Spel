@@ -155,6 +155,25 @@ const sv = {
   'setup.need.cell': 'Klicka på land på globen för att välja startplats.',
   'setup.need.seed': 'Seed måste vara ett heltal.',
   'setup.error.start': 'Matchen kunde inte byggas: {reason}',
+
+  'hud.build.bar': 'Byggfält',
+  'hud.build.city': 'Stad',
+  'hud.build.cityTip': 'Bygg en stad (tangent 1). Pris: {price} guld.',
+  'hud.build.cityCost': '{price}',
+  'hud.build.tooPoor': 'För lite guld: en stad kostar {price} guld.',
+  'hud.build.placing': 'Klicka på din mark för att placera. Shift + klick: flera. Esc eller högerklick: avbryt.',
+  'toast.build.notOwned': 'Du kan bara bygga på din egen mark.',
+  'toast.build.peak': 'Det går inte att bygga på en bergstopp.',
+  'toast.build.mountain': 'Det går inte att bygga det på berg.',
+  'toast.build.hills': 'En hamn går inte att bygga på kullar.',
+  'toast.build.forest': 'En silo går inte att bygga i skog.',
+  'toast.build.noCoast': 'En hamn måste ligga vid kusten.',
+  'toast.build.occupied': 'Det finns redan en byggnad där.',
+  'toast.build.spacing': 'För nära en annan byggnad av samma sort.',
+  'toast.build.fallout': 'Marken är förorenad av nedfall.',
+  'toast.build.noFactory': 'En silo kräver en färdig fabrik.',
+  'toast.build.gold': 'För lite guld.',
+  'toast.build.full': 'Det finns inte plats för fler byggnader.',
 } as const;
 
 export type TextKey = keyof typeof sv;
@@ -303,6 +322,25 @@ const en: Record<TextKey, string> = {
   'setup.need.cell': 'Click land on the globe to choose a starting place.',
   'setup.need.seed': 'The seed must be a whole number.',
   'setup.error.start': 'The match could not be built: {reason}',
+
+  'hud.build.bar': 'Build bar',
+  'hud.build.city': 'City',
+  'hud.build.cityTip': 'Build a city (key 1). Price: {price} gold.',
+  'hud.build.cityCost': '{price}',
+  'hud.build.tooPoor': 'Not enough gold: a city costs {price} gold.',
+  'hud.build.placing': 'Click your land to place. Shift + click: several. Esc or right click: cancel.',
+  'toast.build.notOwned': 'You can only build on your own land.',
+  'toast.build.peak': 'You cannot build on a peak.',
+  'toast.build.mountain': 'That cannot be built on a mountain.',
+  'toast.build.hills': 'A port cannot be built on hills.',
+  'toast.build.forest': 'A silo cannot be built in a forest.',
+  'toast.build.noCoast': 'A port has to be on the coast.',
+  'toast.build.occupied': 'There is already a building there.',
+  'toast.build.spacing': 'Too close to another building of the same kind.',
+  'toast.build.fallout': 'The ground is contaminated by fallout.',
+  'toast.build.noFactory': 'A silo needs a finished factory.',
+  'toast.build.gold': 'Not enough gold.',
+  'toast.build.full': 'There is no room for more buildings.',
 };
 
 /** The two tables, for the parity test and for tools. Treat as read-only. */

@@ -30,6 +30,11 @@ function viewBuffers(v: ViewSnapshot): ArrayBuffer[] {
   const list = [v.stats.buffer as ArrayBuffer, v.attacks.buffer as ArrayBuffer];
   if (v.owner !== null) list.push(v.owner.buffer as ArrayBuffer);
   if (v.terrain !== null) list.push(v.terrain.buffer as ArrayBuffer);
+  const st = v.structures;
+  if (st !== null) {
+    list.push(st.type.buffer as ArrayBuffer, st.owner.buffer as ArrayBuffer, st.cell.buffer as ArrayBuffer, st.level.buffer as ArrayBuffer);
+    list.push(st.buildTick.buffer as ArrayBuffer, st.readyTick.buffer as ArrayBuffer, st.upgradeReadyTick.buffer as ArrayBuffer, st.deleteReady.buffer as ArrayBuffer, st.counts.buffer as ArrayBuffer);
+  }
   return list;
 }
 

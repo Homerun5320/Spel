@@ -64,6 +64,20 @@ export function hudCss(): string {
 
 .hud-toast { position: absolute; left: 50%; bottom: 11em; transform: translateX(-50%); width: max-content; max-width: min(30em, calc(100vw - 2em)); text-align: center; padding: 0.45em 1em; pointer-events: none; border-color: ${C.danger}; }
 
+.build-bar { position: absolute; left: 50%; bottom: 0.6em; transform: translateX(-50%); display: flex; align-items: center; gap: 0.4em; padding: 0.3em; pointer-events: auto; }
+.build-bar[hidden], .build-hint[hidden] { display: none !important; }
+.build-btn { min-width: ${target}; min-height: ${target}; padding: 0 0.8em; display: flex; align-items: baseline; gap: 0.5em; border-radius: 0.5em; border: 1px solid ${C.buttonBorder}; background: ${C.button}; color: ${C.text}; font: inherit; font-weight: 700; cursor: pointer; touch-action: manipulation; }
+.build-btn:hover { background: ${C.buttonActive}; }
+.build-btn[data-active="1"] { background: ${C.buttonActive}; border-color: ${C.accent}; box-shadow: inset 0 0 0 1px ${C.accent}; }
+.build-btn[data-state="poor"] { opacity: 0.55; border-color: ${C.panelBorder}; }
+.build-key { color: ${C.textDim}; font-size: 0.8em; }
+.build-price { color: ${C.gold}; font-variant-numeric: tabular-nums; }
+.build-hint { position: absolute; left: 50%; bottom: 4.6em; transform: translateX(-50%); width: max-content; max-width: min(20em, calc(100vw - 2em)); text-align: center; padding: 0.35em 0.9em; pointer-events: none; font-size: 0.9em; }
+.toast-stack { position: absolute; left: 50%; bottom: 14em; transform: translateX(-50%); display: flex; flex-direction: column; gap: 0.35em; align-items: center; z-index: ${Z_HUD + 1}; pointer-events: none; font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; font-size: ${fontSize}; }
+.toast { width: max-content; max-width: min(30em, calc(100vw - 2em)); text-align: center; padding: 0.45em 1em; border-radius: 0.6em; background: ${C.panel}; color: ${C.text}; border: 1px solid ${C.panelBorder}; box-shadow: 0 0.15em 0.7em rgba(0, 0, 0, 0.5); }
+.toast[data-kind="error"] { border-color: ${C.danger}; }
+.toast[data-kind="warn"] { border-color: ${C.barWarning}; }
+
 /* Narrow screens (a phone held upright, D107): the banner takes the whole top row left of the Dev button, with the countdown beside the
    text; the leaderboard sits below it, so nothing overlaps the banner, the board or the Dev button (48 px + 8 px margins). */
 @media (max-width: ${NARROW_MAX_PX}px), (max-aspect-ratio: 1/1) {
@@ -75,6 +89,9 @@ export function hudCss(): string {
   .hud-board[data-labels="1"] { width: 15.5em; }
   .hud-row { min-height: 1.5em; }
   .hud-toast { bottom: 17em; }
+  .build-bar { bottom: 11.5em; }
+  .build-hint { bottom: 16em; }
+  .toast-stack { bottom: 23em; }
 }
 
 .start-root { position: absolute; inset: 0; z-index: ${Z_START_SCREEN}; display: flex; align-items: safe center; justify-content: center; padding: 1em; background: radial-gradient(ellipse at center, ${C.scrim} 0%, ${C.scrimEdge} 100%); overflow: auto; }

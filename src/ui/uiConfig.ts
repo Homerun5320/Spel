@@ -17,6 +17,8 @@ export const SPEED_STEPS: readonly (1 | 2 | 4)[] = [1, 2, 4];
 
 /** Toast lifetime in FX seconds. */
 export const TOAST_SECONDS = 2.6;
+/** The most toasts on screen at once (`src/ui/toast.ts`); a new one pushes the oldest out. The only cap. */
+export const TOAST_MAX_VISIBLE = 3;
 
 /** The troop bar turns to a warning at this share of the cap. */
 export const TROOP_WARNING_FRACTION = 0.8;

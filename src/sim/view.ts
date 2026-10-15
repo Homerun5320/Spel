@@ -88,7 +88,7 @@ export interface SimView {
    * once per ownerVersion.
    */
   contactLength(a: number, b: number): number;
-  /** The structure table (M09 part A), read-only: arrays by structure id, `idAt(cell)`, `ownedCount(ownerId, type)`. A ViewMirror shows it empty until the M10 snapshot extension. */
+  /** The structure table (M09 part A), read-only: arrays by structure id, `idAt(cell)`, `ownedCount(ownerId, type)`. A ViewMirror carries a copy of it (M10: the host sends the table in the snapshot, src/host/structureMirror.ts). */
   readonly structures: StructureView;
   /** The tick until which a cell is fallout, 0 = not (the FALLOUT_UNTIL layer: zero until M14). */
   falloutUntilAt(cell: number): number;

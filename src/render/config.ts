@@ -414,3 +414,22 @@ export const ADAPT_MIN_INTERVAL_MS = 2000;
 export const ADAPT_IGNORE_MS = 1000;
 /** The chunk density (`Globe.setChunkDensity`, split distances times this) after the scale ladder is used up. */
 export const ADAPT_DENSITY_SCALE = 0.7;
+
+// --- Structures (M10 slice 1: the City; the registry in src/render/structureModels.ts is open for the other types) ---------------
+/** Size factor of a structure by level (index = level; 0 unused): the model grows 25 % and 50 % with the upgrades. */
+export const STRUCT_LEVEL_SCALE: readonly number[] = [0, 1.0, 1.25, 1.5];
+/** The model keeps at least this share of the camera distance as its radius (the scale policy: world size grows with the distance so that a structure is visible from high up). */
+export const STRUCT_SCREEN_FRAC = 0.011;
+/** The most the scale policy enlarges a model beyond its true size (a structure from orbit stays a speck rather than a blob the size of a country). */
+export const STRUCT_MAX_SCALE = 70;
+/** Seconds (fx clock) of the pop-in tween of a structure that appears while the page is watching. */
+export const STRUCT_POP_SECONDS = 0.45;
+/** While under construction the model grows from this share of its height to the full height. */
+export const STRUCT_BUILD_MIN_HEIGHT = 0.3;
+/** The triangle allowance of the structure layer per tier; the instance cap of a type is this divided by the triangles of its model. */
+export const STRUCT_TRIANGLE_BUDGET: Record<'test' | 'low' | 'medium' | 'high', number> = { test: 15000, low: 30000, medium: 60000, high: 120000 };
+/** Ghost colours (placement preview), sRGB 0 to 1, and how far they pull the model's own colours. */
+export const GHOST_OK_RGB: readonly [number, number, number] = [0.25, 0.95, 0.4];
+export const GHOST_BAD_RGB: readonly [number, number, number] = [1.0, 0.25, 0.2];
+export const GHOST_MIX = 0.55;
+export const GHOST_ALPHA = 0.7;
