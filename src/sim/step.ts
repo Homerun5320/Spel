@@ -15,6 +15,7 @@ import { MAX_INTENTS_PER_TURN } from './rules';
 import { OUTBOX_REJECT } from './outbox';
 import { nextU32 } from './rng';
 import { applySpawn } from './spawn';
+import { applyBuildDistrict, applyRemoveDistrict, applyUpgradeDistrict } from './districts';
 import { applyBuild, applyDelete, applyUpgrade, structuresPhase } from './structures';
 import { seatToOwner, type GameState } from './state';
 import { setOwner } from './territory';
@@ -53,6 +54,12 @@ export function applyIntent(state: GameState, intent: Intent): number {
       return applyUpgrade(state, intent.seat, intent.structure);
     case 'Delete':
       return applyDelete(state, intent.seat, intent.structure);
+    case 'BuildDistrict':
+      return applyBuildDistrict(state, intent.seat, intent.structure, intent.slot, intent.districtKind);
+    case 'UpgradeDistrict':
+      return applyUpgradeDistrict(state, intent.seat, intent.structure, intent.slot);
+    case 'RemoveDistrict':
+      return applyRemoveDistrict(state, intent.seat, intent.structure, intent.slot);
     default:
       return REJECT_NONE;
   }

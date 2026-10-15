@@ -6,7 +6,15 @@
 // not every tick. The cache is a pure function of the table, the embargo flags and the tick, so a restored state recomputes the same.
 import { isqrt } from './detmath';
 import {
+  BARRACKS_REGEN_PCT_BY_LEVEL,
+  BARRACKS_REGEN_PCT_MAX,
   CITY_GOLD_MILLI_PER_SEC_PER_LEVEL,
+  DISTRICT_MAX_SLOTS,
+  DISTRICT_WALLS_RADIUS_CELLS,
+  HOUSING_TROOPS_PER_LEVEL,
+  MARKET_GOLD_MILLI_BY_LEVEL,
+  QT_PER_TROOP,
+  WALLS_COST_PCT_BY_LEVEL,
   FACTORY_BONUS_MAX_CITIES,
   FACTORY_CITY_BONUS_PCT_BY_LEVEL,
   FACTORY_GOLD_MILLI_BY_LEVEL,
@@ -28,6 +36,7 @@ import {
   TRADE_SAME_OWNER_PCT,
   TRAIT_NEUTRAL_MILLI,
 } from './rules';
+import { DISTRICT_BARRACKS, DISTRICT_HOUSING, DISTRICT_MARKET, DISTRICT_WALLS } from './districtRules';
 import type { GameState } from './state';
 import { STRUCT_CITY, STRUCT_FACTORY, STRUCT_PORT, STRUCT_POST } from './structureRules';
 import type { StructureTable } from './structures';
@@ -71,6 +80,31 @@ export function samRadiusCells(level: number, onMountain: boolean): number {
   return onMountain ? Math.floor((r * SAM_MOUNTAIN_PCT) / 100) : r;
 }
 
+/** Adds the FINISHED districts of City `id` (owner `o`) to the owner's cache; returns the earliest future tick at which one of them finishes. */
+function districtEffects(t: StructureTable, id: number, o: number, tick: number, nextIn: number): number {
+  let next = nextIn;
+  for (let slot = 0; slot < DISTRICT_MAX_SLOTS; slot++) {
+    const at = id * DISTRICT_MAX_SLOTS + slot;
+    const kind = t.districtKind[at] as number;
+    if (kind === 0) continue;
+    const ready = t.districtReadyTick[at] as number;
+    const up = t.districtUpgradeReadyTick[at] as number;
+    if (up > tick && up < next) next = up;
+    if (tick < ready) {
+      if (ready < next) next = ready;
+      continue;
+    }
+    const level = t.districtLevel[at] as number;
+    if (kind === DISTRICT_MARKET) t.effFixedMilli[o] = (t.effFixedMilli[o] as number) + (MARKET_GOLD_MILLI_BY_LEVEL[level] as number);
+    else if (kind === DISTRICT_HOUSING) t.effHousingQt[o] = (t.effHousingQt[o] as number) + HOUSING_TROOPS_PER_LEVEL * level * QT_PER_TROOP;
+    else if (kind === DISTRICT_BARRACKS) {
+      const sum = (t.effBarracksPct[o] as number) + (BARRACKS_REGEN_PCT_BY_LEVEL[level] as number);
+      t.effBarracksPct[o] = sum > BARRACKS_REGEN_PCT_MAX ? BARRACKS_REGEN_PCT_MAX : sum;
+    }
+  }
+  return next;
+}
+
 function recompute(state: GameState): void {
   const t = state.structures;
   const tick = state.tick;
@@ -78,6 +112,8 @@ function recompute(state: GameState): void {
   t.effCityLevels.fill(0);
   t.effFixedMilli.fill(0);
   t.effPortMilli.fill(0);
+  t.effHousingQt.fill(0);
+  t.effBarracksPct.fill(0);
   let next = NEVER;
   const high = t.highWater;
   boosted.fill(0, 0, high);
@@ -116,6 +152,7 @@ function recompute(state: GameState): void {
         income += Math.floor((income * (FACTORY_CITY_BONUS_PCT_BY_LEVEL[bestFLevel] as number)) / 100);
       }
       t.effFixedMilli[o] = (t.effFixedMilli[o] as number) + income;
+      if (t.districtCount > 0) next = districtEffects(t, id, o, tick, next);
     } else if (type === STRUCT_FACTORY) {
       t.effFixedMilli[o] = (t.effFixedMilli[o] as number) + (FACTORY_GOLD_MILLI_BY_LEVEL[t.level[id] as number] as number);
     } else if (type === STRUCT_PORT) {
@@ -168,6 +205,22 @@ export function cityLevelsOf(state: GameState, owner: number): number {
   return t.effCityLevels[owner] as number;
 }
 
+/** The troop cap in QT the owner's finished Housing districts add (Districts-1; cached with the other effects). */
+export function housingQtOf(state: GameState, owner: number): number {
+  const t = state.structures;
+  if (t.districtCount === 0) return 0;
+  ensureEffects(state);
+  return t.effHousingQt[owner] as number;
+}
+
+/** The percent the owner's finished Barracks add to its troop regeneration (at most BARRACKS_REGEN_PCT_MAX). */
+export function barracksPctOf(state: GameState, owner: number): number {
+  const t = state.structures;
+  if (t.districtCount === 0) return 0;
+  ensureEffects(state);
+  return t.effBarracksPct[owner] as number;
+}
+
 /** The structure income of an owner in milli-gold per second, with the owner's port trait applied to the Port income. */
 export function structGoldMilliPerSec(state: GameState, owner: number): number {
   const t = state.structures;
@@ -197,6 +250,46 @@ export function collectPosts(state: GameState, target: number): number {
   }
   t.postCount = n;
   return n;
+}
+
+/**
+ * Collects the cells and cost percents of the finished Walls of `target` into the table's scratch (`wallCells`, `wallPcts`, `wallCount`) for an
+ * attack that runs this tick. O(structures), and only when the target owns a Walls district at all.
+ */
+export function collectWalls(state: GameState, target: number): number {
+  const t: StructureTable = state.structures;
+  t.wallCount = 0;
+  if (t.districtCount === 0 || t.districtsOwned(target, DISTRICT_WALLS) === 0) return 0;
+  const tick = state.tick;
+  let n = 0;
+  for (let id = 0; id < t.highWater; id++) {
+    if (t.owner[id] !== target || t.type[id] !== STRUCT_CITY) continue;
+    for (let slot = 0; slot < DISTRICT_MAX_SLOTS; slot++) {
+      const at = id * DISTRICT_MAX_SLOTS + slot;
+      if (t.districtKind[at] !== DISTRICT_WALLS || tick < (t.districtReadyTick[at] as number)) continue;
+      t.wallCells[n] = t.cell[id] as number;
+      t.wallPcts[n] = WALLS_COST_PCT_BY_LEVEL[t.districtLevel[at] as number] as number;
+      n++;
+    }
+  }
+  t.wallCount = n;
+  return n;
+}
+
+const WALL_R2 = DISTRICT_WALLS_RADIUS_CELLS * DISTRICT_WALLS_RADIUS_CELLS;
+
+/**
+ * The cell price with the Walls of the collected set applied: the largest percent of the Walls whose City is within DISTRICT_WALLS_RADIUS_CELLS of
+ * the cell, floor(cost * percent / 100). The caller keeps the larger of this and `postAdjustedCost` (Walls and a Defense Post do not stack).
+ */
+export function wallAdjustedCost(t: StructureTable, width: number, cell: number, cost: number): number {
+  const n = t.wallCount;
+  let best = 100;
+  for (let i = 0; i < n; i++) {
+    const pct = t.wallPcts[i] as number;
+    if (pct > best && dist2Cells(width, cell, t.wallCells[i] as number) <= WALL_R2) best = pct;
+  }
+  return best === 100 ? cost : Math.floor((cost * best) / 100);
 }
 
 const POST_R2 = POST_RADIUS_CELLS * POST_RADIUS_CELLS;

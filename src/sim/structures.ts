@@ -6,7 +6,8 @@
 // `recycled` stack and the next Build takes the top of the stack, else the next never-used slot. That makes the id a pure function
 // of the history, and the whole free list is `highWater` plus the stack (both hashed and serialised), so a restored table
 // allocates exactly as the straight run does.
-import { BUILD_TICKS, DELETE_COOLDOWN_TICKS, MILLI_GOLD_PER_GOLD, STRUCT_CAPACITY } from './rules';
+import { BUILD_TICKS, DELETE_COOLDOWN_TICKS, DISTRICT_MAX_SLOTS, DISTRICT_SLOTS_BY_LEVEL, MILLI_GOLD_PER_GOLD, STRUCT_CAPACITY } from './rules';
+import { DISTRICT_KIND_SLOTS, type DistrictView } from './districtRules';
 import { foldBytes, foldU32, foldWord } from './hash';
 import { REJECT_NONE, REJECT_PHASE } from './intents';
 import { PHASE_SPAWN, phaseAt } from './flow';
@@ -23,7 +24,7 @@ import {
 import { seatToOwner, type GameState } from './state';
 import { STRUCT_CITY, STRUCT_FACTORY, STRUCT_PORT } from './structureRules';
 
-export class StructureTable implements StructureView {
+export class StructureTable implements StructureView, DistrictView {
   readonly capacity = STRUCT_CAPACITY;
   highWater = 0;
   liveCount = 0;
@@ -41,6 +42,21 @@ export class StructureTable implements StructureView {
   readonly deleteReady: Uint32Array;
   /** Game state: embargo flag per (ownerId a, ownerId b), index a * slots + b, kept symmetric by `setEmbargo`. Nothing sets it before the diplomacy milestone; trade reads it. */
   readonly embargo: Uint8Array;
+  /** Game state (Districts-1): the district of slot `slot` of structure `id` is at index id * DISTRICT_MAX_SLOTS + slot; kind 0 = an empty slot. Cleared with the structure. */
+  readonly districtKind = new Uint8Array(STRUCT_CAPACITY * DISTRICT_MAX_SLOTS);
+  readonly districtLevel = new Uint8Array(STRUCT_CAPACITY * DISTRICT_MAX_SLOTS);
+  readonly districtReadyTick = new Uint32Array(STRUCT_CAPACITY * DISTRICT_MAX_SLOTS);
+  readonly districtUpgradeReadyTick = new Uint32Array(STRUCT_CAPACITY * DISTRICT_MAX_SLOTS);
+  /** Derived: districts alive in total, and per (ownerId, kind) at ownerId * DISTRICT_KIND_SLOTS + kind. */
+  districtCount = 0;
+  readonly districtCounts: Uint16Array;
+  /** Derived: the effect cache of the districts per ownerId (src/sim/structureEffects.ts): the Housing troop cap in QT and the Barracks regeneration percent. */
+  readonly effHousingQt: Uint32Array;
+  readonly effBarracksPct: Uint32Array;
+  /** Scratch for the Walls scan of an attack: cell and percent of the target's finished Walls. */
+  readonly wallCells = new Int32Array(STRUCT_CAPACITY);
+  readonly wallPcts = new Uint16Array(STRUCT_CAPACITY);
+  wallCount = 0;
   /** Derived: the effect cache (src/sim/structureEffects.ts). Dirty on every change of the table; also recomputed when `effNextTick` is reached. */
   effDirty = true;
   effNextTick = 0;
@@ -65,6 +81,75 @@ export class StructureTable implements StructureView {
     this.effPortMilli = new Uint32Array(ownerSlotCount);
     this.byCell = new Uint16Array(cells);
     this.counts = new Uint16Array(ownerSlotCount * STRUCT_TYPE_SLOTS);
+    this.districtCounts = new Uint16Array(ownerSlotCount * DISTRICT_KIND_SLOTS);
+    this.effHousingQt = new Uint32Array(ownerSlotCount);
+    this.effBarracksPct = new Uint32Array(ownerSlotCount);
+  }
+
+  districtsOwned(ownerId: number, kind: number): number {
+    if (ownerId < 0 || ownerId >= this.slots || kind < 0 || kind >= DISTRICT_KIND_SLOTS) return 0;
+    return this.districtCounts[ownerId * DISTRICT_KIND_SLOTS + kind] as number;
+  }
+
+  /** Puts a district in a free slot of a live City (the caller has checked the rules). */
+  setDistrict(id: number, slot: number, kind: number, level: number, readyTick: number, upgradeReadyTick: number): void {
+    const at = id * DISTRICT_MAX_SLOTS + slot;
+    const ownerId = this.owner[id] as number;
+    if (this.districtKind[at] === 0) {
+      this.districtCount++;
+      this.districtCounts[ownerId * DISTRICT_KIND_SLOTS + kind] = (this.districtCounts[ownerId * DISTRICT_KIND_SLOTS + kind] as number) + 1;
+    }
+    this.districtKind[at] = kind;
+    this.districtLevel[at] = level;
+    this.districtReadyTick[at] = readyTick;
+    this.districtUpgradeReadyTick[at] = upgradeReadyTick;
+    this.effDirty = true;
+  }
+
+  /** Empties one slot (a no-op when it is empty). */
+  clearDistrict(id: number, slot: number): void {
+    const at = id * DISTRICT_MAX_SLOTS + slot;
+    const kind = this.districtKind[at] as number;
+    if (kind === 0) return;
+    const k = (this.owner[id] as number) * DISTRICT_KIND_SLOTS + kind;
+    this.districtCounts[k] = (this.districtCounts[k] as number) - 1;
+    this.districtCount--;
+    this.districtKind[at] = 0;
+    this.districtLevel[at] = 0;
+    this.districtReadyTick[at] = 0;
+    this.districtUpgradeReadyTick[at] = 0;
+    this.effDirty = true;
+  }
+
+  /**
+   * Conquest of a City (Districts-1): it goes from `from` to `to` at `newLevel`. The districts that fit the new level's slots stay (the highest
+   * slot numbers are lost first); one still under construction is lost, a finished one drops one level (at least 1) and loses a running upgrade.
+   * Call BEFORE `transfer` (the counts follow the owner that is in the table at that moment).
+   */
+  conquerDistricts(id: number, to: number, newLevel: number, tick: number): void {
+    if (this.districtCount === 0) return;
+    const keep = DISTRICT_SLOTS_BY_LEVEL[newLevel] as number;
+    const from = this.owner[id] as number;
+    for (let slot = 0; slot < DISTRICT_MAX_SLOTS; slot++) {
+      const at = id * DISTRICT_MAX_SLOTS + slot;
+      const kind = this.districtKind[at] as number;
+      if (kind === 0) continue;
+      if (slot >= keep || tick < (this.districtReadyTick[at] as number)) {
+        this.clearDistrict(id, slot);
+        continue;
+      }
+      const level = this.districtLevel[at] as number;
+      this.districtLevel[at] = level > 1 ? level - 1 : 1;
+      this.districtUpgradeReadyTick[at] = 0;
+      this.districtCounts[from * DISTRICT_KIND_SLOTS + kind] = (this.districtCounts[from * DISTRICT_KIND_SLOTS + kind] as number) - 1;
+      this.districtCounts[to * DISTRICT_KIND_SLOTS + kind] = (this.districtCounts[to * DISTRICT_KIND_SLOTS + kind] as number) + 1;
+    }
+    this.effDirty = true;
+  }
+
+  private clearAllDistricts(id: number): void {
+    if (this.districtCount === 0) return;
+    for (let slot = 0; slot < DISTRICT_MAX_SLOTS; slot++) this.clearDistrict(id, slot);
   }
 
   idAt(cell: number): number {
@@ -130,6 +215,7 @@ export class StructureTable implements StructureView {
 
   /** Frees a slot and puts it on the recycle stack. */
   remove(id: number): void {
+    this.clearAllDistricts(id);
     const ownerId = this.owner[id] as number;
     const type = this.type[id] as number;
     this.byCell[this.cell[id] as number] = 0;
@@ -150,6 +236,8 @@ export class StructureTable implements StructureView {
   rebuildIndex(): void {
     this.byCell.fill(0);
     this.counts.fill(0);
+    this.districtCounts.fill(0);
+    let districts = 0;
     let live = 0;
     for (let id = 0; id < this.highWater; id++) {
       const o = this.owner[id] as number;
@@ -158,7 +246,14 @@ export class StructureTable implements StructureView {
       const k = o * STRUCT_TYPE_SLOTS + (this.type[id] as number);
       this.counts[k] = (this.counts[k] as number) + 1;
       live++;
+      for (let slot = 0; slot < DISTRICT_MAX_SLOTS; slot++) {
+        const kind = this.districtKind[id * DISTRICT_MAX_SLOTS + slot] as number;
+        if (kind === 0) continue;
+        this.districtCounts[o * DISTRICT_KIND_SLOTS + kind] = (this.districtCounts[o * DISTRICT_KIND_SLOTS + kind] as number) + 1;
+        districts++;
+      }
     }
+    this.districtCount = districts;
     this.liveCount = live;
     this.effDirty = true;
   }
@@ -182,6 +277,22 @@ export function foldStructures(h: number, t: StructureTable): number {
     x = foldWord(x, t.buildTick[id] as number);
     x = foldWord(x, t.readyTick[id] as number);
     x = foldWord(x, t.upgradeReadyTick[id] as number);
+  }
+  // Districts (Districts-1): the count, then every occupied slot by ascending (id, slot).
+  x = foldWord(x, t.districtCount);
+  if (t.districtCount > 0) {
+    for (let id = 0; id < t.highWater; id++) {
+      for (let slot = 0; slot < DISTRICT_MAX_SLOTS; slot++) {
+        const at = id * DISTRICT_MAX_SLOTS + slot;
+        const kind = t.districtKind[at] as number;
+        if (kind === 0) continue;
+        x = foldWord(x, at);
+        x = foldWord(x, kind);
+        x = foldWord(x, t.districtLevel[at] as number);
+        x = foldWord(x, t.districtReadyTick[at] as number);
+        x = foldWord(x, t.districtUpgradeReadyTick[at] as number);
+      }
+    }
   }
   return x;
 }
@@ -214,7 +325,7 @@ class StateBuildSource implements BuildSource {
 }
 
 /** Match flow (D92, Fix-Sim): like Attack, Build / Upgrade / Delete are refused with REJECT_PHASE while a match with a spawn phase is in it. */
-function spawnPhaseRefuses(state: GameState): boolean {
+export function spawnPhaseRefuses(state: GameState): boolean {
   return state.header.config.spawnPhase === true && phaseAt(state.tick) === PHASE_SPAWN;
 }
 
@@ -265,6 +376,15 @@ export function structuresPhase(state: GameState): void {
       t.effDirty = true;
     }
   }
+  if (t.districtCount === 0) return;
+  for (let at = 0; at < t.highWater * DISTRICT_MAX_SLOTS; at++) {
+    const ready = t.districtUpgradeReadyTick[at] as number;
+    if (ready !== 0 && tick >= ready) {
+      t.districtLevel[at] = (t.districtLevel[at] as number) + 1;
+      t.districtUpgradeReadyTick[at] = 0;
+      t.effDirty = true;
+    }
+  }
 }
 
 /**
@@ -278,7 +398,9 @@ export function structureCellChanged(state: GameState, cell: number, newOwner: n
   const type = t.type[id] as number;
   if (newOwner !== 0 && (type === STRUCT_CITY || type === STRUCT_FACTORY || type === STRUCT_PORT)) {
     const level = t.level[id] as number;
-    t.transfer(id, newOwner, level > 1 ? level - 1 : 1);
+    const newLevel = level > 1 ? level - 1 : 1;
+    if (type === STRUCT_CITY) t.conquerDistricts(id, newOwner, newLevel, state.tick);
+    t.transfer(id, newOwner, newLevel);
   } else {
     t.remove(id);
   }

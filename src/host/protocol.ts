@@ -106,6 +106,13 @@ export interface StructureSnapshot {
   readonly deleteReady: Uint32Array;
   /** Structures per (ownerId, type), index ownerId * STRUCT_TYPE_SLOTS + type. */
   readonly counts: Uint16Array;
+  /** The district table (Districts-1) for the slots 0..highWater-1: index id * DISTRICT_MAX_SLOTS + slot. */
+  readonly districtKind: Uint8Array;
+  readonly districtLevel: Uint8Array;
+  readonly districtReadyTick: Uint32Array;
+  readonly districtUpgradeReadyTick: Uint32Array;
+  /** Districts per (ownerId, kind), index ownerId * DISTRICT_KIND_SLOTS + kind. */
+  readonly districtCounts: Uint16Array;
 }
 
 export type HostEvent =
@@ -150,6 +157,11 @@ export function cloneStructures(s: StructureSnapshot): StructureSnapshot {
     upgradeReadyTick: s.upgradeReadyTick.slice(),
     deleteReady: s.deleteReady.slice(),
     counts: s.counts.slice(),
+    districtKind: s.districtKind.slice(),
+    districtLevel: s.districtLevel.slice(),
+    districtReadyTick: s.districtReadyTick.slice(),
+    districtUpgradeReadyTick: s.districtUpgradeReadyTick.slice(),
+    districtCounts: s.districtCounts.slice(),
   };
 }
 

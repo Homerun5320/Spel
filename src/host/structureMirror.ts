@@ -2,6 +2,7 @@
 // replaced as a whole when a frame brings a new table (a few kilobytes; nothing is patched), and the per-cell index is rebuilt then.
 // UI, AI-facing helpers (`validateBuild`, the price functions) and the renderer read it exactly like the sim's own table.
 import type { StructureView } from '../sim/structureRules';
+import { DISTRICT_KIND_SLOTS, type DistrictView } from '../sim/districtRules';
 import { STRUCT_TYPE_SLOTS } from '../sim/structureRules';
 import type { StructureSnapshot } from './protocol';
 
@@ -18,9 +19,14 @@ const EMPTY: StructureSnapshot = Object.freeze({
   upgradeReadyTick: new Uint32Array(0),
   deleteReady: new Uint32Array(0),
   counts: new Uint16Array(0),
+  districtKind: new Uint8Array(0),
+  districtLevel: new Uint8Array(0),
+  districtReadyTick: new Uint32Array(0),
+  districtUpgradeReadyTick: new Uint32Array(0),
+  districtCounts: new Uint16Array(0),
 });
 
-export class MirrorStructures implements StructureView {
+export class MirrorStructures implements StructureView, DistrictView {
   private snap: StructureSnapshot = EMPTY;
   private byCell = new Map<number, number>();
   /** Increases whenever a new table was adopted (the renderer rebuilds its instances only then). */
@@ -62,6 +68,22 @@ export class MirrorStructures implements StructureView {
   }
   get upgradeReadyTick(): ArrayLike<number> {
     return this.snap.upgradeReadyTick;
+  }
+  get districtKind(): ArrayLike<number> {
+    return this.snap.districtKind;
+  }
+  get districtLevel(): ArrayLike<number> {
+    return this.snap.districtLevel;
+  }
+  get districtReadyTick(): ArrayLike<number> {
+    return this.snap.districtReadyTick;
+  }
+  get districtUpgradeReadyTick(): ArrayLike<number> {
+    return this.snap.districtUpgradeReadyTick;
+  }
+  districtsOwned(ownerId: number, kind: number): number {
+    if (ownerId < 0 || kind < 0 || kind >= DISTRICT_KIND_SLOTS) return 0;
+    return (this.snap.districtCounts[ownerId * DISTRICT_KIND_SLOTS + kind] as number | undefined) ?? 0;
   }
   idAt(cell: number): number {
     return this.byCell.get(cell) ?? -1;

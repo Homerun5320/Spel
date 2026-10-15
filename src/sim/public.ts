@@ -118,3 +118,44 @@ export {
   PORT_TRADE_PCT_BY_LEVEL,
   SAM_MOUNTAIN_PCT,
 } from './rules';
+
+// Districts-1 (append-only): the district kinds, the checks and reason codes, the effect numbers, the intent constructors and the constants of rules.ts the UI / AI read.
+export type { BuildDistrictBody, RemoveDistrictBody, UpgradeDistrictBody } from './intents';
+export { buildDistrictBody, removeDistrictBody, upgradeDistrictBody } from './intents';
+export {
+  REJECT_DISTRICT_CITY_BUILDING,
+  REJECT_DISTRICT_EMPTY,
+  REJECT_DISTRICT_KIND,
+  REJECT_DISTRICT_NOT_CITY,
+  REJECT_DISTRICT_OCCUPIED,
+  REJECT_DISTRICT_SLOT,
+} from './intents';
+export type { DistrictEffect, DistrictView } from './districtRules';
+export {
+  DISTRICT_BARRACKS,
+  DISTRICT_HOUSING,
+  DISTRICT_KIND_SLOTS,
+  DISTRICT_MARKET,
+  DISTRICT_NONE,
+  DISTRICT_WALLS,
+  districtBuildPriceGold,
+  districtBuildPriceMilli,
+  districtEffect,
+  districtIndex,
+  districtSlotsOf,
+  districtUpgradePriceGold,
+  isDistrictKind,
+  validateBuildDistrict,
+  validateRemoveDistrict,
+  validateUpgradeDistrict,
+} from './districtRules';
+export {
+  AI_DISTRICT_MIN_CITIES,
+  AI_DISTRICT_RETRY_TICKS,
+  DISTRICT_BASE_GOLD,
+  DISTRICT_BUILD_TICKS,
+  DISTRICT_MAX_LEVEL,
+  DISTRICT_MAX_SLOTS,
+  DISTRICT_SLOTS_BY_LEVEL,
+  DISTRICT_WALLS_RADIUS_CELLS,
+} from './rules';

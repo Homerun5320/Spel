@@ -20,6 +20,8 @@ export interface AiMemory {
   attempts: number;
   /** Earliest tick of the next look for a build place (set after a think that found none). */
   buildRetryAt: number;
+  /** Earliest tick of the next look for a district to build or upgrade (set after a think that found none). */
+  districtRetryAt: number;
   /** Builds asked for so far (a counter for the tests and the report). */
   builds: number;
   /** Tick of the last Attack this seat sent per target ownerId, -1 = never. */
@@ -55,14 +57,15 @@ export function createAiMemory(view: SimView, seat: number, options: AiMemoryOpt
     retryAt: 0,
     attempts: 0,
     buildRetryAt: 0,
+    districtRetryAt: 0,
     builds: 0,
     lastAttack: new Int32Array(view.seats + 1).fill(-1),
     human,
   };
 }
 
-/** Words before the per-owner Attack ticks in the serialised form of a memory (release, retryAt, attempts, buildRetryAt, builds). */
-export const MEMORY_FIXED_WORDS = 5;
+/** Words before the per-owner Attack ticks in the serialised form of a memory (release, retryAt, attempts, buildRetryAt, builds, districtRetryAt). */
+export const MEMORY_FIXED_WORDS = 6;
 
 /** The changing part of a memory as words (the rest follows from the seed, the seats and the driver's options). For the AI-state blob (M24b saves it). */
 export function memoryWords(m: AiMemory): Int32Array {
@@ -72,6 +75,7 @@ export function memoryWords(m: AiMemory): Int32Array {
   out[2] = m.attempts;
   out[3] = m.buildRetryAt;
   out[4] = m.builds;
+  out[5] = m.districtRetryAt;
   out.set(m.lastAttack, MEMORY_FIXED_WORDS);
   return out;
 }
@@ -84,6 +88,7 @@ export function loadMemoryWords(m: AiMemory, words: ArrayLike<number>): boolean 
   m.attempts = words[2] as number;
   m.buildRetryAt = words[3] as number;
   m.builds = words[4] as number;
+  m.districtRetryAt = words[5] as number;
   for (let i = 0; i < m.lastAttack.length; i++) m.lastAttack[i] = words[MEMORY_FIXED_WORDS + i] as number;
   return true;
 }

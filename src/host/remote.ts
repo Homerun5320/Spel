@@ -34,6 +34,7 @@ function viewBuffers(v: ViewSnapshot): ArrayBuffer[] {
   if (st !== null) {
     list.push(st.type.buffer as ArrayBuffer, st.owner.buffer as ArrayBuffer, st.cell.buffer as ArrayBuffer, st.level.buffer as ArrayBuffer);
     list.push(st.buildTick.buffer as ArrayBuffer, st.readyTick.buffer as ArrayBuffer, st.upgradeReadyTick.buffer as ArrayBuffer, st.deleteReady.buffer as ArrayBuffer, st.counts.buffer as ArrayBuffer);
+    list.push(st.districtKind.buffer as ArrayBuffer, st.districtLevel.buffer as ArrayBuffer, st.districtReadyTick.buffer as ArrayBuffer, st.districtUpgradeReadyTick.buffer as ArrayBuffer, st.districtCounts.buffer as ArrayBuffer);
   }
   return list;
 }

@@ -9,6 +9,7 @@
 import { ownerSlots } from '../sim/state';
 import { PHASE_PLAY, phaseAt, phaseTicksLeft, type MatchPhase } from '../sim/flow';
 import type { StructureView } from '../sim/structureRules';
+import type { DistrictView } from '../sim/districtRules';
 import { MirrorStructures } from './structureMirror';
 import { countContacts, statsViewOf, type ReadonlyNumbers, type SeatStatsView, type SimView } from '../sim/view';
 import type { HostEvent, SimHost, Speed, StateDiff, Unsubscribe, ViewSnapshot } from './protocol';
@@ -78,6 +79,10 @@ export class ViewMirror implements SimView {
     return this.structureTable;
   }
 
+  /** The district table (Districts-1): carried by the same snapshot as the structure table, so `structuresVersion` moves with it. */
+  get districts(): DistrictView {
+    return this.structureTable;
+  }
   get structuresVersion(): number {
     return this.structureTable.version;
   }

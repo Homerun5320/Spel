@@ -13,6 +13,7 @@ import { seatToOwner, type GameState } from './state';
 import { structGoldMilliPerSec } from './structureEffects';
 import { landShareQ15 } from './territory';
 import type { StructureView } from './structureRules';
+import type { DistrictView } from './districtRules';
 
 /** An array you can index and measure but not write to (the type of a typed array without its mutators). */
 export interface ReadonlyNumbers {
@@ -90,6 +91,8 @@ export interface SimView {
   contactLength(a: number, b: number): number;
   /** The structure table (M09 part A), read-only: arrays by structure id, `idAt(cell)`, `ownedCount(ownerId, type)`. A ViewMirror carries a copy of it (M10: the host sends the table in the snapshot, src/host/structureMirror.ts). */
   readonly structures: StructureView;
+  /** The district table (Districts-1), read-only: kind, level, readyTick and upgradeReadyTick per (structure, slot) at `structureId * DISTRICT_MAX_SLOTS + slot`, and `districtsOwned(ownerId, kind)`. A ViewMirror carries a copy of it with the structure table. */
+  readonly districts: DistrictView;
   /** The tick until which a cell is fallout, 0 = not (the FALLOUT_UNTIL layer: zero until M14). */
   falloutUntilAt(cell: number): number;
   /**
@@ -264,6 +267,9 @@ export class StateView implements SimView {
     return this.state.borders.contact(a, b);
   }
   get structures(): StructureView {
+    return this.state.structures;
+  }
+  get districts(): DistrictView {
     return this.state.structures;
   }
   falloutUntilAt(): number {
