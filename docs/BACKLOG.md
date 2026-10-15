@@ -318,3 +318,10 @@ Not done in the Fix-UI slice (the sim, host and AI findings belong to Fix-Sim):
 - Ring lifts are sampled at the true-size radius only; a ring widened by the scale policy at mid distance uses the same lifts.
 - Fix-UI low-priority items (6) were not worked through beyond what Fix-UI already did.
 - The tip still sits below the Play button on a 560 px window (the card scrolls); Play itself is always reachable.
+
+## Districts-2b leftovers
+- Walls model reads weaker than the other three from afar (the arc is short); a longer arc or a pale slab would help. Housing and the City's own blocks look alike.
+- A far icon for districts (a small pip on the City's icon per built district) was not built; they simply vanish beyond about 60 km camera distance.
+- An upgrade look (a scaffold or stipple while a district upgrades, from `districtUpgradeReadyTick`).
+- Per-tier budget of 9 000 / 18 000 / 36 000 / 72 000 triangles is a first guess; measure on the school laptop with `#perf`.
+- Barracks flag and Market awning do not animate (a wind sway on the fx clock would be one uniform).

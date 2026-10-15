@@ -260,3 +260,5 @@ See `docs/CHARTER.md` section 8. Planned modules (later): `src/ai` (M05 part C),
 
 
 Polish-1 additions: `src/ui/buildReasons.ts` `spawnPhaseBlocks`, `src/render/rings.ts` `selectRingLiftsM`, the ring attribute `aLift` in `src/render/structures.ts`, `CameraRig.setViewport` follows the maximum distance, test hook `__test.resize(w, h)`; tests `tests/render/polish1.test.ts`, `e2e/polishPhase.test.ts`.
+
+Districts-2b additions: `src/render/districts.ts` (`DistrictLayer`: `setTable(structures, districts, version)`, `frame(camera, fx, tick, viewH, tanHalf)`, `instances`, `counts`, `total`, `dropped`, `trianglesDrawn`, `visible`; one instanced mesh, one draw call, none when empty or too far), `src/render/districtModels.ts` (the four models, `districtSlotModelOffset`, `districtSlotOffsetM`, `districtFade`, `districtCutDistanceM`), `src/render/shaders/districts.ts`, `Globe.districts`, `__test.props().districts` ({counts per kind, total, triangles, dropped, drawn, list}); constants `DISTRICT_*` at the end of `src/render/config.ts`; tests `tests/render/districtLayer.test.ts`, `e2e/districtsLayer.test.ts` (golden `districts-layer.png`).

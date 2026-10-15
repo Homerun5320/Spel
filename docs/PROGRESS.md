@@ -860,6 +860,13 @@ Base: 00d16f3 (branch claude/ecstatic-euler-s1wm2k). Previous merge SHA (`git re
 - [x] 9. Tests (each shown to fail on a mutant, 15 mutants killed): `tests/sim/districts.test.ts`, `tests/sim/districtsState.test.ts`, `tests/sim/districtsReport.test.ts`, `tests/ai/districts.test.ts`, `tests/host/districtMirror.test.ts`, `tests/districts.perf.test.ts` (step with 299 districts and 300 structures: calm 30 us, recompute every step 850 us, budget budgetMs(4) = 4.5 ms)
 - [x] ACCEPTANS: `npm run verify:fast` green (typecheck, lint, 190 files / 2130 tests); solo AI scenario factor 1.02 of the band (14 328 cells; 1.02 before), `tests/sim/pace.test.ts` unchanged and green; Node and worker golden hashes equal (`tests/sim/worker.test.ts`). NOT run (orchestrator): `npm run verify`, Chromium.
 
+### Districts-2b (render side of the districts)
+- [x] The district table is read from the snapshot (`view.structures` + `view.districts`, same `structuresVersion`) by `globe.districts.setTable` (globeApp, one line).
+- [x] ONE instanced layer, one draw call: `src/render/districts.ts`, `src/render/districtModels.ts`, `src/render/shaders/districts.ts`; four models (Housing, Market, Barracks, Walls) of at most 60 triangles; owner colour, level scale 1.0 / 1.2 / 1.4, fixed slots, ground height per slot, construction look and pop-in as the structures.
+- [x] Distance cut (fade 3 to 5 px of radius, nothing drawn and no draw call beyond the cut) and a per-layer triangle budget (`DISTRICT_TRIANGLE_BUDGET`); Budgetar row added.
+- [x] Tests: `tests/render/districtLayer.test.ts`, `e2e/districtsLayer.test.ts` (golden `districts-layer.png`).
+- [ ] Not in this slice: see BACKLOG "Districts-2b leftovers".
+
 ## Next
 
 - Audit 1 (the batch audit of versions 12 to 16, range 7018b4c..cf01c79) found no blocker and a list of majors; the fix slices 'Fix-Sim' and 'Fix-UI' work through them (see their sections under Now and docs/BACKLOG.md 'Audit 1 leftovers'). After that: the building roadmap continues (more kinds of buildings, the city detail map of M18e), then M11a radar and the air milestones M11b to M13b.
