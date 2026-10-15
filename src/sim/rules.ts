@@ -376,3 +376,27 @@ export const DISTRICT_WALLS_RADIUS_CELLS = 2;
 export const AI_DISTRICT_RETRY_TICKS = 100;
 /** The AI builds districts only once it owns this many Cities (round 1 of the Districts-1 tuning: the first Cities come first). */
 export const AI_DISTRICT_MIN_CITIES = 3;
+
+// M11a: the line-of-sight (LOS) and exposure rules (src/sim/los). Heights in the LOS maths are GAME metres: the real height times GAMEPLAY_HEIGHT_EXAG.
+// The ground or ridge is exaggerated, an aircraft's altitude above it (AGL) and an antenna are not. Each constant has a row in docs/BALANCE.md.
+
+/** Height exaggeration of the LOS maths (allowed 6 to 10): a ridge counts this many times its real height. */
+export const GAMEPLAY_HEIGHT_EXAG = 8;
+/** The effective occluder height of a cell is mean + this percent of (max - mean) (allowed 20 to 60), times GAMEPLAY_HEIGHT_EXAG. Integer percent, not a fraction, so the maths stays in integers. */
+export const OCCLUDER_MAX_WEIGHT_PCT = 60;
+/** The antenna of a SAM or radar site above its ground, in game metres (not exaggerated). */
+export const SITE_ANTENNA_M = 30;
+/** Altitude above ground level of the Low flight mode in metres (not exaggerated). */
+export const ALT_LOW_AGL_M = 300;
+/** Altitude above ground level of the High flight mode in metres (not exaggerated); High ignores the mask, so only M11b's service ceiling reads it. */
+export const ALT_HIGH_AGL_M = 3000;
+/** The side of a composite tile in cells. */
+export const LOS_TILE_CELLS = 64;
+/** One step of a mask value in game metres (a Uint16 holds up to 131 070 game metres). */
+export const LOS_MASK_UNIT_GM = 2;
+/** The rays of a mask are cast to the perimeter of its box at this many targets per cell (1 = one per perimeter cell). */
+export const LOS_RAY_OVERSAMPLE = 2;
+/** Every mask value is lowered by this many game metres before it is rounded down: the discretisation of the rays may err only in the radar's favour (measured: no cell hidden by the mask is visible by the exact line on the seven fixtures). */
+export const LOS_MASK_SLACK_GM = 48;
+/** Masks of a larger radius than this cast one ray per perimeter cell instead of LOS_RAY_OVERSAMPLE (the ring estimate carries the accuracy; this keeps a R=64 mask under 2 ms). The SAM radii are at most 34 cells. */
+export const LOS_RAY_OVERSAMPLE_MAX_RADIUS = 40;
