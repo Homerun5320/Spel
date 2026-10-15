@@ -18,6 +18,7 @@
 import { pickSpawnCell } from '../ai';
 import { isRegionId, type RegionId } from '../data/regions';
 import { traitMilli } from '../sim/homeRules';
+import { validWinConfig, type WinConfig } from '../sim/matchState';
 import { createRng, nextBelow } from '../sim/public';
 import {
   AI_TRIBE_CLEARANCE_CELLS,
@@ -30,7 +31,11 @@ import {
   TRAIT_COAST_GAIN_PCT,
   TRAIT_COAST_MID_PERMILLE,
   TRAIT_MOUNTAIN_GAIN_PCT,
+  TIME_LIMIT_SKIRMISH_TICKS,
+  TIME_LIMIT_WORLD_TICKS,
   TRAIT_MOUNTAIN_MID_PERMILLE,
+  WIN_HOLD_TICKS,
+  WIN_LAND_SHARE_PCT,
 } from '../sim/rules';
 import { startSeats, type SeatStart } from '../sim/setup';
 import { countDisc } from '../sim/spawn';
@@ -86,6 +91,23 @@ export interface MatchSetupConfig {
   readonly spawnPhase: boolean;
   /** Allows the test-only intents. */
   readonly debugIntents: boolean;
+  /**
+   * The win conditions of the match (M18-1): which of the three are on and their numbers. Absent = the defaults of `defaultWinConfig(region)`
+   * (all three on; this is what a real match gets); `null` = the match never ends (tests, the pace tool and the selfplay scripts pin this).
+   */
+  readonly win?: WinConfig | null;
+}
+
+/** The default win block of a region (M18-1): all three conditions on, 60 percent held for 300 ticks, the time limit of a Skirmish (12 min) or of the World (25 min). */
+export function defaultWinConfig(region: RegionId): WinConfig {
+  return {
+    land: true,
+    last: true,
+    score: true,
+    timeLimitTicks: region === 'world' ? TIME_LIMIT_WORLD_TICKS : TIME_LIMIT_SKIRMISH_TICKS,
+    landSharePct: WIN_LAND_SHARE_PCT,
+    holdTicks: WIN_HOLD_TICKS,
+  };
 }
 
 /** A config with the defaults of the options (12 AI nations, tribes on, normal difficulty, the whole world, seed 1). */
@@ -101,6 +123,7 @@ export function matchSetupConfig(player: PlayerChoice, options: Partial<Omit<Mat
     humanSeat: options.humanSeat ?? 0,
     spawnPhase: options.spawnPhase ?? true,
     debugIntents: options.debugIntents ?? false,
+    ...(options.win !== undefined ? { win: options.win } : {}),
   };
 }
 
@@ -185,6 +208,7 @@ function badField(c: MatchSetupConfig): string | null {
   if (!isInt(c.humanSeat, 0, typeof c.aiNations === 'number' ? c.aiNations : 0)) return 'humanSeat';
   if (typeof c.spawnPhase !== 'boolean') return 'spawnPhase';
   if (typeof c.debugIntents !== 'boolean') return 'debugIntents';
+  if (c.win !== undefined && c.win !== null && !validWinConfig(c.win)) return 'win';
   const p = c.player as PlayerChoice | null | undefined;
   if (typeof p !== 'object' || p === null) return 'player';
   if (p.kind === 'real') return isInt(p.countryId, 1, 255) ? null : 'player.countryId';
@@ -284,7 +308,7 @@ function build(world: PreparedWorld, config: MatchSetupConfig, lenient: boolean)
     seed: config.seed,
     seats: players + tribeSeats,
     players,
-    config: { debugIntents: config.debugIntents, spawnPhase: config.spawnPhase, homeRules },
+    config: { debugIntents: config.debugIntents, spawnPhase: config.spawnPhase, homeRules, ...(config.win === null ? {} : { win: config.win ?? defaultWinConfig(config.region) }) },
     countryMap,
   });
 

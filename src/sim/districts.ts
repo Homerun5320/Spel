@@ -16,6 +16,7 @@ export function applyBuildDistrict(state: GameState, seat: number, structure: nu
   if (why !== REJECT_NONE) return why;
   state.gold[ownerId] = (state.gold[ownerId] as number) - districtBuildPriceMilli(t, ownerId, kind);
   t.setDistrict(structure, slot, kind, 1, state.tick + (DISTRICT_BUILD_TICKS[kind] as number), 0);
+  state.match.districts[ownerId] = ((state.match.districts[ownerId] as number) + 1) >>> 0;
   return REJECT_NONE;
 }
 

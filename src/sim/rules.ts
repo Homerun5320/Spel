@@ -376,3 +376,35 @@ export const DISTRICT_WALLS_RADIUS_CELLS = 2;
 export const AI_DISTRICT_RETRY_TICKS = 100;
 /** The AI builds districts only once it owns this many Cities (round 1 of the Districts-1 tuning: the first Cities come first). */
 export const AI_DISTRICT_MIN_CITIES = 3;
+
+// ---------------------------------------------------------------------------------------------------------------
+// M18-1: the match end (src/sim/win.ts), the anti-snowball discount and the statistics. The win conditions are switched on per match by
+// `config.win` (a match without it never ends). Land is counted in WEIGHTED STANDARD CELLS (Q15 weight sum / (WEIGHT_ONE * STD_CELL_AREA), floored);
+// the land-share rule compares the exact weights, so the unit of the score and the unit of the percent rule are the same land.
+
+/** Condition (a): the share of all playable weighted land a nation must hold, in percent (before the overtime curve). */
+export const WIN_LAND_SHARE_PCT = 60;
+/** Condition (a): ticks the share must be held without a break (300 = 30 s); a dip below the requirement resets the timer. */
+export const WIN_HOLD_TICKS = 300;
+/** Condition (c): the time limit in ticks counted from the end of the spawn phase, Skirmish (7200 = 12 min). */
+export const TIME_LIMIT_SKIRMISH_TICKS = 7200;
+/** Condition (c): the time limit in ticks, World (15000 = 25 min). */
+export const TIME_LIMIT_WORLD_TICKS = 15000;
+/** Overtime: the land requirement falls by OVERTIME_STEP_PCT percentage points for every whole minute after this minute of play (60 percent up to minute 21, 59 from there). */
+export const OVERTIME_START_MINUTE = 20;
+/** Overtime: percentage points per whole minute after OVERTIME_START_MINUTE. */
+export const OVERTIME_STEP_PCT = 1;
+/** The overtime curve never asks for less than this share (percent). Structural floor, so the requirement stays a real share. */
+export const OVERTIME_MIN_PCT = 1;
+/** Score = land (weighted std-cells) + SCORE_CITY_LEVEL_POINTS per finished City level + SCORE_FACTORY_LEVEL_POINTS per finished Factory level. */
+export const SCORE_CITY_LEVEL_POINTS = 25;
+export const SCORE_FACTORY_LEVEL_POINTS = 10;
+
+/** Anti-snowball: an attacker pays LEADER_COST_PCT_MID percent of the cell price against a NATION that holds MORE than this share of the weighted land (strictly greater). The AI gang-up rule reads the same two thresholds. */
+export const LEADER_LAND_PCT_MID = 25;
+/** Anti-snowball: the higher threshold (strictly greater than 40 percent). */
+export const LEADER_LAND_PCT_HIGH = 40;
+/** The attacker's price in percent against a target above LEADER_LAND_PCT_MID (x0.85). */
+export const LEADER_COST_PCT_MID = 85;
+/** The attacker's price in percent against a target above LEADER_LAND_PCT_HIGH (x0.7); it replaces the mid discount, they never stack. */
+export const LEADER_COST_PCT_HIGH = 70;

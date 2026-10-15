@@ -42,9 +42,9 @@ function refused(tamper: (s: GameState) => void, error = 'structure-range'): voi
 }
 
 describe('versions', () => {
-  it('ENGINE_VERSION is 10 and FORMAT_VERSION is 8 (Districts-1)', () => {
-    expect(ENGINE_VERSION).toBe(10);
-    expect(FORMAT_VERSION).toBe(8);
+  it('ENGINE_VERSION is 11 and FORMAT_VERSION is 9 (M18-1: the match block follows the districts)', () => {
+    expect(ENGINE_VERSION).toBe(11);
+    expect(FORMAT_VERSION).toBe(9);
   });
 });
 
@@ -129,8 +129,9 @@ describe('deserialize refuses a forged district block', () => {
       s.structures.districtCount++; // the derived count follows the arrays, as the sim keeps it
     }));
   it('D08 a district count beyond 4 per live structure, and a count that does not match the bytes', () => {
-    const bytes = serialize(base());
-    const countAt = bytes.length - 4 - 4 * 24 - 4;
+    const st = base();
+    const bytes = serialize(st);
+    const countAt = bytes.length - 4 - (40 + 24 * (st.header.seats + 1)) - 4 * 24 - 4; // M18-1: the match block sits between the districts and the checksum
     const view = (b: Uint8Array): DataView => new DataView(b.buffer);
     expect(view(bytes).getUint32(countAt, true)).toBe(4);
     const huge = bytes.slice();
@@ -145,8 +146,9 @@ describe('deserialize refuses a forged district block', () => {
     if (!r2.ok) expect(r2.error).toBe('size');
   });
   it('D09 districts out of order or twice (the records must ascend by id and slot)', () => {
-    const bytes = serialize(base());
-    const first = bytes.length - 4 - 4 * 24;
+    const st = base();
+    const bytes = serialize(st);
+    const first = bytes.length - 4 - (40 + 24 * (st.header.seats + 1)) - 4 * 24;
     const view = (b: Uint8Array): DataView => new DataView(b.buffer);
     const swapped = bytes.slice();
     swapped.set(bytes.subarray(first, first + 24), first + 24);

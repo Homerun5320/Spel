@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import type { SimView } from '../../src/sim/public';
 import { PHASE_PLAY, PHASE_SPAWN } from '../../src/sim/public';
+import { matchPackedLength, matchViewOf } from '../../src/sim/matchView';
 import { HumanBot, DEFAULT_HUMAN_BOT } from '../../tools/sim/humanBot';
 import {
   GUARD_ALIVE_MINUTE3_PCT,
@@ -239,6 +240,7 @@ function stubView(tick: number, p: { troops: number[]; cap: number[]; alive?: nu
     structures: { capacity: 0, highWater: 0, liveCount: 0, type: [], owner: [], cell: [], level: [], buildTick: [], readyTick: [], upgradeReadyTick: [], idAt: () => -1, ownedCount: () => 0, deleteReadyTick: () => 0 },
     districts: { districtKind: [], districtLevel: [], districtReadyTick: [], districtUpgradeReadyTick: [], districtsOwned: () => 0 },
     falloutUntilAt: () => 0,
+    match: matchViewOf(n, new Uint32Array(matchPackedLength(n))),
   };
 }
 

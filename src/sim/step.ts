@@ -19,6 +19,7 @@ import { applyBuildDistrict, applyRemoveDistrict, applyUpgradeDistrict } from '.
 import { applyBuild, applyDelete, applyUpgrade, structuresPhase } from './structures';
 import { seatToOwner, type GameState } from './state';
 import { setOwner } from './territory';
+import { winPhase } from './win';
 
 export type StepError = 'turn-mismatch' | 'bad-turn' | 'too-many';
 
@@ -72,6 +73,11 @@ export function step(state: GameState, turn: TurnIntents): StepResult {
   if (!Array.isArray(list)) return { ok: false, error: 'bad-turn' };
   if (list.length > MAX_INTENTS_PER_TURN) return { ok: false, error: 'too-many' };
 
+  if (state.match.ended === 1) {
+    // The match is over (M18-1): the rules stop, only the tick counter runs so that a host and its clock go on.
+    state.tick = (state.tick + 1) >>> 0;
+    return NOTHING_TO_DO;
+  }
   state.work.reset();
   let applied = 0;
   let rejected = 0;
@@ -106,7 +112,7 @@ export function step(state: GameState, turn: TurnIntents): StepResult {
       applied++;
     }
   }
-  // Phases of a tick: 1 intents (above), 2 conquest, 3 enclaves, 4 economy, 5 structures (finished upgrades), 6 the generator, 7 the tick.
+  // Phases of a tick: 1 intents (above), 2 conquest, 3 enclaves, 4 economy, 5 structures (finished upgrades), 6 the generator, 7 the tick, 8 the match end (peak land, elimination, win conditions; M18-1).
   conquestPhase(state);
   enclavePhase(state);
   economyTick(state);
@@ -114,5 +120,6 @@ export function step(state: GameState, turn: TurnIntents): StepResult {
   if (rejected > 0) state.rejects = (state.rejects + rejected) >>> 0;
   nextU32(state.rng);
   state.tick = (state.tick + 1) >>> 0;
+  winPhase(state);
   return applied === 0 && rejected === 0 ? NOTHING_TO_DO : { ok: true, applied, rejected };
 }

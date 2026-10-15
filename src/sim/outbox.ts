@@ -7,6 +7,12 @@ export const OUTBOX_CAPACITY = 8192;
 export const OUTBOX_PAINT = 1;
 /** An intent was refused: a = reason (REJECT_*), b = 0. */
 export const OUTBOX_REJECT = 2;
+/** A seat was eliminated (it spawned and owns no cell any more): a = seat, b = 0. */
+export const OUTBOX_ELIMINATED = 3;
+/** A seat's capital cell is held by another owner (a transition, once): a = seat, b = 0. */
+export const OUTBOX_CAPITAL_LOST = 4;
+/** The match ended: a = ownerId of the winner (0 = none), b = WIN_REASON_*. */
+export const OUTBOX_MATCH_END = 5;
 
 export interface OutboxEvent {
   readonly kind: number;

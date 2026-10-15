@@ -148,6 +148,8 @@ export class AiDriver implements TickDriver {
   }
 
   onTick(view: SimView, submit: (body: IntentBody) => void): void {
+    // M18-1: once the match is over the sim ignores every intent, so the AI stops thinking (no stall, no wasted ticks).
+    if (view.match.ended) return;
     if (this.memories === null) {
       this.memories = [];
       let order = 0;

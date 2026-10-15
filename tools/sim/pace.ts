@@ -319,7 +319,8 @@ export async function runMatch(setup: MatchSetupName, seed: number, minutes: num
   const list = HUMAN_COUNTRIES[setup];
   const human = list[Math.abs(seed) % list.length] as string;
   const options = MATCH_OPTIONS[setup](seed);
-  const built = createMatch(world, matchSetupConfig({ kind: 'real', countryId: countryId(world, human) }, options));
+  // win: null = the pace report measures the economy and the board, so no win condition may end the match (M18-1).
+  const built = createMatch(world, matchSetupConfig({ kind: 'real', countryId: countryId(world, human) }, { ...options, win: null }));
   if (!built.ok) throw new Error(`${setup} seed ${seed} (${human}): ${built.error.code}`);
   const match = built.match;
   const state = match.state;

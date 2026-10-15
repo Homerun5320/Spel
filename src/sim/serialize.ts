@@ -16,6 +16,8 @@
 //      structures (M09 part A, always present): highWater u32, recycledCount u32, recycled u32 x recycledCount, deleteReady u32 x (seats+1), embargo u8 x (seats+1)^2 (M09 part B),
 //               liveCount u32, then per live slot by ascending id: id type owner cell level buildTick readyTick upgradeReadyTick (u32 each),
 //               then (Districts-1) districtCount u32 and per district by ascending (id, slot): id slot kind level readyTick upgradeReadyTick (u32 each)
+//      match block (M18-1, always present): winFlags timeLimitTicks landSharePct holdTicks ended winner reason endTick holdOwner holdCount (u32 each), then six u32 x (seats+1)
+//               arrays: eliminated capitalLost peakLand built conquered districts
 //   end: checksum u32 = hashState(state)                                      (n = width * height)
 // The outbox and the derived parts (grid, aggregates, scratch) are not part of the format. deserialize() never throws:
 // any byte string gives a state or an error result.
@@ -23,6 +25,7 @@ import { Attack, AttackTable } from './attacks';
 import { EnclaveQueues, enclaveBucket } from './enclaveQueue';
 import { TRAIT_MAX_MILLI, TRAIT_MIN_MILLI, type HomeRules } from './homeRules';
 import { foldStructures } from './structures';
+import { MatchState, normalWin, winFlagsOf, type WinConfig, WIN_FLAG_LAND, WIN_FLAG_LAST, WIN_FLAG_SCORE } from './matchState';
 import { FNV_OFFSET, finishHash, foldBytes, foldU16, foldU32, foldWord } from './hash';
 import { BUILD_TICKS, DISTRICT_BUILD_TICKS, DISTRICT_MAX_LEVEL, DISTRICT_MAX_SLOTS, D_MAX_CELLS, ENCLAVE_FLIP_TICKS, MICRO_CELLS_PER_CELL, MICRO_QT_PER_QT, MILLI_QT_PER_QT, PROGRESS_DEBT_MAX, STRUCT_CAPACITY, STRUCT_MAX_LEVEL } from './rules';
 import { STRUCT_CITY, STRUCT_TYPE_SLOTS } from './structureRules';
@@ -37,12 +40,14 @@ import {
   ownerSlots,
   validDimensions,
   validRowCos,
+  normalConfig,
   type GameState,
+  type MatchConfig,
   type MatchHeader,
 } from './state';
 
-/** Bumped when the byte layout above changes. 2: owner u16 (D71). 3: players, rowCos and the per-owner economy arrays (M04). 4: attacks and the enclave queue (M04 conquest). 5: the exposure array (M04 fix pass). 6: the structure table (M09 part A). 7: the embargo flags (M09 part B). 8: the district table (Districts-1). */
-export const FORMAT_VERSION = 8;
+/** Bumped when the byte layout above changes. 2: owner u16 (D71). 3: players, rowCos and the per-owner economy arrays (M04). 4: attacks and the enclave queue (M04 conquest). 5: the exposure array (M04 fix pass). 6: the structure table (M09 part A). 7: the embargo flags (M09 part B). 8: the district table (Districts-1). 9: the match block (M18-1). */
+export const FORMAT_VERSION = 9;
 /** 'SPEL' as a little-endian u32. */
 export const MAGIC = 0x4c455053;
 export const HEADER_BYTES = 64;
@@ -65,6 +70,10 @@ const BYTES_PER_STRUCTURE = 32;
 const BYTES_PER_ATTACK = 36;
 /** One frontier bag: depth and count, then its cells (4 bytes each). */
 const BYTES_PER_BAG = 8;
+/** The match block: ten u32 scalars and six u32 arrays of (seats + 1). */
+function matchBytes(seats: number): number {
+  return 40 + 24 * ownerSlots(seats);
+}
 
 export type DeserializeError =
   | 'not-bytes'
@@ -81,6 +90,7 @@ export type DeserializeError =
   | 'enclave-range'
   | 'home-range'
   | 'structure-range'
+  | 'match-range'
   | 'checksum';
 
 export type DeserializeResult =
@@ -89,7 +99,7 @@ export type DeserializeResult =
 
 /** Number of bytes serialize() produces for a size when no attack is running and no enclave candidate is queued. */
 export function serializedLength(width: number, height: number, seats: number): number {
-  return HEADER_BYTES + width * height * BYTES_PER_CELL + height * BYTES_PER_ROW + ownerSlots(seats) * BYTES_PER_OWNER + EMPTY_TABLES_BYTES + EMPTY_STRUCTURE_BYTES + ownerSlots(seats) * 4 + ownerSlots(seats) * ownerSlots(seats) + CHECKSUM_BYTES;
+  return HEADER_BYTES + width * height * BYTES_PER_CELL + height * BYTES_PER_ROW + ownerSlots(seats) * BYTES_PER_OWNER + EMPTY_TABLES_BYTES + EMPTY_STRUCTURE_BYTES + ownerSlots(seats) * 4 + ownerSlots(seats) * ownerSlots(seats) + matchBytes(seats) + CHECKSUM_BYTES;
 }
 
 /** Number of non-empty frontier bags of an attack. */
@@ -111,6 +121,28 @@ export function serializedLengthOf(state: GameState): number {
   if (state.home !== null) n += homeBytes(state.width * state.height, state.header.seats);
   n += state.structures.liveCount * BYTES_PER_STRUCTURE + state.structures.recycledCount * 4 + state.structures.districtCount * BYTES_PER_DISTRICT;
   return n + state.enclaves.length * 4;
+}
+
+/** Folds the win block of the header and the match state (M18-1). */
+function foldMatch(h: number, state: GameState): number {
+  const w = state.header.config.win;
+  const m = state.match;
+  let x = foldWord(h, winFlagsOf(w));
+  x = foldWord(x, w === undefined ? 0 : w.timeLimitTicks);
+  x = foldWord(x, w === undefined ? 0 : w.landSharePct);
+  x = foldWord(x, w === undefined ? 0 : w.holdTicks);
+  x = foldWord(x, m.ended);
+  x = foldWord(x, m.winner);
+  x = foldWord(x, m.reason);
+  x = foldWord(x, m.endTick);
+  x = foldWord(x, m.holdOwner);
+  x = foldWord(x, m.holdCount);
+  x = foldBytes(x, m.eliminated);
+  x = foldBytes(x, m.capitalLost);
+  x = foldU32(x, m.peakLand);
+  x = foldU32(x, m.built);
+  x = foldU32(x, m.conquered);
+  return foldU32(x, m.districts);
 }
 
 /** The hash of a state: header words, scalars, the generator, then every array in fixed order. Not the outbox, not the derived parts. */
@@ -173,6 +205,7 @@ export function hashState(state: GameState): number {
     x = foldU16(x, home.defenceMilli);
   }
   x = foldStructures(x, state.structures);
+  x = foldMatch(x, state);
   return finishHash(x);
 }
 
@@ -314,8 +347,70 @@ export function serialize(state: GameState): Uint8Array {
       }
     }
   }
+  const w = state.header.config.win;
+  const m = state.match;
+  const scalars = [winFlagsOf(w), w === undefined ? 0 : w.timeLimitTicks, w === undefined ? 0 : w.landSharePct, w === undefined ? 0 : w.holdTicks, m.ended, m.winner, m.reason, m.endTick, m.holdOwner, m.holdCount];
+  for (let i = 0; i < scalars.length; i++) v.setUint32(p + i * 4, scalars[i] as number, true);
+  p += 40;
+  for (let o = 0; o < m.eliminated.length; o++) v.setUint32(p + o * 4, m.eliminated[o] as number, true);
+  p += m.eliminated.length * 4;
+  for (let o = 0; o < m.capitalLost.length; o++) v.setUint32(p + o * 4, m.capitalLost[o] as number, true);
+  p += m.capitalLost.length * 4;
+  p = putU32s(v, p, m.peakLand);
+  p = putU32s(v, p, m.built);
+  p = putU32s(v, p, m.conquered);
+  p = putU32s(v, p, m.districts);
   v.setUint32(p, hashState(state), true);
   return out;
+}
+
+/** The config of the flag word with the win block put back (the normal form, so that a round trip compares equal). */
+function normalConfigOf(config: MatchConfig, win: WinConfig | undefined): MatchConfig {
+  return normalConfig(config.debugIntents, config.spawnPhase === true, config.homeRules === true, win);
+}
+
+/**
+ * Reads and checks the match block at `p` into `m`. Returns the win config (undefined = none) or 'bad'. Every value is range checked:
+ * the result fields must agree (no winner before the end), the arrays have an empty slot 0 and flags are 0 or 1.
+ */
+function readMatch(v: DataView, p: number, slots: number, seats: number, m: MatchState): WinConfig | undefined | 'bad' {
+  const flags = v.getUint32(p, true);
+  const limit = v.getUint32(p + 4, true);
+  const pct = v.getUint32(p + 8, true);
+  const hold = v.getUint32(p + 12, true);
+  let win: WinConfig | undefined;
+  if (flags > (WIN_FLAG_LAND | WIN_FLAG_LAST | WIN_FLAG_SCORE)) return 'bad';
+  if (flags === 0) {
+    if (limit !== 0 || pct !== 0 || hold !== 0) return 'bad';
+  } else {
+    if (limit < 1 || limit > 2147483647 || pct < 1 || pct > 100 || hold < 1 || hold > 2147483647) return 'bad';
+    win = normalWin({ land: (flags & WIN_FLAG_LAND) !== 0, last: (flags & WIN_FLAG_LAST) !== 0, score: (flags & WIN_FLAG_SCORE) !== 0, timeLimitTicks: limit, landSharePct: pct, holdTicks: hold });
+  }
+  m.ended = v.getUint32(p + 16, true);
+  m.winner = v.getUint32(p + 20, true);
+  m.reason = v.getUint32(p + 24, true);
+  m.endTick = v.getUint32(p + 28, true);
+  m.holdOwner = v.getUint32(p + 32, true);
+  m.holdCount = v.getUint32(p + 36, true);
+  if (m.ended > 1 || m.winner > seats || m.reason > 3 || m.holdOwner > seats) return 'bad';
+  if (m.ended === 0 && (m.winner !== 0 || m.reason !== 0 || m.endTick !== 0)) return 'bad';
+  if (m.ended === 1 && (m.winner === 0) !== (m.reason === 0)) return 'bad';
+  if (m.holdOwner === 0 ? m.holdCount !== 0 : m.holdCount === 0 || (win === undefined ? true : m.holdCount > win.holdTicks)) return 'bad';
+  let q = p + 40;
+  for (let o = 0; o < slots; o++) {
+    const e = v.getUint32(q + o * 4, true);
+    const c = v.getUint32(q + (slots + o) * 4, true);
+    if (e > 1 || c > 1 || (o === 0 && (e !== 0 || c !== 0))) return 'bad';
+    m.eliminated[o] = e;
+    m.capitalLost[o] = c;
+  }
+  q += 2 * slots * 4;
+  q = getU32s(v, q, m.peakLand);
+  q = getU32s(v, q, m.built);
+  q = getU32s(v, q, m.conquered);
+  getU32s(v, q, m.districts);
+  if (m.peakLand[0] !== 0 || m.built[0] !== 0 || m.conquered[0] !== 0 || m.districts[0] !== 0) return 'bad';
+  return win;
 }
 
 function isBytes(x: unknown): x is Uint8Array {
@@ -521,7 +616,7 @@ export function deserialize(bytes: Uint8Array): DeserializeResult {
   }
   const districtCount = v.getUint32(p, true);
   p += 4;
-  if (districtCount > liveCount * DISTRICT_MAX_SLOTS || p + districtCount * BYTES_PER_DISTRICT !== end) return fail(districtCount > liveCount * DISTRICT_MAX_SLOTS ? 'structure-range' : 'size');
+  if (districtCount > liveCount * DISTRICT_MAX_SLOTS || p + districtCount * BYTES_PER_DISTRICT + matchBytes(seats) !== end) return fail(districtCount > liveCount * DISTRICT_MAX_SLOTS ? 'structure-range' : 'size');
   let lastDistrict = -1;
   for (let k = 0; k < districtCount; k++) {
     const id = v.getUint32(p, true);
@@ -554,12 +649,17 @@ export function deserialize(bytes: Uint8Array): DeserializeResult {
     if (structures.owner[id] === 0) return fail('structure-range');
     structures.owner[id] = 0;
   }
+  const m = new MatchState(slots);
+  const win = readMatch(v, p, slots, seats, m);
+  if (win === 'bad') return fail('match-range');
+  p += matchBytes(seats);
   if (p !== end) return fail('size');
 
-  const header: MatchHeader = Object.freeze({ engineVersion, mapHash, seed, config: Object.freeze(config), seats, players });
+  const finalConfig = Object.freeze(normalConfigOf(config, win));
+  const header: MatchHeader = Object.freeze({ engineVersion, mapHash, seed, config: finalConfig, seats, players });
   let state: GameState;
   try {
-    state = assembleState({ header, width, height, tick: v.getUint32(36, true), rejects: v.getUint32(40, true), rng, terrain, elevation, owner, stamp, exposure, rowCos, troops, troopFrac, gold, capital, attacks, enclaves, structures, home });
+    state = assembleState({ header, width, height, tick: v.getUint32(36, true), rejects: v.getUint32(40, true), rng, terrain, elevation, owner, stamp, exposure, rowCos, troops, troopFrac, gold, capital, attacks, enclaves, structures, match: m, home });
   } catch {
     return fail('header');
   }
