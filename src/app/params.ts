@@ -163,3 +163,11 @@ export function parseAppState(search: string, hash = ''): AppState {
   const raw = parseRaw(search, hash);
   return { params: appParamsOf(raw), scene: sceneParamsOf(raw), terrain: terrainParamsOf(raw), view: groundViewOf(raw), perf: raw.perf === '1', adapt: raw.adapt === '1' ? true : raw.adapt === '0' ? false : null, devButton: raw.devbtn === '1', raw };
 }
+
+/**
+ * Is the adaptive resolution on? `?adapt=1` / `?adapt=0` decide; without it: on in the live game, off in test mode, in the performance scene and with
+ * the plain `#perf` overlay (they measure the raw speed, docs/PREVIEW.md 17ag).
+ */
+export function adaptiveEnabled(state: AppState): boolean {
+  return state.adapt ?? (!state.params.test && state.scene.scene !== 'perf' && !state.perf);
+}

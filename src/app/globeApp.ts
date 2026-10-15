@@ -55,7 +55,7 @@ import type { IntentBody } from '../sim/intents';
 import { clickMeaning, resolveClickCell } from './clickTarget';
 import { MatchSession } from './match';
 import { matchKeyAction } from './matchKeys';
-import type { AppParams, AppState, SceneParams } from './params';
+import { adaptiveEnabled, type AppParams, type AppState, type SceneParams } from './params';
 import { siteUrl } from './paths';
 import { countryNameMap, tooltipText } from './tooltip';
 
@@ -733,7 +733,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   // The frame time is the GPU time of the draw (the timer extension, when the browser has it: a slow CPU cannot be helped by fewer pixels), else the
   // interval between animation frames. The fx clock is for effects, not for measuring (D160).
   const adaptive = new AdaptiveResolution();
-  let adaptiveOn = ctx.state.adapt ?? (!params.test && ctx.scene.scene !== 'perf');
+  let adaptiveOn = adaptiveEnabled(ctx.state);
   const applyAdaptive = (): void => {
     globe.setRenderScale(adaptive.scale);
     globe.setChunkDensity(adaptive.density);
@@ -742,6 +742,12 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   };
   const feedAdaptive = (ms: number): void => {
     if (adaptive.push(ms)) applyAdaptive();
+  };
+  // In the frame loop a step is only noted here and applied at the START of the next frame, right before drawing: resizing the drawing buffer clears it,
+  // and applying it after the draw showed one blank frame at every step (Fix-UI).
+  let adaptiveDirty = false;
+  const feedAdaptiveInLoop = (ms: number): void => {
+    if (adaptive.push(ms)) adaptiveDirty = true;
   };
   const adaptiveReport = (): { enabled: boolean; scale: number; scaleMean: number; scaleMin: number; steps: number; densityReduced: boolean } => ({
     enabled: adaptiveOn,
@@ -1368,6 +1374,10 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
         hudCost.push(performance.now() - h0);
       }
     }
+    if (adaptiveDirty) {
+      adaptiveDirty = false;
+      applyAdaptive();
+    }
     perfRun?.beforeFrame();
     const drawStart = performance.now();
     renderFrame();
@@ -1377,8 +1387,8 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     }
     if (adaptiveOn && dt > 0) {
       if (gpuTimerOk && !isPerfScene) {
-        for (let g = globe.takeGpuMs(); g !== null; g = globe.takeGpuMs()) feedAdaptive(g);
-      } else feedAdaptive(dt * 1000);
+        for (let g = globe.takeGpuMs(); g !== null; g = globe.takeGpuMs()) feedAdaptiveInLoop(g);
+      } else feedAdaptiveInLoop(dt * 1000);
     }
     if (!overlay.hidden) refreshOverlay();
     // The scene's report section sorts copies of the recorded frames: once a second while it runs (not every 15 frames), so the measuring does not show up in the numbers.

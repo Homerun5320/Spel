@@ -113,7 +113,7 @@ vec3 toDisplay(vec3 c) { return pow(clamp(c, 0.0, 1.0), vec3(1.0 / 2.2)); }
 void main() {
   if (vLight > 0.5) { gl_FragColor = vec4(1.0, 0.88, 0.55, uAlpha); return; } // a lit city light: emissive, no shading
   // under construction: a see-through look (a screen-door pattern that thins out as it is finished)
-  if (vProgress < 1.0) {
+  if (vProgress < 0.999) { // not "< 1.0": an interpolated varying of a finished model can come out a hair under 1.0 and would speckle it with holes
     float h = fract(sin(dot(floor(gl_FragCoord.xy), vec2(12.9898, 78.233))) * 43758.5453);
     if (h < (1.0 - vProgress) * 0.45) discard;
   }
@@ -121,7 +121,7 @@ void main() {
   vec3 viewDir = normalize(-vRel);
   if (dot(n, viewDir) < 0.0) n = -n;
   vec3 own = mix(vColor, vOwner, vTint);
-  if (vProgress < 1.0) own = mix(own, vec3(dot(own, vec3(0.33))) * 0.8 + vec3(0.12, 0.16, 0.22), 0.45 * (1.0 - vProgress));
+  if (vProgress < 0.999) own = mix(own, vec3(dot(own, vec3(0.33))) * 0.8 + vec3(0.12, 0.16, 0.22), 0.45 * (1.0 - vProgress));
   if (uGhost.a > 0.0) own = mix(own, uGhost.rgb, uGhost.a);
   vec3 sun = normalize(uSun);
   float sunDot = dot(normalize(vUpDir), sun);
