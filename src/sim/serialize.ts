@@ -13,7 +13,7 @@
 //      enclave queue: ENCLAVE_FLIP_TICKS x (count u32, count x cell u32)
 //      ONLY when config flag 8 (homeRules) is on: country u8 x n, homeLand u8 x (seats+1), portMilli u16 x (seats+1),
 //               defenceMilli u16 x (seats+1)   (D112: a match without the flag is byte-identical to M05, so FORMAT_VERSION stays 5)
-//      structures (M09 part A, always present): highWater u32, recycledCount u32, recycled u32 x recycledCount, deleteReady u32 x (seats+1),
+//      structures (M09 part A, always present): highWater u32, recycledCount u32, recycled u32 x recycledCount, deleteReady u32 x (seats+1), embargo u8 x (seats+1)^2 (M09 part B),
 //               liveCount u32, then per live slot by ascending id: id type owner cell level buildTick readyTick upgradeReadyTick (u32 each)
 //   end: checksum u32 = hashState(state)                                      (n = width * height)
 // The outbox and the derived parts (grid, aggregates, scratch) are not part of the format. deserialize() never throws:
@@ -39,8 +39,8 @@ import {
   type MatchHeader,
 } from './state';
 
-/** Bumped when the byte layout above changes. 2: owner u16 (D71). 3: players, rowCos and the per-owner economy arrays (M04). 4: attacks and the enclave queue (M04 conquest). 5: the exposure array (M04 fix pass). 6: the structure table (M09 part A). */
-export const FORMAT_VERSION = 6;
+/** Bumped when the byte layout above changes. 2: owner u16 (D71). 3: players, rowCos and the per-owner economy arrays (M04). 4: attacks and the enclave queue (M04 conquest). 5: the exposure array (M04 fix pass). 6: the structure table (M09 part A). 7: the embargo flags (M09 part B). */
+export const FORMAT_VERSION = 7;
 /** 'SPEL' as a little-endian u32. */
 export const MAGIC = 0x4c455053;
 export const HEADER_BYTES = 64;
@@ -85,7 +85,7 @@ export type DeserializeResult =
 
 /** Number of bytes serialize() produces for a size when no attack is running and no enclave candidate is queued. */
 export function serializedLength(width: number, height: number, seats: number): number {
-  return HEADER_BYTES + width * height * BYTES_PER_CELL + height * BYTES_PER_ROW + ownerSlots(seats) * BYTES_PER_OWNER + EMPTY_TABLES_BYTES + EMPTY_STRUCTURE_BYTES + ownerSlots(seats) * 4 + CHECKSUM_BYTES;
+  return HEADER_BYTES + width * height * BYTES_PER_CELL + height * BYTES_PER_ROW + ownerSlots(seats) * BYTES_PER_OWNER + EMPTY_TABLES_BYTES + EMPTY_STRUCTURE_BYTES + ownerSlots(seats) * 4 + ownerSlots(seats) * ownerSlots(seats) + CHECKSUM_BYTES;
 }
 
 /** Number of non-empty frontier bags of an attack. */
@@ -277,6 +277,8 @@ export function serialize(state: GameState): Uint8Array {
     p += 4;
   }
   p = putU32s(v, p, st.deleteReady);
+  out.set(st.embargo, p);
+  p += st.embargo.length;
   v.setUint32(p, st.liveCount, true);
   p += 4;
   for (let id = 0; id < st.highWater; id++) {
@@ -454,7 +456,7 @@ export function deserialize(bytes: Uint8Array): DeserializeResult {
   structures.highWater = v.getUint32(p, true);
   structures.recycledCount = v.getUint32(p + 4, true);
   p += 8;
-  if (structures.highWater > STRUCT_CAPACITY || structures.recycledCount > structures.highWater || p + structures.recycledCount * 4 + slots * 4 + 4 > end) return fail(structures.highWater > STRUCT_CAPACITY || structures.recycledCount > structures.highWater ? 'structure-range' : 'size');
+  if (structures.highWater > STRUCT_CAPACITY || structures.recycledCount > structures.highWater || p + structures.recycledCount * 4 + slots * 4 + slots * slots + 4 > end) return fail(structures.highWater > STRUCT_CAPACITY || structures.recycledCount > structures.highWater ? 'structure-range' : 'size');
   for (let i = 0; i < structures.recycledCount; i++) {
     const id = v.getUint32(p, true);
     p += 4;
@@ -462,6 +464,12 @@ export function deserialize(bytes: Uint8Array): DeserializeResult {
     structures.recycled[i] = id;
   }
   p = getU32s(v, p, structures.deleteReady);
+  for (let i = 0; i < slots * slots; i++) {
+    const e = bytes[p + i] as number;
+    if (e > 1) return fail('structure-range');
+    structures.embargo[i] = e;
+  }
+  p += slots * slots;
   const liveCount = v.getUint32(p, true);
   p += 4;
   if (liveCount + structures.recycledCount !== structures.highWater) return fail('structure-range');

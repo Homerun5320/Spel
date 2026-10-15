@@ -18,6 +18,10 @@ export interface AiMemory {
   retryAt: number;
   /** Spawn tries so far (a counter for the tests and the report). */
   attempts: number;
+  /** Earliest tick of the next look for a build place (set after a think that found none). */
+  buildRetryAt: number;
+  /** Builds asked for so far (a counter for the tests and the report). */
+  builds: number;
   /** Tick of the last Attack this seat sent per target ownerId, -1 = never. */
   readonly lastAttack: Int32Array;
   /** 1 per seat that a human plays (index = seat): a nation starts no war on such a seat before AI_WAR_HUMAN_START_TICKS (D143). */
@@ -50,7 +54,36 @@ export function createAiMemory(view: SimView, seat: number, options: AiMemoryOpt
     phase: (seat * AI_THINK_STAGGER_TICKS) % AI_THINK_PERIOD_TICKS,
     retryAt: 0,
     attempts: 0,
+    buildRetryAt: 0,
+    builds: 0,
     lastAttack: new Int32Array(view.seats + 1).fill(-1),
     human,
   };
+}
+
+/** Words before the per-owner Attack ticks in the serialised form of a memory (release, retryAt, attempts, buildRetryAt, builds). */
+export const MEMORY_FIXED_WORDS = 5;
+
+/** The changing part of a memory as words (the rest follows from the seed, the seats and the driver's options). For the AI-state blob (M24b saves it). */
+export function memoryWords(m: AiMemory): Int32Array {
+  const out = new Int32Array(MEMORY_FIXED_WORDS + m.lastAttack.length);
+  out[0] = m.release;
+  out[1] = m.retryAt;
+  out[2] = m.attempts;
+  out[3] = m.buildRetryAt;
+  out[4] = m.builds;
+  out.set(m.lastAttack, MEMORY_FIXED_WORDS);
+  return out;
+}
+
+/** Puts words from `memoryWords` back; false when the length does not match this memory. */
+export function loadMemoryWords(m: AiMemory, words: ArrayLike<number>): boolean {
+  if (words.length !== MEMORY_FIXED_WORDS + m.lastAttack.length) return false;
+  m.release = words[0] as number;
+  m.retryAt = words[1] as number;
+  m.attempts = words[2] as number;
+  m.buildRetryAt = words[3] as number;
+  m.builds = words[4] as number;
+  for (let i = 0; i < m.lastAttack.length; i++) m.lastAttack[i] = words[MEMORY_FIXED_WORDS + i] as number;
+  return true;
 }

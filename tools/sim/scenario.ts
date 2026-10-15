@@ -2,6 +2,7 @@
 //
 //   npm run sim:scenario -- --seed N --minutes 10 --players 12 --tribes 20      (the match: territory curves per minute)
 //   npm run sim:scenario -- --solo [--minutes 10] [--country RUS]               (the calibration scenario: one expander)
+//   --ai [--no-build]: the players are driven by AI v0 (src/host/aiDriver.ts) instead of the scripted bots; --no-build keeps them from building
 //   flags: --json (machine readable), --no-fighters (the players only expand into unowned land; by default they also attack the
 //   weakest neighbour they are stronger than; tribes only ever expand)
 //
@@ -15,11 +16,15 @@ import { hash2 } from '../../src/sim/fixture';
 import { hex32 } from '../../src/sim/hash';
 import { IdAllocator, withId, type Intent, type IntentBody } from '../../src/sim/intents';
 import { TICK_HZ } from '../../src/sim/rules';
+import { STRUCT_CITY, STRUCT_POST } from '../../src/sim/structureRules';
 import { hashState } from '../../src/sim/serialize';
 import { seatToOwner, type GameState } from '../../src/sim/state';
 import { step } from '../../src/sim/step';
 import { createWorldState, type SimWorld } from '../../src/sim/world';
 import { botIntents, type BotKind } from './bots';
+import { AiDriver } from '../../src/host/aiDriver';
+import { StateView } from '../../src/sim/view';
+import { STAT_FIELDS, fillSeatStats, statsLength } from '../../src/sim/view';
 import { loadRealWorld } from './realWorld';
 
 export interface ScenarioArgs {
@@ -31,6 +36,9 @@ export interface ScenarioArgs {
   readonly country: string | null;
   readonly fighters: boolean;
   readonly json: boolean;
+  /** The players are AI v0 (with its build move unless `build` is false) instead of the scripted bots. */
+  readonly ai: boolean;
+  readonly build: boolean;
 }
 
 export interface CountryPick {
@@ -46,6 +54,10 @@ export interface MinuteRow {
   readonly troops: number[];
   readonly attacks: number;
   readonly unownedLandShare: number;
+  /** Economy per seat at the end of the minute: income in gold per minute at that moment, gold in the purse, structures [City, Factory, Port, Silo, SAM, Post]. */
+  readonly incomeGoldPerMin: number[];
+  readonly gold: number[];
+  readonly structures: number[][];
 }
 
 export interface ScenarioReport {
@@ -74,6 +86,8 @@ export function parseArgs(argv: readonly string[]): ScenarioArgs {
   let country: string | null = null;
   let fighters = true;
   let json = false;
+  let ai = false;
+  let build = true;
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i] as string;
     const next = argv[i + 1];
@@ -97,6 +111,8 @@ export function parseArgs(argv: readonly string[]): ScenarioArgs {
     else if (a === '--no-fighters') fighters = false;
     else if (a === '--fighters') fighters = true;
     else if (a === '--json') json = true;
+    else if (a === '--ai') ai = true;
+    else if (a === '--no-build') build = false;
     else throw new Error(`unknown argument ${a}`);
   }
   if (solo) {
@@ -104,7 +120,7 @@ export function parseArgs(argv: readonly string[]): ScenarioArgs {
     tribes = 0;
   }
   if (players + tribes > 255) throw new Error('at most 255 seats');
-  return { seed, minutes, players, tribes, solo, country, fighters, json };
+  return { seed, minutes, players, tribes, solo, country, fighters, json, ai, build };
 }
 
 interface MetaCountry {
@@ -157,6 +173,10 @@ export async function runScenario(args: ScenarioArgs, onTick?: (state: GameState
   const kinds: BotKind[] = [];
   for (let seat = 0; seat < seats; seat++) kinds.push(seat < args.players && args.fighters ? 'fighter' : 'expander');
   const rows: MinuteRow[] = [];
+  // AI mode: the players are AI v0 (no human seat); what it sends runs at once, in the same step.
+  const aiDriver = args.ai ? new AiDriver(args.seed, { humanSeats: [], build: args.build }) : null;
+  const aiView = aiDriver !== null ? new StateView(state) : null;
+  const statsBuf = new Uint32Array(statsLength(seats));
   const ticksPerMinute = TICK_HZ * 60;
   const total = args.minutes * ticksPerMinute;
   let scannedSum = 0;
@@ -166,7 +186,10 @@ export async function runScenario(args: ScenarioArgs, onTick?: (state: GameState
   for (let t = 0; t < total; t++) {
     const bodies: IntentBody[] = [];
     if (t === 0) for (let seat = 0; seat < seats; seat++) bodies.push({ kind: 'Spawn', seat, cell: (countries[seat % countries.length] as CountryPick).capitalCell });
-    else for (let seat = 0; seat < seats; seat++) bodies.push(...botIntents(state, seat, kinds[seat] as BotKind));
+    else if (aiDriver !== null && aiView !== null) {
+      aiView.refresh();
+      aiDriver.onTick(aiView, (b) => bodies.push(b));
+    } else for (let seat = 0; seat < seats; seat++) bodies.push(...botIntents(state, seat, kinds[seat] as BotKind));
     const intents: Intent[] = bodies.map((b) => withId(b, alloc.alloc(b.seat)));
     const r = step(state, { turn: state.tick, intents });
     if (!r.ok) throw new Error(`step failed: ${r.error}`);
@@ -186,6 +209,7 @@ export async function runScenario(args: ScenarioArgs, onTick?: (state: GameState
         troops: Array.from({ length: seats }, (_, seat) => Math.floor((state.troops[seatToOwner(seat)] as number) / 4)),
         attacks: state.attacks.list.length,
         unownedLandShare: Math.round((1000 * (state.grid.playableCells - owned)) / state.grid.playableCells) / 10,
+        ...economyRow(state, statsBuf, seats),
       });
     }
   }
@@ -202,6 +226,24 @@ export async function runScenario(args: ScenarioArgs, onTick?: (state: GameState
   return { report, state };
 }
 
+/** The economy of every seat right now: income per minute (from the stats), gold, and the structure counts by type. */
+function economyRow(state: GameState, buf: Uint32Array, seats: number): { incomeGoldPerMin: number[]; gold: number[]; structures: number[][] } {
+  fillSeatStats(state, buf);
+  const rateBase = STAT_FIELDS.indexOf('goldPerSecMilli') * seats;
+  const goldBase = STAT_FIELDS.indexOf('goldMilli') * seats;
+  const incomeGoldPerMin: number[] = [];
+  const gold: number[] = [];
+  const structures: number[][] = [];
+  for (let seat = 0; seat < seats; seat++) {
+    incomeGoldPerMin.push(Math.floor(((buf[rateBase + seat] as number) * 60) / 1000));
+    gold.push(Math.floor((buf[goldBase + seat] as number) / 1000));
+    const counts: number[] = [];
+    for (let type = STRUCT_CITY; type <= STRUCT_POST; type++) counts.push(state.structures.ownedCount(seatToOwner(seat), type));
+    structures.push(counts);
+  }
+  return { incomeGoldPerMin, gold, structures };
+}
+
 export function format(report: ScenarioReport): string {
   const a = report.args;
   const lines: string[] = [];
@@ -214,6 +256,11 @@ export function format(report: ScenarioReport): string {
     lines.push(
       `min ${String(r.minute).padStart(2)}: players ${players.join(',')} | tribes sum ${sum(tribes)} (max ${tribes.length > 0 ? Math.max(...tribes) : 0}) | players sum ${sum(players)} | attacks ${r.attacks} | free land ${r.unownedLandShare}%`,
     );
+  }
+  for (const r of report.rows) {
+    for (let seat = 0; seat < Math.min(a.players, 3); seat++) {
+      lines.push(`  economy min ${String(r.minute).padStart(2)} P${seat}: land ${r.cells[seat]} cells | income ${r.incomeGoldPerMin[seat]} gold/min | purse ${r.gold[seat]} | City/Factory/Port/Silo/SAM/Post ${(r.structures[seat] as number[]).join('/')}`);
+    }
   }
   lines.push(`final hash ${report.finalHash} (rejects ${report.rejects}); scanned cells per tick: mean ${report.work.meanScanned}, max ${report.work.maxScanned}; changed per tick: mean ${report.work.meanChanged}, max ${report.work.maxChanged}`);
   return lines.join('\n');

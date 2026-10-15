@@ -220,3 +220,11 @@ Everything here would shorten `verify` further; each needs a per-test reset cont
 - Structure rows in the M10 snapshot so a `ViewMirror` shows the real table (today it is empty).
 - The AI never builds yet (M09b); the effects (City income and cap, Factory, Port trade, Post, SAM / Silo radius) and conquest of structures are M09b.
 - Spacing is a linear scan of the live slots (about 300 in a normal match); a per-cell grid index would only pay off with thousands.
+
+### M09b
+
+- The economy target (AI v0 with building in [1.0, 1.5] of the band's upper limit) needs a lever outside the build move: the AI commits 70 % of its troops at 40 % of the cap and the front speed limits the land, so extra troop cap barely moves it (D-M09b 10). Candidates: a lower `AI_EXPAND_TROOP_PCT` once Cities exist, or a gold-to-troops sink.
+- Factory and Port levels have no effect (they pay flat), so an Upgrade of them is a waste of gold; either give them a level effect within the 10x limit or refuse the Upgrade.
+- The AI builds no SAM or Silo until M14 gives them an effect; the AI places buildings by random sampling in a window around the capital, not by value (coast, front line, mountains for SAM).
+- `ViewMirror` still shows an empty structure table (M10), so a UI that wants "can I afford this" must wait for it.
+- The Defense Post scan is O(structures) per attack per tick when the target owns a Post; a per-owner Post list would remove it if profiling ever shows it.

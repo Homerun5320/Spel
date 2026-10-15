@@ -3,20 +3,20 @@
   "ticks": 600,
   "hashes": {
     "sweden-default": {
-      "initial": "f5ac4708",
-      "after": "93bff226"
+      "initial": "93bcc5cd",
+      "after": "2e208475"
     },
     "custom-central-europe": {
-      "initial": "b0fd2a7f",
-      "after": "559f07d3"
+      "initial": "12904192",
+      "after": "f3f3dfb2"
     },
     "custom-neutral": {
-      "initial": "c8812a46",
-      "after": "bbee1cf8"
+      "initial": "16d4697c",
+      "after": "00e8cd2d"
     },
     "europe-skirmish": {
-      "initial": "8894f70e",
-      "after": "bfc1dc49"
+      "initial": "8b6d1675",
+      "after": "c723ddd6"
     }
   }
 }

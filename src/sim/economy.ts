@@ -25,6 +25,7 @@ import {
 } from './rules';
 import type { GameState } from './state';
 import { weightedSimToStdQ15 } from './units';
+import { cityLevelsOf, structGoldMilliPerTick } from './structureEffects';
 
 /** Largest value of a Uint32 array element. */
 const U32_MAX = 4294967295;
@@ -34,9 +35,9 @@ export function isTribe(state: GameState, owner: number): boolean {
   return owner > state.header.players;
 }
 
-/** City levels of an owner. Cities arrive in M09 (the signature gains the state and the owner then); until then no owner has any. */
-export function cityLevels(): number {
-  return 0;
+/** Finished City levels of an owner (M09 part B: from the structure table; 0 without structures). */
+export function cityLevels(state: GameState, owner: number): number {
+  return cityLevelsOf(state, owner);
 }
 
 /** N in std-cells as Q15 for an owner: the Q15-weighted sim cells it owns divided by STD_CELL_AREA. */
@@ -108,7 +109,7 @@ export function addTroops(state: GameState, owner: number, amountQt: number): vo
 
 /** The cap in QT of an owner right now. */
 export function ownerCapQt(state: GameState, owner: number): number {
-  return troopCapQt(ownedStdAreaQ15(state, owner), cityLevels(), isTribe(state, owner));
+  return troopCapQt(ownedStdAreaQ15(state, owner), cityLevels(state, owner), isTribe(state, owner));
 }
 
 /** Gives a seat that just spawned its start troops (clamped to its cap) and start gold, and clears the remainder. */
@@ -129,7 +130,7 @@ export function economyTick(state: GameState): void {
     if ((state.agg.area[owner] as number) === 0) continue;
     const nQ15 = ownedStdAreaQ15(state, owner);
     const tribe = isTribe(state, owner);
-    const cap = troopCapQt(nQ15, cityLevels(), tribe);
+    const cap = troopCapQt(nQ15, cityLevels(state, owner), tribe);
     const rate = regenMicroQtPerTick(state.troops[owner] as number, cap, tribe);
     const acc = (state.troopFrac[owner] as number) + rate;
     const whole = floorDiv(acc, MICRO_QT_PER_QT);
@@ -141,7 +142,7 @@ export function economyTick(state: GameState): void {
       state.troops[owner] = have + whole;
       state.troopFrac[owner] = acc - whole * MICRO_QT_PER_QT;
     }
-    const income = goldMilliPerTick(nQ15);
+    const income = goldMilliPerTick(nQ15) + structGoldMilliPerTick(state, owner);
     const gold = (state.gold[owner] as number) + income;
     state.gold[owner] = gold > U32_MAX ? U32_MAX : gold;
   }

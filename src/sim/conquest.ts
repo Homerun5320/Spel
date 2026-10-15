@@ -62,6 +62,7 @@ import {
 } from './intents';
 import { seatToOwner, type GameState } from './state';
 import { changeOwner } from './territory';
+import { collectPosts, postAdjustedCost } from './structureEffects';
 
 // Bound once at load: the capture loop calls and reads these for every cell (see src/sim/attacks.ts for why).
 const takeCell = changeOwner;
@@ -222,6 +223,8 @@ export function advanceAttack(state: GameState, a: Attack, slot: number, n: numb
   const attacker = a.attacker;
   const target = a.target;
   const stamp = a.id;
+  // Defense Posts (M09 part B): the finished Posts of the target make its cells near them dearer for the attacker.
+  const posts = target !== 0 && state.structures.liveCount !== 0 ? collectPosts(state, target) : 0;
   const w = grid.width;
   const colMask = grid.colMask;
   const cells = grid.cells;
@@ -276,6 +279,7 @@ export function advanceAttack(state: GameState, a: Attack, slot: number, n: numb
     let cost = rise < HEIGHT_UNIT && cls < FLAT_CLASSES ? (FLAT_COST[cls * FLAT_DEPTHS + depth] as number) : captureCostMilliQt(cls, riseUnits(elevation[cell] as number, source), depth);
     // Home land (D112) and the defence trait (D113): only a match with homeRules has them; for the others this is one comparison.
     if (home !== null) cost = adjustedCostMilliQt(home, cost, cell, attacker, target);
+    if (posts !== 0) cost = postAdjustedCost(state.structures, w, cell, cost);
     const owed = (costFrac + cost) | 0;
     const whole = (owed / MILLI_QT) | 0;
     if (troops < whole) {
