@@ -97,7 +97,7 @@ export async function main(argv = process.argv.slice(2)) {
     env.LOCAL_GPU = '1';
     if (env.GOLDEN_COMPARE !== 'fail') env.GOLDEN_COMPARE = 'warn';
   }
-  const workers = e2eWorkerCount(env, cores, Math.max(1, Math.min(2, Math.floor(cores / 2))));
+  const workers = e2eWorkerCount(env, cores, Math.max(1, Math.min(3, cores - 1))); // the same default as vitest.config.ts
   env.E2E_WORKERS = String(workers);
   console.log(`[verify] ${local ? 'LOCAL_GPU=1 GOLDEN_COMPARE=' + env.GOLDEN_COMPARE + ' ' : ''}e2e workers=${workers} (${cores} cores)`);
 

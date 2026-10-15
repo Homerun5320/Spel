@@ -127,6 +127,7 @@ Gör det här en gång:
 28. Skriv `npm ci` och tryck Enter. Det tar en till två minuter första gången. (Klagar PowerShell på att skript inte får köras: använd Kommandotolken i stället.)
 29. Skriv `npm run dev` och tryck Enter. Terminalen visar en rad som `Local: http://localhost:5173/`. Öppna den adressen i webbläsaren. Är porten en annan, använd adressen som terminalen visar.
 30. Testsidan finns på `http://localhost:5173/probe.html`. Lägen skrivs som vanliga adressparametrar, till exempel `http://localhost:5173/?test=1`. F3 visar en liten rad med grafikinfo.
+30b. Har du ett riktigt grafikkort och vill köra alla tester där, och skicka tillbaka en rapport: se `docs/LOCAL.md` (`npm run verify:local`).
 31. Stoppa genom att trycka Ctrl+C i terminalen.
 
 Uppdatera till senaste versionen:

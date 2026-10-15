@@ -29,7 +29,7 @@ git clone https://github.com/Homerun5320/Spel
 cd Spel
 ```
 
-En inloggningsruta öppnas (Git Credential Manager): logga in med ditt GitHub-konto. Mappen Spel skapas där PowerShell stod (oftast din användarmapp).
+En inloggningsruta öppnas (Git Credential Manager): logga in med ditt GitHub-konto. Mappen Spel skapas där PowerShell stod (oftast din användarmapp). Föredrar du GitHub Desktop i stället för git på kommandoraden fungerar det lika bra (stegen står i `docs/PREVIEW.md`, avsnitt 8); öppna sedan en terminal i mappen.
 
 Så länge arbetet inte är sammanfogat med huvudgrenen (main) ligger det på en egen gren. Byt till den:
 
@@ -47,7 +47,7 @@ I mappen Spel:
 npm ci
 ```
 
-Det tar några minuter och kräver internet. Det installerar exakt de versioner projektet är byggt med. Varningar om "deprecated" kan du ignorera. Får du ett rött felmeddelande: kopiera hela texten och skicka den.
+Klagar PowerShell på att skript inte får köras: använd Kommandotolken (cmd) i stället för PowerShell för alla `npm`-kommandon. Det tar några minuter och kräver internet. Det installerar exakt de versioner projektet är byggt med. Varningar om "deprecated" kan du ignorera. Får du ett rött felmeddelande: kopiera hela texten och skicka den.
 
 ## 4. Spela och titta
 

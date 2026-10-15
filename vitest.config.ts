@@ -2,10 +2,11 @@ import os from 'node:os';
 import { defineConfig } from 'vitest/config';
 import { e2eWorkerCount } from './scripts/localGpu.mjs';
 
-// e2e workers (docs/DECISIONS.md D144): E2E_WORKERS wins; with LOCAL_GPU=1 floor(cores / 2) up to 4; otherwise floor(cores / 2) up to 2
-// (SwiftShader already uses several cores per frame, so more than 2 Chromium instances only slow every frame down). The tests that measure
-// memory or time live in `*.serial.test.ts` files and run alone in the e2e-serial project, one at a time.
-const E2E_DEFAULT_WORKERS = Math.max(1, Math.min(2, Math.floor(os.availableParallelism() / 2)));
+// e2e workers (docs/DECISIONS.md D144): E2E_WORKERS wins; with LOCAL_GPU=1 floor(cores / 2) up to 4; otherwise cores - 1 up to 3.
+// Measured on 4 cores: 3 workers passed 3 of 3 verify runs in 7:39 to 7:53, 2 workers 5 of 5 in 8:07 to 8:34; one worker needed 605 s for the
+// e2e project alone. More Chromium instances only slow every frame down: SwiftShader already uses several cores per frame. The tests that
+// measure memory or time live in `*.serial.test.ts` files (plus e2e/heap.test.ts) and run alone in the e2e-serial project, one file at a time.
+const E2E_DEFAULT_WORKERS = Math.max(1, Math.min(3, os.availableParallelism() - 1));
 /** The files of the e2e-serial project: every `*.serial.test.ts` plus the heap self-test (its name is pinned by tests/rawHeap.test.ts). */
 const E2E_SERIAL_FILES = ['e2e/**/*.serial.test.ts', 'e2e/heap.test.ts'];
 const e2eWorkers = e2eWorkerCount(process.env, os.availableParallelism(), E2E_DEFAULT_WORKERS);
