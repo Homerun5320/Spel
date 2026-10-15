@@ -4,10 +4,12 @@ import {
   CAP_CITY_LEVEL_TROOPS,
   CITY_GOLD_MILLI_PER_SEC_PER_LEVEL,
   DELETE_COOLDOWN_TICKS,
-  FACTORY_CITY_BONUS_PCT,
-  FACTORY_GOLD_MILLI_PER_SEC,
-  FACTORY_RADIUS_CELLS,
-  PORT_GOLD_MILLI_PER_SEC,
+  FACTORY_CITY_BONUS_PCT_BY_LEVEL,
+  FACTORY_GOLD_MILLI_BY_LEVEL,
+  FACTORY_RADIUS_CELLS_BY_LEVEL,
+  PORT_GOLD_MILLI_BY_LEVEL,
+  PORT_TRADE_PCT_BY_LEVEL,
+  SAM_MOUNTAIN_PCT,
   POST_COST_DEN,
   POST_COST_NUM,
   POST_RADIUS_CELLS,
@@ -32,16 +34,22 @@ import {
   validateUpgrade,
   type SimView,
 } from '../sim/public';
-import type { TextKey, TextParams } from './i18n';
+import { formatFixed, formatInt, type TextKey, type TextParams } from './i18n';
 
 export interface EffectLine {
   readonly key: TextKey;
   readonly params: TextParams;
 }
 
-/** Gold per second with at most one decimal ("1.5", "3"). */
+/** Gold per second with at most one decimal in the language's own format ("1,5", "3"; thousands separated). */
 function gold(milliPerSec: number): string {
-  return String(Math.round(milliPerSec / 100) / 10);
+  const tenths = Math.round(milliPerSec / 100);
+  return tenths % 10 === 0 ? formatInt(tenths / 10) : formatFixed(tenths / 10, 1);
+}
+
+/** The value of a per-level table at `level` (clamped to the table, so a level outside 1..max shows the nearest). */
+function atLevel(table: readonly number[], level: number): number {
+  return table[Math.min(Math.max(level, 1), table.length - 1)] as number;
 }
 
 /** The radius in sim cells of a range ring (SAM, Defense Post) at a level, 0 for a type without a ring. `onMountain` is the +20 % rule of the sim. */
@@ -55,17 +63,22 @@ export function rangeRingCells(type: number, level: number, onMountain: boolean)
 export function effectLines(type: number, level: number, onMountain = false): EffectLine[] {
   switch (type) {
     case STRUCT_CITY:
-      return [{ key: 'sel.fx.city', params: { gold: gold(CITY_GOLD_MILLI_PER_SEC_PER_LEVEL * level), troops: CAP_CITY_LEVEL_TROOPS * level } }];
+      return [{ key: 'sel.fx.city', params: { gold: gold(CITY_GOLD_MILLI_PER_SEC_PER_LEVEL * level), troops: formatInt(CAP_CITY_LEVEL_TROOPS * level) } }];
     case STRUCT_FACTORY:
-      return [{ key: 'sel.fx.factory', params: { gold: gold(FACTORY_GOLD_MILLI_PER_SEC), pct: FACTORY_CITY_BONUS_PCT, radius: FACTORY_RADIUS_CELLS } }];
+      return [
+        {
+          key: 'sel.fx.factory',
+          params: { gold: gold(atLevel(FACTORY_GOLD_MILLI_BY_LEVEL, level)), pct: atLevel(FACTORY_CITY_BONUS_PCT_BY_LEVEL, level), radius: atLevel(FACTORY_RADIUS_CELLS_BY_LEVEL, level) },
+        },
+      ];
     case STRUCT_PORT:
-      return [{ key: 'sel.fx.port', params: { gold: gold(PORT_GOLD_MILLI_PER_SEC) } }];
+      return [{ key: 'sel.fx.port', params: { gold: gold(atLevel(PORT_GOLD_MILLI_BY_LEVEL, level)), pct: atLevel(PORT_TRADE_PCT_BY_LEVEL, level) } }];
     case STRUCT_SILO:
-      return [{ key: 'sel.fx.silo', params: { radius: samRadiusCells(level, onMountain) } }];
+      return [{ key: 'sel.fx.silo', params: {} }]; // no function until M14: the panel says so instead of showing a radius
     case STRUCT_SAM:
-      return [{ key: 'sel.fx.sam', params: { radius: samRadiusCells(level, onMountain) } }];
+      return [{ key: 'sel.fx.sam', params: { radius: samRadiusCells(level, onMountain), pct: SAM_MOUNTAIN_PCT - 100 } }];
     case STRUCT_POST:
-      return [{ key: 'sel.fx.post', params: { mult: String(POST_COST_NUM / POST_COST_DEN), radius: POST_RADIUS_CELLS } }];
+      return [{ key: 'sel.fx.post', params: { mult: formatFixed(POST_COST_NUM / POST_COST_DEN, 1), radius: POST_RADIUS_CELLS } }];
     default:
       return [];
   }
@@ -161,4 +174,26 @@ export function deleteWhyKey(reason: number): TextKey {
     default:
       return 'reject.other';
   }
+}
+
+// ---- the two-step Delete -----------------------------------------------------------------------------------------------------------------
+
+/** How long the first Delete click keeps the button armed ("Bekräfta"), in milliseconds. */
+export const DELETE_ARM_MS = 3000;
+
+/** A Delete armed for structure `id` until `until` (a clock in ms; the panel's own clock, not the sim's). */
+export interface DeleteArm {
+  readonly id: number;
+  readonly until: number;
+}
+
+/** Is Delete armed for `id` at `now`? */
+export function deleteArmed(arm: DeleteArm | null, id: number, now: number): boolean {
+  return arm !== null && arm.id === id && now < arm.until;
+}
+
+/** One click on Delete: the first arms it, a second one inside DELETE_ARM_MS (same structure) deletes. */
+export function deleteClick(arm: DeleteArm | null, id: number, now: number): { readonly send: boolean; readonly arm: DeleteArm | null } {
+  if (deleteArmed(arm, id, now)) return { send: true, arm: null };
+  return { send: false, arm: { id, until: now + DELETE_ARM_MS } };
 }

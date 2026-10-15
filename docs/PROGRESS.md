@@ -823,6 +823,20 @@ Base: f42fac3. Slice: the rest of the M10 prompt's items 3 and 4 that was open a
 - [x] 3. Build / Upgrade / Delete refused with `REJECT_PHASE` in the spawn phase of a match (the AI already waits there)
 - [ ] Left over: see "Audit 1 leftovers (Fix-Sim)" in `docs/BACKLOG.md`
 
+### Fix-UI: player-visible fixes of the independent audit (one slice of the audit-1 fixes; own worktree; the orchestrator owns merging, pushing and the Artifact)
+
+Base: cf01c79. Source: the findings of audit 1 (the UI, render and test items; the sim items belong to Fix-Sim).
+
+- [x] 1. Shift + click places several: the placement mode sets `wantsShiftClick`, the base mode then keeps a Shift + left press a click (`tests/app/placement.test.ts` with real pointer events, `e2e/fixUi.test.ts`)
+- [x] 2. Build bar: full names, key and name on the first line, the price under it, three columns without a width cap (e2e at 960x540, 1366x640, 1920x1080, 540x960, sv and en: no name is cut)
+- [x] 3. A click on neutral or enemy land beside an own structure is not a selection (`pickStructure(..., cellOwner)`)
+- [x] 4. Panel numbers per level for Factory and Port (level tables exported from `src/sim/public.ts`), Silo says it has no function yet, SAM percent from `SAM_MOUNTAIN_PCT`, decimals and thousands in the language's format
+- [x] 5. Refused Build / Upgrade / Delete: `structureRefusalKey` -> `toast.build.*` / `toast.struct.*` through `rejectKey`
+- [x] 6. `#perf` is raw (`adaptiveEnabled`), 7. finished structures are exact (`vProgress < 0.999`), 8. an adaptive step is applied before the next draw, 9. two-step Delete ("Bekräfta", 3 s on the fx clock)
+- [x] 10. Jitter test of the structure layer (`e2e/structuresJitter.test.ts`, with a speckle test that fails on the old shader: 128 isolated pixels against 0)
+- [x] 11. Budgets: row 0 draw calls 30 -> 100, one triangle budget per layer (`tests/render/structureBudget.test.ts`)
+- [x] 12. Mutant-killing tests: `tests/ui/structureInfo.test.ts`, `tests/render/adaptiveWindows.test.ts`, `tests/render/camCapRate.test.ts`, pickStructure and placement cases; `npm run verify:fast` green. NOT done: see "Audit 1 leftovers (Fix-UI)" in `docs/BACKLOG.md`.
+
 ## Next
 
 - Audit 1 (the batch audit of versions 12 to 16, range 7018b4c..cf01c79) found no blocker and a list of majors; the fix slices 'Fix-Sim' and 'Fix-UI' work through them (see their sections under Now and docs/BACKLOG.md 'Audit 1 leftovers'). After that: the building roadmap continues (more kinds of buildings, the city detail map of M18e), then M11a radar and the air milestones M11b to M13b.

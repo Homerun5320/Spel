@@ -12,6 +12,11 @@ import {
   REJECT_BUILD_OCCUPIED,
   REJECT_BUILD_PEAK,
   REJECT_BUILD_SPACING,
+  REJECT_DELETE_COOLDOWN,
+  REJECT_STRUCT_BUSY,
+  REJECT_STRUCT_ID,
+  REJECT_STRUCT_MAX_LEVEL,
+  REJECT_STRUCT_NOT_OWNER,
 } from '../sim/public';
 import type { TextKey } from './i18n';
 
@@ -43,5 +48,26 @@ export function buildRejectKey(reason: number): TextKey {
       return 'toast.build.full';
     default:
       return 'reject.other';
+  }
+}
+
+/**
+ * The toast key of ANY refusal of a Build, Upgrade or Delete the sim reports back (the codes 21 to 38). The Upgrade and Delete tooltips carry
+ * parameters ({price}, {seconds}), so a refused click gets its own parameter-free toast texts. Other codes: 'reject.other'.
+ */
+export function structureRefusalKey(reason: number): TextKey {
+  switch (reason) {
+    case REJECT_STRUCT_ID:
+      return 'toast.struct.gone';
+    case REJECT_STRUCT_NOT_OWNER:
+      return 'toast.struct.notOwner';
+    case REJECT_STRUCT_MAX_LEVEL:
+      return 'toast.struct.maxLevel';
+    case REJECT_STRUCT_BUSY:
+      return 'toast.struct.busy';
+    case REJECT_DELETE_COOLDOWN:
+      return 'toast.struct.cooldown';
+    default:
+      return buildRejectKey(reason);
   }
 }

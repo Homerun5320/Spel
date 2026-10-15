@@ -286,3 +286,17 @@ Everything here would shorten `verify` further; each needs a per-test reset cont
 - A landlocked nation wants a Port for ever, so it never builds a Defense Post (sequence City, City, Factory, City, City, Factory, ...). Decide whether a Post may pre-empt a Port that has no place.
 - Not in this slice (other tracks or later): the finding list items on adaptive.ts, camera.ts, the UI pure functions, placement / pickStructure mutants, `rejectKey` for the structure codes, budgets row 0, the jitter test.
 - A guard test for the engine version: hash all `UPPER_SNAKE` constants of the sim part of `src/sim/rules.ts` and pin the digest next to `ENGINE_VERSION`, so a rule change fails until both are updated (suggested by the audit, not built).
+
+## Audit 1 leftovers (Fix-UI)
+
+Not done in the Fix-UI slice (the sim, host and AI findings belong to Fix-Sim):
+- The structure layer's drop policy prefers nobody: past the triangle budget the highest ids vanish, also the player's own. Prefer the local owner and structures near the camera; a one-time warning when `dropped > 0`.
+- Structure layer cost scales with the whole table (`rebuild` places every structure on each table change, `seawardYaw` samples 24 points per Port): cache `place` / `seawardYaw` per (id, cell, type); skip the placement re-pick when pointer and camera are still.
+- Icon size and the model / icon cross-fade are in drawing-buffer pixels, not CSS pixels (the adaptive scale changes them).
+- Night side readability of structures (owner glow 0.05 only); the selection ring cut by steep slopes (draw it without depth test or lift it by the slope).
+- The adaptive step before the draw has no automated test (the loop does not run in test mode); the interval fallback on a 30 Hz display settles at scale 0.5; `AdaptiveConfig.statistic` and `densityStep` are mutant switches in production code.
+- GPU tip below the fold at 1366x640, hardware-acceleration advice for the software class, a help line for building on the start card, the F3 overlay width.
+- The window resize from landscape to portrait while zoomed out leaves the globe cropped (camera `setViewport`); a long press in the placement mode does nothing (`longPress` returns false, the comment says it leaves the mode).
+- `buildBar` / `selectionPanel` DOM states have no unit tests (no DOM setup in the unit project); the pure functions behind them are tested. `hudLogic` / `structureInfo` mutants of boundary kind (exact equality) are left. Mutants U07-style of the host mirror and `cloneStructures` aliasing (V10, V11), L01 / L04 / L05 / L11 / L12 of the placement mode, `tiltCapAt` smoothstep flatness (F10), GPU class rows WARP / lavapipe / Mesa offscreen are left.
+- The docs lag of PROGRESS Done rows and stale BACKLOG lines (the audit's docs finding) is left to the orchestrator.
+

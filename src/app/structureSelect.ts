@@ -8,10 +8,13 @@ import type { InputMode } from './input';
 /**
  * The structure a click on `cell` selects, or -1. The structure standing on the cell wins; otherwise the nearest structure OF `ownerId` within
  * one cell (the eight neighbours, x wrapping; a tie goes to the lowest id). Other owners' structures are not selectable by a click.
+ * The neighbourhood applies only when the clicked cell is the player's own land (`cellOwner` = the owner of `cell`): a click on neutral or enemy land
+ * beside a structure is an attack or expand click and must reach the base action.
  */
-export function pickStructure(table: StructureView, width: number, height: number, cell: number, ownerId: number): number {
+export function pickStructure(table: StructureView, width: number, height: number, cell: number, ownerId: number, cellOwner: number): number {
   const here = table.idAt(cell);
   if (here >= 0 && table.owner[here] === ownerId) return here;
+  if (cellOwner !== ownerId) return -1;
   const x = cell % width;
   const y = (cell - x) / width;
   let best = -1;

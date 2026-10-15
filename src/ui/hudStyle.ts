@@ -67,17 +67,17 @@ export function hudCss(): string {
 .build-wrap { position: absolute; left: 50%; bottom: 0.6em; transform: translateX(-50%); display: flex; flex-direction: column-reverse; align-items: center; gap: 0.4em; pointer-events: none; }
 .build-bar { display: flex; align-items: center; gap: 0.4em; padding: 0.3em; pointer-events: auto; }
 .build-bar[hidden], .build-hint[hidden] { display: none !important; }
-.build-bar { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); max-width: min(21em, calc(100vw - 1em)); width: max-content; } /* M10-2 / M10-3: six buttons in three columns and two rows between the two corner panels */
-.build-btn { min-width: 0; }
-.build-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.build-btn { min-width: ${target}; min-height: ${target}; padding: 0 0.8em; display: flex; align-items: baseline; gap: 0.5em; border-radius: 0.5em; border: 1px solid ${C.buttonBorder}; background: ${C.button}; color: ${C.text}; font: inherit; font-weight: 700; cursor: pointer; touch-action: manipulation; }
+.build-bar { display: grid; grid-template-columns: repeat(3, max-content); gap: 0.4em; max-width: calc(100vw - 1em); width: max-content; } /* Fix-UI: three columns of full names (key and name on the first line, the price under the name) */
+.build-btn { min-width: ${target}; min-height: ${target}; padding: 0.15em 0.7em; display: grid; grid-template-columns: auto auto; column-gap: 0.45em; align-items: baseline; justify-content: start; border-radius: 0.5em; border: 1px solid ${C.buttonBorder}; background: ${C.button}; color: ${C.text}; font: inherit; font-weight: 700; cursor: pointer; touch-action: manipulation; }
+.build-name { white-space: nowrap; }
+.build-price { grid-column: 2; }
 .build-btn:hover { background: ${C.buttonActive}; }
 .build-btn[data-active="1"] { background: ${C.buttonActive}; border-color: ${C.accent}; box-shadow: inset 0 0 0 1px ${C.accent}; }
 .build-btn[data-state="poor"] { opacity: 0.55; border-color: ${C.panelBorder}; }
 .build-key { color: ${C.textDim}; font-size: 0.8em; }
 .build-price { color: ${C.gold}; font-variant-numeric: tabular-nums; }
 .build-btn[data-state="locked"] { opacity: 0.45; border-style: dashed; }
-@media (max-width: 1100px) { .build-btn { padding: 0 0.5em; gap: 0.35em; } .build-name { font-size: 0.85em; } }
+@media (max-width: 1100px) { .build-btn { padding: 0.1em 0.5em; column-gap: 0.35em; } .build-name { font-size: 0.85em; } }
 .build-hint { width: max-content; max-width: min(20em, calc(100vw - 2em)); text-align: center; padding: 0.35em 0.9em; pointer-events: none; font-size: 0.9em; }
 .toast-stack { position: absolute; left: 50%; bottom: 17em; transform: translateX(-50%); display: flex; flex-direction: column; gap: 0.35em; align-items: center; z-index: ${Z_HUD + 1}; pointer-events: none; font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; font-size: ${fontSize}; }
 .toast { width: max-content; max-width: min(30em, calc(100vw - 2em)); text-align: center; padding: 0.45em 1em; border-radius: 0.6em; background: ${C.panel}; color: ${C.text}; border: 1px solid ${C.panelBorder}; box-shadow: 0 0.15em 0.7em rgba(0, 0, 0, 0.5); }
@@ -90,7 +90,8 @@ export function hudCss(): string {
 .sel-level, .sel-note { color: ${C.textDim}; font-size: 0.85em; }
 .sel-state { color: ${C.barWarning}; font-size: 0.85em; }
 .sel-fx { font-size: 0.9em; }
-.sel-row { display: flex; flex-wrap: wrap; gap: 0.4em; margin-top: 0.2em; }
+.sel-row { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.4em; margin-top: 0.2em; }
+.sel-btn[data-armed="1"] { border-color: ${C.danger}; box-shadow: inset 0 0 0 1px ${C.danger}; }
 .sel-btn { min-height: ${target}; padding: 0 0.8em; border-radius: 0.5em; border: 1px solid ${C.buttonBorder}; background: ${C.button}; color: ${C.text}; font: inherit; font-weight: 700; cursor: pointer; touch-action: manipulation; }
 .sel-btn:hover { background: ${C.buttonActive}; }
 .sel-btn[data-state="dim"] { opacity: 0.5; border-style: dashed; cursor: not-allowed; }
@@ -109,7 +110,8 @@ export function hudCss(): string {
   /* M10-2 / M10-3: six buttons in two columns right of the gold panel, three rows growing upward; the hint and the toasts sit above them */
   .build-wrap { left: auto; right: 8px; bottom: 11.5em; transform: none; align-items: flex-end; }
   .build-bar { width: calc(100vw - 20em); max-width: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.3em; }
-  .build-btn { min-width: 0; padding: 0 0.4em; gap: 0.3em; }
+  .build-bar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .build-btn { min-width: 0; padding: 0.1em 0.4em; column-gap: 0.3em; }
   .build-name { font-size: 0.8em; }
   .toast-stack { bottom: 28em; }
   .sel-panel { left: 8px; bottom: 21em; width: auto; max-width: min(17.5em, calc(100vw - 16px)); }

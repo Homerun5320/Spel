@@ -108,3 +108,13 @@ export {
   POST_RADIUS_CELLS,
   TICK_HZ,
 } from './rules';
+
+// Fix-UI: the level tables the selection panel shows (append-only; rules.ts is the source, each has a row in docs/BALANCE.md).
+export {
+  FACTORY_CITY_BONUS_PCT_BY_LEVEL,
+  FACTORY_GOLD_MILLI_BY_LEVEL,
+  FACTORY_RADIUS_CELLS_BY_LEVEL,
+  PORT_GOLD_MILLI_BY_LEVEL,
+  PORT_TRADE_PCT_BY_LEVEL,
+  SAM_MOUNTAIN_PCT,
+} from './rules';

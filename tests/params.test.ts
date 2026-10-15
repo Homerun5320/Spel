@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { clearDevModes, devModes, hashAfterMode, modeActive, registerDevMode } from '../src/app/devpanel';
 import { registerAppModes } from '../src/app/modes';
-import { parseAppState, parseHash, parseParams, parseQuery, parseRaw, parseSceneParams, toHash, toQuery } from '../src/app/params';
+import { adaptiveEnabled, parseAppState, parseHash, parseParams, parseQuery, parseRaw, parseSceneParams, toHash, toQuery } from '../src/app/params';
 
 describe('hash grammar (one parser for location.search and location.hash)', () => {
   it('the examples of the prompt: #perf, #scene-perf, #scenario-slice_sam-1, #view-alps-valley, #seed-7', () => {
@@ -97,5 +97,18 @@ describe('registered ? modes', () => {
     // active through the query only: the hash gets perf-0, which wins
     expect(hashAfterMode(perf, '', { perf: '1' })).toBe('perf-0');
     expect(parseAppState('?perf=1', `#${hashAfterMode(perf, '', { perf: '1' })}`).perf).toBe(false);
+  });
+});
+
+describe('the adaptive resolution default (Fix-UI)', () => {
+  it('is on in the live game, off in test mode, in the performance scene and with the plain #perf overlay; adapt=1 and adapt=0 always win', () => {
+    const on = (search: string, hash = ''): boolean => adaptiveEnabled(parseAppState(search, hash));
+    expect(on('', '')).toBe(true);
+    expect(on('', '#perf')).toBe(false); // raw speed, as docs/PREVIEW.md says
+    expect(on('', '#scene-perf')).toBe(false);
+    expect(on('?test=1')).toBe(false);
+    expect(on('', '#perf_adapt-1')).toBe(true);
+    expect(on('?test=1&adapt=1')).toBe(true);
+    expect(on('', '#adapt-0')).toBe(false);
   });
 });

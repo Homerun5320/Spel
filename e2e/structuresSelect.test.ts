@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
 import { OUT_DIR, compareGolden, decodePng, encodePng, launchBrowser, openPage } from '../scripts/shot.mjs';
 import { timeForSubsolarLon } from '../src/render/geo';
 import { cellToLatLon } from '../src/render/transforms';
+import { formatFixed, formatInt } from '../src/ui/i18n';
 import { REJECT_DELETE_COOLDOWN, REJECT_NONE, REJECT_STRUCT_BUSY } from '../src/sim/intents';
 import { CAP_CITY_LEVEL_TROOPS, CITY_GOLD_MILLI_PER_SEC_PER_LEVEL, POST_RADIUS_CELLS, SAM_RADIUS_CELLS } from '../src/sim/rules';
 import { STRUCT_CITY, STRUCT_POST, STRUCT_SAM, upgradePriceGold } from '../src/sim/structureRules';
@@ -115,7 +116,7 @@ describe('selecting a structure', () => {
       expect(await panel.getAttribute('data-level')).toBe('1');
       expect(await panel.getAttribute('data-type')).toBe(String(STRUCT_CITY));
       // what it gives: the sim's numbers (rules.ts), through the text key
-      const expectFx = await t.text('sel.fx.city', { gold: String(CITY_GOLD_MILLI_PER_SEC_PER_LEVEL / 1000), troops: CAP_CITY_LEVEL_TROOPS });
+      const expectFx = await t.text('sel.fx.city', { gold: formatFixed(CITY_GOLD_MILLI_PER_SEC_PER_LEVEL / 1000, 1), troops: formatInt(CAP_CITY_LEVEL_TROOPS) });
       expect(await page.locator('[data-testid="sel-fx"]').textContent()).toBe(expectFx);
       const upgrade = page.locator('[data-testid="sel-upgrade"]');
       expect(await upgrade.getAttribute('data-price')).toBe(String(upgradePriceGold(STRUCT_CITY, 2)));
@@ -147,6 +148,11 @@ describe('selecting a structure', () => {
       expect((await t.props()).list[0]?.level).toBe(2);
 
       // Delete: the structure goes, the selection ends, and the seat's cooldown starts
+      // (Fix-UI: Delete takes two clicks; the first only arms the button)
+      await page.locator('[data-testid="sel-delete"]').click();
+      await t.advance(0.1, 4);
+      expect((await t.state()).structures.count).toBe(1);
+      expect(await page.locator('[data-testid="sel-delete"]').getAttribute('data-armed')).toBe('1');
       await page.locator('[data-testid="sel-delete"]').click();
       await t.advance(0.1, 4);
       await t.settle();
