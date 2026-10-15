@@ -79,6 +79,38 @@ export interface GlobeInfo {
   terrainMode: TerrainMode;
 }
 
+interface RendererGl {
+  getExtension(name: string): { UNMASKED_RENDERER_WEBGL: number; UNMASKED_VENDOR_WEBGL: number } | null;
+  getParameter(pname: number): unknown;
+  readonly RENDERER: number;
+  readonly VENDOR: number;
+}
+
+/** THE one place that reads the renderer and vendor strings of a GL context (the report, the F3 overlay and the default tier all use it). */
+export function readGpuStrings(gl: RendererGl): { renderer: string; vendor: string } {
+  const ext = gl.getExtension('WEBGL_debug_renderer_info');
+  return {
+    renderer: (ext ? String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)) : '') || String(gl.getParameter(gl.RENDERER)),
+    vendor: (ext ? String(gl.getParameter(ext.UNMASKED_VENDOR_WEBGL)) : '') || String(gl.getParameter(gl.VENDOR)),
+  };
+}
+
+/**
+ * The strings of this machine's GL, read once at start BEFORE the globe's own context exists (the tier decides that context's
+ * antialiasing): a throw-away canvas, released at once. Null when WebGL is unavailable.
+ */
+export function probeGpuStrings(): { renderer: string; vendor: string } | null {
+  try {
+    const gl = document.createElement('canvas').getContext('webgl2') ?? document.createElement('canvas').getContext('webgl');
+    if (gl === null) return null;
+    const strings = readGpuStrings(gl);
+    gl.getExtension('WEBGL_lose_context')?.loseContext();
+    return strings;
+  } catch {
+    return null;
+  }
+}
+
 /** What `__test.state().terrain` reports. */
 export interface TerrainInfo extends ChunkStats {
   mode: TerrainMode;
@@ -589,14 +621,14 @@ export class Globe {
 
   info(): GlobeInfo {
     const gl = this.renderer.getContext();
-    const ext = gl.getExtension('WEBGL_debug_renderer_info');
+    const strings = readGpuStrings(gl);
     const info = this.renderer.info;
     // The world and look textures, plus the match's two: the 1024x512 RGBA8 ownership texture (2 MB) and the 256x1 owner palette.
     const palette = (this.material.uniforms.uOwnerPalette as { value: { image: unknown } }).value;
     const bytes = allTextureBytes(this.textures, this.look) + rgbaTextureBytes(this.ownership.texture) + rgbaTextureBytes(palette);
     return {
-      renderer: (ext ? String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)) : '') || String(gl.getParameter(gl.RENDERER)),
-      vendor: (ext ? String(gl.getParameter(ext.UNMASKED_VENDOR_WEBGL)) : '') || String(gl.getParameter(gl.VENDOR)),
+      renderer: strings.renderer,
+      vendor: strings.vendor,
       glVersion: String(gl.getParameter(gl.VERSION)),
       webgl2: typeof WebGL2RenderingContext !== 'undefined' && gl instanceof WebGL2RenderingContext,
       drawCalls: info.render.calls,

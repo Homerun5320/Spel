@@ -1,5 +1,7 @@
 // Quality tiers: test / low / medium / high. The tier fixes the globe mesh density, the pixel ratio cap and MSAA.
-// `?quality=` picks a tier, `?test=1` forces `test`.
+// `?quality=` picks a tier, `?test=1` forces `test`; without either the card class (AutoTier-1, `gpuClass.ts`) picks the default.
+
+import type { GpuClass } from './gpuClass';
 
 export type QualityTier = 'test' | 'low' | 'medium' | 'high';
 
@@ -45,20 +47,46 @@ export function meshTriangles(s: QualitySettings): number {
   return 2 * s.meshCols * s.meshRows;
 }
 
+/** Where the tier of a page came from (a field of the perf report). `test` is the forced test tier of `?test=1`. */
+export type TierSource = 'test' | 'param' | 'dev' | 'pref' | 'auto' | 'default';
+
+export interface QualityOptions {
+  test: boolean;
+  quality: string | null;
+  chunkTier?: string | null;
+  /** The card class (AutoTier-1); absent = unknown = the old default. */
+  gpuClass?: GpuClass | null;
+  /** The player's stored tier (the pref `quality`), raw. */
+  pref?: string | null;
+  /** True when `quality` came from the Dev panel (it writes the address hash) instead of a typed `?quality=`. */
+  fromDev?: boolean;
+}
+
+/** Tier of an integrated or software card when nothing else was chosen. */
+export const WEAK_GPU_TIER: QualityTier = 'low';
+
 /**
- * `?test=1` forces the test tier (MSAA off, DPR 1); otherwise `?quality=` (unknown values fall back to the default). In test mode
+ * `?test=1` forces the test tier (MSAA off, DPR 1); otherwise the order is `?quality=` (the Dev panel writes it too), the stored pref, the
+ * class of the card (integrated / software -> `low`) and `DEFAULT_TIER`. The automatic choice is never written to the prefs. In test mode
  * `chunkTier` (`?chunktier=high`) swaps in the chunk density of another tier, so that the headless tests can render the chunk terrain
  * of the high tier without leaving the deterministic test settings.
  */
-export function resolveQuality(opts: { test: boolean; quality: string | null; chunkTier?: string | null }): QualitySettings {
+export function resolveQualityChoice(opts: QualityOptions): { settings: QualitySettings; source: TierSource } {
   if (opts.test) {
     if (isQualityTier(opts.chunkTier) && opts.chunkTier !== 'test') {
       const t = QUALITY[opts.chunkTier];
-      return { ...QUALITY.test, chunkCells: t.chunkCells, chunkMax: t.chunkMax, chunkSplitK: t.chunkSplitK, chunkDeepK: t.chunkDeepK };
+      return { settings: { ...QUALITY.test, chunkCells: t.chunkCells, chunkMax: t.chunkMax, chunkSplitK: t.chunkSplitK, chunkDeepK: t.chunkDeepK }, source: 'test' };
     }
-    return QUALITY.test;
+    return { settings: QUALITY.test, source: 'test' };
   }
-  return QUALITY[isQualityTier(opts.quality) ? opts.quality : DEFAULT_TIER];
+  if (isQualityTier(opts.quality)) return { settings: QUALITY[opts.quality], source: opts.fromDev === true ? 'dev' : 'param' };
+  if (isQualityTier(opts.pref)) return { settings: QUALITY[opts.pref], source: 'pref' };
+  if (opts.gpuClass === 'integrated' || opts.gpuClass === 'software') return { settings: QUALITY[WEAK_GPU_TIER], source: 'auto' };
+  return { settings: QUALITY[DEFAULT_TIER], source: 'default' };
+}
+
+export function resolveQuality(opts: QualityOptions): QualitySettings {
+  return resolveQualityChoice(opts).settings;
 }
 
 /** Triangles of one chunk instance: the grid (2 per cell) plus the skirts (4 edges x cells x 2). */

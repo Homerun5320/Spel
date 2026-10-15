@@ -1,7 +1,7 @@
 // The style sheet of the match HUD and the start screen, built from the tokens in uiConfig.ts. One <style> element per root; the
 // classes are prefixed `hud-` / `start-`. No transitions or animations (CSS time is not the fx clock; tests/fxClock.test.ts
 // forbids them): every visible change is a state change driven from JS.
-import { NARROW_MAX_PX, HUD_FONT_BIAS_PX, HUD_FONT_MAX_PX, HUD_FONT_MIN_PX, HUD_FONT_VW, SETUP_PANEL_EM, SETUP_SHEET_VH, TARGET_MIN_PX, UI_COLORS as C, Z_HUD, Z_SETUP, Z_START_SCREEN } from './uiConfig';
+import { GPU_TIP, NARROW_MAX_PX, HUD_FONT_BIAS_PX, HUD_FONT_MAX_PX, HUD_FONT_MIN_PX, HUD_FONT_VW, SETUP_PANEL_EM, SETUP_SHEET_VH, TARGET_MIN_PX, UI_COLORS as C, Z_HUD, Z_SETUP, Z_START_SCREEN } from './uiConfig';
 
 export function hudCss(): string {
   const fontSize = `clamp(${HUD_FONT_MIN_PX}px, calc(${HUD_FONT_VW}vw + ${HUD_FONT_BIAS_PX}px), ${HUD_FONT_MAX_PX}px)`;
@@ -77,7 +77,7 @@ export function hudCss(): string {
   .hud-toast { bottom: 17em; }
 }
 
-.start-root { position: absolute; inset: 0; z-index: ${Z_START_SCREEN}; display: flex; align-items: center; justify-content: center; padding: 1em; background: radial-gradient(ellipse at center, ${C.scrim} 0%, ${C.scrimEdge} 100%); overflow: auto; }
+.start-root { position: absolute; inset: 0; z-index: ${Z_START_SCREEN}; display: flex; align-items: safe center; justify-content: center; padding: 1em; background: radial-gradient(ellipse at center, ${C.scrim} 0%, ${C.scrimEdge} 100%); overflow: auto; }
 .start-card { width: min(34em, 100%); display: flex; flex-direction: column; align-items: center; gap: 0.9em; text-align: center; padding: 1.2em 1.5em 1.1em; background: ${C.card}; border: 1px solid ${C.panelBorder}; border-radius: 1em; box-shadow: 0 0.4em 2em rgba(0, 0, 0, 0.6); }
 .start-title { margin: 0; font-size: 2.4em; line-height: 1.1; font-weight: 800; letter-spacing: 0.01em; }
 .start-tagline { margin: 0; color: ${C.textDim}; font-size: 1.05em; }
@@ -93,6 +93,10 @@ export function hudCss(): string {
 .start-small .start-btn:hover { background: ${C.buttonActive}; }
 .start-choice { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 0.3em; }
 .start-hint { margin: 0; color: ${C.textDim}; font-size: 0.85em; }
+.gpu-tip { pointer-events: none; width: 100%; display: flex; flex-direction: row; align-items: flex-end; gap: ${GPU_TIP.gapEm}em; padding: ${GPU_TIP.padEm}em ${GPU_TIP.padEm + 0.2}em; border-radius: ${GPU_TIP.radiusEm}em; border: 1px solid ${GPU_TIP.border}; background: ${GPU_TIP.background}; color: ${GPU_TIP.text}; font-size: ${GPU_TIP.fontEm}em; text-align: left; }
+.gpu-tip-body { display: flex; flex-direction: column; gap: ${GPU_TIP.gapEm}em; flex: 1 1 auto; min-width: 0; }
+.gpu-tip p { margin: 0; }
+.gpu-tip-close { pointer-events: auto; flex: 0 0 auto; min-height: ${TARGET_MIN_PX}px; min-width: ${TARGET_MIN_PX}px; padding: 0 1em; border-radius: 0.5em; border: 1px solid ${C.buttonBorder}; background: ${C.button}; color: ${C.text}; font: inherit; cursor: pointer; }
 .start-setup { min-width: 11em; min-height: 3.2em; padding: 0 2em; border-radius: 2em; border: 2px solid ${C.buttonBorder}; background: ${C.button}; font-size: 1.25em; font-weight: 800; }
 .start-setup:hover { background: ${C.buttonActive}; }
 
@@ -162,6 +166,7 @@ export function hudCss(): string {
   .start-play, .start-setup { min-height: 2.6em; font-size: 1.15em; }
   .start-choice { gap: 0.2em; }
   .start-hint { font-size: 0.8em; }
+  .gpu-tip { font-size: 0.72em; }
   .start-help { padding: 0.4em 0.7em; font-size: 0.8em; }
   .start-help li + li { margin-top: 0.15em; }
   .start-help-title { margin-bottom: -0.5em; }

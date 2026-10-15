@@ -8,13 +8,14 @@ import { buildOwnerPalette } from '../render/ownerPalette';
 import { rgbOfHex } from '../ui/flag';
 import type { ViewState } from '../render/camera';
 import type { FlyOptions } from '../render/flyTo';
-import { Globe, type GlobeInfo, type GlobePick, type ScreenHit, type WorldData } from '../render/globe';
+import { Globe, probeGpuStrings, type GlobeInfo, type GlobePick, type ScreenHit, type WorldData } from '../render/globe';
+import { classifyRenderer, readableGpuName, type GpuClass } from '../render/gpuClass';
 import type { WorldTextureName } from '../render/textures';
 import { BOOKMARKS, CAPITAL_BOOKMARK, DEFAULT_START_TIME, DEFAULT_START_VIEW, GROUND_VIEWS, type BookmarkName } from '../render/views';
 import { cellToLatLon, groundHeightAt } from '../render/transforms';
 import { setBookmarkHandler } from './bookmarks';
 import { InputStack, attachDomInput, attachDomKeys, createBaseMode, setContextHandler, setPauseHandler, type ContextHandler, type InputTarget } from './input';
-import { resolveQuality } from '../render/quality';
+import { isQualityTier, resolveQualityChoice } from '../render/quality';
 import type { TerrainMode } from '../render/terrainMaterial';
 import { FrameStats } from '../ui/frameStats';
 import { latLonOfCell } from './cellGeo';
@@ -23,7 +24,7 @@ import type { PerfSceneSection } from '../ui/perfSceneReport';
 import { PerfSceneRun, type PerfSceneHost } from './perfScene';
 import { createMatchHud, notConquerableText, rejectText, type MatchHud, type MatchHudModel } from '../ui/matchHud';
 import { getLanguage, onLanguageChange, setStrictI18n, t, type TextKey } from '../ui/i18n';
-import { START_FLY_KM, START_SPIN_DEG_PER_S, SETUP_IDLE_DIST_KM } from '../ui/uiConfig';
+import { GPU_TIP_PREF_KEY, START_FLY_KM, START_SPIN_DEG_PER_S, SETUP_IDLE_DIST_KM } from '../ui/uiConfig';
 import { mountStartScreen, type StartScreen } from '../ui/startScreen';
 import { applyStartLanguage } from './langPref';
 import { getPref, setPref } from './prefs';
@@ -324,7 +325,18 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     return () => undefined; // stopped while loading: build nothing
   }
 
-  const quality = resolveQuality({ test: params.test, quality: ctx.scene.quality, chunkTier: ctx.state.terrain.chunkTier });
+  // The card class (AutoTier-1), read once: the real strings in the live page, the `?gpu=<string>` hook in test mode (the tip and the report only;
+  // the test tier stays). The automatic tier is never written to the prefs; a stored `quality` pref (a valid tier) is read as the player's choice.
+  const gpuStrings = params.test ? (ctx.state.raw.gpu !== undefined ? { renderer: ctx.state.raw.gpu, vendor: '' } : null) : probeGpuStrings();
+  const gpuClass: GpuClass = gpuStrings === null ? 'capable' : classifyRenderer(gpuStrings.renderer, gpuStrings.vendor);
+  const qualityPref = getPref<string | null>('quality', null, (v): v is string => typeof v === 'string' && isQualityTier(v));
+  const fromDev = /(^|[#_])quality-/.test(window.location.hash);
+  const choice = resolveQualityChoice({ test: params.test, quality: ctx.scene.quality, chunkTier: ctx.state.terrain.chunkTier, gpuClass, pref: qualityPref, fromDev });
+  const quality = choice.settings;
+  const tierSource = choice.source;
+  // The tip says "the game chose low graphics": true only when the card class made that choice (an explicit tier or a pref says nothing like it).
+  // In test mode the tier stays `test`, so the `?gpu=` hook shows the tip of a weak class directly.
+  const weakGpu = gpuClass !== 'capable' && gpuStrings !== null && (tierSource === 'auto' || (params.test && ctx.state.raw.gpu !== undefined));
   const dpr = params.test ? 1 : Math.min(window.devicePixelRatio || 1, quality.maxDpr);
   const width = params.test ? params.width : window.innerWidth;
   const height = params.test ? params.height : window.innerHeight;
@@ -540,7 +552,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       `GL version:  ${i.glVersion}`,
       `fps: ${fps.toFixed(1)}`,
       `draw calls: ${i.drawCalls}  triangles: ${i.triangles}  textures: ${i.textures}`,
-      `${i.width}x${i.height} @${i.dpr}x  tier ${i.tier} (${i.meshCols}x${i.meshRows})`,
+      `${i.width}x${i.height} @${i.dpr}x  tier ${i.tier} (${i.meshCols}x${i.meshRows})  gpu ${gpuClass}, tier source ${tierSource}`,
       terrainLine(),
     ].join('\n');
   };
@@ -589,7 +601,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   };
   let gpuTimerOk = false;
   const perfContext: PerfContext = {
-    snapshot: () => globe.info(),
+    snapshot: () => ({ ...globe.info(), gpuClass, tierSource }),
     stats,
     mode: { test: params.test ? '1' : '0', quality: quality.tier, scene: ctx.scene.scene },
     scene: () => perfRun?.section() ?? null,
@@ -788,7 +800,13 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
         startScreen?.dispose();
         startScreen = null;
       },
-      { onSetup: () => void openSetup() },
+      {
+        onSetup: () => void openSetup(),
+        // The graphics tip: weak card, not closed before (`?gpu=` forces it in test mode; the pref remembers the closing).
+        ...(weakGpu && gpuStrings !== null && getPref<boolean>(GPU_TIP_PREF_KEY, false) !== true
+          ? { gpuTip: { name: readableGpuName(gpuStrings.renderer), onClose: () => void setPref(GPU_TIP_PREF_KEY, true) } }
+          : {}),
+      },
     );
   };
 
