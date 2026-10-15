@@ -276,3 +276,17 @@ Everything here would shorten `verify` further; each needs a per-test reset cont
 - The icon badges have no night dimming and no hover tooltip; at the globe's limb they can sit half behind the horizon.
 - The City lights are floating diamonds; lamp posts or window quads would read better close up.
 - The selection panel shows no owner name (own structures only) and no per-level preview of the next level's numbers.
+
+## Audit 1 leftovers (Fix-UI)
+
+Not done in the Fix-UI slice (the sim, host and AI findings belong to Fix-Sim):
+- The structure layer's drop policy prefers nobody: past the triangle budget the highest ids vanish, also the player's own. Prefer the local owner and structures near the camera; a one-time warning when `dropped > 0`.
+- Structure layer cost scales with the whole table (`rebuild` places every structure on each table change, `seawardYaw` samples 24 points per Port): cache `place` / `seawardYaw` per (id, cell, type); skip the placement re-pick when pointer and camera are still.
+- Icon size and the model / icon cross-fade are in drawing-buffer pixels, not CSS pixels (the adaptive scale changes them).
+- Night side readability of structures (owner glow 0.05 only); the selection ring cut by steep slopes (draw it without depth test or lift it by the slope).
+- The adaptive step before the draw has no automated test (the loop does not run in test mode); the interval fallback on a 30 Hz display settles at scale 0.5; `AdaptiveConfig.statistic` and `densityStep` are mutant switches in production code.
+- GPU tip below the fold at 1366x640, hardware-acceleration advice for the software class, a help line for building on the start card, the F3 overlay width.
+- The window resize from landscape to portrait while zoomed out leaves the globe cropped (camera `setViewport`); a long press in the placement mode does nothing (`longPress` returns false, the comment says it leaves the mode).
+- `buildBar` / `selectionPanel` DOM states have no unit tests (no DOM setup in the unit project); the pure functions behind them are tested. `hudLogic` / `structureInfo` mutants of boundary kind (exact equality) are left. Mutants U07-style of the host mirror and `cloneStructures` aliasing (V10, V11), L01 / L04 / L05 / L11 / L12 of the placement mode, `tiltCapAt` smoothstep flatness (F10), GPU class rows WARP / lavapipe / Mesa offscreen are left.
+- The docs lag of PROGRESS Done rows and stale BACKLOG lines (the audit's docs finding) is left to the orchestrator.
+

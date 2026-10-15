@@ -247,3 +247,11 @@ Del M07b B (D150, skuggningen): fragmentskuggaren har fortfarande 19 texelhämtn
 ## Roadmap
 
 See `docs/CHARTER.md` section 8. Planned modules (later): `src/ai` (M05 part C), `server/`.
+
+### Fix-UI additions (audit 1)
+
+| File | What |
+|------|------|
+| `tests/ui/structureInfo.test.ts`, `tests/render/structureBudget.test.ts`, `tests/render/adaptiveWindows.test.ts`, `tests/render/camCapRate.test.ts`, `e2e/fixUi.test.ts`, `e2e/structuresJitter.test.ts` | The Fix-UI tests: panel logic per type and level, the per-layer triangle budget, the regulator's window counts, the cap rate upward, Shift + click and the build bar names at four sizes, the structure layer's jitter and speckle checks. |
+| `src/app/params.ts` `adaptiveEnabled`, `src/ui/buildReasons.ts` `structureRefusalKey`, `src/ui/structureInfo.ts` `deleteClick` / `deleteArmed`, `InputMode.wantsShiftClick`, `StructureLayer.trianglesDrawn` | The new seams of Fix-UI (see DECISIONS Fix-UI). |
+
