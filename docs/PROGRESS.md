@@ -1137,8 +1137,8 @@ Base: 3d1a2bd (branch worktree-wf_18008882-291-1). Slice: ONLY the Factory (key 
 ### M11a: mountain-aware radar, LOS masks, composite coverage and exposure queries (headless; one builder in its own worktree; the orchestrator owns merging, pushing and the pull request). STOP RULE FIRED, see Known issues.
 
 GÖR and ACCEPTANS:
-- [x] 1. `src/sim/los` (terrain heights in game metres, the occluder weight, the per-site mask-altitude field, O(1) visibility test): `terrain.ts`, `mask.ts`
-- [x] 2. Composite coverage per owner over all SAM sites, 64x64 tiles allocated on demand, lazy rebuild on a changed site set (a signature, no hook, no hashed state, nothing after deserialize): `cache.ts`
+- [x] 1. `src/sim/los` (terrain heights in game metres, the occluder weight, the per-site mask-altitude field, O(1) visibility test): `src/sim/los/terrain.ts`, `src/sim/los/mask.ts`
+- [x] 2. Composite coverage per owner over all SAM sites, 64x64 tiles allocated on demand, lazy rebuild on a changed site set (a signature, no hook, no hashed state, nothing after deserialize): `src/sim/los/cache.ts`
 - [x] 3. Exposure queries exported from `src/sim/public.ts`: `exposure`, `isExposed`, `fireControlExposed`, `ALT_MODE_*`, `EXPOSED_*` (pinned in `tests/ai/boundary.test.ts`)
 - [x] 4. Defense Post: finished Post radius always exposes, both modes
 - [x] 5. Constants in `src/sim/rules.ts` with `docs/BALANCE.md` rows (ten)
