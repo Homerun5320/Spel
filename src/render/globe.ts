@@ -10,6 +10,7 @@ import { BORDER_STRENGTH, COUNTRY_TINT } from './config';
 import { selectionBytes } from './selection';
 import { describeAt, type GlobePick } from './describe';
 import { ChunkTerrain, type ChunkStats } from './chunkTerrain';
+import { bindHeightSource, detailLod } from './detail';
 import { sunDirectionAt, vecToLatLon, type Vec3 } from './geo';
 import { buildGlobeGeometry } from './globeMesh';
 import { HeightField } from './heightField';
@@ -17,6 +18,7 @@ import { OwnershipTexture } from './ownership';
 import { meshTriangles, type QualitySettings } from './quality';
 import { buildStars } from './stars';
 import { createTerrainMaterial, type TerrainMode } from './terrainMaterial';
+import { probeEncoding, probeHashes, probeHeights, probeNoise, probeVertexHeights, type ProbeEncoding } from './detailProbe';
 import { readTexels } from './textureProbe';
 import {
   allTextureBytes,
@@ -50,6 +52,8 @@ export interface GlobeOptions {
   terrain?: TerrainMode;
   /** `?chunks=1`: colour every chunk by its key instead of shading it. */
   chunkDebug?: boolean;
+  /** M07b: the terrain detail of the chunk terrain (default true; `?detail=0` switches it off, the base heights only). The fixed mesh has none. */
+  detail?: boolean;
 }
 
 export interface GlobeInfo {
@@ -103,6 +107,9 @@ export class Globe {
   private readonly mesh: Mesh;
   private readonly chunkTerrain: ChunkTerrain | null;
   readonly terrainMode: TerrainMode;
+  /** True when the chunk terrain draws and picks the terrain detail. */
+  readonly detail: boolean;
+  private readonly chunked: boolean;
   private readonly shell: Mesh;
   private readonly stars: Points;
   private readonly starsMaterial: ShaderMaterial;
@@ -133,13 +140,18 @@ export class Globe {
     this.rig = new CameraRig(o.width, o.height);
     this.flight = new CameraFlight(this.rig);
     this.camera = new PerspectiveCamera(30, o.width / o.height, 0.01, 100);
+    // The displaced surface of the chunk terrain includes the terrain detail (M07b): picking and the camera's ground see what the vertex shader draws.
+    this.chunked = (o.terrain ?? 'chunks') === 'chunks';
+    this.detail = this.chunked && o.detail !== false;
     this.field = new HeightField({
       height8: o.world.render.height8,
       width: o.world.render.width,
       height: o.world.render.height,
       maxM: o.world.meta.encoding.heightSqrt.maxM,
       exaggeration: HEIGHT_EXAGGERATION,
+      ...(this.chunked ? { detail: { lod: detailLod(o.quality.chunkCells, Math.min(o.quality.chunkSplitK, o.quality.chunkDeepK)), octaves: this.detail } } : {}),
     });
+    if (this.field.sampler) bindHeightSource(this.field.sampler);
 
     // The chunk terrain can be zoomed down to about 1 km above the ground (the fixed mesh cannot: it keeps the old minimum distance).
     if ((o.terrain ?? 'chunks') === 'chunks') this.rig.setGround((lat, lon) => this.field.surfaceRadius(lat, lon));
@@ -147,7 +159,7 @@ export class Globe {
     this.look = createLookTextures(o.world.cities ?? []);
     this.ownership = new OwnershipTexture(o.world.sim.width, o.world.sim.height, o.world.sim.terrainClass);
     this.terrainMode = o.terrain ?? 'chunks';
-    const tm = createTerrainMaterial(this.textures, o.world.render, o.world.sim, o.world.meta, this.look, this.ownership, this.terrainMode, o.quality.chunkCells);
+    const tm = createTerrainMaterial(this.textures, o.world.render, o.world.sim, o.world.meta, this.look, this.ownership, this.terrainMode, o.quality.chunkCells, { kMin: Math.min(o.quality.chunkSplitK, o.quality.chunkDeepK), on: this.detail });
     this.material = tm.material;
     this.sun = tm.sun;
     if (this.terrainMode === 'chunks') {
@@ -159,6 +171,7 @@ export class Globe {
         height: o.world.render.height,
         maxM: o.world.meta.encoding.heightSqrt.maxM,
         exaggeration: HEIGHT_EXAGGERATION,
+        detail: this.detail,
       });
       this.mesh = this.chunkTerrain.mesh;
       if (o.chunkDebug) this.setChunkDebug(true);
@@ -356,6 +369,19 @@ export class Globe {
     return this.describe(hit.lat, hit.lon, hit.heightM);
   }
 
+  /** The surface point under a pixel as the picking finds it: latitude, longitude and radius (Earth radii) of the displaced surface including the detail (tests). */
+  pickSurface(px: number, py: number): { lat: number; lon: number; radius: number } | null {
+    const ray = this.rig.rayAt(px, py);
+    const hit = this.field.pick(ray.origin, ray.dir);
+    return hit ? { lat: hit.lat, lon: hit.lon, radius: Math.hypot(hit.point[0], hit.point[1], hit.point[2]) } : null;
+  }
+
+  /** The camera position in Earth radii (tests). */
+  cameraPosition(): [number, number, number] {
+    const p = this.rig.pose().position;
+    return [p[0], p[1], p[2]];
+  }
+
   /** Cell, class, country and elevation of a position (the rules are in describe.ts). */
   describe(lat: number, lon: number, heightM: number = this.field.heightM(lat, lon)): GlobePick {
     return describeAt(this.world, lat, lon, heightM);
@@ -370,6 +396,41 @@ export class Globe {
   /** Texel values of a data texture as the GPU holds them (render-to-target readback). */
   readTexels(name: WorldTextureName, points: ReadonlyArray<readonly [number, number]>): Uint8Array {
     return readTexels(this.renderer, this.textures[name], points);
+  }
+
+  /** The encoding the detail probe uses on this renderer (float when EXT_color_buffer_float exists, else packed bytes). */
+  probeEncoding(): ProbeEncoding {
+    return probeEncoding(this.renderer);
+  }
+
+  /** The integer hash of each [ix, iy, iz, seed], computed by the GLSL function of the terrain detail (see detailProbe.ts). */
+  probeHashes(items: ReadonlyArray<readonly [number, number, number, number]>, encoding?: ProbeEncoding): Uint32Array {
+    return probeHashes(this.renderer, items, encoding);
+  }
+
+  /** The height in render metres of each [latitude, longitude, octaves], computed by the GLSL function of the terrain detail from the uploaded raster. */
+  probeHeights(points: ReadonlyArray<readonly [number, number, number]>, encoding?: ProbeEncoding): Float32Array {
+    const r = this.world.render;
+    return probeHeights(this.renderer, { texture: this.textures.height, width: r.width, height: r.height, maxM: this.world.meta.encoding.heightSqrt.maxM }, points, encoding);
+  }
+
+  /** The 3D value noise of the GLSL function at each [x, y, z, seed] (or its ridge value). */
+  probeNoiseValues(items: ReadonlyArray<readonly [number, number, number, number]>, ridge: boolean, encoding?: ProbeEncoding): Float32Array {
+    return probeNoise(this.renderer, items, ridge, encoding);
+  }
+
+  /** The law of detail of the chunk material (`uDetailLod`: the offset of the distance law, the level bias, 1 = detail on); null in the fixed mode. */
+  detailLodUniform(): [number, number, number] | null {
+    const u = this.material.uniforms.uDetailLod as { value: { x: number; y: number; z: number } } | undefined;
+    return u ? [u.value.x, u.value.y, u.value.z] : null;
+  }
+
+  /** The height the chunk vertex shader draws at each [latitude, longitude, chunk level, camera x, y, z (Earth radii)] (the vertex path of the detail, see detailProbe.ts). */
+  probeVertexHeights(points: ReadonlyArray<readonly [number, number, number, number, number, number]>, encoding?: ProbeEncoding): Float32Array {
+    const lod = this.detailLodUniform();
+    if (!lod) throw new Error('probeVertexHeights: the fixed mesh has no terrain detail');
+    const r = this.world.render;
+    return probeVertexHeights(this.renderer, { texture: this.textures.height, width: r.width, height: r.height, maxM: this.world.meta.encoding.heightSqrt.maxM }, points, lod, this.field.exaggeration, EARTH_RADIUS_KM * 1000, encoding);
   }
 
   /** The owners the GPU holds for a list of sim cells (R + 256 * G of the ownership texture), after forcing the pending upload. */

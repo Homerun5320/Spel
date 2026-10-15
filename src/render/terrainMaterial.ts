@@ -4,6 +4,7 @@
 import { AdditiveBlending, BackSide, FrontSide, ShaderMaterial, Vector2, Vector3, Vector4 } from 'three';
 import { DEPTH_MAX_M, LAND_MAX_M, type RenderPack, type SimGrid, type WorldMeta } from '../data';
 import * as C from './config';
+import { detailLod } from './detail';
 import { atmosphereFragmentShader, atmosphereVertexShader } from './shaders/atmosphere';
 import { starsFragmentShader, starsVertexShader } from './shaders/stars';
 import { chunkVertexShader } from './shaders/chunk';
@@ -26,6 +27,12 @@ export interface TerrainMaterial {
   stars: ShaderMaterial;
 }
 
+/** The terrain detail of the chunk material (M07b): the smallest split distance of the tier's quadtree (its deepK, in chunk sides) fixes the distance law, `on` false = the base height only. */
+export interface TerrainDetailOptions {
+  kMin?: number;
+  on?: boolean;
+}
+
 const v3 = (c: readonly [number, number, number]): Vector3 => new Vector3(c[0], c[1], c[2]);
 
 export function createTerrainMaterial(
@@ -37,6 +44,7 @@ export function createTerrainMaterial(
   ownership?: OwnershipTexture,
   mode: TerrainMode = 'fixed',
   chunkCells = 32,
+  detail: TerrainDetailOptions = {},
 ): TerrainMaterial {
   const sun = new Vector3(0, 0, 1);
   // Uniforms used by more than one material are the SAME objects, so one assignment updates all of them.
@@ -50,6 +58,7 @@ export function createTerrainMaterial(
     uAtmoDusk: { value: v3(C.ATMOSPHERE_DUSK) },
   };
   const chunks = mode === 'chunks';
+  const lod = detailLod(chunkCells, detail.kMin ?? 2.2);
   const material = new ShaderMaterial({
     vertexShader: chunks ? chunkVertexShader : terrainVertexShader,
     fragmentShader: chunks ? buildTerrainFragmentShader(true) : terrainFragmentShader,
@@ -105,7 +114,7 @@ export function createTerrainMaterial(
       uSkyZenith: { value: v3(C.SKY_ZENITH) },
       uSkyNight: { value: v3(C.SKY_NIGHT) },
       // Chunk terrain only: the skirts switch (a debug flag of the crack test) and the `?chunks=1` colouring.
-      ...(chunks ? { uSkirtsOn: { value: 1 }, uChunkDebug: { value: 0 }, uChunkCells: { value: chunkCells }, uCamHi: { value: new Vector3() }, uCamLo: { value: new Vector3() }, uSkirt: { value: new Vector2(C.CHUNK_SKIRT_CELLS, C.CHUNK_SKIRT_OUT_CELLS) }, uSkirtSame: { value: C.CHUNK_SKIRT_SAME_SHARE } } : {}),
+      ...(chunks ? { uSkirtsOn: { value: 1 }, uChunkDebug: { value: 0 }, uChunkCells: { value: chunkCells }, uDetailLod: { value: new Vector3(lod.offset, lod.levelBias, detail.on === false ? 0 : 1) }, uCamHi: { value: new Vector3() }, uCamLo: { value: new Vector3() }, uSkirt: { value: new Vector2(C.CHUNK_SKIRT_CELLS, C.CHUNK_SKIRT_OUT_CELLS) }, uSkirtSame: { value: C.CHUNK_SKIRT_SAME_SHARE } } : {}),
       ...shared,
     },
   });

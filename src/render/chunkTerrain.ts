@@ -9,6 +9,8 @@ import type { CameraPose } from './camera';
 import { buildChunkGrid, type ChunkGrid } from './chunkMesh';
 import { chunkGeo, chunkHue, chunkSizeRad, makeChunkGeo } from './chunkMath';
 import { CHUNK_MAX_LEVEL, OWNER_GRID_H, OWNER_GRID_W } from './config';
+import { HeightSampler } from './detail';
+import { DetailBounds } from './detailBounds';
 import { HeightPyramid } from './heightPyramid';
 import { makeQuadParams } from './quadParams';
 import { ChunkQuadtree, makeQuadCamera, type QuadCamera } from './quadtree';
@@ -25,6 +27,8 @@ export interface ChunkTerrainOptions {
   maxM: number;
   /** Height exaggeration the shader currently uses (kept in step by `setExaggeration`). */
   exaggeration: number;
+  /** M07b: the quadtree knows the terrain detail (default true; false = the base heights only, the shader's `uDetailLod.z` must agree). */
+  detail?: boolean;
 }
 
 /** What the tests and the perf overlay read of the chunk terrain. */
@@ -50,6 +54,8 @@ export class ChunkTerrain {
   readonly grid: ChunkGrid;
   readonly tree: ChunkQuadtree;
   readonly pyramid: HeightPyramid;
+  /** The height intervals of the detailed nodes (null without detail). */
+  readonly detailBounds: DetailBounds | null;
   private readonly geometry: InstancedBufferGeometry;
   private readonly buffer: InstancedInterleavedBuffer;
   private readonly data: Float32Array;
@@ -80,7 +86,8 @@ export class ChunkTerrain {
     this.grid = buildChunkGrid(this.cells);
     this.trianglesPerChunk = chunkTriangles(o.quality);
     if (this.grid.triangles !== this.trianglesPerChunk) throw new Error(`chunk grid has ${this.grid.triangles} triangles, expected ${this.trianglesPerChunk}`);
-    this.tree = new ChunkQuadtree(makeQuadParams({ quality: o.quality, pyramid: this.pyramid, width: o.width, maxM: o.maxM, exaggeration: () => this.exag }));
+    this.detailBounds = o.detail === false ? null : new DetailBounds(new HeightSampler({ codes: o.codes, width: o.width, height: o.height, maxM: o.maxM }), this.pyramid, this.cells);
+    this.tree = new ChunkQuadtree(makeQuadParams({ quality: o.quality, pyramid: this.pyramid, width: o.width, maxM: o.maxM, exaggeration: () => this.exag, detail: this.detailBounds }));
     const g = new InstancedBufferGeometry();
     g.setAttribute('position', new BufferAttribute(this.grid.position, 3));
     g.setIndex(new BufferAttribute(this.grid.index, 1));

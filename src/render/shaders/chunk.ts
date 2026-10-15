@@ -11,6 +11,8 @@
 // Pure maths of the offset lives in chunkMath.ts (`vertexRelFloat32` mirrors this code operation by operation).
 import { OWNER_GRID_H, OWNER_GRID_W } from '../config';
 import { POLE_HEIGHT_U } from '../geo';
+import { GLSL_TEXELS } from './common';
+import { GLSL_DETAIL } from './detail';
 
 function glslFloat(x: number): string {
   const t = String(x);
@@ -19,7 +21,9 @@ function glslFloat(x: number): string {
 
 export const chunkVertexShader = /* glsl */ `
 uniform sampler2D uHeight;
+uniform ivec2 uHeightSize;
 uniform float uHeightMaxM;
+uniform vec3 uDetailLod; // x: the offset of the distance law (octaves = x - log2(distance in Earth radii)), y: the level bias (octaves of a level = level + y), z: 1 detail on, 0 off
 uniform float uExag;
 uniform float uKmPerUnit;
 uniform float uSkirtsOn;
@@ -44,6 +48,9 @@ varying vec2 vCellOff;       // ... and the offset from its corner in cells, sma
 
 const float TWO_PI = 6.283185307179586;
 const float PI_ = 3.141592653589793;
+
+${GLSL_TEXELS}
+${GLSL_DETAIL}
 
 float wallScale(float v) {
   return v > 0.5 ? exp2(v) : (v < -0.5 ? 1.0 : uSkirtSame);
@@ -77,13 +84,19 @@ void main() {
   float u = aGeo.w / TWO_PI + 0.5 + (g.x - 0.5) * aGeo.z / TWO_PI;
   float v = 0.5 - phi / PI_;
   vec2 hUv = (v <= 1e-6 || v >= 1.0 - 1e-6) ? vec2(${glslFloat(POLE_HEIGHT_U)}, clamp(v, 0.0, 1.0)) : vec2(u, v);
-  float code = textureLod(uHeight, hUv, 0.0).r;
-  float hM = uHeightMaxM * code * code;
-  float h = uExag * hM / (uKmPerUnit * 1000.0);
-  float r = 1.0 + h;
-  vec3 dir = up + off;
   // chunk centre minus camera, in two parts: (hi - hi) is exact next to the camera, (lo - lo) carries the rest
   vec3 originRel = (aUp.xyz - uCamHi) + (aOrigin.xyz - uCamLo);
+  vec3 dir = up + off;
+  // The height (src/render/shaders/detail.ts, the twin of src/render/detail.ts). A hardware tap that reads exactly 0 means none of the four
+  // texels around is land: the open sea needs nothing more. On land the coverage rule (sea 0, land above it), the base, the local relief and
+  // the ridged octaves come from texel fetches and integer hashes: octaves = the smaller of what the chunk's level carries and what the
+  // distance law allows for the vertex as placed by a first pass of a few octaves (continuous in the distance, so the two sides of an LOD
+  // seam give a shared vertex the same height).
+  float code = textureLod(uHeight, hUv, 0.0).r;
+  float hM = 0.0;
+  if (code > 0.0) hM = detVertexHeight(hUv, dir, originRel + off, aOrigin.w, uDetailLod, uExag / (uKmPerUnit * 1000.0));
+  float h = uExag * hM / (uKmPerUnit * 1000.0);
+  float r = 1.0 + h;
   vec3 rel = originRel + off * r + up * h;
   vec3 rim = rel; // where the terrain is: everything the fragment shader derives (view direction, haze, flat normal) is taken here, also on a wall
   if (wallFlag > 0.5 && wallFlag < 1.5) {

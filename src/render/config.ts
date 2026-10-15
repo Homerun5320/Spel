@@ -206,6 +206,31 @@ export const CLIP_FAR_MARGIN = 0.1;
 /** Hue step of the `?chunks=1` debug colours (golden ratio conjugate: neighbouring keys get well separated hues). */
 export const CHUNK_HUE_STEP = 0.6180339887498949;
 
+// --- Terrain detail (M07b): ridged noise added to the base height in the VERTEX path ---------------------------------------------
+// The base is the 4096x2048 raster (10 km texels, 12x exaggerated by the shader). The detail is a sum of ridged octaves of 3D value
+// noise on the unit sphere, scaled by the local relief of the raster, in RENDER metres before the exaggeration. `src/render/detail.ts`
+// (TypeScript, no three) and `src/render/shaders/detail.ts` (GLSL) are the SAME maths with the same constants; `heightAt` is the TS one.
+/** Seed of the integer hash (a mutation of it in TS must fail the parity test). */
+export const DETAIL_SEED = 0x2f6e2b1d;
+/** Lattice cells per Earth radius of octave 0 (cell = 6371 km / this = 19.5 km, about two raster texels); octave k doubles it. */
+export const DETAIL_FREQ0 = 1024 / Math.PI;
+/** Most octaves anywhere (level 17 chunks of 32 cells: 12). */
+export const DETAIL_OCTAVES_MAX = 12;
+/** Amplitude ratio between neighbouring octaves. */
+export const DETAIL_PERSIST = 0.42;
+/** The detail height as a share of the local relief (sum of the octaves is about +-0.5 of this). */
+export const DETAIL_AMP = 0.2;
+/** Mean of a ridged octave (r*r with r = 1 - |2n - 1|; measured 0.499 over 400 000 samples of the noise, tests/render/detail.test.ts checks it), subtracted so that the detail has no bias. */
+export const DETAIL_RIDGE_MEAN = 0.5;
+/** Local relief (max minus min of the base height over 3x3 raster texels) is never below this (metres). */
+export const DETAIL_RELIEF_FLOOR_M = 100;
+/** Octaves of the first pass that only places the vertex to find its distance from the camera. */
+export const DETAIL_PROBE_OCTAVES = 3;
+/** The land coverage (share of land among the four texels around a point, 0.5 = the coast line) where the coast fade starts and ends. */
+export const DETAIL_COAST_FADE: readonly [number, number] = [0.5, 1];
+/** Land is never lower than this above sea level (metres): land keeps its sign against the sea whatever the detail does. */
+export const DETAIL_LAND_MIN_M = 1;
+
 // --- Colours of the terrain classes (sRGB, 0..1), index = TerrainClass value of src/data/format.ts --------------------
 export const CLASS_ALBEDO: ReadonlyArray<readonly [number, number, number]> = [
   [0.02, 0.1, 0.3], // 0 DeepSea (unused on land)

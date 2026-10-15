@@ -56,6 +56,12 @@ export interface QuadParams {
    * (exaggeration applied), written to `lo` and `hi` of the result object the quadtree passes in (allocation-free).
    */
   heightRange(u0: number, u1: number, v0: number, v1: number, out: HeightRange): void;
+  /**
+   * M07b: the interval of the DETAILED surface of a node in Earth radii (exaggeration applied), when it has one: written to `out` over the
+   * base interval, true if it did. The detail moves the surface by up to a good share of the relief, so the base interval alone would put
+   * a camera that hovers over the detailed ground kilometres from where the tree thinks the ground is (src/render/detailBounds.ts).
+   */
+  detailRange?(level: number, ix: number, iy: number, out: HeightRange): boolean;
 }
 
 export interface HeightRange {
@@ -229,8 +235,13 @@ export class ChunkQuadtree {
   private victimN = 0;
   private nodeN = 0;
   private leafN = 0;
-  /** Splits of the last update that were undone to make room under the cap (a stat, not a result). */
+  /**
+   * Splits of the last update that were undone to make room under the cap (a stat, not a result): by pass B for a clearly more urgent
+   * newcomer, or by pass A when the splits of the last frame no longer fit together (their children came into view and the cap binds).
+   */
   evictions = 0;
+  /** The part of `evictions` that pass B made (to make room for a more urgent newcomer): the per-frame limit applies to these. */
+  private evictionsB = 0;
   /** Pass B: a newcomer with at least this key found no victim worth undoing, so neither will a less urgent one. */
   private evictFloor = Infinity;
   private readonly range: HeightRange = { lo: 0, hi: 0 };
@@ -392,6 +403,7 @@ export class ChunkQuadtree {
     const rows = levelRows(level);
     const rg = this.range;
     this.params.heightRange(ix / cols, (ix + 1) / cols, iy / rows, (iy + 1) / rows, rg);
+    if (this.params.detailRange) this.params.detailRange(level, ix, iy, rg);
     const rb = 1 + rg.lo;
     const rt = 1 + rg.hi;
     const rm = 0.5 * (rb + rt);
@@ -502,6 +514,7 @@ export class ChunkQuadtree {
     this.leafN += 1 - cn;
     this.victims[slot] = this.victims[--this.victimN] as number;
     this.evictions++;
+    this.evictionsB++;
   }
 
   /** Splits queued nodes of one heap, most urgent first, as far as the cap allows (pass B may undo clearly less urgent splits of pass A). */
@@ -527,7 +540,7 @@ export class ChunkQuadtree {
         }
       }
       if (passB && this.leafN - 1 + vc > max && key < this.evictFloor) {
-        while (this.leafN - 1 + vc > max && this.evictions < this.params.evictionsPerFrame) {
+        while (this.leafN - 1 + vc > max && this.evictionsB < this.params.evictionsPerFrame) {
           const slot = this.findVictim(key);
           if (slot < 0) {
             this.evictFloor = key;
@@ -539,6 +552,8 @@ export class ChunkQuadtree {
       if (this.nDead[n] === 1) continue; // (undone with its parent to make room: cannot happen for a newcomer less urgent than its parent, kept as a guard)
       if (this.leafN - 1 + vc > max) {
         this.capped = true; // stays a leaf; a cheaper split (fewer visible children) may still fit
+        // A split of the last frame that no longer fits in pass A (its children became visible, the cap binds) is undone for the cap too.
+        if (!passB) this.evictions++;
         continue;
       }
       this.nSplit[n] = 1; // (with no visible child the node simply drops out; nothing finer lies there)
@@ -559,6 +574,7 @@ export class ChunkQuadtree {
     this.leafN = 0;
     this.victimN = 0;
     this.evictions = 0;
+    this.evictionsB = 0;
     this.evictFloor = Infinity;
     for (let iy = 0; iy < ROOT_ROWS; iy++) {
       for (let ix = 0; ix < ROOT_COLS; ix++) {

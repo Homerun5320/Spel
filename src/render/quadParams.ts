@@ -3,6 +3,7 @@
 // bounds the shipped code uses (no hand-copied duplicate to drift). Pure (no three, no DOM).
 import { CHUNK_BUDGET_RESERVE, CHUNK_EVICTIONS_PER_FRAME, CHUNK_FRUSTUM_SLACK, CHUNK_HYSTERESIS, CHUNK_MAX_LEVEL, EARTH_RADIUS_KM } from './config';
 import { POLE_HEIGHT_U } from './geo';
+import type { DetailBounds, HeightIntervalM } from './detailBounds';
 import type { HeightPyramid } from './heightPyramid';
 import { CHUNK_ABSOLUTE_MAX, type QualitySettings } from './quality';
 import type { HeightRange, QuadParams } from './quadtree';
@@ -38,11 +39,15 @@ export interface QuadParamsInput {
   maxM: number;
   /** The exaggeration the shader uses right now (read on every call: it can change at run time). */
   exaggeration: () => number;
+  /** M07b: the height intervals of the detailed surface (none = the base alone, as in M07a). */
+  detail?: DetailBounds | null;
 }
 
 /** The quadtree parameters of a tier. The chunk cap is the tier's `chunkMax`, never above `CHUNK_ABSOLUTE_MAX`. */
 export function makeQuadParams(o: QuadParamsInput): QuadParams {
   const q = o.quality;
+  const db = o.detail ?? null;
+  const tmp: HeightIntervalM = { lo: 0, hi: 0 };
   return {
     maxChunks: Math.min(q.chunkMax, CHUNK_ABSOLUTE_MAX),
     maxLevel: CHUNK_MAX_LEVEL,
@@ -55,5 +60,16 @@ export function makeQuadParams(o: QuadParamsInput): QuadParams {
     evictionsPerFrame: CHUNK_EVICTIONS_PER_FRAME,
     reserve: CHUNK_BUDGET_RESERVE,
     heightRange: (u0, u1, v0, v1, out) => heightRangeRadii(o.pyramid, o.exaggeration(), o.maxM, u0, u1, v0, v1, out),
+    ...(db
+      ? {
+          detailRange: (level: number, ix: number, iy: number, out: { lo: number; hi: number }): boolean => {
+            if (!db.range(level, ix, iy, tmp)) return false;
+            const k = o.exaggeration() / (EARTH_RADIUS_KM * 1000);
+            out.lo = k * tmp.lo;
+            out.hi = k * tmp.hi;
+            return true;
+          },
+        }
+      : {}),
   };
 }

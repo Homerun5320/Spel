@@ -2,6 +2,7 @@
 // tooltip, the F3 overlay and the `?test=1` hooks. The only code in `src` that drives the fx clock from real frames.
 import { createWorldLoader, type WorldLoad } from '../data';
 import { advanceFx, fxNow, setFxTime } from '../render/clock';
+import { heightAt } from '../render/detail';
 import { wrapLon } from '../render/geo';
 import { buildOwnerPalette } from '../render/ownerPalette';
 import { rgbOfHex } from '../ui/flag';
@@ -130,6 +131,26 @@ export interface GlobeTestHooks {
   setClearColor(rgb: number): void;
   /** M07a: the camera's height above the displaced ground under it, metres. */
   cameraAglM(): number;
+  /**
+   * M07b (debug hooks, ARCHITECTURE "Terrain detail"): the readback probe runs the SAME GLSL functions as the chunk vertex shader.
+   * `probeEncoding()` is 'float' (an RGBA32F target, EXT_color_buffer_float) or 'bytes' (packed RGBA8); `probeHash(items, encoding?)` returns the
+   * integer hash of each [ix, iy, iz, seed] (lattice coordinates already shifted by 2^20, the seed a uint32); `probeHeight(points, encoding?)`
+   * the height in render metres of each [latitude, longitude, octaves] (latitude and longitude are float32 on the GPU).
+   */
+  probeEncoding(): 'float' | 'bytes';
+  probeHash(items: Array<[number, number, number, number]>, encoding?: 'float' | 'bytes'): number[];
+  probeHeight(points: Array<[number, number, number]>, encoding?: 'float' | 'bytes'): number[];
+  /** M07b: the 3D value noise of the GLSL function at each [x, y, z, seed], or with `ridge` true its ridge value 1 - |2 n - 1|. */
+  probeNoise(items: Array<[number, number, number, number]>, ridge?: boolean): number[];
+  /** M07b: the vertex path of the detail: the height the chunk vertex shader draws at each [latitude, longitude, chunk level, camera x, y, z in Earth radii] (octaves = the smaller of the level's and the distance law's). */
+  probeVertex(points: Array<[number, number, number, number, number, number]>, encoding?: 'float' | 'bytes'): number[];
+  /** M07b (tests): the surface point the picking finds under a pixel (latitude, longitude, radius in Earth radii, detail included) and the camera position in Earth radii. */
+  pickSurface(x: number, y: number): { lat: number; lon: number; radius: number } | null;
+  cameraPosition(): [number, number, number];
+  /** M07b: the material's law of detail [offset of the distance law, level bias, 1 = on]; null in the fixed mode. */
+  detailLod(): [number, number, number] | null;
+  /** M07b: `heightAt` of src/render/detail.ts bound to the page's raster (the ground height in render metres, detail included). */
+  heightAt(lat: number, lon: number, octaves?: number): number;
   /** Screen position of a position on the displaced surface. */
   project(lat: number, lon: number): ScreenHit;
   /** Steps the fx clock by `dt` seconds and then runs exactly `ticks` sim ticks (default 0), whatever the speed. With ticks the ownership texture is flushed (the throttle is bypassed) so the next render shows them. */
@@ -268,7 +289,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   }
   canvas.style.touchAction = 'none';
 
-  const globe = new Globe({ canvas, width, height, dpr, quality, world, preserveDrawingBuffer: params.test, terrain: ctx.state.terrain.terrain, chunkDebug: ctx.state.terrain.chunkDebug });
+  const globe = new Globe({ canvas, width, height, dpr, quality, world, preserveDrawingBuffer: params.test, terrain: ctx.state.terrain.terrain, chunkDebug: ctx.state.terrain.chunkDebug, detail: ctx.state.raw.detail !== '0' });
   globe.setView(DEFAULT_START_VIEW);
   const groundView = ctx.state.view !== null && globe.terrainMode === 'chunks' ? GROUND_VIEWS[ctx.state.view] : null; // `?view=alps-valley` (M07a)
   if (groundView !== null) globe.setGroundView(groundView);
@@ -795,6 +816,15 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       setChunkDebug: (on) => globe.setChunkDebug(on),
       setClearColor: (rgb) => globe.setClearColor(rgb),
       cameraAglM: () => globe.cameraAglM(),
+      probeEncoding: () => globe.probeEncoding(),
+      probeHash: (items, encoding) => Array.from(globe.probeHashes(items, encoding)),
+      probeHeight: (points, encoding) => Array.from(globe.probeHeights(points, encoding)),
+      probeNoise: (items, ridge = false) => Array.from(globe.probeNoiseValues(items, ridge)),
+      probeVertex: (points, encoding) => Array.from(globe.probeVertexHeights(points, encoding)),
+      detailLod: () => globe.detailLodUniform(),
+      pickSurface: (x, y) => globe.pickSurface(x, y),
+      cameraPosition: () => globe.cameraPosition(),
+      heightAt: (lat, lon, octaves) => heightAt(lat, lon, octaves),
       project: (lat, lon) => globe.project(lat, lon),
       advance(dt, ticks = 0): void {
         advanceFx(dt);
