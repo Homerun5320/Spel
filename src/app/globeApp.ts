@@ -27,7 +27,8 @@ import { buildPerfReport, createPerfOverlay, type PerfContext, type PerfOverlay,
 import type { PerfSceneSection } from '../ui/perfSceneReport';
 import { PerfSceneRun, type PerfSceneHost } from './perfScene';
 import { createBuildBar, type BuildBar } from '../ui/buildBar';
-import { buildRejectKey } from '../ui/buildReasons';
+import { buildRejectKey, spawnPhaseBlocks } from '../ui/buildReasons';
+import { REJECT_PHASE } from '../ui/hudCodes';
 import { mountToasts, showToast, tickToasts, visibleToastKeys } from '../ui/toast';
 import { createPlacementMode, type PlacementMode, type PlacementState } from './placement';
 import { STRUCT_CITY, buildBody, deleteBody, upgradeBody, validateBuild } from '../sim/public';
@@ -900,7 +901,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
         const h = globe.pickGroundAt(x, y);
         return h === null ? null : latLonToCell(h.lat, h.lon, world.sim.width, world.sim.height).index;
       },
-      validate: (ty, cell) => validateBuild(sess.view, L, ty, cell),
+      validate: (ty, cell) => (spawnPhaseBlocks(sess.view) ? REJECT_PHASE : validateBuild(sess.view, L, ty, cell)),
       send: (ty, cell) => sess.submit(buildBody(L, ty, cell)),
       setGhost: (ty, cell, ok) => globe.structures.setGhost(ty, cell, ok),
       clearGhost: () => globe.structures.clearGhost(),
