@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { vi } from 'vitest';
-import { formatDuration, formatSummary, main, stageGroups, type Stage, type StageRun } from '../scripts/verify.mjs';
+import { formatDuration, formatSummary, main, shardOf, slowestFiles, stageGroups, type Stage, type StageRun } from '../scripts/verify.mjs';
 
 const names = (groups: Array<Array<{ name: string }>>): string[][] => groups.map((g) => g.map((s) => s.name));
 
@@ -30,6 +30,47 @@ describe('stage groups', () => {
     expect(all.filter((s) => s.browser).map((s) => s.name)).toEqual(['e2e', 'e2e-serial']);
     expect(all.find((s) => s.name === 'perf')?.args).toContain('--passWithNoTests');
     for (const s of all) expect(s.args.every((a) => typeof a === 'string' && a.length > 0)).toBe(true);
+  });
+});
+
+describe('--shard i/n (D156: for CI machines that run the thirds side by side)', () => {
+  it('passes vitest --shard to the unit, e2e and e2e-serial stages only; perf is never split and typecheck and lint have no tests to split', () => {
+    const all = stageGroups({ shard: '2/3' }).flat();
+    for (const s of all) {
+      const at = s.args.indexOf('--shard');
+      if (['unit', 'e2e', 'e2e-serial'].includes(s.name)) expect(s.args.slice(at, at + 2), s.name).toEqual(['--shard', '2/3']);
+      else expect(at, s.name).toBe(-1);
+    }
+    expect(stageGroups().flat().some((s) => s.args.includes('--shard'))).toBe(false);
+  });
+  it('parses both spellings and refuses a malformed or out-of-range value instead of running everything', () => {
+    expect(shardOf([])).toBeNull();
+    expect(shardOf(['--fast'])).toBeNull();
+    expect(shardOf(['--shard', '1/3'])).toBe('1/3');
+    expect(shardOf(['--fast', '--shard=3/3'])).toBe('3/3');
+    for (const bad of [['--shard'], ['--shard', 'x'], ['--shard', '0/3'], ['--shard', '4/3'], ['--shard=1'], ['--shard=1/']]) expect(() => shardOf(bad), bad.join(' ')).toThrow(/--shard needs i\/n/);
+  });
+});
+
+describe('the per-file times of the e2e stage (D156)', () => {
+  it('the e2e stage writes a vitest JSON report next to the default one, and the slowest files are listed by the sum of their tests', () => {
+    const e2e = stageGroups().flat().find((s) => s.name === 'e2e');
+    expect(e2e?.args).toEqual(expect.arrayContaining(['--reporter=default', '--reporter=json']));
+    expect(e2e?.timesFile).toMatch(/verify-e2e-times\.json$/);
+    const json = {
+      testResults: [
+        { name: '/x/e2e/a.test.ts', assertionResults: [{ duration: 1000 }, { duration: 2000 }] },
+        { name: '/x/e2e/b.test.ts', assertionResults: [{ duration: 50_000 }] },
+        { name: 'C:\\x\\e2e\\c.test.ts', assertionResults: [{ duration: 9000 }, {}] },
+      ],
+    };
+    const lines = slowestFiles(json, 2);
+    expect(lines[0]).toContain('1 min 02 s');
+    expect(lines[0]).toContain('over 3 files');
+    expect(lines[1]).toMatch(/50 s +e2e\/b\.test\.ts \(1 tests\)/);
+    expect(lines[2]).toMatch(/9 s +e2e\/c\.test\.ts \(2 tests\)/);
+    expect(lines).toHaveLength(3);
+    expect(slowestFiles({}, 3)).toHaveLength(1);
   });
 });
 

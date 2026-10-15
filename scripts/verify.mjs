@@ -3,6 +3,8 @@
 //
 //   node scripts/verify.mjs            typecheck, lint and unit in parallel, then perf, e2e, e2e-serial; stops at the first failing step
 //   node scripts/verify.mjs --fast     typecheck, lint and unit in parallel (the inner loop)
+//   node scripts/verify.mjs --shard 2/3  the unit, e2e and e2e-serial test files of the second third only (vitest's --shard; for CI machines that
+//                                      run the thirds side by side; typecheck, lint and perf run in every shard, perf is not split)
 //   node scripts/verify.mjs --local    everything on a machine with a real GPU (LOCAL_GPU=1, docs/LOCAL.md): a browser/GPU check first,
 //                                      every stage runs even after a failure, test-results/local-report.txt is written
 //
@@ -24,21 +26,36 @@ const bin = (...p) => path.join(REPO_ROOT, 'node_modules', ...p);
  * The stages as groups: the stages of a group run side by side, the groups run one after the other.
  * `browser` stages need the browser from the gpu check in local mode.
  */
-export function stageGroups({ fast = false, local = false } = {}) {
-  const vitest = (project, extra = []) => [bin('vitest', 'vitest.mjs'), 'run', '--project', project, ...extra];
+export function stageGroups({ fast = false, local = false, shard = null } = {}) {
+  const vitest = (project, extra = [], sharded = false) => [bin('vitest', 'vitest.mjs'), 'run', '--project', project, ...extra, ...(sharded && shard !== null ? ['--shard', shard] : [])];
   const cpu = [
     { name: 'typecheck', title: 'typecheck', args: [bin('typescript', 'bin', 'tsc'), '--noEmit'] },
     { name: 'lint', title: 'lint', args: [bin('eslint', 'bin', 'eslint.js'), '.'] },
-    { name: 'unit', title: 'unit tests', args: vitest('unit') },
+    { name: 'unit', title: 'unit tests', args: vitest('unit', [], true) },
   ];
   const groups = [];
   if (local) groups.push([{ name: 'gpu', title: 'browser and GPU check (one screenshot)', args: [path.join(REPO_ROOT, 'scripts', 'shot.mjs')], fatal: true }]);
   groups.push(cpu);
   if (fast) return groups;
   groups.push([{ name: 'perf', title: 'perf tests (CPU budgets through perfguard, one at a time)', args: vitest('perf', ['--passWithNoTests']) }]);
-  groups.push([{ name: 'e2e', title: 'e2e tests (browser, a few files at a time)', args: vitest('e2e'), browser: true }]);
-  groups.push([{ name: 'e2e-serial', title: 'e2e tests that measure memory and time (browser, one at a time)', args: vitest('e2e-serial'), browser: true }]);
+  groups.push([{ name: 'e2e', title: 'e2e tests (browser, a few files at a time)', args: vitest('e2e', ['--reporter=default', '--reporter=json', `--outputFile.json=${path.join(OUT, 'verify-e2e-times.json')}`], true), browser: true, timesFile: path.join(OUT, 'verify-e2e-times.json') }]);
+  groups.push([{ name: 'e2e-serial', title: 'e2e tests that measure memory and time (browser, one at a time)', args: vitest('e2e-serial', [], true), browser: true }]);
   return groups;
+}
+
+/**
+ * The slowest test files of a vitest JSON report as text lines (what the e2e stage prints after it: the per-file times that the budget
+ * discussion of D153, D154 (8) and D156 is about). `json` is the parsed report; a file's time is the sum of its tests.
+ */
+export function slowestFiles(json, n = 8) {
+  const rows = (json?.testResults ?? []).map((f) => ({
+    name: String(f.name).split(/[\\/]/).slice(-2).join('/'),
+    s: (f.assertionResults ?? []).reduce((a, t) => a + (t.duration ?? 0), 0) / 1000,
+    tests: (f.assertionResults ?? []).length,
+  }));
+  rows.sort((a, b) => b.s - a.s);
+  const total = rows.reduce((a, r) => a + r.s, 0);
+  return [`test time by file (sum ${formatDuration(total * 1000)} over ${rows.length} files; the wall time is about a third of it with 3 workers), slowest first:`, ...rows.slice(0, n).map((r) => `  ${r.s.toFixed(0).padStart(4)} s  ${r.name} (${r.tests} tests)`)];
 }
 
 export function formatDuration(ms) {
@@ -80,6 +97,25 @@ function runStage(stage, env, { live }) {
   });
 }
 
+/** `--shard i/n` or `--shard=i/n` -> 'i/n' (1 <= i <= n); null without the flag. Throws on anything else so a typo does not run everything. */
+export function shardOf(argv) {
+  const i = argv.findIndex((a) => a === '--shard' || a.startsWith('--shard='));
+  if (i < 0) return null;
+  const value = argv[i] === '--shard' ? argv[i + 1] : argv[i].slice('--shard='.length);
+  const m = /^(\d+)\/(\d+)$/.exec(value ?? '');
+  if (!m || Number(m[1]) < 1 || Number(m[1]) > Number(m[2])) throw new Error(`--shard needs i/n with 1 <= i <= n, got ${JSON.stringify(value)}`);
+  return value;
+}
+
+/** The slowest-files text of a stage's JSON report file; empty when the file is missing or unreadable. */
+function timesReport(file) {
+  try {
+    return slowestFiles(JSON.parse(fs.readFileSync(file, 'utf8'))).join('\n');
+  } catch {
+    return '';
+  }
+}
+
 function readLog(name) {
   try {
     return fs.readFileSync(path.join(OUT, `verify-${name}.log`), 'utf8');
@@ -97,6 +133,7 @@ export async function main(argv = process.argv.slice(2), deps = {}) {
   const report = deps.writeLocalReport ?? writeLocalReport;
   const local = argv.includes('--local');
   const fast = argv.includes('--fast');
+  const shard = shardOf(argv);
   const env = { ...process.env };
   const cores = os.availableParallelism();
   if (local) {
@@ -111,7 +148,7 @@ export async function main(argv = process.argv.slice(2), deps = {}) {
   const results = [];
   let browserOk = true;
   let stop = false;
-  for (const group of stageGroups({ fast, local })) {
+  for (const group of stageGroups({ fast, local, shard })) {
     if (stop) break;
     const runnable = group.filter((s) => !(s.browser && !browserOk));
     for (const s of group) if (!runnable.includes(s)) results.push({ title: s.title, status: 'SKIPPED', ms: 0, name: s.name });
@@ -125,6 +162,7 @@ export async function main(argv = process.argv.slice(2), deps = {}) {
         if (!r.ok) process.stdout.write(r.output);
         else process.stdout.write(tailLines(r.output.toString('utf8'), 6));
       }
+      if (s.timesFile) console.log(timesReport(s.timesFile));
       results.push({ title: s.title, status: r.ok ? 'PASS' : 'FAIL', ms: r.ms, name: s.name });
       if (!r.ok && s.fatal) browserOk = false;
     });

@@ -4,8 +4,11 @@ export interface Stage {
   args: string[];
   browser?: boolean;
   fatal?: boolean;
+  timesFile?: string;
 }
-export function stageGroups(opts?: { fast?: boolean; local?: boolean }): Stage[][];
+export function stageGroups(opts?: { fast?: boolean; local?: boolean; shard?: string | null }): Stage[][];
+export function shardOf(argv: string[]): string | null;
+export function slowestFiles(json: unknown, n?: number): string[];
 export function formatDuration(ms: number): string;
 export function formatSummary(results: Array<{ title: string; status: 'PASS' | 'FAIL' | 'SKIPPED'; ms: number }>, totalMs: number): string;
 export interface StageRun {

@@ -44,7 +44,7 @@ describe('the performance scene in test mode', () => {
       const t0 = Date.now();
       const report: PerfReport = await page.evaluate(() => {
         const t = (window as any).__test;
-        t.runPerfScene({ dt: 0.2 });
+        t.runPerfScene({ dt: 0.34 });
         return JSON.parse(JSON.stringify(t.perfReport()));
       });
       const wallS = (Date.now() - t0) / 1000;
@@ -97,6 +97,44 @@ describe('the performance scene in test mode', () => {
       expect(json.scene?.canvas.pixelWidth).toBe(320);
       expect(json.scene?.frames).toBe(s.frames);
       expect(json.schemaVersion).toBe(1);
+      expect(messages).toEqual([]);
+    } finally {
+      await page.close();
+    }
+  });
+
+  it('the LIVE page (no test mode) starts the script: it measures the display refresh with nothing drawn, then flies phase 1; a report copied mid-run validates and says completed false', async () => {
+    const page = await browser.newPage({ viewport: { width: 320, height: 180 } });
+    const messages: string[] = [];
+    page.on('console', (m) => {
+      if (m.type() === 'error' || m.type() === 'warning') messages.push(m.text());
+    });
+    page.on('pageerror', (e) => messages.push(`pageerror: ${e.message}`));
+    try {
+      await page.goto(`${baseUrl}/#scene-perf`, { waitUntil: 'load' });
+      const pre = page.locator('[data-perf] pre');
+      await pre.waitFor({ state: 'visible', timeout: 60_000 });
+      await page.waitForFunction(() => /fas 1 av 5 \(orbit\), [1-9]\d* ramar/.test(document.querySelector('[data-perf] pre')?.textContent ?? ''), undefined, { timeout: 90_000 });
+      const text = await pre.innerText();
+      expect(text).toContain('Rör inte musen');
+      // The page runs at about one frame a second here and rewrites the overlay each frame, so Playwright's "stable" check of a click would wait for ever: the click is dispatched.
+      await page.locator('[data-perf-copy]').dispatchEvent('click');
+      const area = page.locator('[data-report] textarea');
+      await area.waitFor({ state: 'visible' });
+      const json = JSON.parse(await area.inputValue()) as PerfReport;
+      expect(validateJson(PERF_REPORT_SCHEMA, json)).toEqual([]);
+      expect(allFinite(json)).toBe(true);
+      const s = json.scene;
+      expect(s?.completed).toBe(false);
+      expect(s?.quick).toBe(false);
+      expect(s?.refresh.measured).toBe(true);
+      expect(s?.refresh.samples).toBe(60);
+      expect(s?.refresh.hz).toBeGreaterThan(10);
+      expect(s?.canvas.cssWidth).toBe(320);
+      expect(s?.canvas.devicePixelRatio).toBeGreaterThan(0);
+      console.log(`[perf-scene] live page, 320x180: refresh ${s?.refresh.hz} Hz (${s?.refresh.medianIntervalMs} ms from ${s?.refresh.samples} probe frames), ${s?.frames} scene frames so far, verdict ${s?.cappedHint.verdict}, mode ${JSON.stringify(json.mode)}`);
+      expect(json.mode.scene).toBe('perf');
+      expect(json.mode.test).toBe('0');
       expect(messages).toEqual([]);
     } finally {
       await page.close();

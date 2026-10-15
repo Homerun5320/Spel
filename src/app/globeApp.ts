@@ -1026,6 +1026,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   else mountMenu();
   let last = performance.now();
   let sinceOverlay = 0;
+  let overlayAt = 0; // the animation-frame time of the last overlay refresh while the performance scene runs
   const loop = (now: number): void => {
     if (!alive) return;
     const dt = (now - last) / 1000;
@@ -1033,8 +1034,8 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     if (perfRun !== null && perfRun.probing) {
       // Nothing is drawn and the fx clock stands still: the interval of an empty requestAnimationFrame is the display's refresh interval.
       if (dt > 0) perfRun.probeFrame(dt * 1000);
-      if (++sinceOverlay >= 15) {
-        sinceOverlay = 0;
+      if (now - overlayAt >= 250) {
+        overlayAt = now;
         perf?.update();
       }
       requestAnimationFrame(loop);
@@ -1064,7 +1065,13 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       if (perfRun.done) attachInput(); // the run is over: the camera is the player's again
     }
     if (!overlay.hidden) refreshOverlay();
-    if (perf && ++sinceOverlay >= 15) {
+    // The scene's report section sorts copies of the recorded frames: once a second while it runs (not every 15 frames), so the measuring does not show up in the numbers.
+    if (perfRun !== null && !perfRun.done) {
+      if (perf && now - overlayAt >= 1000) {
+        overlayAt = now;
+        perf.update();
+      }
+    } else if (perf && ++sinceOverlay >= 15) {
       sinceOverlay = 0;
       perf.update();
     }
