@@ -147,6 +147,8 @@ export const CITY_VIEW = {
   tileMinEm: 11.5,
   iconPx: 26,
   colors: {
+    /** The panel is nearly opaque (the build bar and the status panel sit behind it on a narrow window). */
+    panel: 'rgba(8, 13, 24, 0.97)',
     tile: 'rgba(24, 50, 98, 0.45)',
     tileEmpty: 'rgba(13, 24, 48, 0.7)',
     tileBorder: '#4d73b8',

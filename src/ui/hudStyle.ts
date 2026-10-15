@@ -221,6 +221,7 @@ export function hudCss(): string {
 
 /* Districts-2a: the city view. A side panel on the right of a wide window (the 3D view stays free in the middle), a bottom sheet on a narrow one. */
 .city-view { position: absolute; right: 0.6em; top: 64px; bottom: 0.6em; width: min(${CITY_VIEW.widthEm}em, ${CITY_VIEW.widthMaxVw}vw); overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 0.45em; padding: 0.55em 0.7em 0.6em; z-index: 2; user-select: none; }
+.city-view.hud-panel { background: ${CITY_VIEW.colors.panel}; }
 .city-view[hidden] { display: none !important; }
 .city-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5em; }
 .city-title { font-weight: 800; font-size: 1.1em; }

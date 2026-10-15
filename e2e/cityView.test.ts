@@ -208,7 +208,7 @@ describe('the city view', () => {
       expect(await remove1.getAttribute('data-armed')).toBe('1');
       expect(await remove1.textContent()).toBe(await t.text('sel.district.removeConfirm'));
       expect(await tid(page, 'city-tile-1').getAttribute('data-kind')).toBe(String(DISTRICT_BARRACKS));
-      await t.advance(0.1, 40); // 4 s of the fx clock: more than the 3 s arm
+      await t.advance(4, 0); // 4 s of the fx clock: more than the 3 s arm
       await t.settle();
       expect(await remove1.getAttribute('data-armed')).toBe('0');
       expect(await tid(page, 'city-tile-1').getAttribute('data-kind')).toBe(String(DISTRICT_BARRACKS));
@@ -241,8 +241,7 @@ describe('the city view', () => {
       await t.settle();
       expect(await t.agl()).toBeGreaterThan(5000);
       await openByButton(page);
-      await t.advance(0.1, 60);
-      await t.settle();
+      await page.evaluate(() => (window as any).__test.settle(0.25, 160)); // the flight is timed by the fx clock: 40 s of it, no draws but the last
       expect(await t.agl()).toBeLessThan(2600);
       await page.keyboard.press('Escape');
       await t.settle();
