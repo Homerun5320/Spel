@@ -18,9 +18,15 @@ import {
   INERTIA_TAU_S,
   LAT_LIMIT_DEG,
   ROTATE_DEG_PER_PX,
+  RTS_ALIGN_MAX_RANGES,
+  RTS_ALIGN_MIN_M,
+  RTS_DOLLY_MAX_FIXES,
+  RTS_DOLLY_MAX_TRAVEL,
   RTS_FOLLOW_EPS_M,
+  RTS_GRIP_MIN_COS,
   RTS_FOLLOW_TAU_S,
   RTS_TILT_EASE_DEG_PER_S,
+  RTS_ZOOM_MAX_AGL_M,
   TILT_MAX_DEG,
   WHEEL_ZOOM_RATE,
   ZOOM_MIN_AGL_M,
@@ -95,6 +101,24 @@ export type GroundRadius = (latDeg: number, lonDeg: number) => number;
 export type GroundPicker = (origin: Vec3, dir: Vec3) => Vec3 | null;
 
 const R_M = EARTH_RADIUS_KM * 1000;
+
+/**
+ * The wheel zoom of the RTS regime in flight (D157): the camera travels `remain` (Earth radii, signed along the cursor ray's dolly direction)
+ * more, eased on the fx clock, to the height `goalAglM`. Solved ONCE when the notch arrives; nothing is solved again while it runs.
+ */
+interface Dolly {
+  x: number;
+  y: number;
+  remain: number;
+  total: number;
+  goalAglM: number;
+  /** How many times the way left was solved again at the end (the tilt eased while the zoom ran, so the ray it travels along turned). */
+  fixes: number;
+  /** True when the zoom goes straight up or down instead of along the cursor ray (the ray would need a flight far out of proportion to the change of height). */
+  vertical: boolean;
+  /** The ground point under the cursor when the zoom began (null for a vertical zoom and for a cursor in the sky): the rig is turned about the planet's centre to keep it under the cursor. */
+  anchorP: Vec3 | null;
+}
 
 /** The camera position (Earth radii) of a view; the same formula as `CameraRig.pose().position` (a test keeps them in step). */
 export function cameraPositionFor(s: ViewState): Vec3 {
@@ -180,6 +204,8 @@ export class CameraRig {
   private picker: GroundPicker | null = null;
   private holdAglM: number | null = null;
   private grip: { dir: Vec3; r: number; w: number; x: number; y: number } | null = null;
+  // The wheel zoom under way in the RTS regime (null in the globe regime and between zooms).
+  private dolly: Dolly | null = null;
   private followStamp = { lat: NaN, lon: NaN, distKm: NaN, heading: NaN, tilt: NaN, hold: NaN };
 
   constructor(width: number, height: number) {
@@ -265,6 +291,11 @@ export class CameraRig {
     if (Number.isFinite(ratio) && ratio > 0) this.targetDistKm *= ratio;
   }
 
+  /** What the wheel zoom under way travels along: the cursor ray, straight up / down (`RTS_DOLLY_MAX_TRAVEL`), or nothing is under way. */
+  get zoomKind(): 'ray' | 'vertical' | null {
+    return this.dolly === null ? null : this.dolly.vertical ? 'vertical' : 'ray';
+  }
+
   /** The camera's height above the ground under it, in metres (needs `setGround`). */
   aglM(s: ViewState = this.s): number {
     if (!this.ground) return Number.POSITIVE_INFINITY;
@@ -291,7 +322,7 @@ export class CameraRig {
 
   /** True while inertia or a zoom animation is still moving the camera. */
   get moving(): boolean {
-    return this.velRate > 1e-4 || this.anchor !== null || Math.abs(Math.log(this.targetDistKm / this.s.distKm)) > 1e-4;
+    return this.velRate > 1e-4 || this.anchor !== null || this.dolly !== null || Math.abs(Math.log(this.targetDistKm / this.s.distKm)) > 1e-4;
   }
 
   /** Forgets everything the user's hands were doing (the camera was put somewhere): inertia, zoom, drag, the kept height. */
@@ -301,6 +332,7 @@ export class CameraRig {
     this.velRate = 0;
     this.velWeight = 0;
     this.anchor = null;
+    this.dolly = null;
     this.dragging = false;
     this.grip = null;
     this.holdAglM = null;
@@ -398,7 +430,44 @@ export class CameraRig {
     return { x, y, depth, inView: depth > 0 && x >= 0 && x <= this.width && y >= 0 && y <= this.height, facing };
   }
 
-  /** The direction (unit vector) of the sphere point of `radius` under a pixel; when the pixel misses the disc, the nearest point of the sphere. */
+  /** The direction of the sphere point of `radius` under a pixel, or null when the cursor ray misses that sphere (there is no such point). */
+  private grabHit(px: number, py: number, radius: number): Vec3 | null {
+    const { origin, dir } = this.rayAt(px, py);
+    const t = raySphere(origin, dir, radius);
+    if (t === null) return null;
+    return radius === 1 ? add(origin, scale(dir, t)) : normalize(add(origin, scale(dir, t)));
+  }
+
+  /**
+   * The direction of the point of a grabbed surface under a pixel, or null when the cursor has no such point. The surface is the sphere of
+   * radius `r` about the planet's centre while the camera is outside it (the globe's grab, and the ground of a camera above the point it
+   * holds); a camera INSIDE that sphere (looking up at a ridge higher than itself) meets it from the wrong side, where a ray above the ridge
+   * exits hundreds of kilometres away, so there the surface is the tangent plane at the held point `n` (a direction), which a ray from below
+   * meets in front of the camera and in proportion to its slope. A ray that meets the surface at less than `minCos` (the cosine of the angle to
+   * the normal there) is a grazing one and has no point either: a grip does not follow the cursor to the horizon, where a pixel is worth
+   * more and more ground (`RTS_GRIP_MIN_COS`).
+   */
+  private surfaceHit(px: number, py: number, r: number, n: Vec3, minCos = 0): Vec3 | null {
+    const { origin, dir } = this.rayAt(px, py);
+    if (length(origin) > r) {
+      const t = raySphere(origin, dir, r);
+      if (t === null) return null;
+      const q = normalize(add(origin, scale(dir, t)));
+      return Math.abs(dot(dir, q)) < minCos ? null : q;
+    }
+    const denom = dot(dir, n);
+    if (Math.abs(denom) < Math.max(1e-9, minCos)) return null;
+    const t = (r - dot(origin, n)) / denom;
+    return t > 0 ? normalize(add(origin, scale(dir, t))) : null;
+  }
+
+  /** The largest turn about the planet's centre one anchor or grip correction may make (radians) while it holds `point` (a world position, or a direction scaled to its radius): see `RTS_ALIGN_MAX_RANGES`. */
+  private alignCap(point: Vec3): number {
+    const range = length(sub(cameraPositionFor(this.s), point));
+    return Math.max(RTS_ALIGN_MAX_RANGES * range, RTS_ALIGN_MIN_M / R_M);
+  }
+
+  /** The direction (unit vector) of the sphere point of `radius` under a pixel; when the pixel misses the disc, the nearest point of the sphere (the globe's own drag at the limb). */
   private grab(px: number, py: number, radius = 1): Vec3 {
     const { origin, dir } = this.rayAt(px, py);
     const t = raySphere(origin, dir, radius);
@@ -428,11 +497,11 @@ export class CameraRig {
   }
 
   /** Rotates the focus so that sphere point `b` (seen at the cursor now) returns to `a` (where the cursor grabbed it). Returns axis and angle. */
-  private align(b: Vec3, a: Vec3, headingWeight: number | boolean = 0): { axis: Vec3; angle: number } | null {
+  private align(b: Vec3, a: Vec3, headingWeight: number | boolean = 0, cap = Number.POSITIVE_INFINITY): { axis: Vec3; angle: number } | null {
     const c = cross(b, a);
     const sin = length(c);
     if (sin < 1e-12) return null;
-    const angle = Math.atan2(sin, dot(b, a));
+    const angle = Math.min(Math.atan2(sin, dot(b, a)), cap);
     const axis = scale(c, 1 / sin);
     this.rotateFocus(axis, angle, headingWeight);
     return { axis, angle };
@@ -449,7 +518,10 @@ export class CameraRig {
     if (!g) return null;
     let first: { axis: Vec3; angle: number } | null = null;
     for (let i = 0; i < 4; i++) {
-      const r = this.align(this.grab(g.x, g.y, g.r), g.dir, g.w);
+      // a cursor ray that misses the grabbed sphere (dragged beyond the horizon of that ground) has no point to hold: the rig stays
+      const b = this.surfaceHit(g.x, g.y, g.r, g.dir, RTS_GRIP_MIN_COS * g.w * g.w);
+      if (b === null) break;
+      const r = this.align(b, g.dir, g.w, this.alignCap(scale(g.dir, g.r)));
       if (!r) break;
       if (first === null) first = r;
       if (r.angle < 1e-10) break;
@@ -467,14 +539,25 @@ export class CameraRig {
     this.grip = null;
     this.dragPrev = { x: px, y: py, t: now };
     const w = this.rtsWeight;
+    // a grab ends a wheel zoom under way where it is: the height it has reached is the one the user holds
+    const zooming = this.dolly !== null;
+    this.dolly = null;
+    if (zooming && w > 0) this.holdAglM = Math.max(this.aglM(), ZOOM_MIN_AGL_M);
     if (w > 0 && this.picker) {
       const ray = this.rayAt(px, py);
       const P = this.picker(ray.origin, ray.dir);
       if (P) {
         // the grabbed sphere has the radius of the ground point in the RTS regime and of the sea level in the globe regime; the anchor is where
-        // the cursor ray meets THAT sphere (at weight 1 it is the ground point itself), so the drag is continuous in the weight
-        const r = 1 + w * (length(P) - 1);
-        this.grip = { dir: this.grab(px, py, r), r, w, x: px, y: py };
+        // the cursor ray meets THAT sphere (at weight 1 it is the ground point itself), so the drag is continuous in the weight. A ray that
+        // grazes the ground can miss the smaller sphere between the two: the ground point's own sphere is hit by construction.
+        const up = normalize(P);
+        let r = 1 + w * (length(P) - 1);
+        let dir = this.surfaceHit(px, py, r, up);
+        if (dir === null) {
+          r = length(P);
+          dir = this.surfaceHit(px, py, r, up) ?? up;
+        }
+        this.grip = { dir, r, w, x: px, y: py };
         this.holdAglM ??= Math.max(this.aglM(), ZOOM_MIN_AGL_M);
       }
     }
@@ -596,29 +679,125 @@ export class CameraRig {
     this.adoptView(viewFromPose(c, f, this.s.heading));
   }
 
-  /** Wheel zoom anchored at the cursor: the point under the cursor stays under the cursor while the distance eases to the target. */
+  /**
+   * Wheel zoom toward the cursor. In the RTS regime (a ground and a picker, the camera under `RTS_AGL_GLOBE_M`) it is a DOLLY along the ray
+   * through the cursor (D157): the notch asks for a share `exp(delta * WHEEL_ZOOM_RATE)` of the height over the ground, the distance along the
+   * ray at which the camera has that height is solved ONCE (`solveDolly`), and the camera eases there. Moving along the cursor ray leaves
+   * the look direction alone, so the ground point under the cursor stays under it exactly, and nothing is solved again while the zoom runs,
+   * so it cannot hunt or fail to settle. In the globe regime it is the arcball zoom of M02 to M07: the distance to the sea-level focus eases
+   * to its target and the sea-level point under the cursor is held.
+   */
   zoomAt(px: number, py: number, wheelDelta: number): void {
     const f = Math.exp(wheelDelta * WHEEL_ZOOM_RATE);
-    const w = this.rtsWeight;
+    // the height the zoom heads for already: a zoom under way keeps adding to its goal (quick wheel turns accumulate), after a globe zoom it is
+    // the height of the target view
+    const base = this.ground ? (this.dolly !== null ? this.dolly.goalAglM : Math.max(this.aglM({ ...this.s, distKm: this.targetDistKm }), ZOOM_MIN_AGL_M)) : 0;
+    if (this.ground && this.picker && this.rtsWeight > 0 && base * f <= RTS_ZOOM_MAX_AGL_M) {
+      this.zoomDolly(px, py, f, base);
+      return;
+    }
+    this.dolly = null;
     if (this.ground) {
       // Steps proportional to the height: the share `f` is taken of the camera's height above the ground (the one of the TARGET view, so
       // that quick wheel turns accumulate), and the distance that has the new height is solved for. The steps shrink as the ground comes
-      // near, a step in never goes below the floor, and a step out from the floor leaves it.
-      const agl = Math.max(this.aglM({ ...this.s, distKm: this.targetDistKm }), ZOOM_MIN_AGL_M);
+      // near, a step in never goes below the floor, and a step out from the floor leaves it. (A zoom out that would leave the RTS regime
+      // far behind, above `RTS_ZOOM_MAX_AGL_M`, is this one too: it is the globe's.)
+      const agl = base;
       this.targetAglM = Math.max(agl * f, ZOOM_MIN_AGL_M);
       this.targetDistKm = clamp(distForAgl(this.s, this.ground, this.targetAglM), DIST_MIN_GROUND_KM, DIST_MAX_KM);
-      this.holdAglM = w > 0 ? this.targetAglM : null;
+      this.holdAglM = null;
     } else {
       this.targetDistKm = clamp(this.targetDistKm * f, DIST_MIN_KM, DIST_MAX_KM);
     }
-    let r = 1;
-    if (w > 0 && this.picker) {
-      const ray = this.rayAt(px, py);
-      const P = this.picker(ray.origin, ray.dir);
-      if (P) r = 1 + w * (length(P) - 1);
-    }
-    this.anchor = { x: px, y: py, r };
+    this.anchor = { x: px, y: py, r: 1 };
     this.velRate = 0;
+  }
+
+  private zoomDolly(px: number, py: number, f: number, base: number): void {
+    const current = this.aglM();
+    const goal = clamp(base * f, ZOOM_MIN_AGL_M, RTS_ZOOM_MAX_AGL_M);
+    this.targetDistKm = this.s.distKm;
+    this.targetAglM = null;
+    this.anchor = null;
+    this.velRate = 0;
+    const pose = this.pose();
+    const dir = this.rayAt(px, py, pose).dir;
+    const up = normalize(pose.position);
+    // a cursor ray flatter than 1 / RTS_DOLLY_MAX_TRAVEL (at the horizon, above it) would need a flight of hundreds of kilometres for a change
+    // of a hundred metres: it goes straight up or down at once
+    let remain = -dot(dir, up) * RTS_DOLLY_MAX_TRAVEL >= 1 ? this.solveDolly(pose.position, dir, goal) : null;
+    let vertical = false;
+    if (remain === null || Math.abs(remain) * R_M > RTS_DOLLY_MAX_TRAVEL * Math.abs(goal - current) + 1) {
+      // the ground along the ray falls or rises against the camera (a camera looking down a valley wall, a zoom out against a slope behind it):
+      // the height asked for is a long way along that ray. Straight up or down gets it in exactly the change of height; the point under the
+      // cursor then slides a little, which is better than a flight of kilometres for a notch.
+      vertical = true;
+      remain = this.solveDolly(pose.position, scale(up, -1), goal);
+    }
+    if (remain === null || Math.abs(remain) * R_M < 0.25) {
+      // nothing to travel (at the floor, a notch of zero): the user touched the wheel, so the height he has is the one he holds
+      this.dolly = null;
+      this.holdAglM = Math.max(current, ZOOM_MIN_AGL_M);
+      return;
+    }
+    const anchorP = vertical || !this.picker ? null : this.picker(pose.position, dir);
+    this.dolly = { x: px, y: py, remain, total: remain, goalAglM: goal, fixes: 0, vertical, anchorP };
+  }
+
+  /** The camera's height over the ground at a world position, metres. */
+  private aglAt(p: Vec3): number {
+    const g = vecToLatLon(p);
+    return (length(p) - (this.ground as GroundRadius)(g.lat, g.lon)) * R_M;
+  }
+
+  /**
+   * How far (Earth radii, signed along `dir`: positive = in the direction of `dir`) a camera at `origin` has to travel along the line of `dir`
+   * to be `targetM` metres over the ground: forward (down the ray) when it is above that height, backward (up and away) when it is below.
+   * The FIRST such point: the flat-ground distance is walked in steps (the height gap over the rate the height changes along the line), and
+   * when a step overshoots, the bracket is scanned in eighths for the first crossing and bisected. Called once per notch, never per frame.
+   */
+  private solveDolly(origin: Vec3, dir: Vec3, targetM: number): number | null {
+    if (!this.ground) return null;
+    const agl0 = this.aglAt(origin);
+    if (Math.abs(agl0 - targetM) < 0.25) return 0;
+    const inward = agl0 > targetM;
+    const move = inward ? dir : scale(dir, -1);
+    // the rate (per unit of travel) at which the height changes along the line: the vertical share of the dolly direction, in both directions
+    const rate = Math.max(-dot(dir, normalize(origin)), 0.5 / RTS_DOLLY_MAX_TRAVEL);
+    // g(u) > 0 until the camera has reached the wanted height after u of travel
+    const g = (u: number): number => {
+      const a = this.aglAt(add(origin, scale(move, u)));
+      return inward ? a - targetM : targetM - a;
+    };
+    let u = 0;
+    let gu = g(0);
+    for (let i = 0; i < 160; i++) {
+      if (gu <= 0.25) return inward ? u : -u;
+      const un = u + gu / R_M / rate;
+      const gn = g(un);
+      if (gn < -0.25) {
+        // overshoot: the first crossing inside (u, un]
+        let lo = u;
+        let hi = un;
+        for (let k = 1; k <= 8; k++) {
+          const uk = u + ((un - u) * k) / 8;
+          if (g(uk) <= 0) {
+            hi = uk;
+            break;
+          }
+          lo = uk;
+        }
+        for (let k = 0; k < 40 && hi - lo > 0.02 / R_M; k++) {
+          const mid = 0.5 * (lo + hi);
+          if (g(mid) <= 0) hi = mid;
+          else lo = mid;
+        }
+        return inward ? hi : -hi;
+      }
+      u = un;
+      gu = gn;
+    }
+    return inward ? u : -u;
   }
 
   /** Integrates inertia and zoom up to fx time `now` (steps of at most CAMERA_MAX_STEP_S). */
@@ -628,7 +807,7 @@ export class CameraRig {
     const total = remaining;
     this.lastNow = now;
     if (!(remaining > 0)) return;
-    if (this.targetAglM !== null && this.ground) this.targetDistKm = clamp(distForAgl(this.s, this.ground, this.targetAglM), DIST_MIN_GROUND_KM, DIST_MAX_KM);
+    if (this.dolly === null && this.targetAglM !== null && this.ground) this.targetDistKm = clamp(distForAgl(this.s, this.ground, this.targetAglM), DIST_MIN_GROUND_KM, DIST_MAX_KM);
     while (remaining > 1e-9) {
       const dt = Math.min(remaining, CAMERA_MAX_STEP_S);
       remaining -= dt;
@@ -637,15 +816,24 @@ export class CameraRig {
         this.velRate *= Math.exp(-dt / INERTIA_TAU_S);
         if (this.velRate <= 1e-4) this.velRate = 0;
       }
+      if (this.dolly !== null) {
+        this.stepDolly(dt);
+        continue;
+      }
       const logGap = Math.log(this.targetDistKm / this.s.distKm);
       if (Math.abs(logGap) > 1e-4) {
         const anchor = this.anchor;
-        const before = anchor ? this.grab(anchor.x, anchor.y, anchor.r) : null;
+        // the sea-level point under the cursor before the step; a cursor ray that misses the sphere has none, and then the step is not corrected
+        // (the nearest point of the sphere is not under the cursor: aligning to it threw the camera across the planet)
+        const before = anchor ? this.grabHit(anchor.x, anchor.y, anchor.r) : null;
         const next = this.s.distKm * Math.exp(logGap * (1 - Math.exp(-dt / ZOOM_TAU_S)));
         this.s = { ...this.s, distKm: clamp(next, this.ground ? DIST_MIN_GROUND_KM : DIST_MIN_KM, DIST_MAX_KM) };
         // a zoom in brings the tilt into the RTS limits WHILE it runs, so the anchored point stays under the cursor through the pitch too
         if (anchor) this.pitchIntoLimits(dt);
-        if (before && anchor) this.align(this.grab(anchor.x, anchor.y, anchor.r), before, true);
+        if (before && anchor) {
+          const after = this.grabHit(anchor.x, anchor.y, anchor.r);
+          if (after) this.align(after, before, true, this.alignCap(before));
+        }
       } else {
         if (this.s.distKm !== this.targetDistKm) this.s = { ...this.s, distKm: this.targetDistKm };
         // a wheel zoom that has settled in the RTS regime keeps the height it reached (the user took the camera)
@@ -658,6 +846,48 @@ export class CameraRig {
     this.keepAboveGround();
   }
 
+  /** One step of the wheel zoom in the RTS regime: the camera moves a share of what is left along the cursor ray, and the tilt eases into its limits while it runs. */
+  private stepDolly(dt: number): void {
+    const d = this.dolly as Dolly;
+    let ds = d.remain * (1 - Math.exp(-dt / ZOOM_TAU_S));
+    // the last 1 % of the way (or 10 cm) is taken in the same step: the zoom ENDS instead of creeping towards its goal for ever
+    const finishing = Math.abs(d.remain - ds) <= Math.max(0.01 * Math.abs(d.total), 0.1 / R_M);
+    if (finishing) ds = d.remain;
+    const pose = this.pose();
+    const dir = d.vertical ? scale(normalize(pose.position), -1) : this.rayAt(d.x, d.y, pose).dir;
+    this.adoptView(viewFromPose(add(pose.position, scale(dir, ds)), pose.forward, this.s.heading));
+    d.remain -= ds;
+    // The ground point under the cursor is held under it: the tilt is eased in place when it is outside the limits (which moves the picture), and
+    // the rig has no roll, so the cursor ray of the new position differs from the old one by a hair; the rig is turned about the planet's centre
+    // to put the point back (a step with no point to hold, or one that would turn the rig by more than the cap, is not made).
+    const turn = this.tiltStep(dt);
+    if (turn !== 0) this.turnAbout(this.pose().position, 0, turn);
+    const p0 = d.anchorP;
+    if (p0 !== null) {
+      const up = normalize(p0);
+      const hit = this.surfaceHit(d.x, d.y, length(p0), up);
+      if (hit !== null) this.align(hit, up, true, this.alignCap(p0));
+    }
+    if (finishing && d.fixes < RTS_DOLLY_MAX_FIXES && Math.abs(this.aglM() - d.goalAglM) > Math.max(2, 0.003 * d.goalAglM)) {
+      // the way was solved for the ray of the start; a tilt eased on the way (a zoom in from the globe) turned the ray and the camera is short of
+      // the height: the way left is solved once more from where it is (at most RTS_DOLLY_MAX_FIXES times), never per frame
+      const pose2 = this.pose();
+      const dir2 = d.vertical ? scale(normalize(pose2.position), -1) : this.rayAt(d.x, d.y, pose2).dir;
+      const fix = this.solveDolly(pose2.position, dir2, d.goalAglM);
+      if (fix !== null && Math.abs(fix) * R_M >= 0.25) {
+        d.remain = fix;
+        d.total = fix;
+        d.fixes++;
+        return;
+      }
+    }
+    if (finishing) {
+      this.dolly = null;
+      // the height the zoom reached is the one the user holds, in the RTS regime; in the globe regime nothing is held
+      this.holdAglM = this.rtsWeight > 0 ? Math.max(this.aglM(), ZOOM_MIN_AGL_M) : null;
+    }
+  }
+
   /**
    * The RTS regime between the user's inputs (D155): the tilt is brought into the RTS limits, and the camera follows the ground at the height
    * the user chose, both eased on the fx clock. A drag that is still under way keeps its ground point under the cursor through every change.
@@ -665,7 +895,7 @@ export class CameraRig {
    */
   private rtsSettle(dt: number): void {
     const hold = this.holdAglM;
-    if (hold === null || !this.ground || !this.picker || this.targetAglM !== null) return;
+    if (hold === null || !this.ground || !this.picker || this.targetAglM !== null || this.dolly !== null) return;
     if (this.anchor === null && this.stampSame(hold)) {
       // nothing moved since the last pass found nothing to do
       if (this.grip && this.dragging) this.gripAlign();
@@ -692,15 +922,22 @@ export class CameraRig {
     if (!changed) this.markStamp(hold);
   }
 
-  /** One step of the tilt toward its limits at the camera's weight, by pitching in place at RTS_TILT_EASE_DEG_PER_S; true when it moved. */
-  private pitchIntoLimits(dt: number): boolean {
+  /** The step (degrees, signed as `turnAbout` takes it) of the tilt toward its limits at the camera's weight at RTS_TILT_EASE_DEG_PER_S; 0 when it is inside them. */
+  private tiltStep(dt: number): number {
     const w = this.rtsWeight;
-    if (w <= 0) return false;
+    if (w <= 0) return 0;
     const b = this.tiltLimits(w);
     const tl = this.effectiveTilt(w);
     const want = clamp(tl, b.min, b.max);
-    if (Math.abs(want - tl) <= 0.01) return false;
-    this.turnAbout(this.pose().position, 0, clamp(want - tl, -RTS_TILT_EASE_DEG_PER_S * dt, RTS_TILT_EASE_DEG_PER_S * dt));
+    if (Math.abs(want - tl) <= 0.01) return 0;
+    return clamp(want - tl, -RTS_TILT_EASE_DEG_PER_S * dt, RTS_TILT_EASE_DEG_PER_S * dt);
+  }
+
+  /** One step of the tilt toward its limits, by pitching in place; true when it moved. */
+  private pitchIntoLimits(dt: number): boolean {
+    const turn = this.tiltStep(dt);
+    if (turn === 0) return false;
+    this.turnAbout(this.pose().position, 0, turn);
     return true;
   }
 

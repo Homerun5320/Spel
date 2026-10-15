@@ -184,6 +184,34 @@ export const RTS_TILT_EASE_DEG_PER_S = 40;
 export const RTS_FOLLOW_TAU_S = 0.25;
 export const RTS_FOLLOW_EPS_M = 0.05;
 /**
+ * The wheel zoom of the RTS camera is a dolly along the ray through the cursor (D157): the camera travels along that ray to the point where
+ * its height over the ground is the height the notch asked for, and the ground point under the cursor stays under it. A zoom out whose goal is
+ * above `RTS_ZOOM_MAX_AGL_M` (a quarter further up than the globe regime begins) is a globe zoom, not a dolly.
+ */
+export const RTS_ZOOM_MAX_AGL_M = 5_000_000;
+/**
+ * A zoom along the cursor ray that would travel more than this many times the change of height it makes goes straight up or down instead
+ * (a ray 1 / 8 = 7 degrees under the horizontal travels 8 times; a cursor at the horizon or in the sky, or a slope that falls away along the
+ * ray, would otherwise ask for a flight of kilometres for a change of tens of metres).
+ */
+export const RTS_DOLLY_MAX_TRAVEL = 8;
+/** A zoom that ends short of its height (its ray turned while the tilt eased) solves the way left again at most this many times. */
+export const RTS_DOLLY_MAX_FIXES = 6;
+/**
+ * The most a single correction of the cursor anchor or of a drag's grip may turn the rig about the planet's centre: this many times the
+ * camera's distance to the point it holds (a flick of the mouse across the whole screen moves a point at range D by about D along the
+ * ground), and never less than `RTS_ALIGN_MIN_M` metres of arc. A cursor ray that misses the grabbed sphere has no ground point (such a step
+ * is skipped), and a step beyond the cap is cut to it: the nearest point of that sphere can be thousands of kilometres away.
+ */
+export const RTS_ALIGN_MAX_RANGES = 1;
+/**
+ * A left drag holds a ground point under the cursor, but not at the horizon: a cursor ray that meets the held surface at less than this
+ * cosine to its normal (about 6 degrees above the surface) holds nothing, and the camera stays where it is until the cursor comes back (a
+ * pixel there is worth more and more ground; at the horizon it is worth all of it). The weight of the RTS regime scales it, squared.
+ */
+export const RTS_GRIP_MIN_COS = 0.1;
+export const RTS_ALIGN_MIN_M = 2000;
+/**
  * Flights with an altitude (`FlyOptions.altAglM`, D155). The camera model of a flight: ground position, height, heading, tilt. The height
  * rises to at least `FLY_ARCH_RATIO` times the distance flown (so the ground never streams past faster than the camera is high), the
  * ground position moves while it is high, and the dive down to the end height is the slow part. The flight is planned so that the log-rate

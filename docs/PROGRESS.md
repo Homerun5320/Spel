@@ -22,6 +22,18 @@ Resume: Läs CLAUDE.md och docs/PROGRESS.md, kör git log -10 och npm run verify
 
 ## Now
 
+### M08 audit pass (D157): one blocker and eleven majors of the independent audit, fixed or answered (one session; the orchestrator owns pushing, the pull request and the Artifact)
+
+- [x] Blocker: a wheel notch at a high tilt and a low height threw the camera thousands of km (fallback to the nearest point of a missed sphere, no cap): `CameraRig.surfaceHit` (sphere above, tangent plane below, grazing and missing rays hold nothing), caps of one correction, the dolly (D157 (1), (2)); `tests/render/rtsZoom.test.ts`, `e2e/rts.test.ts`
+- [x] Major: the zoom hunted, did not settle, and drifted over rugged ground: the RTS wheel is a dolly along the cursor ray solved once, ends and holds its height (D157 (2)); tests per frame on the real height field
+- [x] Major: the follow of the ground and the held height after zoom and drag were unpinned (`tests/render/rtsFollow.test.ts`, four mutations killed)
+- [x] Major: the waypoints of the performance scene, the first-crossing of grazing rays, pointerCancel / lost release, the globeApp glue (`__test.onContext`, `onPause`, e2e) were unpinned: tests added, mutations killed (D157 (5))
+- [x] Major: the input stack could not hand clicks, context commands and long presses to modes, the resolver ran under a pushed mode, the key adapter was hard-coded to F and Escape: `click` / `context` / `longPress` / `tick` on `InputMode`, `take`, `dispatch*`, `attachDomKeys` (D157 (4))
+- [x] Major: CLAUDE.md claimed a sharded CI that is not wired: the sentence now says the budget is NOT met and the matrix is not wired (D157 (6)); the task stays in Next
+- [x] `npm run verify:fast` and `npm run verify` green after the pass (see the result at the end of this section), `npm run build && npm run artifact:pack`
+
+Result of the audit pass: `npm run verify` GREEN (typecheck 26 s, lint 26 s, unit 1:28, perf 16 s, e2e 11:42, e2e-serial 16 s, 13:42 in all: still over the 8:00 rule, see D157 (6)); no golden changed. The e2e of the globe scene found two more faults of the first dolly (a zoom that eases the tilt stopped at 13 km instead of 300 m; twelve huge notches out stopped at 5 000 km): fixed and pinned in `tests/render/rtsZoom.test.ts` (D157 (2)).
+
 ### M08 RTS camera, ground picking and the performance scene (USER GATE) - parts: A (items 1 to 4 and their tests), B (item 5, the perf scene and the report), C (goldens, the verify time, finish). The orchestrator owns pushing, the pull request and the Artifact.
 
 Previous merge SHA (origin/main at start): f29121a8d1607ca169e6675b5f22a52d76c42ef7 (unchanged; nothing is merged, M00 to M07b, Tempo and TestSpeed live on this branch and in draft pull request #1; the precondition "M07b is merged" is treated as satisfied because this file lists M07b as Done). `npm ci` was in place; `npm run verify:fast` was green at the start. Facts that change the prompt (read D153, D154, "Rules for layers on the terrain"): `flyTo` lives in `src/render/flyTo.ts` (D120), the pick criterion is "hit radius = `seenRadius` within 0.05 m" (D154 (5)), `groundHeightAt` works in Node through a pure factory, the camera must reach 300 m AGL (the M07a limit of 1000 m and the hook clamp of `altAglM` move), click threshold stays `CLICK_MOVE_PX` 6 (the M05 tests pin 3 to 10).

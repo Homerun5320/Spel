@@ -5,6 +5,7 @@ import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import {
   InputStack,
   RESERVED_KEYS,
+  attachDomKeys,
   createBaseMode,
   isReservedKey,
   resetInputHandlers,
@@ -21,7 +22,7 @@ import { CameraRig } from '../../src/render/camera';
 import { ROTATE_DEG_PER_PX, TILT_MAX_DEG } from '../../src/render/config';
 import { vecToLatLon, type Vec3 } from '../../src/render/geo';
 import { latLonToCell, pickGround, worldToCell } from '../../src/render/transforms';
-import { CLICK_MOVE_PX } from '../../src/ui/uiConfig';
+import { CLICK_MOVE_PX, LONG_PRESS_S } from '../../src/ui/uiConfig';
 import { loadRtsWorld, makeRtsRig, type RtsWorld } from '../helpers/rtsRig';
 
 let w: RtsWorld;
@@ -478,5 +479,336 @@ describe('two fingers = pan, pinch zoom and twist (synthetic touch events)', () 
     h.stack.pointerDown(finger(3, 300, 300));
     h.stack.pointerUp(finger(3, 300, 301));
     expect(h.clicks).toEqual([[300, 301]]);
+  });
+});
+
+describe('a cancelled or lost gesture lets go of the camera (M08 audit pass)', () => {
+  /** The calls the base mode makes on the rig, in order, while the real rig still does its work. */
+  function spyOnRig(h: Harness): string[] {
+    const log: string[] = [];
+    const rig = h.rig;
+    for (const name of ['dragStart', 'dragMove', 'dragEnd'] as const) {
+      const orig = rig[name].bind(rig) as (...a: number[]) => void;
+      (rig as unknown as Record<string, unknown>)[name] = (...a: number[]): void => {
+        log.push(name);
+        orig(...a);
+      };
+    }
+    return log;
+  }
+  const gripOf = (rig: CameraRig): unknown => (rig as unknown as { grip: unknown }).grip;
+  const draggingOf = (rig: CameraRig): boolean => (rig as unknown as { dragging: boolean }).dragging;
+
+  it('a touch that is cancelled (a palm, a system gesture) ends the drag: dragEnd is called, the grip is gone, the camera rests, and a wheel zoom afterwards keeps ITS point under the cursor', () => {
+    const h = harness({ lat: 46.5, lon: 8, heading: 20, tilt: 50 }, 20_000);
+    const log = spyOnRig(h);
+    h.stack.pointerDown(finger(1, 300, 300));
+    for (let i = 1; i <= 10; i++) h.stack.pointerMove(finger(1, 300 + 5 * i, 300 + 2 * i));
+    expect(gripOf(h.rig)).not.toBeNull();
+    expect(draggingOf(h.rig)).toBe(true);
+    h.t += 0.3;
+    h.stack.pointerCancel(finger(1, 350, 320));
+    expect(log.filter((n) => n === 'dragEnd').length).toBe(1);
+    expect(gripOf(h.rig)).toBeNull();
+    expect(draggingOf(h.rig)).toBe(false);
+    expect(h.clicks).toEqual([]); // a cancelled touch is not a tap
+    // the camera rests
+    for (let i = 0; i < 300; i++) h.frame(1 / 60); // the follow of the ground settles first
+    const rest = h.rig.view;
+    for (let i = 0; i < 60; i++) h.frame(1 / 60);
+    expect(h.rig.view).toEqual(rest);
+    // a wheel zoom afterwards is pulled toward ITS cursor only
+    const P = groundAt(h, 700, 150);
+    h.stack.wheel({ x: 700, y: 150, deltaY: -300 });
+    let worst = 0;
+    for (let i = 0; i < 180; i++) {
+      h.frame(1 / 60);
+      worst = Math.max(worst, offBy(h.rig, P, 700, 150));
+    }
+    expect(worst).toBeLessThan(3);
+    // and the pointer is free again: the next touch is a tap
+    h.stack.pointerDown(finger(2, 200, 200));
+    h.stack.pointerUp(finger(2, 200, 200));
+    expect(h.clicks).toEqual([[200, 200]]);
+  });
+
+  it('a mouse press after a press whose release was lost closes the first drag in the rig BEFORE the second one starts', () => {
+    const h = harness({ lat: 46.5, lon: 8, heading: 0, tilt: 50 }, 20_000);
+    const log = spyOnRig(h);
+    h.stack.pointerDown(mouse(400, 300));
+    h.stack.pointerMove(mouse(430, 300));
+    expect(draggingOf(h.rig)).toBe(true);
+    h.stack.pointerDown(mouse(500, 300)); // the release never came
+    expect(log).toEqual(['dragStart', 'dragMove', 'dragEnd', 'dragStart']);
+    h.stack.pointerUp(mouse(500, 300));
+    expect(log[log.length - 1]).toBe('dragEnd');
+    expect(draggingOf(h.rig)).toBe(false);
+    expect(gripOf(h.rig)).toBeNull();
+  });
+
+  it('a second finger that is cancelled ends the pinch in the rig as well', () => {
+    const h = harness({ lat: 46.5, lon: 8, heading: 30, tilt: 50 }, 30_000);
+    const log = spyOnRig(h);
+    h.stack.pointerDown(finger(1, 400, 270));
+    h.stack.pointerDown(finger(2, 560, 270));
+    h.stack.pointerMove(finger(2, 600, 270));
+    h.stack.pointerCancel(finger(2, 600, 270));
+    expect(log[log.length - 1]).toBe('dragEnd');
+    expect(draggingOf(h.rig)).toBe(false);
+    expect(gripOf(h.rig)).toBeNull();
+  });
+
+  it('events of another pointer do not end a drag: a foreign pointer-up is ignored, and a touch that merely moves over the canvas shows no hover tooltip', () => {
+    const h = harness({ lat: 46.5, lon: 8, heading: 0, tilt: 50 }, 20_000);
+    h.stack.pointerDown(mouse(400, 300));
+    h.stack.pointerMove(mouse(440, 300));
+    h.stack.pointerUp({ ...finger(9, 100, 100) }); // some other pointer lets go
+    expect(draggingOf(h.rig)).toBe(true);
+    const before = h.rig.view;
+    h.stack.pointerMove(mouse(480, 300));
+    expect(h.rig.view).not.toEqual(before); // the drag goes on
+    h.stack.pointerUp(mouse(480, 300));
+    expect(draggingOf(h.rig)).toBe(false);
+    h.hovers.length = 0;
+    h.stack.pointerMove(finger(5, 300, 300));
+    expect(h.hovers).toEqual([]);
+    h.stack.pointerMove(mouse(300, 300));
+    expect(h.hovers).toEqual([[300, 300]]);
+  });
+
+  it('the pointer a mode owns is routed to that mode alone: when its move handler declines, the base mode does not see the move', () => {
+    const seen: string[] = [];
+    const base: InputMode = { id: 'base', pointerDown: () => (seen.push('base:down'), true), pointerMove: () => (seen.push('base:move'), true), pointerUp: () => (seen.push('base:up'), true) };
+    const owner: InputMode = { id: 'owner', pointerDown: () => (seen.push('owner:down'), true), pointerMove: () => (seen.push('owner:move'), false), pointerUp: () => (seen.push('owner:up'), true) };
+    const stack = new InputStack(base);
+    stack.push(owner);
+    expect(stack.pointerDown(mouse(1, 1))).toBe(true);
+    expect(stack.pointerMove(mouse(2, 2))).toBe(false); // the owner declined: the base is not asked
+    expect(stack.pointerUp(mouse(2, 2))).toBe(true);
+    expect(seen).toEqual(['owner:down', 'owner:move', 'owner:up']);
+    // a pointer nobody owns goes down the stack as before
+    seen.length = 0;
+    stack.pointerMove(mouse(3, 3, 0, { id: 7 }));
+    expect(seen).toEqual(['owner:move', 'base:move']);
+  });
+});
+
+describe('modes are the target of clicks, context commands and long presses (M10 placement, M13 deploy, M15 targeting, M20 radial menu)', () => {
+  const placing = (log: string[], take = true): InputMode => ({
+    id: 'placement',
+    click: (x, y) => (log.push(`click ${x},${y}`), take),
+    context: (c) => (log.push(`context ${c.cell}`), take),
+    longPress: (x, y) => (log.push(`long ${x},${y}`), take),
+  });
+
+  it('a pushed mode that takes a click gets it instead of the M05 action; a drag still pans under it; one that declines leaves nothing for the base while it is pushed', () => {
+    const h = harness({ lat: 46.5, lon: 8, heading: 0, tilt: 50 }, 20_000);
+    const log: string[] = [];
+    h.stack.push(placing(log));
+    h.stack.pointerDown(mouse(400, 300));
+    h.stack.pointerUp(mouse(400, 300));
+    expect(log).toEqual(['click 400,300']);
+    expect(h.clicks).toEqual([]); // placing a building does not also attack the cell
+    // the camera still drags: the mode did not take the press, the base did
+    const before = h.rig.view;
+    h.stack.pointerDown(mouse(400, 300));
+    h.stack.pointerMove(mouse(480, 330));
+    h.stack.pointerUp(mouse(480, 330));
+    expect(h.rig.view).not.toEqual(before);
+    expect(log.length).toBe(1);
+    // a mode that declines: the click is not the base's either (the stack is not empty)
+    h.stack.pop();
+    const declined: string[] = [];
+    h.stack.push(placing(declined, false));
+    h.stack.pointerDown(mouse(410, 310));
+    h.stack.pointerUp(mouse(410, 310));
+    expect(declined).toEqual(['click 410,310']);
+    expect(h.clicks).toEqual([]);
+    // and with the stack empty again the base acts
+    h.stack.pop();
+    h.stack.pointerDown(mouse(420, 320));
+    h.stack.pointerUp(mouse(420, 320));
+    expect(h.clicks).toEqual([[420, 320]]);
+  });
+
+  it('the topmost mode is offered the click first, and the one below only if the one above declined', () => {
+    const h = harness({ lat: 46.5, lon: 8, heading: 0, tilt: 50 }, 20_000);
+    const log: string[] = [];
+    h.stack.push({ id: 'lower', click: () => (log.push('lower'), true) });
+    h.stack.push({ id: 'upper', click: () => (log.push('upper'), false) });
+    h.stack.pointerDown(mouse(400, 300));
+    h.stack.pointerUp(mouse(400, 300));
+    expect(log).toEqual(['upper', 'lower']);
+  });
+
+  it('a right click goes to the modes first and the context resolver runs ONLY with an empty stack (M20a); dispatchContext is the same path for the touch radial menu', () => {
+    const got: ContextCommand[] = [];
+    setContextHandler((c) => got.push(c));
+    const h = harness({ lat: 46.5, lon: 8, heading: 0, tilt: 50 }, 600_000);
+    const log: string[] = [];
+    h.stack.push({ id: 'camera-only' }); // a mode with no opinion about context commands
+    h.stack.pointerDown(mouse(480, 270, 2));
+    h.stack.pointerUp(mouse(480, 270, 2));
+    expect(got.length).toBe(0); // the resolver does not run while a mode is pushed
+    h.stack.push(placing(log));
+    h.stack.pointerDown(mouse(480, 270, 2));
+    h.stack.pointerUp(mouse(480, 270, 2));
+    expect(log.length).toBe(1);
+    expect(log[0]).toMatch(/^context \d+$/);
+    expect(got.length).toBe(0);
+    h.stack.clear();
+    h.stack.pointerDown(mouse(480, 270, 2));
+    h.stack.pointerUp(mouse(480, 270, 2));
+    expect(got.length).toBe(1);
+    // the radial menu of M20b calls the same entry
+    expect(h.stack.dispatchContext({ x: 1, y: 2, cell: 3, lat: 4, lon: 5 })).toBe(true);
+    expect(got.length).toBe(2);
+    expect(got[1]).toEqual({ x: 1, y: 2, cell: 3, lat: 4, lon: 5 });
+    h.stack.push({ id: 'camera-only' });
+    expect(h.stack.dispatchContext({ x: 1, y: 2, cell: 3, lat: 4, lon: 5 })).toBe(false);
+    expect(got.length).toBe(2);
+  });
+
+  it('a touch held for LONG_PRESS_S without moving is a long press: a mode may take it, else it is a context command at that place (once); its release is no tap; a moving or a two-finger touch is none', () => {
+    const got: ContextCommand[] = [];
+    setContextHandler((c) => got.push(c));
+    const h = harness({ lat: 46.5, lon: 8, heading: 0, tilt: 50 }, 600_000);
+    const ground = groundAt(h, 300, 300);
+    h.stack.pointerDown(finger(1, 300, 300));
+    h.t += LONG_PRESS_S - 0.05;
+    h.stack.tick(h.t);
+    expect(got.length).toBe(0); // not yet
+    h.t += 0.1;
+    h.stack.tick(h.t);
+    expect(got.length).toBe(1);
+    const ll = vecToLatLon(ground);
+    expect(got[0]?.cell).toBe(latLonToCell(ll.lat, ll.lon, 1024, 512).index);
+    expect(got[0]).toMatchObject({ x: 300, y: 300 });
+    h.t += 0.5;
+    h.stack.tick(h.t);
+    expect(got.length).toBe(1); // once
+    h.stack.pointerMove(finger(1, 340, 330)); // the rest of the touch does nothing
+    h.stack.pointerUp(finger(1, 340, 330));
+    expect(h.clicks).toEqual([]);
+    expect(got.length).toBe(1);
+    // moving past the click threshold: a drag, never a long press
+    h.stack.pointerDown(finger(2, 300, 300));
+    h.stack.pointerMove(finger(2, 300 + CLICK_MOVE_PX + 4, 300));
+    h.t += 2;
+    h.stack.tick(h.t);
+    h.stack.pointerUp(finger(2, 300 + CLICK_MOVE_PX + 4, 300));
+    expect(got.length).toBe(1);
+    // two fingers: a gesture, never a long press
+    h.stack.pointerDown(finger(3, 300, 300));
+    h.stack.pointerDown(finger(4, 400, 300));
+    h.t += 2;
+    h.stack.tick(h.t);
+    h.stack.pointerUp(finger(3, 300, 300));
+    h.stack.pointerUp(finger(4, 400, 300));
+    expect(got.length).toBe(1);
+    // a quick tap is still a click
+    h.stack.pointerDown(finger(5, 500, 300));
+    h.t += 0.1;
+    h.stack.tick(h.t);
+    h.stack.pointerUp(finger(5, 500, 300));
+    expect(h.clicks).toEqual([[500, 300]]);
+    // a pushed mode takes the long press before the resolver
+    const log: string[] = [];
+    h.stack.push(placing(log));
+    h.stack.pointerDown(finger(6, 310, 310));
+    h.t += LONG_PRESS_S + 0.1;
+    h.stack.tick(h.t);
+    expect(log).toEqual(['long 310,310']);
+    expect(got.length).toBe(1);
+  });
+
+  it('take(): a mode claims a pointer in the middle of a gesture: the base lets go of the camera, and the rest of the gesture goes to the mode alone', () => {
+    const h = harness({ lat: 46.5, lon: 8, heading: 0, tilt: 50 }, 20_000);
+    const seen: string[] = [];
+    const claimer: InputMode = { id: 'claimer', pointerMove: () => (seen.push('move'), true), pointerUp: () => (seen.push('up'), true) };
+    h.stack.push(claimer);
+    h.stack.pointerDown(mouse(400, 300));
+    h.stack.pointerMove(mouse(440, 300));
+    expect((h.rig as unknown as { dragging: boolean }).dragging).toBe(true);
+    h.stack.take(mouse(440, 300), claimer);
+    expect((h.rig as unknown as { dragging: boolean }).dragging).toBe(false);
+    const view = h.rig.view;
+    h.stack.pointerMove(mouse(500, 330));
+    h.stack.pointerUp(mouse(500, 330));
+    expect(seen).toEqual(['move', 'up']);
+    expect(h.rig.view).toEqual(view); // the camera did not follow
+    expect(h.clicks).toEqual([]);
+  });
+});
+
+describe('the keyboard adapter hands every reserved key to the stack and nothing else', () => {
+  interface Env {
+    win: EventTarget;
+    stack: InputStack;
+    got: string[];
+    enabled: { on: boolean };
+    press(key: string, extra?: Partial<KeyInput> & { defaultPrevented?: boolean }, on?: EventTarget): Event;
+  }
+  function env(): Env {
+    const win = new EventTarget();
+    const got: string[] = [];
+    const base: InputMode = { id: 'base', key: (k) => (got.push(`base:${k.key}`), false) };
+    const stack = new InputStack(base);
+    stack.push({ id: 'mode', key: (k) => (got.push(`mode:${k.key}`), k.key !== 'x') });
+    const enabled = { on: true };
+    attachDomKeys(win, stack, () => enabled.on);
+    const press = (key: string, extra: Partial<KeyInput> & { defaultPrevented?: boolean } = {}, on: EventTarget = win): Event => {
+      const { defaultPrevented, ...fields } = extra;
+      const e = Object.assign(new Event('keydown', { cancelable: true }), { key, ctrlKey: false, altKey: false, metaKey: false, repeat: false }, fields);
+      if (defaultPrevented) e.preventDefault();
+      on.dispatchEvent(e);
+      return e;
+    };
+    return { win, stack, got, enabled, press };
+  }
+
+  it('1 to 6, E, H and F reach the top mode (and are prevented when used); other keys never do', () => {
+    const e = env();
+    for (const k of ['1', '2', '3', '4', '5', '6', 'e', 'E', 'h', 'H', 'f', 'F']) {
+      const ev = e.press(k);
+      expect(ev.defaultPrevented, k).toBe(true);
+    }
+    expect(e.got.filter((g) => g.startsWith('mode:')).length).toBe(12);
+    e.got.length = 0;
+    for (const k of ['x', 'a', '[', ' ', '7', 'F3']) e.press(k);
+    expect(e.got).toEqual([]);
+  });
+
+  it('ctrl, alt and meta take the key away from the stack (Ctrl+1 is a browser tab), a disabled page (no match yet) and a text field do not pass keys, and an already handled key is not ours', () => {
+    const e = env();
+    e.press('1', { ctrlKey: true });
+    e.press('3', { altKey: true });
+    e.press('h', { metaKey: true });
+    expect(e.got).toEqual([]);
+    e.enabled.on = false;
+    e.press('f');
+    expect(e.got).toEqual([]);
+    e.enabled.on = true;
+    e.press('f', { defaultPrevented: true });
+    expect(e.got).toEqual([]);
+    const field = Object.assign(new EventTarget(), { tagName: 'INPUT', type: 'text' });
+    attachDomKeys(field, e.stack, () => true);
+    e.press('f', {}, field);
+    expect(e.got).toEqual([]);
+    e.press('f');
+    expect(e.got).toEqual(['mode:f']);
+  });
+
+  it('Escape pops the top mode and is prevented only then; with an empty stack it calls the pause handler and is left to the browser', () => {
+    let paused = 0;
+    setPauseHandler(() => paused++);
+    const e = env();
+    const first = e.press('Escape');
+    expect(first.defaultPrevented).toBe(true);
+    expect(e.stack.depth).toBe(0);
+    expect(paused).toBe(0);
+    const second = e.press('Escape');
+    expect(second.defaultPrevented).toBe(false);
+    expect(paused).toBe(1);
   });
 });

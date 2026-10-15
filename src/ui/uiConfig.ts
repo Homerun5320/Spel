@@ -9,6 +9,8 @@ export const COMMIT_DEFAULT_PCT = 40;
 
 /** A press that moves less than this many pixels before it is released is a click (spawn / attack); more is a drag (rotate the globe). */
 export const CLICK_MOVE_PX = 6;
+/** A touch held this long (fx seconds) without moving more than `CLICK_MOVE_PX` is a long press (M08 input stack; the radial menu of M20b opens on it). */
+export const LONG_PRESS_S = 0.5;
 
 /** The speeds the keys step through (pause is separate). */
 export const SPEED_STEPS: readonly (1 | 2 | 4)[] = [1, 2, 4];

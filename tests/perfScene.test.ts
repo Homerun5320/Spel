@@ -155,6 +155,81 @@ describe('the performance scene script', () => {
   });
 });
 
+describe('the waypoints of the script are pinned (literals, not the constants of the module: a changed number must fail here)', () => {
+  const expectedPhases = [
+    { kind: 'setView', lat: 28, lon: 86.9, distKm: 21_500 },
+    { kind: 'flyTo', lat: 28, lon: 86.9, distKm: 3_500, tilt: 50, heading: 20 },
+    { kind: 'flyTo', lat: 30, lon: 90, distKm: 0, altAglM: 3_000, tilt: 78, heading: 0 },
+    { kind: 'flyTo', lat: 30, lon: 90, distKm: 0, altAglM: 300, tilt: 78, heading: 0 },
+    { kind: 'flyTo', lat: 30.12, lon: 90, distKm: 0, altAglM: 300, tilt: 78, heading: 0 },
+  ] as const;
+
+  for (const quick of [true, false]) {
+    it(`${quick ? 'quick' : 'live'} script: the exact setView / flyTo sequence (21 500 km, 3 500 km, 3 000 m, 300 m, a 13 km cruise at 300 m), every place inside a Himalaya box`, () => {
+      const w = fakeWorld();
+      const run = new PerfSceneRun(w.host, { quick, now: () => w.clock.t });
+      if (!quick) for (let i = 0; i < PERF_PROBE_SKIP + PERF_PROBE_FRAMES; i++) run.probeFrame(16.7);
+      drive(run, w, 1 / 60);
+      expect(run.done).toBe(true);
+      expect(w.calls.length).toBe(expectedPhases.length);
+      w.calls.forEach((c, i) => {
+        const e = expectedPhases[i] as (typeof expectedPhases)[number];
+        expect(c.kind, `call ${i}`).toBe(e.kind);
+        expect(c.lat, `call ${i}`).toBeCloseTo(e.lat, 9);
+        expect(c.lon, `call ${i}`).toBeCloseTo(e.lon, 9);
+        expect(c.distKm, `call ${i}`).toBe(e.distKm);
+        if ('altAglM' in e) expect(c.options?.altAglM, `call ${i}`).toBe(e.altAglM);
+        else if (e.kind === 'flyTo') expect(c.options?.altAglM, `call ${i}`).toBeUndefined();
+        if ('tilt' in e) expect(c.options?.tilt, `call ${i}`).toBe(e.tilt);
+        if ('heading' in e) expect(c.options?.heading, `call ${i}`).toBe(e.heading);
+        // the whole script stays over the Himalaya (the tallest relief; the report is about it)
+        expect(c.lat).toBeGreaterThan(26);
+        expect(c.lat).toBeLessThan(32);
+        expect(c.lon).toBeGreaterThan(84);
+        expect(c.lon).toBeLessThan(92);
+      });
+      // the live flights of the ground phases are planned by the camera; the continent flight and the quick ones have a duration
+      expect(w.calls[1]?.options?.durationS).toBe(quick ? 1 : 4);
+      expect(w.calls[2]?.options?.durationS).toBe(quick ? 1 : undefined);
+    });
+  }
+
+  it('the fx duration of the report freezes when the run ends (the clock keeps running, the number does not), and a section copied earlier says "not completed"', () => {
+    const w = fakeWorld();
+    const run = new PerfSceneRun(w.host, { quick: true, now: () => w.clock.t });
+    let n = 0;
+    while (!run.done && n++ < 200) {
+      w.clock.t += 1 / 30;
+      run.beforeFrame();
+      run.afterFrame(33, 1);
+      if (n === 20) {
+        const mid = run.section();
+        expect(mid.completed).toBe(false);
+        expect(mid.fxDurationS).toBeCloseTo(w.clock.t - 1 / 30, 2);
+      }
+    }
+    expect(run.done).toBe(true);
+    const d = run.section().fxDurationS;
+    expect(d).toBeGreaterThan(5);
+    w.clock.t += 100;
+    run.beforeFrame();
+    expect(run.section().fxDurationS).toBe(d);
+  });
+
+  it('nothing is recorded while the display is being measured, even when the page calls afterFrame', () => {
+    const w = fakeWorld();
+    const run = new PerfSceneRun(w.host, { quick: false, now: () => w.clock.t });
+    for (let i = 0; i < 30; i++) {
+      w.clock.t += 1 / 60;
+      run.beforeFrame();
+      run.afterFrame(16.7, 1);
+    }
+    expect(run.recorder.frames).toBe(0);
+    expect(w.calls.length).toBe(0);
+    expect(run.phaseIndex).toBe(-1);
+  });
+});
+
 describe('the address of the performance scene', () => {
   it('?scene=perf and #scene-perf give the scene "perf"; the Dev panel lists it as "Prestandascen"', async () => {
     const { parseSceneParams, parseAppState } = await import('../src/app/params');

@@ -137,6 +137,43 @@ describe('groundHeightAt on the page', () => {
 });
 
 describe('the mouse on the RTS camera', () => {
+  it('one wheel notch at a high tilt and a low height over the Andes does not throw the camera across the planet (the audit reproduction, real mouse events): no frame moves it more than a few heights', async () => {
+    const { page, messages } = await open('test=1&ai=0&w=480&h=270', { width: 480, height: 270 });
+    try {
+      await page.evaluate(() => {
+        const t = (window as any).__test;
+        t.setView({ lat: 10, lon: 20, distKm: 21500, time: 1550 });
+        t.bookmark('andes', 0);
+        t.settle(1 / 30, 20);
+      });
+      await page.mouse.move(240, 160);
+      for (let i = 0; i < 14; i++) {
+        await page.mouse.wheel(0, -200);
+        await page.evaluate(() => (window as any).__test.settle(1 / 60, 40));
+      }
+      await page.mouse.down({ button: 'right' });
+      await page.mouse.move(240, 190, { steps: 3 });
+      await page.mouse.up({ button: 'right' });
+      await page.evaluate(() => (window as any).__test.settle(1 / 60, 40));
+      const agl0 = await page.evaluate(() => (window as any).__test.cameraAglM());
+      await page.mouse.wheel(0, -100);
+      let worst = 0;
+      let prev = await page.evaluate(() => (window as any).__test.cameraPosition());
+      for (let i = 0; i < 60; i++) {
+        await page.evaluate(() => (window as any).__test.settle(1 / 60, 1));
+        const p = await page.evaluate(() => (window as any).__test.cameraPosition());
+        worst = Math.max(worst, Math.hypot(p[0] - prev[0], p[1] - prev[1], p[2] - prev[2]) * 6371_000);
+        prev = p;
+      }
+      expect(agl0, 'low over the Andes').toBeLessThan(5000);
+      expect(worst, `worst frame (m), height ${Math.round(agl0)} m`).toBeLessThan(10 * agl0 + 1000);
+      expect(await page.evaluate(() => (window as any).__test.cameraAglM())).toBeGreaterThanOrEqual(ZOOM_MIN_AGL_M - 0.5);
+      expect(messages).toEqual([]);
+    } finally {
+      await page.close();
+    }
+  });
+
   it('wheel all the way in stops 300 m above the ground over the open sea and over the Himalaya (real wheel events), and out again reaches the limit', async () => {
     for (const [lat, lon, what] of [
       [0, -150, 'open sea'],
@@ -206,6 +243,74 @@ describe('the mouse on the RTS camera', () => {
       await page.mouse.up({ button: 'right' });
       await page.evaluate(() => (window as any).__test.settle(1 / 60, 3));
       expect(await page.evaluate(() => (window as any).__test.view())).toEqual(a);
+      expect(messages).toEqual([]);
+    } finally {
+      await page.close();
+    }
+  });
+});
+
+describe('the input stack on the real page', () => {
+  it('a real right click without a drag gives exactly ONE context command whose cell is the cell under the cursor (`__test.pick`); a left click and a drag give none', async () => {
+    const { page, messages } = await open();
+    try {
+      await page.evaluate(() => {
+        const t = (window as any).__test;
+        (window as any).__got = [];
+        t.onContext((c: unknown) => (window as any).__got.push(c));
+        t.setView({ lat: 46.5, lon: 8, distKm: 900, heading: 0, tilt: 40 });
+        t.render();
+      });
+      for (const [x, y] of [
+        [480, 270],
+        [300, 180],
+        [700, 420],
+      ] as const) {
+        const expected = await page.evaluate(([px, py]) => (window as any).__test.pick(px, py), [x, y]);
+        expect(expected, `a globe pixel at ${x}, ${y}`).not.toBeNull();
+        await page.evaluate(() => ((window as any).__got.length = 0));
+        await page.mouse.move(x, y);
+        await page.mouse.down({ button: 'right' });
+        await page.mouse.up({ button: 'right' });
+        const got = await page.evaluate(() => (window as any).__got);
+        expect(got.length, `right click at ${x}, ${y}`).toBe(1);
+        expect(got[0].cell).toBe(expected.cell.index);
+        expect(got[0].x).toBeCloseTo(x, 0);
+        expect(got[0].y).toBeCloseTo(y, 0);
+        expect(got[0].lat).toBeCloseTo(expected.lat, 6);
+      }
+      await page.evaluate(() => ((window as any).__got.length = 0));
+      await page.mouse.move(480, 270);
+      await page.mouse.down({ button: 'right' });
+      await page.mouse.move(540, 270, { steps: 4 });
+      await page.mouse.up({ button: 'right' });
+      await page.mouse.move(400, 300);
+      await page.mouse.down();
+      await page.mouse.up();
+      expect(await page.evaluate(() => (window as any).__got.length)).toBe(0);
+      expect(messages).toEqual([]);
+    } finally {
+      await page.close();
+    }
+  });
+
+  it('Escape with an empty stack calls the pause handler exactly once per press (and is left to the browser); the keys 1 to 6, E and H reach the stack and do nothing yet', async () => {
+    const { page, messages } = await open();
+    try {
+      await page.evaluate(() => {
+        (window as any).__paused = 0;
+        (window as any).__test.onPause(() => (window as any).__paused++);
+      });
+      await page.keyboard.press('Escape');
+      expect(await page.evaluate(() => (window as any).__paused)).toBe(1);
+      await page.keyboard.press('Escape');
+      expect(await page.evaluate(() => (window as any).__paused)).toBe(2);
+      const before = await page.evaluate(() => (window as any).__test.view());
+      for (const k of ['1', '2', '3', '4', '5', '6', 'e', 'h']) await page.keyboard.press(k);
+      await page.keyboard.press('Control+1');
+      expect(await page.evaluate(() => (window as any).__paused)).toBe(2);
+      expect(await page.evaluate(() => (window as any).__test.flightActive())).toBe(false);
+      expect(await page.evaluate(() => (window as any).__test.view())).toEqual(before);
       expect(messages).toEqual([]);
     } finally {
       await page.close();

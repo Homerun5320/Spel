@@ -13,7 +13,7 @@ import type { WorldTextureName } from '../render/textures';
 import { BOOKMARKS, CAPITAL_BOOKMARK, DEFAULT_START_TIME, DEFAULT_START_VIEW, GROUND_VIEWS, type BookmarkName } from '../render/views';
 import { cellToLatLon, groundHeightAt } from '../render/transforms';
 import { setBookmarkHandler } from './bookmarks';
-import { InputStack, attachDomInput, createBaseMode, type InputTarget } from './input';
+import { InputStack, attachDomInput, attachDomKeys, createBaseMode, setContextHandler, setPauseHandler, type ContextHandler, type InputTarget } from './input';
 import { resolveQuality } from '../render/quality';
 import type { TerrainMode } from '../render/terrainMaterial';
 import { FrameStats } from '../ui/frameStats';
@@ -40,7 +40,7 @@ import { seatToOwner } from '../sim/state';
 import type { IntentBody } from '../sim/intents';
 import { clickMeaning, resolveClickCell } from './clickTarget';
 import { MatchSession } from './match';
-import { matchKeyAction, typingInField } from './matchKeys';
+import { matchKeyAction } from './matchKeys';
 import type { AppParams, AppState, SceneParams } from './params';
 import { siteUrl } from './paths';
 import { countryNameMap, tooltipText } from './tooltip';
@@ -156,6 +156,12 @@ export interface GlobeTestHooks {
   holdAgl(): number | null;
   /** M08: the ground under a pixel (`pickGround`): latitude, longitude, radius (Earth radii) and seen height (render metres) of the hit; null when the ray misses the globe. */
   pickGround(x: number, y: number): { lat: number; lon: number; radius: number; seenHeightM: number } | null;
+  /**
+   * M08 audit pass: installs the handler of the input stack's context command (what M20a's resolver will be: a right click without a drag, or a long press,
+   * with an empty stack) or of its pause command (Escape with an empty stack, M18's pause menu), so that an e2e can watch the real page's wiring.
+   */
+  onContext(fn: ContextHandler): void;
+  onPause(fn: () => void): void;
   /** M08: `groundHeightAt` (the very function `heightAt`, render metres, all octaves unless given) bound to the page's raster. */
   groundHeightAt(lat: number, lon: number, octaves?: number): number;
   /**
@@ -350,7 +356,10 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
 
   let firstFrameMs: number | null = null;
   let frames = 0;
+  // the input stack's per-frame tick (the long-press timer of the touch input); set where the stack is built
+  let tickInput: (now: number) => void = () => undefined;
   const renderFrame = (draw = true): void => {
+    tickInput(fxNow());
     globe.render(draw);
     frames++;
     if (draw && firstFrameMs === null) firstFrameMs = performance.now();
@@ -542,14 +551,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
         return;
       }
       const t = e.target instanceof HTMLElement ? e.target : null;
-      // The input stack's keys (M08): Escape pops the top mode (with an empty stack it opens the pause menu, M18, a no-op until then) and F flies to
-      // your capital; a key the setup screen or the Dev panel already used, or typed into a text field, is not ours.
-      if (!e.defaultPrevented && (e.key === 'Escape' || e.key === 'f' || e.key === 'F') && setupScreen === null && session !== null) {
-        const typing = typingInField({ key: e.key, ctrlKey: e.ctrlKey, altKey: e.altKey, metaKey: e.metaKey, targetTag: t?.tagName, targetType: t instanceof HTMLInputElement ? t.type : undefined });
-        const depth = inputStack.depth;
-        if (inputStack.key({ key: e.key, ctrlKey: e.ctrlKey, altKey: e.altKey, metaKey: e.metaKey, repeat: e.repeat, typing }) && (depth > 0 || e.key !== 'Escape')) e.preventDefault();
-        return;
-      }
+      // The reserved keys (1 to 6, E, H, F, Escape) belong to the input stack: `attachDomKeys` below hands them to it, and the match keys never bind them.
       if (session === null) return;
       const action = matchKeyAction({ key: e.key, code: e.code, ctrlKey: e.ctrlKey, altKey: e.altKey, metaKey: e.metaKey, repeat: e.repeat, targetTag: t?.tagName, targetType: t instanceof HTMLInputElement ? t.type : undefined });
       if (action === null) return;
@@ -657,6 +659,9 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     focusCapital: () => focusCapital(),
   };
   const inputStack = new InputStack(createBaseMode(inputTarget));
+  tickInput = (now) => inputStack.tick(now);
+  // The reserved keys go to the stack while a match is on (the setup screen and the menus own the keyboard before it).
+  attachDomKeys(window, inputStack, () => setupScreen === null && session !== null, signal);
   let inputOn = false;
   const attachInput = (): void => {
     if (inputOn) return;
@@ -972,6 +977,8 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
         }
       },
       pick: (x, y) => globe.pick(x, y),
+      onContext: (fn) => setContextHandler(fn),
+      onPause: (fn) => setPauseHandler(fn),
       readTexels: (name, points) => Array.from(globe.readTexels(name, points)),
       setExaggeration: (x) => globe.setExaggeration(x),
       setBorderStrength: (x) => globe.setBorderStrength(x),

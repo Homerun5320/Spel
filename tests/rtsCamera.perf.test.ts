@@ -87,4 +87,19 @@ describe('RTS camera: CPU cost', () => {
     console.log(`[rts perf] a right-drag event: median ${(med * 1000).toFixed(0)} us (p95 ${(percentile(samples, 95) * 1000).toFixed(0)} us)`);
     expect(med).toBeLessThanOrEqual(budgetMs(1));
   });
+
+  it('one wheel notch over the Himalaya at 3 km (the dolly: the distance along the cursor ray is solved ONCE) plus the 30 frames of its ease: median of 15 (mean ms per notch with its frames) is at most budgetMs(2)', async () => {
+    const w = await loadRtsWorld();
+    const rig = makeRtsRig(w, { lat: 28.2, lon: 86.8, heading: 20, tilt: 50 }, 3000);
+    let t = 1;
+    const samples = measure(40, () => {
+      for (let i = 0; i < 40; i++) {
+        rig.zoomAt(300 + 360 * ((i * 37) % 10) / 10, 200 + 200 * ((i * 17) % 10) / 10, i % 2 === 0 ? -240 : 240);
+        for (let k = 0; k < 30; k++) rig.update((t += 1 / 60));
+      }
+    });
+    const med = median(samples);
+    console.log(`[rts perf] a wheel notch with its 30 frames: median ${(med * 1000).toFixed(0)} us (p95 ${(percentile(samples, 95) * 1000).toFixed(0)} us)`);
+    expect(med).toBeLessThanOrEqual(budgetMs(2));
+  });
 });

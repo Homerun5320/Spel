@@ -264,6 +264,45 @@ describe('pickGround: pick, then project back', () => {
     expect(differing).toBeGreaterThan(10);
   });
 
+  it('finds the FIRST crossing of grazing rays: against a 20 m reference march, over 1 200 rays at tilt 75 to 78 (300 m and 3 km over the Himalaya, 300 m over the Alps), no ray skips a ridge', () => {
+    const f = world.detailField;
+    const cases = [
+      { name: 'Himalaya 300 m', view: { lat: 28.2, lon: 86.8, heading: 0, tilt: 75 }, alt: 300, seed: 11 },
+      { name: 'Himalaya 3 km', view: { lat: 28.2, lon: 86.8, heading: 120, tilt: 78 }, alt: 3_000, seed: 12 },
+      { name: 'Alps 300 m', view: { lat: 46.5, lon: 8, heading: 250, tilt: 76 }, alt: 300, seed: 13 },
+    ] as const;
+    const STEP = 20 / R_M; // the reference marches in 20 m steps
+    let rays = 0;
+    let hits = 0;
+    let worstGapM = 0;
+    for (const c of cases) {
+      const pose = poseOf(world, c.view, c.alt);
+      const rig = new CameraRig(960, 540);
+      const r = rng(c.seed);
+      for (let i = 0; i < 400; i++) {
+        const ray = rig.rayAt(960 * r(), 270 + 270 * r(), pose); // the lower half of the picture: the ground, down to the horizon
+        rays++;
+        const hit = pickGround(f, ray);
+        if (!hit) continue;
+        hits++;
+        // the reference: the ray is above the seen surface at every 20 m step before the hit (less 25 m), so nothing was skipped
+        let lowest = Number.POSITIVE_INFINITY;
+        for (let t = 0; t < hit.t - 25 / R_M; t += STEP) {
+          const p: Vec3 = [ray.origin[0] + ray.dir[0] * t, ray.origin[1] + ray.dir[1] * t, ray.origin[2] + ray.dir[2] * t];
+          const { lat, lon } = vecToLatLon(p);
+          lowest = Math.min(lowest, (length(p) - f.seenRadius(lat, lon, ray.origin)) * R_M);
+        }
+        worstGapM = Math.max(worstGapM, -lowest);
+        expect(lowest, `${c.name} ray ${i}: the ray is below the surface at a step before the hit at ${Math.round(hit.t * R_M)} m`).toBeGreaterThan(0);
+        // and the hit is on the surface the camera sees
+        expect(Math.abs(hit.radius - f.seenRadius(hit.lat, hit.lon, ray.origin)) * R_M).toBeLessThan(0.05);
+      }
+    }
+    expect(rays).toBe(1200);
+    expect(hits).toBeGreaterThanOrEqual(1000);
+    expect(worstGapM).toBe(0);
+  });
+
   it('misses are null (a ray off the disc) and the largest march step stays far below the prompt\'s 0.5 cell', () => {
     const rig = new CameraRig(960, 540);
     const pose = poseOf(world, heights[0].view, heights[0].alt);
