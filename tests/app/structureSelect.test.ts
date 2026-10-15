@@ -50,12 +50,12 @@ describe('pickStructure', () => {
       [at(30, 10), 2],
       [at(40, 10), 1],
     ]);
-    expect(pickStructure(t, W, H, at(10, 10), 1)).toBe(0);
-    expect(pickStructure(t, W, H, at(11, 11), 1)).toBe(0); // diagonal neighbour
-    expect(pickStructure(t, W, H, at(12, 10), 1)).toBe(-1); // two cells away
-    expect(pickStructure(t, W, H, at(30, 10), 1)).toBe(-1); // somebody else's
-    expect(pickStructure(t, W, H, at(31, 10), 1)).toBe(-1);
-    expect(pickStructure(t, W, H, at(19, 10), 1)).toBe(1);
+    expect(pickStructure(t, W, H, at(10, 10), 1, 1)).toBe(0);
+    expect(pickStructure(t, W, H, at(11, 11), 1, 1)).toBe(0); // diagonal neighbour
+    expect(pickStructure(t, W, H, at(12, 10), 1, 1)).toBe(-1); // two cells away
+    expect(pickStructure(t, W, H, at(30, 10), 1, 1)).toBe(-1); // somebody else's
+    expect(pickStructure(t, W, H, at(31, 10), 1, 1)).toBe(-1);
+    expect(pickStructure(t, W, H, at(19, 10), 1, 1)).toBe(1);
   });
 
   it('the nearest wins, a tie goes to the lowest id, and the world wraps in x', () => {
@@ -64,10 +64,32 @@ describe('pickStructure', () => {
       [at(7, 5), 1],
       [at(63, 20), 1],
     ]);
-    expect(pickStructure(t, W, H, at(6, 5), 1)).toBe(0); // both are one cell away: the lowest id
-    expect(pickStructure(t, W, H, at(6, 6), 1)).toBe(0);
-    expect(pickStructure(t, W, H, at(0, 20), 1)).toBe(2); // wraps
-    expect(pickStructure(t, W, H, at(5, 5), 1)).toBe(0);
+    expect(pickStructure(t, W, H, at(6, 5), 1, 1)).toBe(0); // both are one cell away: the lowest id
+    expect(pickStructure(t, W, H, at(6, 6), 1, 1)).toBe(0);
+    expect(pickStructure(t, W, H, at(0, 20), 1, 1)).toBe(2); // wraps
+    expect(pickStructure(t, W, H, at(5, 5), 1, 1)).toBe(0);
+  });
+});
+
+describe('pickStructure: neighbourhood rules', () => {
+  it('a click on neutral or enemy land beside an own structure is not a selection (it reaches the attack), the own land is', () => {
+    const t = table([[at(10, 10), 1]]);
+    expect(pickStructure(t, W, H, at(11, 10), 1, 0)).toBe(-1); // unowned neighbour
+    expect(pickStructure(t, W, H, at(11, 10), 1, 2)).toBe(-1); // enemy neighbour
+    expect(pickStructure(t, W, H, at(11, 10), 1, 1)).toBe(0); // own neighbour
+    expect(pickStructure(t, W, H, at(10, 10), 1, 0)).toBe(0); // the structure's own cell
+  });
+
+  it('with every neighbour at distance one the orthogonal one wins over a diagonal one with a lower id, and the x seam wraps', () => {
+    const t = table([
+      [at(9, 9), 1], // diagonal, id 0
+      [at(10, 9), 1], // orthogonal (north of the click), id 1
+    ]);
+    expect(pickStructure(t, W, H, at(10, 10), 1, 1)).toBe(1);
+    const seam = table([[at(63, 20), 1]]);
+    expect(pickStructure(seam, W, H, at(0, 19), 1, 1)).toBe(0); // west of the seam, diagonal, found only by wrapping
+    const east = table([[at(0, 10), 1]]);
+    expect(pickStructure(east, W, H, at(63, 10), 1, 1)).toBe(0);
   });
 });
 

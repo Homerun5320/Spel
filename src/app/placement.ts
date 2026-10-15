@@ -59,6 +59,7 @@ export function createPlacementMode(type: number, target: PlacementTarget): Plac
 
   return {
     id: `placement:${type}`,
+    wantsShiftClick: true,
     state: () => ({ type, cell, ok: cell >= 0 && reason === 0, reason }),
     onPop(): void {
       target.clearGhost();

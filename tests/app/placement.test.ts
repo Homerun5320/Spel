@@ -2,7 +2,7 @@
 // it is removed: the ghost follows the cursor with the sim's verdict, a click on a green ghost sends Build and leaves the mode (Shift keeps it), a click on
 // a red one reports the reason and sends nothing, a right click and Escape leave it, and Escape does not call the pause handler while the mode is on.
 import { afterEach, describe, expect, it } from 'vitest';
-import { InputStack, resetInputHandlers, setPauseHandler, type InputMode, type PointerInput } from '../../src/app/input';
+import { InputStack, createBaseMode, resetInputHandlers, setPauseHandler, type CameraInput, type InputMode, type InputTarget, type PointerInput } from '../../src/app/input';
 import { createPlacementMode, type PlacementMode, type PlacementTarget } from '../../src/app/placement';
 import { REJECT_BUILD_PEAK, REJECT_NONE, STRUCT_CITY } from '../../src/sim/public';
 
@@ -10,6 +10,46 @@ afterEach(() => resetInputHandlers());
 
 const ptr = (x: number, y: number, extra: Partial<PointerInput> = {}): PointerInput => ({ id: 1, kind: 'mouse', x, y, button: 0, ctrlKey: false, shiftKey: false, ...extra });
 const key = (k: string) => ({ key: k, ctrlKey: false, altKey: false, metaKey: false });
+
+/** A rig with the REAL base mode (no dispatchClick shortcut): Shift + left press / release must reach the placement mode as a click. */
+function realRig(): { r: Rig; rotated: number[]; baseClicks: number[] } {
+  const rotated: number[] = [];
+  const baseClicks: number[] = [];
+  const camera: CameraInput = {
+    dragStart: () => undefined,
+    dragMove: () => undefined,
+    dragEnd: () => undefined,
+    rotateBy: () => rotated.push(1) && undefined,
+    zoomAt: () => undefined,
+    yawBy: () => undefined,
+  };
+  const target: InputTarget = {
+    camera,
+    now: () => 1,
+    cancelFlight: () => undefined,
+    click: () => baseClicks.push(1) && undefined,
+    pickCell: () => null,
+    hover: () => undefined,
+    hoverEnd: () => undefined,
+    focusCapital: () => undefined,
+  };
+  const stack = new InputStack(createBaseMode(target));
+  const r = { stack, sent: [], refused: [], ghost: [], cleared: 0, ended: 0, verdict: new Map<number, number>() } as unknown as Rig;
+  r.mode = createPlacementMode(STRUCT_CITY, {
+    pickCell: (x, y) => y * 100 + x,
+    validate: () => REJECT_NONE,
+    send: (t, c) => r.sent.push([t, c]),
+    setGhost: () => undefined,
+    clearGhost: () => r.cleared++,
+    refused: (reason) => r.refused.push(reason),
+    exit: () => {
+      if (stack.top === r.mode) stack.pop();
+    },
+    ended: () => r.ended++,
+  });
+  stack.push(r.mode);
+  return { r, rotated, baseClicks };
+}
 
 interface Rig {
   stack: InputStack;
@@ -101,5 +141,44 @@ describe('the placement mode', () => {
     expect(paused).toBe(0);
     c.stack.key(key('Escape')); // an empty stack: the pause menu
     expect(paused).toBe(1);
+  });
+
+  it('a REAL Shift + left press and release places and keeps the mode (the base mode must not turn it into the rotate gesture)', () => {
+    const { r, rotated, baseClicks } = realRig();
+    for (const x of [7, 8]) {
+      r.stack.pointerDown(ptr(x, 3, { shiftKey: true }));
+      r.stack.pointerUp(ptr(x, 3, { shiftKey: true }));
+    }
+    expect(r.sent).toEqual([
+      [STRUCT_CITY, 307],
+      [STRUCT_CITY, 308],
+    ]);
+    expect(r.stack.depth).toBe(1);
+    expect(rotated).toEqual([]);
+    expect(baseClicks).toEqual([]);
+    r.stack.pointerDown(ptr(9, 3)); // a plain click places the last one and leaves
+    r.stack.pointerUp(ptr(9, 3));
+    expect(r.sent.length).toBe(3);
+    expect(r.stack.depth).toBe(0);
+  });
+
+  it('with the stack empty (no placement), Shift + drag still rotates', () => {
+    const { r, rotated } = realRig();
+    r.stack.pop();
+    r.stack.pointerDown(ptr(5, 5, { shiftKey: true }));
+    r.stack.pointerMove(ptr(9, 7, { shiftKey: true }));
+    r.stack.pointerUp(ptr(9, 7, { shiftKey: true }));
+    expect(rotated.length).toBe(1);
+  });
+
+  it('popping the mode clears the ghost, and a click off the globe sends nothing', () => {
+    const r = rig();
+    const before = r.cleared;
+    r.stack.pop();
+    expect(r.cleared).toBe(before + 1);
+    const s = rig();
+    expect(s.stack.dispatchClick(-1, 3, ptr(-1, 3))).toBe(true);
+    expect(s.sent).toEqual([]);
+    expect(s.refused).toEqual([]);
   });
 });

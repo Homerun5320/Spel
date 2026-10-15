@@ -832,7 +832,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   };
   const structureAtCell = (cell: number): number => {
     const sess = session;
-    return sess === null ? -1 : pickStructure(sess.view.structures, world.sim.width, world.sim.height, cell, sess.localOwner);
+    return sess === null ? -1 : pickStructure(sess.view.structures, world.sim.width, world.sim.height, cell, sess.localOwner, sess.view.owner[cell] as number);
   };
   const cellAt = (x: number, y: number): number | null => {
     const h = globe.pickGroundAt(x, y);

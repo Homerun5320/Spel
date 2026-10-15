@@ -114,6 +114,8 @@ export interface InputMode {
   context?(command: ContextCommand): boolean;
   /** A touch held in place for `LONG_PRESS_S`: same rule; untaken, it becomes a context command. */
   longPress?(x: number, y: number, e: PointerInput): boolean;
+  /** The mode wants Shift + left click as a plain click (the placement mode: Shift + click places several); the base mode then does not turn that press into the rotate gesture. */
+  readonly wantsShiftClick?: boolean;
   /** Once per frame with the fx time (long-press timers). */
   tick?(now: number): void;
   /** Called by the stack's constructor on the base mode so that it can report clicks to the stack. */
@@ -435,7 +437,8 @@ export function createBaseMode(target: InputTarget, clickThresholdPx?: number): 
       a.y = e.y;
       lastX = e.x;
       lastY = e.y;
-      if (e.button === 2 || e.button === 1 || e.ctrlKey || e.shiftKey) {
+      const shiftClick = e.shiftKey && e.button === 0 && !e.ctrlKey && stack !== null && stack.depth > 0 && stack.top.wantsShiftClick === true;
+      if (e.button === 2 || e.button === 1 || e.ctrlKey || (e.shiftKey && !shiftClick)) {
         gesture = 'rotate';
         rightButton = e.button === 2 && !e.ctrlKey && !e.shiftKey;
         rightClicks.down(e.x, e.y);
