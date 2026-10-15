@@ -2,7 +2,8 @@
 // and the package.json scripts staying plain cross-platform (no bash-only syntax: the user runs verify:local on Windows).
 import fs from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { formatDuration, formatSummary, stageGroups } from '../scripts/verify.mjs';
+import { vi } from 'vitest';
+import { formatDuration, formatSummary, main, stageGroups, type Stage, type StageRun } from '../scripts/verify.mjs';
 
 const names = (groups: Array<Array<{ name: string }>>): string[][] => groups.map((g) => g.map((s) => s.name));
 
@@ -60,5 +61,62 @@ describe('package.json scripts are plain cross-platform commands', () => {
       expect(cmd, name).not.toMatch(/[`|;]/);
       expect(cmd, name).not.toMatch(/\b(export|source)\b/);
     }
+  });
+});
+
+
+describe('main(): the exit code and the stop rule that CI relies on', () => {
+  const okRun = (): StageRun => ({ ok: true, ms: 1, logPath: 'x.log', output: Buffer.from('') });
+  const failRun = (): StageRun => ({ ok: false, ms: 1, logPath: 'x.log', output: Buffer.from('boom') });
+
+  async function runMain(argv: string[], failing: string[]): Promise<{ code: number | string | undefined; started: string[] }> {
+    const started: string[] = [];
+    const before = process.exitCode;
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const write = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    try {
+      process.exitCode = undefined;
+      await main(argv, {
+        runStage: async (stage: Stage) => {
+          started.push(stage.name);
+          return failing.includes(stage.name) ? failRun() : okRun();
+        },
+        writeLocalReport: () => undefined,
+      });
+      return { code: process.exitCode, started };
+    } finally {
+      log.mockRestore();
+      write.mockRestore();
+      process.exitCode = before;
+    }
+  }
+
+  it('exits 0 and runs every stage in order when everything passes', async () => {
+    const r = await runMain([], []);
+    expect(r.code).toBe(0);
+    expect(r.started).toEqual(['typecheck', 'lint', 'unit', 'perf', 'e2e', 'e2e-serial']);
+  });
+  it('exits 1 and does not start the next group when a stage of the first group fails', async () => {
+    const r = await runMain([], ['lint']);
+    expect(r.code).toBe(1);
+    expect(r.started).toEqual(['typecheck', 'lint', 'unit']);
+  });
+  it('exits 1 when only the last stage fails', async () => {
+    const r = await runMain([], ['e2e-serial']);
+    expect(r.code).toBe(1);
+    expect(r.started).toEqual(['typecheck', 'lint', 'unit', 'perf', 'e2e', 'e2e-serial']);
+  });
+  it('verify:fast runs only the first group and still reports a failure with exit 1', async () => {
+    const r = await runMain(['--fast'], ['unit']);
+    expect(r.code).toBe(1);
+    expect(r.started).toEqual(['typecheck', 'lint', 'unit']);
+  });
+  it('verify:local runs every group even after a failure, skips the browser stages when the gpu check fails, and exits 1', async () => {
+    const all = await runMain(['--local'], ['unit']);
+    expect(all.code).toBe(1);
+    expect(all.started).toEqual(['gpu', 'typecheck', 'lint', 'unit', 'perf', 'e2e', 'e2e-serial']);
+    const noGpu = await runMain(['--local'], ['gpu']);
+    expect(noGpu.code).toBe(1);
+    expect(noGpu.started).toEqual(['gpu', 'typecheck', 'lint', 'unit', 'perf']);
   });
 });

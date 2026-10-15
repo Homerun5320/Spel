@@ -8,4 +8,14 @@ export interface Stage {
 export function stageGroups(opts?: { fast?: boolean; local?: boolean }): Stage[][];
 export function formatDuration(ms: number): string;
 export function formatSummary(results: Array<{ title: string; status: 'PASS' | 'FAIL' | 'SKIPPED'; ms: number }>, totalMs: number): string;
-export function main(argv?: string[]): Promise<void>;
+export interface StageRun {
+  ok: boolean;
+  ms: number;
+  logPath: string;
+  output: Buffer;
+}
+export interface MainDeps {
+  runStage?: (stage: Stage, env: NodeJS.ProcessEnv, opts: { live: boolean }) => Promise<StageRun>;
+  writeLocalReport?: (summary: string, workers: number, cores: number) => void;
+}
+export function main(argv?: string[], deps?: MainDeps): Promise<void>;

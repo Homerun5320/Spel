@@ -88,7 +88,13 @@ function readLog(name) {
   }
 }
 
-export async function main(argv = process.argv.slice(2)) {
+/**
+ * `deps` lets the unit test run the stage loop without spawning real stages: `runStage(stage, env, { live })` resolves
+ * `{ ok, ms, logPath, output }`, `writeLocalReport(summary, workers, cores)` replaces the file write.
+ */
+export async function main(argv = process.argv.slice(2), deps = {}) {
+  const run = deps.runStage ?? runStage;
+  const report = deps.writeLocalReport ?? writeLocalReport;
   const local = argv.includes('--local');
   const fast = argv.includes('--fast');
   const env = { ...process.env };
@@ -111,7 +117,7 @@ export async function main(argv = process.argv.slice(2)) {
     for (const s of group) if (!runnable.includes(s)) results.push({ title: s.title, status: 'SKIPPED', ms: 0, name: s.name });
     const live = runnable.length === 1;
     console.log(`\n=== ${runnable.map((s) => s.title).join(' + ')} ===`);
-    const done = await Promise.all(runnable.map((s) => runStage(s, env, { live })));
+    const done = await Promise.all(runnable.map((s) => run(s, env, { live })));
     runnable.forEach((s, i) => {
       const r = done[i];
       if (!live) {
@@ -127,7 +133,7 @@ export async function main(argv = process.argv.slice(2)) {
 
   const summary = formatSummary(results, Date.now() - t0);
   console.log(`\n${summary}`);
-  if (local) writeLocalReport(summary, workers, cores);
+  if (local) report(summary, workers, cores);
   process.exitCode = results.some((r) => r.status === 'FAIL') ? 1 : 0;
 }
 
