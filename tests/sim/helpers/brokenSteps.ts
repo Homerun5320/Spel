@@ -10,6 +10,7 @@ import { nextU32 } from '../../../src/sim/rng';
 import { MAX_INTENTS_PER_TURN } from '../../../src/sim/rules';
 import type { StepFn } from '../../../src/sim/step';
 import { applyIntent } from '../../../src/sim/step';
+import { winPhase } from '../../../src/sim/win';
 
 function makeStep(opts: { sort: boolean; dedupe: boolean; conquest?: boolean; enclaves?: boolean; economy?: boolean }): StepFn {
   return (state, turn) => {
@@ -52,6 +53,7 @@ function makeStep(opts: { sort: boolean; dedupe: boolean; conquest?: boolean; en
     if (rejected > 0) state.rejects = (state.rejects + rejected) >>> 0;
     nextU32(state.rng);
     state.tick = (state.tick + 1) >>> 0;
+    winPhase(state); // M18-1: the last phase of the real step
     return { ok: true, applied, rejected };
   };
 }

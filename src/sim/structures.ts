@@ -337,6 +337,7 @@ export function applyBuild(state: GameState, seat: number, type: number, cell: n
   if (why !== REJECT_NONE) return why;
   state.gold[ownerId] = (state.gold[ownerId] as number) - buildPriceMilli(state.structures, ownerId, type);
   state.structures.add(type, ownerId, cell, state.tick);
+  state.match.built[ownerId] = ((state.match.built[ownerId] as number) + 1) >>> 0;
   return REJECT_NONE;
 }
 

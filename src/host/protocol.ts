@@ -80,6 +80,8 @@ export interface ViewSnapshot {
   readonly stats: Uint32Array;
   /** The attacks running, as pairs (attacker ownerId, target ownerId) one after the other in creation order: `attacks[2 i]`, `attacks[2 i + 1]` (D143). */
   readonly attacks: Uint16Array;
+  /** The packed match view (M18-1, src/sim/matchView.ts): the result, the win progress and the per-seat statistics; in every frame. */
+  readonly match: Uint32Array;
   readonly owner: Uint16Array | null;
   readonly terrain: Uint8Array | null;
   /** The structure table (M10): always present in the answer to `requestView`; in a frame's diff only when the table changed since the last frame that carried it, else null. */
@@ -138,6 +140,7 @@ export function cloneView(v: ViewSnapshot): ViewSnapshot {
     ...v,
     stats: v.stats.slice(),
     attacks: v.attacks.slice(),
+    match: v.match.slice(),
     owner: v.owner === null ? null : v.owner.slice(),
     terrain: v.terrain === null ? null : v.terrain.slice(),
     structures: v.structures === null ? null : cloneStructures(v.structures),

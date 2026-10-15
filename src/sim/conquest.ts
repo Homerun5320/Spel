@@ -62,6 +62,7 @@ import {
 } from './intents';
 import { seatToOwner, type GameState } from './state';
 import { changeOwner } from './territory';
+import { leaderCostPct } from './win';
 import { collectPosts, collectWalls, postAdjustedCost, wallAdjustedCost } from './structureEffects';
 
 // Bound once at load: the capture loop calls and reads these for every cell (see src/sim/attacks.ts for why).
@@ -226,6 +227,8 @@ export function advanceAttack(state: GameState, a: Attack, slot: number, n: numb
   // Defense Posts (M09 part B): the finished Posts of the target make its cells near them dearer for the attacker.
   const posts = target !== 0 && state.structures.liveCount !== 0 ? collectPosts(state, target) : 0;
   const walls = target !== 0 && state.structures.districtCount !== 0 ? collectWalls(state, target) : 0;
+  // Anti-snowball (M18-1): a nation above the leader thresholds is cheaper to attack; fixed for the whole call (the share moves by a few cells at most).
+  const leaderPct = leaderCostPct(state, target);
   const w = grid.width;
   const colMask = grid.colMask;
   const cells = grid.cells;
@@ -285,6 +288,8 @@ export function advanceAttack(state: GameState, a: Attack, slot: number, n: numb
       const walled = wallAdjustedCost(state.structures, w, cell, cost);
       cost = posts !== 0 ? Math.max(walled, postAdjustedCost(state.structures, w, cell, cost)) : walled;
     } else if (posts !== 0) cost = postAdjustedCost(state.structures, w, cell, cost);
+    // The attacker's discount comes AFTER the defence multipliers (home trait, Walls / Post: the largest of those applies): price = defended price x pct / 100.
+    if (leaderPct !== 100) cost = Math.floor((cost * leaderPct) / 100);
     const owed = (costFrac + cost) | 0;
     const whole = (owed / MILLI_QT) | 0;
     if (troops < whole) {
@@ -304,6 +309,7 @@ export function advanceAttack(state: GameState, a: Attack, slot: number, n: numb
   a.progress = progress;
   state.work.popped += popped;
   state.work.captured += taken;
+  state.match.conquered[attacker] = ((state.match.conquered[attacker] as number) + taken) >>> 0;
   return taken;
 }
 

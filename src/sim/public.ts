@@ -159,3 +159,25 @@ export {
   DISTRICT_SLOTS_BY_LEVEL,
   DISTRICT_WALLS_RADIUS_CELLS,
 } from './rules';
+
+// M18-1 (append-only): the match end. The read-only `MatchView` (`SimView.match`), the result codes, the win block type, the overtime curve and the
+// constants of rules.ts the UI and the AI read (the AI gang-up rule reads the same two LEADER_LAND_PCT_* thresholds as the conquest discount).
+export type { MatchView } from './matchView';
+export type { WinConfig } from './matchState';
+export { WIN_REASON_LAND, WIN_REASON_LAST, WIN_REASON_NONE, WIN_REASON_SCORE } from './matchState';
+export { requiredLandPct } from './win';
+export {
+  LEADER_COST_PCT_HIGH,
+  LEADER_COST_PCT_MID,
+  LEADER_LAND_PCT_HIGH,
+  LEADER_LAND_PCT_MID,
+  OVERTIME_MIN_PCT,
+  OVERTIME_START_MINUTE,
+  OVERTIME_STEP_PCT,
+  SCORE_CITY_LEVEL_POINTS,
+  SCORE_FACTORY_LEVEL_POINTS,
+  TIME_LIMIT_SKIRMISH_TICKS,
+  TIME_LIMIT_WORLD_TICKS,
+  WIN_HOLD_TICKS,
+  WIN_LAND_SHARE_PCT,
+} from './rules';

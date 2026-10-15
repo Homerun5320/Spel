@@ -335,3 +335,11 @@ Not done in the Fix-UI slice (the sim, host and AI findings belong to Fix-Sim):
 - An upgrade look (a scaffold or stipple while a district upgrades, from `districtUpgradeReadyTick`).
 - Per-tier budget of 9 000 / 18 000 / 36 000 / 72 000 triangles is a first guess; measure on the school laptop with `#perf`.
 - Barracks flag and Market awning do not animate (a wind sway on the fx clock would be one uniform).
+
+## M18-1
+- Selfplay CLI (`--matches N --mode skirmish --ai-only`) and the 40 / 200 match distribution runs belong to M18-2 / M19; the AI does not know the win conditions yet (it never plays for the 60 percent, it only stops when the match ends).
+- AI gang-up rule (M17) must read `LEADER_LAND_PCT_MID` and `LEADER_LAND_PCT_HIGH` from the sim barrel `src/sim/public.ts`.
+- Nukes fired and helicopters lost statistics (columns added when those systems exist).
+- The automatic start position for a human who did not choose is not needed while `createMatch` places everybody at tick 0; if a "choose your start" mode returns, it needs a seeded sim rule at the end of the spawn phase.
+- Allies or pacts sharing a win, a draw by mutual agreement, a "no winner" screen for `WIN_REASON_NONE` (everybody eliminated at once).
+- Outbox events (`OUTBOX_ELIMINATED`, `OUTBOX_CAPITAL_LOST`, `OUTBOX_MATCH_END`) do not cross the host seam as events; the page reads the flags in `SimView.match` and detects the transitions (capital lost / eliminated) by comparing two frames.

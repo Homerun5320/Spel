@@ -27,7 +27,7 @@ function transferablesOf(event: HostEvent): ArrayBuffer[] {
 }
 
 function viewBuffers(v: ViewSnapshot): ArrayBuffer[] {
-  const list = [v.stats.buffer as ArrayBuffer, v.attacks.buffer as ArrayBuffer];
+  const list = [v.stats.buffer as ArrayBuffer, v.attacks.buffer as ArrayBuffer, v.match.buffer as ArrayBuffer];
   if (v.owner !== null) list.push(v.owner.buffer as ArrayBuffer);
   if (v.terrain !== null) list.push(v.terrain.buffer as ArrayBuffer);
   const st = v.structures;

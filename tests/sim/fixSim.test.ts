@@ -50,8 +50,8 @@ const addDone = (s: GameState, type: number, owner: number, cell: number, level 
 };
 
 describe('Fix-Sim: engine version', () => {
-  it('is 10 after Districts-1, and a snapshot with another engine version is refused', () => {
-    expect(ENGINE_VERSION).toBe(10);
+  it('is 11 after M18-1, and a snapshot with another engine version is refused', () => {
+    expect(ENGINE_VERSION).toBe(11);
     const s = strip(2);
     const bytes = serialize(s);
     expect(deserialize(bytes).ok).toBe(true);

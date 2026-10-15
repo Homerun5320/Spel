@@ -879,6 +879,14 @@ Base: 9c7ce89 (branch worktree-wf_359cefa4-9ed-1). Nothing is merged to main; no
 - [x] Tests: `tests/render/districtLayer.test.ts`, `e2e/districtsLayer.test.ts` (golden `districts-layer.png`).
 - [ ] Not in this slice: see BACKLOG "Districts-2b leftovers".
 
+### M18-1: the match end in the sim (win rules, anti-snowball, elimination, statistics; headless, no UI; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+- [x] 1. Win rules in `src/sim/win.ts`: land hold (timer reset on a dip), last alive, score at the time limit with the overtime curve and the tiebreak; selectable per match by `config.win`; result in hashed state; `step` stops after the end.
+- [x] 2. Anti-snowball discount in `advanceAttack` (`leaderCostPct`), constants `LEADER_*` in `src/sim/rules.ts` and `src/sim/public.ts`.
+- [x] 3. Elimination flag and events, capital-lost flag (the automatic start position is not needed, see D M18-1 point 12).
+- [x] 4. Statistics (peak land, built, conquered, districts) in hashed, serialised state; `SimView.match` (`MatchView`) through `StateView`, the host snapshot and `ViewMirror`.
+- [x] 5. ENGINE_VERSION 11, FORMAT_VERSION 9, both golden hash files re-pinned once; tests `tests/sim/win.test.ts`, `tests/host/matchEnd.test.ts` (mutants checked by hand: 14 of 14 killed after one added test).
+- [ ] Not in this slice: pause menu, result screen, setup controls, spectate choice, selfplay CLI (M18-2).
+
 ## Next
 
 - Audit 1 (the batch audit of versions 12 to 16, range 7018b4c..cf01c79) found no blocker and a list of majors; the fix slices 'Fix-Sim' and 'Fix-UI' work through them (see their sections under Now and docs/BACKLOG.md 'Audit 1 leftovers'). After that: the building roadmap continues (more kinds of buildings, the city detail map of M18e), then M11a radar and the air milestones M11b to M13b.

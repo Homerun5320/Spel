@@ -11,6 +11,7 @@ import { PHASE_PLAY, phaseAt, phaseTicksLeft, type MatchPhase } from '../sim/flo
 import type { StructureView } from '../sim/structureRules';
 import type { DistrictView } from '../sim/districtRules';
 import { MirrorStructures } from './structureMirror';
+import { matchPackedLength, matchViewOf, type MatchView } from '../sim/matchView';
 import { countContacts, statsViewOf, type ReadonlyNumbers, type SeatStatsView, type SimView } from '../sim/view';
 import type { HostEvent, SimHost, Speed, StateDiff, Unsubscribe, ViewSnapshot } from './protocol';
 
@@ -24,6 +25,8 @@ export class ViewMirror implements SimView {
   readonly flow: boolean;
   readonly debugIntents: boolean;
   readonly stats: SeatStatsView;
+  /** The match end (M18-1): a read-only view over the copy of the last packed match view the host sent. */
+  readonly match: MatchView;
   tick: number;
   rejects: number;
   ownerVersion = 1;
@@ -37,6 +40,7 @@ export class ViewMirror implements SimView {
   private readonly ownerArray: Uint16Array;
   private readonly terrain: Uint8Array;
   private readonly packed: Uint32Array;
+  private readonly matchPacked: Uint32Array;
   private listeners: FrameListener[] = [];
   /** Contact lengths per pair of owners (countContacts), rebuilt on demand when the owners changed since. */
   private contacts: Int32Array | null = null;
@@ -62,6 +66,9 @@ export class ViewMirror implements SimView {
     this.terrain = v.terrain.slice();
     this.packed = v.stats.slice();
     this.stats = statsViewOf(v.seats, this.packed);
+    this.matchPacked = new Uint32Array(matchPackedLength(v.seats));
+    this.matchPacked.set(v.match);
+    this.match = matchViewOf(v.seats, this.matchPacked);
     this.slots = ownerSlots(v.seats);
     this.attackFlags = new Uint8Array(this.slots * this.slots);
     this.setAttacks(v.attacks);
@@ -173,6 +180,7 @@ export class ViewMirror implements SimView {
     this.lastRejectReason = d.view.lastRejectReason;
     this.lastRejectTick = d.view.lastRejectTick;
     this.packed.set(d.view.stats);
+    this.matchPacked.set(d.view.match);
     this.setAttacks(d.view.attacks);
     if (d.view.structures !== null) this.structureTable.adopt(d.view.structures);
     this.frames++;

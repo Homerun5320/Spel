@@ -233,3 +233,21 @@ Index = level 1 to 3. Upgrade prices are base * level (Factory 1000 / 1500, Port
 | `AI_DISTRICT_MIN_CITIES` | 3 | cities | eget val | The AI builds districts only once it owns this many Cities (tuning round 1 of Districts-1: with 1 the solo land fell to 0.93 of the band, with 3 it is 1.02 as before). |
 
 Economy script result (M09c, Russia, seed 1, 10 minutes, `npm run sim:scenario -- --solo --ai`): AI v0 with building has 14 274 land cells, factor 1.02 of the band's upper limit 14 000, inside the asked [1.0, 1.5] (M09b: 0.90). Income per minute 12 236 gold at minute 10. The levers that moved it, measured one at a time on the M09b state (land at minute 10): troop gate 40 -> 33: 13 897; upgrade when rich alone: 13 060; both at 36: 14 543, at 37: 14 274. The combined run was chaotic in the other tests: at 36, 35 and 38 the driver test with zero refused Skirmish intents hit one refusal (a Spawn-time Attack with no contact, a race older than this slice), at 25 the pace floor (29.6 against 30); 37 passes everything with a human share of 40.6 % (43.2 % before M09c). The build-free expander is unchanged (the M04 band, no change to it).
+
+## Match end, anti-snowball and score (M18-1)
+
+| Constant | Value | Unit | Source | Note |
+|----------|-------|------|--------|------|
+| `WIN_LAND_SHARE_PCT` | 60 | percent of all playable weighted land | plan | Condition (a): the share to hold (default of `config.win.landSharePct`). |
+| `WIN_HOLD_TICKS` | 300 | ticks | plan | Condition (a): consecutive ticks the share must be held (30 s); a dip below the requirement resets the timer. |
+| `TIME_LIMIT_SKIRMISH_TICKS` | 7200 | ticks | plan | Condition (c): time limit of a Skirmish, counted from the end of the spawn phase (12 min). |
+| `TIME_LIMIT_WORLD_TICKS` | 15000 | ticks | plan | Condition (c): time limit of a World match (25 min). |
+| `OVERTIME_START_MINUTE` | 20 | minutes | plan | The land requirement starts to fall after this minute of play (60 percent up to minute 21, 59 from there). |
+| `OVERTIME_STEP_PCT` | 1 | percentage points per whole minute | plan | Fall of the requirement per whole minute after `OVERTIME_START_MINUTE`. |
+| `OVERTIME_MIN_PCT` | 1 | percent | eget val | The overtime curve never asks for less than this (structural floor). |
+| `SCORE_CITY_LEVEL_POINTS` | 25 | points per finished City level | plan | Score = land (weighted std-cells) + 25 per City level + 10 per Factory level. |
+| `SCORE_FACTORY_LEVEL_POINTS` | 10 | points per finished Factory level | plan | See above. |
+| `LEADER_LAND_PCT_MID` | 25 | percent of weighted land | plan | Anti-snowball: a nation holding STRICTLY more than this is cheaper to attack (also read by the AI gang-up rule later). |
+| `LEADER_LAND_PCT_HIGH` | 40 | percent of weighted land | plan | Anti-snowball: the second, stronger threshold (strictly greater). |
+| `LEADER_COST_PCT_MID` | 85 | percent of the cell price | plan | The attacker's price against a target above `LEADER_LAND_PCT_MID` (x0.85). |
+| `LEADER_COST_PCT_HIGH` | 70 | percent of the cell price | plan | The attacker's price against a target above `LEADER_LAND_PCT_HIGH` (x0.7); replaces the mid discount, never stacks. |

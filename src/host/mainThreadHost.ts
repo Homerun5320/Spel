@@ -8,9 +8,10 @@ import { OUTBOX_PAINT, OUTBOX_REJECT } from '../sim/outbox';
 import { MAX_INTENTS_PER_TURN } from '../sim/rules';
 import { deserialize, hashState, serialize } from '../sim/serialize';
 import { step, type StepFn } from '../sim/step';
-import { MAX_SEATS, type GameState } from '../sim/state';
+import { MAX_SEATS, ownerSlots, type GameState } from '../sim/state';
 import { snapshotStructures, structureSignature } from './structureSnapshot';
 import { StateView, attackPairs, fillSeatStats, statsLength, type SimView } from '../sim/view';
+import { fillMatchView, matchPackedLength } from '../sim/matchView';
 import { scheduledTurn } from '../sim/time';
 import { FixedStepAccumulator } from './accumulator';
 import {
@@ -196,6 +197,8 @@ export class MainThreadHost implements SimHost {
   private buildView(full: boolean): ViewSnapshot {
     const s = this.state;
     fillSeatStats(s, this.statsScratch);
+    const match = new Uint32Array(matchPackedLength(s.header.seats));
+    fillMatchView(s, match, new Uint32Array(ownerSlots(s.header.seats)));
     return {
       tick: s.tick,
       rejects: s.rejects,
@@ -209,6 +212,7 @@ export class MainThreadHost implements SimHost {
       debugIntents: s.header.config.debugIntents,
       stats: this.statsScratch.slice(),
       attacks: attackPairs(s),
+      match,
       owner: full ? s.owner.slice() : null,
       terrain: full ? s.terrain.slice() : null,
       structures: full ? snapshotStructures(s.structures) : this.changedStructures(),

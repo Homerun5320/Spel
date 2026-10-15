@@ -9,11 +9,12 @@ import { ownerCapQt, goldMilliPerTick, ownedStdAreaQ15 } from './economy';
 import { PHASE_PLAY, phaseAt, phaseTicksLeft, type MatchPhase } from './flow';
 import { TICK_HZ } from './rules';
 import { isPlayableClass } from './terrain';
-import { seatToOwner, type GameState } from './state';
+import { ownerSlots, seatToOwner, type GameState } from './state';
 import { structGoldMilliPerSec } from './structureEffects';
 import { landShareQ15 } from './territory';
 import type { StructureView } from './structureRules';
 import type { DistrictView } from './districtRules';
+import { fillMatchView, matchPackedLength, matchViewOf, type MatchView } from './matchView';
 
 /** An array you can index and measure but not write to (the type of a typed array without its mutators). */
 export interface ReadonlyNumbers {
@@ -101,6 +102,8 @@ export interface SimView {
    * a CancelAttack of an attack that does not exist (D143).
    */
   attackRunning(attacker: number, target: number): boolean;
+  /** The match end (M18-1): result, win progress for the HUD and the per-seat statistics. Read-only; a match without win rules has `winFlags` 0 and never ends. */
+  readonly match: MatchView;
 }
 
 /**
@@ -206,7 +209,10 @@ export function statsViewOf(seats: number, packed: Uint32Array): SeatStatsView {
  */
 export class StateView implements SimView {
   private readonly packed: Uint32Array;
+  private readonly matchPacked: Uint32Array;
+  private readonly scoreScratch: Uint32Array;
   readonly stats: SeatStatsView;
+  readonly match: MatchView;
   ownerVersion = 0;
   private lastOwnerStamp = -1;
 
@@ -214,12 +220,16 @@ export class StateView implements SimView {
     const seats = state.header.seats;
     this.packed = new Uint32Array(statsLength(seats));
     this.stats = statsViewOf(seats, this.packed);
+    this.matchPacked = new Uint32Array(matchPackedLength(seats));
+    this.scoreScratch = new Uint32Array(ownerSlots(seats));
+    this.match = matchViewOf(seats, this.matchPacked);
     this.refresh();
   }
 
   /** Recomputes the statistics; call it after the steps of a frame and before a reader looks. */
   refresh(): void {
     fillSeatStats(this.state, this.packed);
+    fillMatchView(this.state, this.matchPacked, this.scoreScratch);
     // The version follows the tick (a StateView cannot see single cell changes); the mirror of the page counts real changes.
     if (this.lastOwnerStamp !== this.state.tick) {
       this.lastOwnerStamp = this.state.tick;
