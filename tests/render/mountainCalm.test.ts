@@ -1,4 +1,4 @@
-// CamFix item 6 (D158): is the camera calm over textured mountains? The scripted measurement (tests/helpers/mountainRun.ts: the real height field, the rig as `Globe` builds it,
+// CamFix item 6 (D158): how does the camera behave over textured mountains (follows the held height, keeps most of the roughness out; dips up to 79 % at the Himalaya wall, CamFix-2 wording)? The scripted measurement (tests/helpers/mountainRun.ts: the real height field, the rig as `Globe` builds it,
 // the fx clock in steps of 1/60 s, inputs as the page gives them) drags the grip across the Alps and the Himalaya at the height the user holds and zooms in and out with the wheel.
 // What is measured: how much of the terrain's roughness reaches the camera (the camera's radius high-passed at 1 s and at 1/6 s, against the same for the ground under it), how
 // deep the camera sinks under the height it holds, that it never goes under the 300 m clearance, that a zoom never reverses, that the held height comes back. The numbers of the
@@ -36,7 +36,7 @@ describe('the held height is followed, not copied: the terrain\'s roughness does
   }
 });
 
-describe('the camera does not dive when the ground rises under a pan (the dip below the held height)', () => {
+describe('the dip below the held height when the ground rises under a pan is bounded (it is NOT zero: up to 79 % at the Himalaya wall, CamFix-2)', () => {
   it('the lowest height of a fast pan of six strokes, as a share of the held height, is at most M08\'s measured dip plus a margin: Alps 3 km (8 %) under 15 %, Alps 20 km (26 %) under 35 %, Himalaya 3 km (79 %: the follow lag at the wall, BACKLOG) under 85 %, Himalaya 20 km (29 %) under 40 %', () => {
     const cases: Array<[MountainPlace, number, number]> = [
       ['Alps', 3000, 0.15],

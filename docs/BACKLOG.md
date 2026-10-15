@@ -220,3 +220,7 @@ Everything here would shorten `verify` further; each needs a per-test reset cont
 - Structure rows in the M10 snapshot so a `ViewMirror` shows the real table (today it is empty).
 - The AI never builds yet (M09b); the effects (City income and cap, Factory, Port trade, Post, SAM / Silo radius) and conquest of structures are M09b.
 - Spacing is a linear scan of the live slots (about 300 in a normal match); a per-cell grid index would only pay off with thousands.
+
+## From CamFix-2
+- `PERF_ORBIT_KM` (21 500 km) and the `earth` canonical view are not run through `fitViewDistKm`: in a tall window they are cut. Only the live start view is fitted. (The perf scene host needs the window's aspect.)
+- The Himalaya wall dive (79 % at 3 km, fast pan) stays: the follower's lag over a steep slope; a look-ahead was tried and made the camera shiver (D158 (9)).

@@ -16,6 +16,7 @@ import {
   EARTH_RADIUS_KM,
   FIT_REFERENCE_ASPECT,
   FIT_TILT_FREE_KM,
+  FIT_TILT_RATE_DEG_S,
   INERTIA_TAU_S,
   LAT_LIMIT_DEG,
   ROTATE_DEG_PER_PX,
@@ -50,7 +51,7 @@ import {
   wrapLon,
   type Vec3,
 } from './geo';
-import { maxDistKm, shownTiltAt, tiltCapAt, tiltEaseEndKm } from './fit';
+import { maxDistKm, shownTiltAt, TILT_CAP_FREE_DEG, tiltCapAt, tiltEaseEndKm } from './fit';
 import { nearestSpherePoint, raySphere } from './heightField';
 import { rtsMix, shortestAngle, tiltBounds, viewFromPose } from './rts';
 
@@ -224,11 +225,32 @@ export class CameraRig {
   // True after `setPose` (a flight places the camera by its pose and the pose must come out as placed, whatever the tilt and the distance) until the next
   // thing the user's hands or a hook does to the view: the shown tilt is the view's tilt as it is while it is set.
   private freePose = false;
+  // CamFix-2: the limit on the shown tilt as it is NOW, in degrees. It follows its goal (`capGoal`: the eased limit of the distance, or 90 while
+  // `freePose` or under `FIT_TILT_FREE_KM`) by at most `FIT_TILT_RATE_DEG_S` on the fx clock, so a flight that is grabbed, or a quick wheel spin, never
+  // makes the picture jump; the views set by hand (`setView`, `setPose`) put it on its goal at once. The user's own tilt (`s.tilt`) is never touched by it.
+  private capNow = TILT_CAP_FREE_DEG;
 
   constructor(width: number, height: number) {
     this.width = width;
     this.height = height;
     this.refit();
+    this.snapCap();
+  }
+
+  private capGoal(): number {
+    return this.freePose || this.s.distKm <= FIT_TILT_FREE_KM ? TILT_CAP_FREE_DEG : tiltCapAt(this.s.distKm, this.tiltEndKm);
+  }
+
+  private snapCap(): void {
+    this.capNow = this.capGoal();
+  }
+
+  /** Moves the shown-tilt limit toward its goal by at most the rate allows in `dt` seconds. */
+  private stepCap(dt: number): void {
+    const goal = this.capGoal();
+    const max = FIT_TILT_RATE_DEG_S * dt;
+    const gap = goal - this.capNow;
+    this.capNow = gap > max ? this.capNow + max : gap < -max ? this.capNow - max : goal;
   }
 
   setViewport(width: number, height: number): void {
@@ -254,7 +276,7 @@ export class CameraRig {
   /** The tilt the camera SHOWS: the user's tilt (`view.tilt`) eased down to 0 where the whole globe has to fit (`maxTiltForDist`); equal to it at every distance of 8 000 km and less. */
   get shownTilt(): number {
     const s = this.s;
-    return this.freePose || s.distKm <= FIT_TILT_FREE_KM ? s.tilt : shownTiltAt(s.tilt, s.distKm, this.tiltEndKm);
+    return s.tilt < this.capNow ? s.tilt : this.capNow;
   }
 
   private viewAspect(): number {
@@ -263,7 +285,7 @@ export class CameraRig {
 
   /** The camera position of a view in THIS window (`cameraPositionFor` with the window's cached limits). */
   private positionOf(s: ViewState): Vec3 {
-    return positionWithTilt(s, this.freePose || s.distKm <= FIT_TILT_FREE_KM ? s.tilt : shownTiltAt(s.tilt, s.distKm, this.tiltEndKm));
+    return positionWithTilt(s, s.tilt < this.capNow ? s.tilt : this.capNow);
   }
 
   get view(): ViewState {
@@ -370,7 +392,7 @@ export class CameraRig {
 
   /** True while inertia or a zoom animation is still moving the camera. */
   get moving(): boolean {
-    return this.velRate > 1e-4 || this.anchor !== null || this.dolly !== null || Math.abs(Math.log(this.targetDistKm / this.s.distKm)) > 1e-4;
+    return this.velRate > 1e-4 || this.capNow !== this.capGoal() || this.anchor !== null || this.dolly !== null || Math.abs(Math.log(this.targetDistKm / this.s.distKm)) > 1e-4;
   }
 
   /** Forgets everything the user's hands were doing (the camera was put somewhere): inertia, zoom, drag, the kept height. */
@@ -402,6 +424,7 @@ export class CameraRig {
     };
     if (this.ground) this.s.distKm = clamp(this.s.distKm, this.floorKm(this.s), this.maxKm);
     this.resetMotion();
+    this.snapCap();
   }
 
   /**
@@ -415,6 +438,7 @@ export class CameraRig {
     }
     this.s = { lat: clamp(n.lat, -90, 90), lon: wrapLon(n.lon), distKm: clamp(n.distKm, 0.001, 1e6), heading: wrapLon(n.heading), tilt: clamp(n.tilt, 0, 89.5) };
     this.resetMotion();
+    this.snapCap();
   }
 
   /**
@@ -425,6 +449,7 @@ export class CameraRig {
     this.s = viewFromPose(position, forward, this.s.heading);
     this.resetMotion();
     this.freePose = true;
+    this.capNow = this.s.tilt; // the pose is shown as placed; the limit starts exactly at it, so that the eased limit takes over by sliding down from here (CamFix-2)
   }
 
   /** Camera pose for the current view. */
@@ -665,13 +690,8 @@ export class CameraRig {
     this.freePose = false;
     const w = this.rtsWeight;
     if (w <= 0) {
-      // the user's tilt is kept when only the heading turns; a change of the tilt starts from the SHOWN one (a camera that is far out shows less than the
-      // user chose: dragging down must not be dead for the part that is not shown) and stops at the eased limit (dragging up must not store a tilt that is not shown)
-      let tilt = this.s.tilt;
-      if (dyPx !== 0) {
-        const shown = this.shownTilt;
-        tilt = Math.min(clamp(shown + dyPx * ROTATE_DEG_PER_PX, 0, Math.max(TILT_MAX_DEG, shown)), Math.max(tiltCapAt(this.s.distKm, this.tiltEndKm), shown));
-      }
+      // the user's STORED tilt changes by the drag's own delta (CamFix-2: never recomputed from the shown, eased one, which would lose it for good)
+      const tilt = dyPx !== 0 ? clamp(this.s.tilt + dyPx * ROTATE_DEG_PER_PX, 0, Math.max(TILT_MAX_DEG, this.s.tilt)) : this.s.tilt;
       this.setViewKeepMotion({ heading: wrapLon(this.s.heading + dxPx * ROTATE_DEG_PER_PX), tilt });
       return;
     }
@@ -879,6 +899,7 @@ export class CameraRig {
         if (this.velRate <= 1e-4) this.velRate = 0;
       }
       if (this.dolly !== null) {
+        this.stepCap(dt);
         this.stepDolly(dt);
         continue;
       }
@@ -890,6 +911,7 @@ export class CameraRig {
         const before = anchor ? this.grabHit(anchor.x, anchor.y, anchor.r) : null;
         const next = this.s.distKm * Math.exp(logGap * (1 - Math.exp(-dt / ZOOM_TAU_S)));
         this.s = { ...this.s, distKm: clamp(next, this.ground ? DIST_MIN_GROUND_KM : DIST_MIN_KM, this.maxKm) };
+        this.stepCap(dt); // inside the anchored step: the point under the cursor is held through the change of the shown tilt as well
         // a zoom in brings the tilt into the RTS limits WHILE it runs, so the anchored point stays under the cursor through the pitch too
         if (anchor) this.pitchIntoLimits(dt);
         if (before && anchor) {
@@ -900,6 +922,17 @@ export class CameraRig {
         if (this.s.distKm !== this.targetDistKm) this.s = { ...this.s, distKm: this.targetDistKm };
         // a wheel zoom that has settled in the RTS regime keeps the height it reached (the user took the camera)
         if (this.anchor !== null && this.holdAglM === null && this.ground && this.picker && this.rtsWeight > 0) this.holdAglM = Math.max(this.aglM(), ZOOM_MIN_AGL_M);
+        if (this.anchor !== null && this.capNow !== this.capGoal()) {
+          // the distance has settled but the shown tilt is still sliding to the eased one: the anchored point is held through that too
+          const before = this.grabHit(this.anchor.x, this.anchor.y, this.anchor.r);
+          this.stepCap(dt);
+          if (before) {
+            const after = this.grabHit(this.anchor.x, this.anchor.y, this.anchor.r);
+            if (after) this.align(after, before, true, this.alignCap(before));
+          }
+          continue;
+        }
+        this.stepCap(dt);
         this.anchor = null;
         this.targetAglM = null;
       }
