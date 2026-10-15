@@ -432,3 +432,37 @@ export const LOS_RAY_OVERSAMPLE = 2;
 export const LOS_MASK_SLACK_GM = 48;
 /** Masks of a larger radius than this cast one ray per perimeter cell instead of LOS_RAY_OVERSAMPLE (the ring estimate carries the accuracy; this keeps a R=64 mask under 2 ms). The SAM radii are at most 34 cells. */
 export const LOS_RAY_OVERSAMPLE_MAX_RADIUS = 40;
+
+// M11b: air navigation (src/sim/nav). The flight modes are DATA: the arrays below are indexed by the LOS altitude mode (ALT_MODE_LOW = 0, ALT_MODE_HIGH = 1 in src/sim/los/cache.ts).
+// Distances and speeds are in SIM cells (1024x512 grid), time-compressed game values (a 60-cell flight takes 20 to 29 s). Each constant has a row in docs/BALANCE.md.
+
+/** Side of a nav cell in sim cells: the 256x128 nav grid of a 1024x512 world (a nav cell = 16 sim cells). */
+export const NAV_BLOCK_CELLS = 4;
+/** Altitude above ground level per flight mode in real metres [Low, High] (the M11a constants; the service ceiling reads REAL altitude). */
+export const AIR_MODE_AGL_M = [ALT_LOW_AGL_M, ALT_HIGH_AGL_M];
+/** Helicopter speed per flight mode in thousandths of a sim cell per second [Low, High]: Low (NOE, masked) 2.1, High (visible) 3. */
+export const AIR_MODE_SPEED_MILLICELLS_S = [2100, 3000];
+/** Fuel of a helicopter in sim cells of flown distance. */
+export const HELI_FUEL_CELLS = 180;
+/** Service ceiling in REAL metres: a nav cell is closed to a mode when its real mean height plus the mode's real AGL is above this, and always when one of its 16 sim cells is Peak. */
+export const SERVICE_CEILING_M = 6000;
+/** Weight of the A* heuristic in percent (1.3). */
+export const AIR_ROUTE_WEIGHT_PCT = 130;
+/** Route cost per step: km * (1 + climb + ceiling + AIR_EXPOSURE_LAMBDA * exposed). An exposed nav cell (radar-seen or inside a Post radius) costs this many extra steps' worth. */
+export const AIR_EXPOSURE_LAMBDA = 3;
+/** Climb term of the route cost: percent of the step's km per 1000 real metres of height difference between the two nav cells. */
+export const AIR_CLIMB_COST_PCT_PER_KM_M = 25;
+/** Ceiling term: percent of the step's km added when the cell's altitude is within AIR_CEILING_MARGIN_M of the service ceiling. */
+export const AIR_CEILING_COST_PCT = 50;
+/** See AIR_CEILING_COST_PCT, real metres. */
+export const AIR_CEILING_MARGIN_M = 1000;
+/** A landing zone must stand on a cell whose real mean height is at most this (real metres). */
+export const LZ_MAX_ELEV_M = 3500;
+/** A landing zone is too steep when the real mean heights of its 3x3 sim cells differ by more than this (real metres). */
+export const LZ_STEEP_SPREAD_M = 200;
+/** A landing zone within this many sim cells (Euclidean) of an enemy city is refused. */
+export const LZ_ENEMY_CITY_CELLS = 2;
+/** LZ score: base, minus this per metre of 3x3 height spread, minus this per exposed nav cell of the approach (floor 1). */
+export const LZ_SCORE_BASE = 1000;
+export const LZ_SCORE_SPREAD_PER_M = 2;
+export const LZ_SCORE_EXPOSED_PER_CELL = 60;

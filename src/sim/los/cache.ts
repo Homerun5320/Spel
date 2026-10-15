@@ -212,6 +212,14 @@ export class Los {
     return n;
   }
 
+  /** Writes the owner ids that have any sensor (a SAM mask or a Post) into `out` (cleared first) and returns how many. Call `sync` first (M11b: the route planner loops over these only). */
+  sensorOwners(out: number[]): number {
+    out.length = 0;
+    for (const o of this.composite.keys()) out.push(o);
+    for (const o of this.posts.keys()) if (!this.composite.has(o)) out.push(o);
+    return out.length;
+  }
+
   /** The composite mask value at a cell for an owner (MASK_NONE = not covered). Call `sync` first. */
   compositeAt(owner: number, cell: number): number {
     const tiles = this.composite.get(owner);

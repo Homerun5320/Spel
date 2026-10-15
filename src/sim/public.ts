@@ -185,3 +185,12 @@ export {
 // M11a (append-only): the exposure queries of the line-of-sight cache (src/sim/los). Read-only: the host builds a Los from the elevation layers and hands it in.
 export { ALT_MODE_HIGH, ALT_MODE_LOW, EXPOSED_DETECTED, EXPOSED_NONE, EXPOSED_POST, type AltMode, type Los, type LosSource } from './los/cache';
 export { exposure, fireControlExposed, isExposed } from './los/exposure';
+
+// M11b (append-only): air navigation (src/sim/nav). The host builds a Nav from the elevation layers and a Los; planRoute and scoreLz are pure queries.
+export { Nav, createNav, type NavSource } from './nav/grid';
+export { ROUTE_NO_ROUTE, planRoute, type NavView, type RouteFail, type RouteOk, type RouteResult } from './nav/route';
+export { LZ_ENEMY_CITY_NEAR, LZ_NO_ROUTE, LZ_OK, LZ_OUT_OF_FUEL, LZ_PEAK, LZ_REASON_NAMES, LZ_STEEP, LZ_TERRAIN_CLASS, LZ_TOO_HIGH, LZ_WATER, scoreLz, type LzReason, type LzResult } from './nav/lz';
+export { AIR_EXPOSURE_LAMBDA, AIR_MODE_AGL_M, AIR_MODE_SPEED_MILLICELLS_S, HELI_FUEL_CELLS, LZ_MAX_ELEV_M, SERVICE_CEILING_M } from './rules';
+export { createLos } from './los/cache';
+export { createLosTerrain, type LosTerrain } from './los/terrain';
+export { navFingerprint } from './nav/fingerprint';

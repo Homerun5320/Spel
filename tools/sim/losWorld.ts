@@ -13,6 +13,8 @@ export interface RealLos {
   withParams(exag: number, weightPct: number): LosTerrain;
   terrain: LosTerrain;
   terrainClass: Uint8Array;
+  /** Real mean elevation per sim cell (M11b: the nav grid reads it). */
+  meanElev: ArrayLike<number>;
 }
 
 let cached: Promise<RealLos> | null = null;
@@ -28,6 +30,7 @@ export function loadRealLos(): Promise<RealLos> {
     return {
       terrain: createLosTerrain(sim.width, sim.height, meta.sim.cosQ15, sim.meanElev, sim.maxElev),
       terrainClass: sim.terrainClass,
+      meanElev: sim.meanElev,
       withParams: (exag, weightPct) => createLosTerrain(sim.width, sim.height, meta.sim.cosQ15, sim.meanElev, sim.maxElev, exag, weightPct),
     };
   })();

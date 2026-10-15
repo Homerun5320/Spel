@@ -207,6 +207,8 @@ describe('types: what src/sim/public.ts lets the AI reach', () => {
         'MatchView', 'WinConfig', 'WIN_REASON_LAND', 'WIN_REASON_LAST', 'WIN_REASON_NONE', 'WIN_REASON_SCORE', 'requiredLandPct', 'LEADER_COST_PCT_HIGH', 'LEADER_COST_PCT_MID', 'LEADER_LAND_PCT_HIGH', 'LEADER_LAND_PCT_MID', 'OVERTIME_MIN_PCT', 'OVERTIME_START_MINUTE', 'OVERTIME_STEP_PCT', 'SCORE_CITY_LEVEL_POINTS', 'SCORE_FACTORY_LEVEL_POINTS', 'TIME_LIMIT_SKIRMISH_TICKS', 'TIME_LIMIT_WORLD_TICKS', 'WIN_HOLD_TICKS', 'WIN_LAND_SHARE_PCT', // M18-1
         // M11a
         'ALT_MODE_HIGH', 'ALT_MODE_LOW', 'EXPOSED_DETECTED', 'EXPOSED_NONE', 'EXPOSED_POST', 'AltMode', 'Los', 'LosSource', 'exposure', 'fireControlExposed', 'isExposed',
+        // M11b
+        'Nav', 'createNav', 'NavSource', 'ROUTE_NO_ROUTE', 'planRoute', 'NavView', 'RouteFail', 'RouteOk', 'RouteResult', 'LZ_ENEMY_CITY_NEAR', 'LZ_NO_ROUTE', 'LZ_OK', 'LZ_OUT_OF_FUEL', 'LZ_PEAK', 'LZ_REASON_NAMES', 'LZ_STEEP', 'LZ_TERRAIN_CLASS', 'LZ_TOO_HIGH', 'LZ_WATER', 'scoreLz', 'LzReason', 'LzResult', 'AIR_EXPOSURE_LAMBDA', 'AIR_MODE_AGL_M', 'AIR_MODE_SPEED_MILLICELLS_S', 'HELI_FUEL_CELLS', 'LZ_MAX_ELEV_M', 'SERVICE_CEILING_M', 'createLos', 'createLosTerrain', 'LosTerrain', 'navFingerprint',
       ].sort(),
     );
   });

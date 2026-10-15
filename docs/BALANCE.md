@@ -261,3 +261,24 @@ Economy script result (M09c, Russia, seed 1, 10 minutes, `npm run sim:scenario -
 | `LEADER_LAND_PCT_HIGH` | 40 | percent of weighted land | plan | Anti-snowball: the second, stronger threshold (strictly greater). |
 | `LEADER_COST_PCT_MID` | 85 | percent of the cell price | plan | The attacker's price against a target above `LEADER_LAND_PCT_MID` (x0.85). |
 | `LEADER_COST_PCT_HIGH` | 70 | percent of the cell price | plan | The attacker's price against a target above `LEADER_LAND_PCT_HIGH` (x0.7); replaces the mid discount, never stacks. |
+
+## M11b: air navigation (src/sim/nav)
+
+| Constant | Value | Unit | Source | Note |
+|----------|-------|------|--------|------|
+| `NAV_BLOCK_CELLS` | 4 | sim cells per nav cell side | plan | The 256x128 nav grid of the 1024x512 world (a nav cell is 16 sim cells). |
+| `AIR_MODE_AGL_M` | [300, 3000] | real metres above ground, [Low, High] | plan | The flight-mode table (indexed by the LOS altitude mode); the same numbers as `ALT_LOW_AGL_M` and `ALT_HIGH_AGL_M` of M11a. |
+| `AIR_MODE_SPEED_MILLICELLS_S` | [2100, 3000] | thousandths of a sim cell per second, [Low, High] | plan | Low (NOE, masked) 2.1 and High (visible) 3 cells per second: a 60-cell flight takes 28.6 s and 20 s. Time-compressed game values. |
+| `HELI_FUEL_CELLS` | 180 | sim cells of flown distance | plan | Fuel of a helicopter; a route longer than this is OUT_OF_FUEL. |
+| `SERVICE_CEILING_M` | 6000 | real metres | plan | A nav cell is closed to a mode when real mean height + real AGL is above this, and always when it holds a Peak sim cell. |
+| `AIR_ROUTE_WEIGHT_PCT` | 130 | percent | plan | Heuristic weight of the weighted A* (1.3). |
+| `AIR_EXPOSURE_LAMBDA` | 3 | steps | plan | An exposed nav cell (radar-seen or inside a Post radius) costs this many extra steps' worth of km. |
+| `AIR_CLIMB_COST_PCT_PER_KM_M` | 25 | percent of the step km per 1000 m of height difference | eget val | Slope term of the route cost: routes prefer valleys over crossing ridges. |
+| `AIR_CEILING_COST_PCT` | 50 | percent of the step km | eget val | Ceiling term: added within `AIR_CEILING_MARGIN_M` of the service ceiling. |
+| `AIR_CEILING_MARGIN_M` | 1000 | real metres | eget val | See above. |
+| `LZ_MAX_ELEV_M` | 3500 | real metres | plan | A landing zone above this mean height is TOO_HIGH. |
+| `LZ_STEEP_SPREAD_M` | 200 | real metres | plan | A landing zone whose 3x3 sim cells differ by more than this in real mean height is STEEP. |
+| `LZ_ENEMY_CITY_CELLS` | 2 | sim cells (Euclidean) | plan | A landing zone within this distance of an enemy city is refused (3 cells away is fine). |
+| `LZ_SCORE_BASE` | 1000 | points | eget val | Score of a perfectly flat, unexposed landing zone. |
+| `LZ_SCORE_SPREAD_PER_M` | 2 | points per metre of 3x3 spread | eget val | Flatter is better. |
+| `LZ_SCORE_EXPOSED_PER_CELL` | 60 | points per exposed nav cell of the approach | eget val | A less exposed approach is better; the score never falls below 1 for a valid zone. |

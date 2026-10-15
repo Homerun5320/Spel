@@ -1178,3 +1178,13 @@ Plains median Low (Kansas, Iowa, Ukraine, Pampas, Australia): 21.8 %. Rounds of 
 - [x] 4. Elimination of the human: Watch / Restart / Menu panel, spectator bar; toasts for the elimination and capital loss of other nations through `src/ui/toast.ts` (cap untouched).
 - [x] 5. The spawn countdown banner stays uncovered (the pause card sits below it; asserted in `e2e/matchEnd.test.ts`).
 - [x] Tests: `tests/ui/matchFlow.test.ts` (unit), `e2e/matchEnd.test.ts`, golden `e2e/goldens/result-screen.png`. Leftovers: see "M18-2 leftovers" in `docs/BACKLOG.md`.
+
+### M11b: air navigation, landing zones and the debug page (headless plus a debug page; one builder in its own worktree; the orchestrator owns merging, pushing and the pull request)
+- [x] 1. Flight modes as data and the service ceiling: `src/sim/rules.ts` (sixteen constants, `docs/BALANCE.md`), blocking in `src/sim/nav/grid.ts`
+- [x] 2. `src/sim/nav/grid.ts` (256x128 nav grid, labels, persistent buffers), `src/sim/nav/route.ts` (`planRoute`, weighted A*, generation stamps)
+- [x] 3. `src/sim/nav/lz.ts` (`scoreLz`, reason codes in priority order); `src/sim/public.ts` and the pinned list in `tests/ai/boundary.test.ts` extended at the end
+- [x] 4. `debug/viewshed.html` and `src/app/debugViewshed.ts`, Vite entry, relative Dev-panel link (`src/app/modes.ts`), `tests/viewshedPage.test.ts`, `e2e/viewshed.test.ts` (golden `e2e/goldens/debug-viewshed.png`), `e2e/viewshed.serial.test.ts` (leak-test)
+- [x] ACCEPTANS Alps route within fuel, Low closed share 1.43 % (< 5), Tibet cell closed High / open Low, Peak closed in both, ridge fixture lambda 3 exposes 0 of 12, Post gives exposure in both modes, label rejection without A*, one fixture per LZ reason: `tests/sim/nav.test.ts`
+- [x] ACCEPTANS performance (`tests/nav.perf.test.ts`): A* median 0.074 ms (budget 2), p99 0.54 ms (budget 20) over 200 routes; label rejection 0.7 us (budget 100 us); leak test 0.00 MB for 200 queries
+- [x] ACCEPTANS fingerprint equal in Node and Chromium (`4680ed7e`)
+- Not run here: the full `npm run verify`, the Artifact pack, the pull request (the orchestrator).
