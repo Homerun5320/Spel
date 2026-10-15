@@ -65,7 +65,11 @@ export function createBuildBar(parent: HTMLElement, actions: { select(type: numb
     root.appendChild(b);
     return { item, b, name, price, shown: '' };
   });
-  parent.append(root, hint);
+  // the hint and the bar share one column container, so that the hint always sits right above the bar however many rows the buttons wrap into
+  const wrap = document.createElement('div');
+  wrap.className = 'build-wrap';
+  wrap.append(root, hint);
+  parent.append(wrap);
   let lang = -1;
   return {
     root,
@@ -106,8 +110,7 @@ export function createBuildBar(parent: HTMLElement, actions: { select(type: numb
       if (!visible) hint.hidden = true;
     },
     dispose(): void {
-      root.remove();
-      hint.remove();
+      wrap.remove();
     },
   };
 }
