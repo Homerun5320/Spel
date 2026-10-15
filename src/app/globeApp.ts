@@ -31,14 +31,17 @@ import { buildRejectKey, spawnPhaseBlocks } from '../ui/buildReasons';
 import { REJECT_PHASE } from '../ui/hudCodes';
 import { mountToasts, showToast, tickToasts, visibleToastKeys } from '../ui/toast';
 import { createPlacementMode, type PlacementMode, type PlacementState } from './placement';
-import { STRUCT_CITY, buildBody, deleteBody, upgradeBody, validateBuild } from '../sim/public';
+import { STRUCT_CITY, buildBody, buildDistrictBody, deleteBody, removeDistrictBody, upgradeBody, upgradeDistrictBody, validateBuild } from '../sim/public';
+import { createCityViewPanel, type CityViewPanel } from '../ui/cityViewPanel';
+import { cityFlightNeeded, createCityViewMode, isDoubleClick } from './cityViewMode';
+import type { InputMode } from './input';
 import { CLASS_MOUNTAIN } from '../sim/terrain';
 import { createSelectionPanel, type SelectionPanel } from '../ui/selectionPanel';
 import { rangeRingCells, selectionInfo } from '../ui/structureInfo';
 import { createSelectionMode, pickStructure, type SelectionMode } from './structureSelect';
 import { createMatchHud, notConquerableText, rejectText, type MatchHud, type MatchHudModel } from '../ui/matchHud';
 import { getLanguage, onLanguageChange, setStrictI18n, t, type TextKey } from '../ui/i18n';
-import { GPU_TIP_PREF_KEY, START_FLY_KM, START_SPIN_DEG_PER_S, SETUP_IDLE_DIST_KM } from '../ui/uiConfig';
+import { CITY_VIEW, GPU_TIP_PREF_KEY, START_FLY_KM, START_SPIN_DEG_PER_S, SETUP_IDLE_DIST_KM } from '../ui/uiConfig';
 import { mountStartScreen, type StartScreen } from '../ui/startScreen';
 import { applyStartLanguage } from './langPref';
 import { getPref, setPref } from './prefs';
@@ -474,6 +477,12 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   let selectedId = -1;
   let selectionMode = null as SelectionMode | null;
   let selectPanel = null as SelectionPanel | null;
+  /** Districts-2a: the city view (the City id while open, -1 = closed), its input mode and panel. */
+  let cityId = -1;
+  let cityMode = null as InputMode | null;
+  let cityPanel = null as CityViewPanel | null;
+  let lastSelClickId = -1;
+  let lastSelClickMs = 0;
   let startScreen = null as StartScreen | null;
   let setupScreen = null as SetupScreen | null;
   const ownerCss: string[] = [];
@@ -514,7 +523,14 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     wrapper.appendChild(buildRoot);
     buildBar = createBuildBar(buildRoot, { select: (type) => enterPlacement(type) });
     buildBarWanted = !params.test || ctx.state.raw.hud === '1';
-    selectPanel = createSelectionPanel(buildRoot, { upgrade: (id) => s.submit(upgradeBody(s.localSeat, id)), remove: (id) => s.submit(deleteBody(s.localSeat, id)) });
+    selectPanel = createSelectionPanel(buildRoot, { upgrade: (id) => s.submit(upgradeBody(s.localSeat, id)), remove: (id) => s.submit(deleteBody(s.localSeat, id)), openCity: (id) => openCity(id) });
+    cityPanel = createCityViewPanel(buildRoot, {
+      build: (id, slot, kind) => s.submit(buildDistrictBody(s.localSeat, id, slot, kind)),
+      upgrade: (id, slot) => s.submit(upgradeDistrictBody(s.localSeat, id, slot)),
+      remove: (id, slot) => s.submit(removeDistrictBody(s.localSeat, id, slot)),
+      upgradeCity: (id) => s.submit(upgradeBody(s.localSeat, id)),
+      close: () => closeCity(),
+    });
     buildBar.setVisible(false);
     // The two link chips of the start page sit above the HUD (they are outside the wrapper); the Dev panel lists the same pages.
     setLinkChipsHidden(true);
@@ -575,8 +591,13 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       } else {
         const onMountain = session.view.terrainClass[session.view.structures.cell[selectedId] as number] === CLASS_MOUNTAIN;
         globe.structures.setSelection(selectedId, rangeRingCells(info.type, info.level, onMountain));
-        selectPanel?.update(buildBarWanted ? info : null, onMountain);
+        selectPanel?.update(buildBarWanted && cityId < 0 ? info : null, onMountain);
       }
+    }
+    if (cityId >= 0) {
+      const ci = selectionInfo(session.view, L, cityId);
+      if (ci === null || !ci.owned || ci.type !== STRUCT_CITY) closeCity(); // destroyed, deleted or conquered
+      else cityPanel?.update(session.view, L, buildBarWanted ? cityId : -1);
     }
     const refused = session.takeNewReject();
     if (refused !== 0) hud.toast(rejectText(refused), fxNow());
@@ -835,7 +856,34 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   const inputStack = new InputStack(createBaseMode(inputTarget));
   tickInput = (now) => inputStack.tick(now);
   // --- Selection (M10-4): a click on an own structure selects it (outline ring, panel; Esc or a click on empty ground deselects) -------------------------------
+  const closeCity = (): void => {
+    if (cityMode !== null && inputStack.top === cityMode) inputStack.pop();
+  };
+  /** Districts-2a: opens the city view of own City `id` (a button of the selection panel or a double click): an input mode, the panel, and a flight to the City. */
+  const openCity = (id: number): void => {
+    const sess = session;
+    if (sess === null || cityMode !== null || setupScreen !== null) return;
+    const info = selectionInfo(sess.view, sess.localSeat, id);
+    if (info === null || !info.owned || info.type !== STRUCT_CITY) return;
+    cityId = id;
+    const mode = createCityViewMode({
+      closed: () => {
+        cityId = -1;
+        cityMode = null;
+        cityPanel?.update(sess.view, sess.localSeat, -1);
+      },
+    });
+    cityMode = mode;
+    inputStack.push(mode);
+    if (globe.terrainMode === 'chunks') {
+      const at = latLonOfCell(sess.view.structures.cell[id] as number, world.sim.width, world.sim.height);
+      const p = globe.project(at.lat, at.lon);
+      if (cityFlightNeeded(globe.cameraAglM(), p.facing && p.inView)) globe.flyTo(at.lat, at.lon, 0, { altAglM: CITY_VIEW.flyAltM, tilt: CITY_VIEW.flyTiltDeg });
+    }
+    refreshHud();
+  };
   const exitSelection = (): void => {
+    closeCity();
     if (selectionMode !== null && inputStack.top === selectionMode) inputStack.pop();
     selectPanel?.update(null, false);
   };
@@ -854,6 +902,8 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       return;
     }
     selectedId = id;
+    lastSelClickId = id;
+    lastSelClickMs = performance.now();
     const mode = createSelectionMode(id, {
       pickCell: cellAt,
       structureAt: structureAtCell,
@@ -868,6 +918,14 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
         selectPanel?.update(null, false);
       },
       exit: exitSelection,
+      again: (hit) => {
+        // a second click on the selected own City inside CITY_VIEW.doubleClickMs opens the city view
+        const now = performance.now();
+        const dbl = isDoubleClick(lastSelClickId, lastSelClickMs, hit, now);
+        lastSelClickId = hit;
+        lastSelClickMs = now;
+        if (dbl && session !== null && session.view.structures.type[hit] === STRUCT_CITY) openCity(hit);
+      },
     });
     selectionMode = mode;
     inputStack.push(mode);

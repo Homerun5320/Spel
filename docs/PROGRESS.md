@@ -860,6 +860,18 @@ Base: 00d16f3 (branch claude/ecstatic-euler-s1wm2k). Previous merge SHA (`git re
 - [x] 9. Tests (each shown to fail on a mutant, 15 mutants killed): `tests/sim/districts.test.ts`, `tests/sim/districtsState.test.ts`, `tests/sim/districtsReport.test.ts`, `tests/ai/districts.test.ts`, `tests/host/districtMirror.test.ts`, `tests/districts.perf.test.ts` (step with 299 districts and 300 structures: calm 30 us, recompute every step 850 us, budget budgetMs(4) = 4.5 ms)
 - [x] ACCEPTANS: `npm run verify:fast` green (typecheck, lint, 190 files / 2130 tests); solo AI scenario factor 1.02 of the band (14 328 cells; 1.02 before), `tests/sim/pace.test.ts` unchanged and green; Node and worker golden hashes equal (`tests/sim/worker.test.ts`). NOT run (orchestrator): `npm run verify`, Chromium.
 
+### Districts-2a: the city view (UI on top of Districts-1; DOM only; one builder in its own worktree; Districts-2b draws the districts on the 3D city in parallel)
+
+Base: 9c7ce89 (branch worktree-wf_359cefa4-9ed-1). Nothing is merged to main; no push, no PR, no `npm run verify`. Wish: "ta en djupare syn på städerna, som en karta nästan där man kan klicka in och uppgradera städerna i".
+
+- [x] 1. City view panel `src/ui/cityViewPanel.ts` (tiles 2 / 3 / 4 by City level, City level + upgrade, totals gold/s, troop cap, regeneration, walls from `districtEffect`), opened by the button "Öppna stad" (`sel-open-city`) or a double click on the selected City; input mode `src/app/cityViewMode.ts` (Esc pops it before the pause handler, globe clicks are taken); side panel on wide windows, bottom sheet on narrow ones
+- [x] 2. Tiles: empty = four build buttons with price, build time, effect, dimmed with the reason as tooltip (`validateBuildDistrict`, spawn phase first); occupied = SVG icon, level, effect now / next, progress bar, Upgrade, two-step Remove (arm 3 s, "Bekräfta"); all through `buildDistrictBody` / `upgradeDistrictBody` / `removeDistrictBody`; redraw only when the numeric signature changed
+- [x] 3. Toasts and tooltips for the reason codes 39 to 44 (`structureRefusalKey`, `districtWhyKey`), sv and en
+- [x] 4. The camera flies to the City on open (altAglM 1500, tilt 50) unless it is within 5 km and the City is on screen
+- [x] 5. Keyboard: all controls are real buttons (Tab order, Enter / Space); no number keys
+- [x] Tests: `tests/ui/cityViewModel.test.ts` (unit), `e2e/cityView.test.ts` (new golden `e2e/goldens/city-view.png`)
+- [ ] NOT done: see "Districts-2a leftovers" in `docs/BACKLOG.md`
+
 ## Next
 
 - Audit 1 (the batch audit of versions 12 to 16, range 7018b4c..cf01c79) found no blocker and a list of majors; the fix slices 'Fix-Sim' and 'Fix-UI' work through them (see their sections under Now and docs/BACKLOG.md 'Audit 1 leftovers'). After that: the building roadmap continues (more kinds of buildings, the city detail map of M18e), then M11a radar and the air milestones M11b to M13b.

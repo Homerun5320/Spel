@@ -318,3 +318,13 @@ Not done in the Fix-UI slice (the sim, host and AI findings belong to Fix-Sim):
 - Ring lifts are sampled at the true-size radius only; a ring widened by the scale policy at mid distance uses the same lifts.
 - Fix-UI low-priority items (6) were not worked through beyond what Fix-UI already did.
 - The tip still sits below the Play button on a 560 px window (the card scrolls); Play itself is always reachable.
+
+## Districts-2a leftovers
+
+- A pointer drag across the tiles / drag-and-drop of districts between slots (not in the sim either).
+- Keyboard focus ring order on the tile itself (tiles are groups; their buttons are the tab stops). A roving tabindex per tile is possible if the user wants arrow keys.
+- The city view for ENEMY or ally Cities (read-only look at their districts) is not built; only own Cities open.
+- The spawn-phase dimming of the build buttons is only unit-tested (a City cannot exist in the spawn phase of a normal match).
+- A small-map look (isometric tiles, district icons drawn on the tiles) is simpler than wished: icons are flat SVG; Districts-2b draws the districts on the 3D city.
+- The totals show finished districts only; a "when finished" preview of running builds is not shown.
+- A toast when a district intent is refused is wired through the existing reject path; the dimmed buttons make most refusals impossible, so the toasts are only seen on races (gold spent in the same turn).

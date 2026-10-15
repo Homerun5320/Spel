@@ -47,6 +47,8 @@ export interface SelectionTarget {
   ended(): void;
   /** Leaves the mode (the page pops it). */
   exit(): void;
+  /** Districts-2a: a click on the structure that is already selected (two of them in a row are a double click: the page opens the city view). */
+  again?(id: number): void;
 }
 
 export interface SelectionMode extends InputMode {
@@ -69,7 +71,7 @@ export function createSelectionMode(structure: number, target: SelectionTarget):
         if (hit !== current) {
           current = hit;
           target.reselect(hit);
-        }
+        } else target.again?.(hit);
         return true;
       }
       target.exit();

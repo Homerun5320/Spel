@@ -4,7 +4,7 @@
 import { fxNow } from '../render/clock';
 import { languageVersion, t } from './i18n';
 import { deleteArmed, deleteClick, deleteWhyKey, effectLines, structureNameKey, upgradeWhyKey, type DeleteArm, type SelectionInfo } from './structureInfo';
-import { STRUCT_MAX_LEVEL } from '../sim/public';
+import { STRUCT_CITY, STRUCT_MAX_LEVEL } from '../sim/public';
 
 export interface SelectionPanel {
   readonly root: HTMLElement;
@@ -13,7 +13,7 @@ export interface SelectionPanel {
   dispose(): void;
 }
 
-export function createSelectionPanel(parent: HTMLElement, actions: { upgrade(id: number): void; remove(id: number): void }): SelectionPanel {
+export function createSelectionPanel(parent: HTMLElement, actions: { upgrade(id: number): void; remove(id: number): void; openCity?(id: number): void }): SelectionPanel {
   const root = document.createElement('div');
   root.className = 'sel-panel hud-panel';
   root.dataset.testid = 'sel-panel';
@@ -27,7 +27,8 @@ export function createSelectionPanel(parent: HTMLElement, actions: { upgrade(id:
   row.className = 'sel-row';
   const up = button('sel-upgrade');
   const del = button('sel-delete');
-  row.append(up, del);
+  const openCity = button('sel-open-city'); // Districts-2a: only for an own City
+  row.append(up, del, openCity);
   const note = el('div', 'sel-note', 'sel-note');
   root.append(name, level, state, fx, row, note);
   parent.appendChild(root);
@@ -35,6 +36,9 @@ export function createSelectionPanel(parent: HTMLElement, actions: { upgrade(id:
   let current = -1;
   up.addEventListener('click', () => {
     if (current >= 0 && up.getAttribute('aria-disabled') !== 'true') actions.upgrade(current);
+  });
+  openCity.addEventListener('click', () => {
+    if (current >= 0) actions.openCity?.(current);
   });
   // Delete takes two clicks: the first arms it for DELETE_ARM_MS (label "Bekräfta"), the second deletes; the next frame's update shows the label
   let arm: DeleteArm | null = null;
@@ -89,6 +93,9 @@ export function createSelectionPanel(parent: HTMLElement, actions: { upgrade(id:
       del.dataset.armed = armed ? '1' : '0';
       del.dataset.reason = String(info.deleteReason);
       setDimmed(del, info.deleteReason !== 0, info.deleteReason !== 0 ? t(deleteWhyKey(info.deleteReason), { seconds: info.deleteSeconds }) : armed ? t('sel.deleteConfirmTip') : t('sel.deleteTip', { seconds: info.cooldownSeconds }));
+      openCity.hidden = !(info.type === STRUCT_CITY && info.owned && actions.openCity !== undefined);
+      openCity.textContent = t('sel.city.open');
+      openCity.title = t('sel.city.openTip');
       note.textContent = t('sel.hint');
     },
     dispose(): void {
