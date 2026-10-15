@@ -1,7 +1,8 @@
-// M08 item 6 (the six height goldens): the Himalaya seen by the RTS camera from orbit down to 300 m above the ground, in one contact sheet
-// (3 x 2 tiles: orbit, continent, region, 30 km, 3 km "valley", 300 m). Orbit is the plain orbit view; the others are what `flyTo` with an altitude
-// puts the camera at (the real RTS pose, which then holds its height over the ground). The sheet is rendered twice in one browser launch and must be
-// byte-identical (the sun and the fx clock are fixed); it matches its golden (pixelmatch 0.1, <= 0.2 %). Every tile must also differ from every
+// M08 item 6 (the six height goldens): the Himalaya seen by the RTS camera from orbit down to 300 m above the ground, six pictures (orbit,
+// continent, region, 30 km, 3 km "valley", 300 m), each its own golden `rts-height-<id>.png`; the contact sheet of the six is written to
+// test-results/shots for the eye. Orbit is the plain orbit view; the others are what `flyTo` with an altitude
+// puts the camera at (the real RTS pose, which then holds its height over the ground). The six are rendered twice in one browser launch and must be
+// byte-identical (the sun and the fx clock are fixed); each matches its golden (pixelmatch 0.1, <= 0.2 %). Every tile must also differ from every
 // other (a camera that did not move would pass a golden of itself) and the heights the page reports must be the ones asked for.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -29,27 +30,28 @@ interface HeightView {
   tilt: number;
   heading: number;
 }
-const LAT = 28.2;
-const LON = 86.8;
+const LAT = 30.0;
+const LON = 90.0;
 const VIEWS: HeightView[] = [
   { id: 'orbit', aglM: null, tilt: 0, heading: 0 },
-  { id: 'continent', aglM: 3_000_000, tilt: 45, heading: 20 },
-  { id: 'region', aglM: 300_000, tilt: 55, heading: 20 },
-  { id: '30km', aglM: 30_000, tilt: 60, heading: 20 },
-  { id: 'valley', aglM: 3000, tilt: 72, heading: 20 },
-  { id: '300m', aglM: 300, tilt: 76, heading: 20 },
+  { id: 'continent', aglM: 3_000_000, tilt: 45, heading: 0 },
+  { id: 'region', aglM: 300_000, tilt: 55, heading: 0 },
+  { id: '30km', aglM: 30_000, tilt: 66, heading: 0 },
+  { id: 'valley', aglM: 3000, tilt: 78, heading: 0 },
+  { id: '300m', aglM: 300, tilt: 78, heading: 0 },
 ];
 const TILE_W = 480;
 const TILE_H = 270;
 const COLS = 3;
 const SUN_LON = 40;
 
-async function renderSheet(): Promise<{ png: Buffer; tiles: Uint8Array[]; agl: number[]; hold: Array<number | null> }> {
+async function renderSheet(): Promise<{ png: Buffer; tiles: Uint8Array[]; pngs: Buffer[]; agl: number[]; hold: Array<number | null> }> {
   const { page, consoleMessages } = await openPage(browser, baseUrl, `test=1&ai=0&w=${TILE_W}&h=${TILE_H}`, { width: TILE_W, height: TILE_H });
   try {
     const rows = Math.ceil(VIEWS.length / COLS);
     const sheet = new Uint8Array(TILE_W * COLS * TILE_H * rows * 4);
     const tiles: Uint8Array[] = [];
+    const pngs: Buffer[] = [];
     const agl: number[] = [];
     const hold: Array<number | null> = [];
     for (let i = 0; i < VIEWS.length; i++) {
@@ -68,7 +70,9 @@ async function renderSheet(): Promise<{ png: Buffer; tiles: Uint8Array[]; agl: n
       );
       agl.push(r.agl);
       hold.push(r.hold);
-      const tile = decodePng(await (page as Page).screenshot({ type: 'png' })) as { width: number; height: number; data: Uint8Array };
+      const shot = await (page as Page).screenshot({ type: 'png' });
+      pngs.push(shot);
+      const tile = decodePng(shot) as { width: number; height: number; data: Uint8Array };
       tiles.push(tile.data);
       const col = i % COLS;
       const row = Math.floor(i / COLS);
@@ -81,17 +85,18 @@ async function renderSheet(): Promise<{ png: Buffer; tiles: Uint8Array[]; agl: n
       }
     }
     expect(consoleMessages).toEqual([]);
-    return { png: encodePng({ width: TILE_W * COLS, height: TILE_H * rows, data: sheet }), tiles, agl, hold };
+    return { png: encodePng({ width: TILE_W * COLS, height: TILE_H * rows, data: sheet }), tiles, pngs, agl, hold };
   } finally {
     await page.close();
   }
 }
 
 describe('the six height goldens (M08)', () => {
-  it('orbit, continent, region, 30 km, 3 km and 300 m over the Himalaya: byte-identical twice, the heights are the ones asked for, every tile differs, the sheet matches its golden', async () => {
+  it('orbit, continent, region, 30 km, 3 km and 300 m over the Himalaya: byte-identical twice, the heights are the ones asked for, every picture differs from the others, each matches its golden', async () => {
     const a = await renderSheet();
     const b = await renderSheet();
     expect(Buffer.compare(a.png, b.png), 'two renders of the sheet').toBe(0);
+    a.pngs.forEach((p, i) => expect(Buffer.compare(p, b.pngs[i] as Buffer), `two renders of ${VIEWS[i]?.id}`).toBe(0));
     fs.writeFileSync(path.join(SHOT_DIR, 'rts-heights-himalaya.png'), a.png);
     VIEWS.forEach((v, i) => {
       if (v.aglM === null) return;
@@ -110,7 +115,9 @@ describe('the six height goldens (M08)', () => {
         expect(differing / (TILE_W * TILE_H), `${VIEWS[i]?.id} against ${VIEWS[j]?.id}`).toBeGreaterThan(0.2);
       }
     }
-    const result = compareGolden(a.png, 'rts-heights-himalaya');
-    console.log(`[golden] rts-heights-himalaya: ${result.status}, ${result.diffPixels} px differ (${(result.ratio * 100).toFixed(4)} %); heights ${a.agl.map((x) => Math.round(x)).join(', ')} m`);
+    VIEWS.forEach((v, i) => {
+      const result = compareGolden(a.pngs[i] as Buffer, `rts-height-${v.id}`);
+      console.log(`[golden] rts-height-${v.id}: ${result.status}, ${result.diffPixels} px differ (${(result.ratio * 100).toFixed(4)} %), camera ${Math.round(a.agl[i] as number)} m over the ground`);
+    });
   });
 });

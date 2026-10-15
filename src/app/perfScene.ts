@@ -17,14 +17,20 @@ export const PERF_PHASE_NAMES = ['orbit', 'continent', 'valley', 'ground', 'crui
 
 /** The Himalaya, where the relief is the tallest: the whole script stays over it. */
 export const PERF_PLACE = { lat: 28.0, lon: 86.9 } as const;
-/** The valley and the 300 m views look at the M07a valley view's place. */
-export const PERF_VALLEY = { lat: 28.2, lon: 86.8 } as const;
+/**
+ * The valley and the 300 m views: the edge of the Tibetan plateau north of the main range (the same relief as the peaks, 12 times
+ * exaggerated). Chosen from screenshots of the camera at 3 km and 300 m over the Himalaya: a camera 300 m above the Everest massif looks into a
+ * white wall, here the horizon with the range behind it stays in view.
+ */
+export const PERF_VALLEY = { lat: 30.0, lon: 90.0 } as const;
 /** The cruise at the end moves the camera this far north (degrees of latitude, 0.12 degrees = 13 km) at 300 m. */
 export const PERF_CRUISE_DLAT = 0.12;
 export const PERF_ORBIT_KM = 21_500;
 export const PERF_CONTINENT_KM = 3_500;
 export const PERF_VALLEY_AGL_M = 3_000;
 export const PERF_GROUND_AGL_M = 300;
+/** Looking nearly at the horizon (the RTS limit is 80): at 300 m the ground ahead is the picture, the range behind it the context. */
+export const PERF_GROUND_TILT = 78;
 /** Seconds the camera rests at the end of each phase (live script). */
 export const PERF_HOLD_S = { orbit: 3, continent: 2, valley: 3, ground: 3, cruise: 1 } as const;
 /** The continent flight (classic, orbit to 3 500 km) takes this long in the live script; the ground flights take what `planGroundFlight` says. */
@@ -87,7 +93,7 @@ const STEPS: readonly Step[] = [
     name: 'valley',
     start: (h, q) => {
       const d = flightS(q, undefined);
-      h.flyTo(PERF_VALLEY.lat, PERF_VALLEY.lon, 0, { altAglM: PERF_VALLEY_AGL_M, tilt: 78, heading: 0, ...(d === undefined ? {} : { durationS: d }) });
+      h.flyTo(PERF_VALLEY.lat, PERF_VALLEY.lon, 0, { altAglM: PERF_VALLEY_AGL_M, tilt: PERF_GROUND_TILT, heading: 0, ...(d === undefined ? {} : { durationS: d }) });
       return true;
     },
     holdS: PERF_HOLD_S.valley,
@@ -96,7 +102,7 @@ const STEPS: readonly Step[] = [
     name: 'ground',
     start: (h, q) => {
       const d = flightS(q, undefined);
-      h.flyTo(PERF_VALLEY.lat, PERF_VALLEY.lon, 0, { altAglM: PERF_GROUND_AGL_M, tilt: 75, heading: 0, ...(d === undefined ? {} : { durationS: d }) });
+      h.flyTo(PERF_VALLEY.lat, PERF_VALLEY.lon, 0, { altAglM: PERF_GROUND_AGL_M, tilt: PERF_GROUND_TILT, heading: 0, ...(d === undefined ? {} : { durationS: d }) });
       return true;
     },
     holdS: PERF_HOLD_S.ground,
@@ -105,7 +111,7 @@ const STEPS: readonly Step[] = [
     name: 'cruise',
     start: (h, q) => {
       const d = flightS(q, undefined);
-      h.flyTo(PERF_VALLEY.lat + PERF_CRUISE_DLAT, PERF_VALLEY.lon, 0, { altAglM: PERF_GROUND_AGL_M, tilt: 75, heading: 0, ...(d === undefined ? {} : { durationS: d }) });
+      h.flyTo(PERF_VALLEY.lat + PERF_CRUISE_DLAT, PERF_VALLEY.lon, 0, { altAglM: PERF_GROUND_AGL_M, tilt: PERF_GROUND_TILT, heading: 0, ...(d === undefined ? {} : { durationS: d }) });
       return true;
     },
     holdS: PERF_HOLD_S.cruise,
