@@ -209,7 +209,12 @@ describe('the shader text wires the rules to the right inputs', () => {
     expect(C.SHADE_MOTTLE_FADE_PX[0]).toBeGreaterThanOrEqual(3); // never a grain of one or two pixels
     expect(C.OWNER_TINT_LUM[2]).toBeLessThan(C.OWNER_TINT_LUM[3]);
     expect(C.OWNER_TINT_CLOSE[1]).toBeLessThan(C.OWNER_TINT_CLOSE[2]);
-    for (const c of [C.SHADE_ROCK_WARM, C.SHADE_ROCK_COOL, C.SHADE_SNOW_COLOR, C.SHADE_BOREAL_TINT, C.FOAM_COLOR]) for (const v of c) expect(v).toBeGreaterThan(0), expect(v).toBeLessThanOrEqual(1);
+    for (const c of [C.SHADE_ROCK_WARM, C.SHADE_ROCK_COOL, C.SHADE_SNOW_COLOR, C.SHADE_BOREAL_TINT, C.FOAM_COLOR]) {
+      for (const v of c) {
+        expect(v).toBeGreaterThan(0);
+        expect(v).toBeLessThanOrEqual(1);
+      }
+    }
   });
 });
 

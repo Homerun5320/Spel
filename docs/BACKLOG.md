@@ -158,3 +158,10 @@ Everything here would shorten `verify` further; each needs a per-test reset cont
 - `describeAt` still decides "land" from the filtered raster (the 5 km ramp of the old coast) while the mesh and the picking now use the coverage rule; the tooltip can say "land" 5 km out at sea. Align it with `coverage >= 0.5` (a tooltip change with its own tests).
 - `src/render/quadtree.ts` `KeySet` uses a multiply-and-shift hash of the same shape that cost `DetailBounds` a factor 5 (the bits of a product depend only on the lower bits of its factors, so its slot depends mostly on the row). It works with linear probing; whether its probe chains are long was NOT measured. Measure before touching it.
 - The detail is a vertex-only cost in the default tier and the fragment shader is untouched except for one multiplication; the real-GPU check is `#perf` against `#detail-0` (same view without octaves) on the user's PC.
+
+## From M07b part B (shading)
+- Per-pixel detail normals: the detail is shaded by the flat facet normal of the displaced mesh (the stylised look). A vertex-stage normal or the analytic gradient of the octave sum (`detSample` exposes it) would give smooth shading on steep slopes at a vertex cost, for the high tier only. On a real GPU first check `#perf` against `#detail-0`.
+- The snow line is a stylised three-point curve, not a climate model (D150 (3)): no aspect (north faces keep snow longer), no precipitation. If the playtest wants snow-covered Alps from orbit, lower the 47 degree value.
+- Real trees and rocks are geometry and out of scope (M10 and later layers); the forest is a colour with a mottled canopy.
+- Vegetation could follow the ruggedness / humidity of the bake, not only the sim class (a dry plateau next to a green one reads the same today).
+- The night-light speckle only has two octaves; a procedural street grid near big cities would need more data than 10 km squares.

@@ -33,8 +33,8 @@ interface DetailPlace {
 const PLACES: DetailPlace[] = [
   { id: 'alps', lat: 46.5, lon: 8, heading: 180, sunLon: -30, heights: [[15_000, 18], [2000, 8], [300, 5]] },
   { id: 'himalaya', lat: 28.2, lon: 86.8, heading: 0, sunLon: 50, heights: [[15_000, 18], [2000, 10], [300, 6]] },
-  // the camera is over the sea off the coast of Møre, looking east: foam, a clean shore, fjord mountains with snow on the highest ridges
-  { id: 'norway', lat: 62.3, lon: 5.0, heading: 90, sunLon: -35, heights: [[15_000, 18], [2000, 8], [300, 4]] },
+  // the camera is over the fjord country of Møre og Romsdal, looking west to the coast: fjords with foam, a clean shore, steep green and grey slopes
+  { id: 'norway', lat: 62.0, lon: 6.6, heading: 270, sunLon: -35, heights: [[15_000, 18], [2000, 8], [300, 4]] },
 ];
 const TILE_W = 640;
 const TILE_H = 360;
