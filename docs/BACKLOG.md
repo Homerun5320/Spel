@@ -352,3 +352,10 @@ Not done in the Fix-UI slice (the sim, host and AI findings belong to Fix-Sim):
 - Fire control of a Silo or of a radar structure type: `Los.sync` knows only SAM sites (type 5) and Posts; a radar type needs one line in `sync`.
 - Sub-cell accuracy: a second pass that tries the exact half-cell line for the cells where the two estimates differ by more than the slack, if the slack should shrink.
 - A mask per OWNER-wide union exists (composite); a "who sees this cell" listing for several enemy seats is a loop over seats, not a structure.
+
+## M11b leftovers and ideas
+- IDEA (owner decision on the M11a stop rule): the finer-grid option C, a mask built on the 2048x1024 grid only for LOS, would separate a valley floor from its ridge. Not built; the measured behaviour is accepted.
+- The A* works on the nav grid and the route is the polyline of nav cell centres; a smoothing pass (string pulling that keeps the exposure cost) is not built.
+- A service-ceiling check per sim cell for the start and the goal (they are cells of a nav block whose mean may be closed while the sim cell itself is low) is not built: such a query is NO_ROUTE.
+- The debug page does not draw the land labels or the nav grid; `Nav.landReachable` has no user yet (M12a, the AI).
+- Leftovers of the slice: none in the list of the prompt; the Artifact preview was not republished (orchestrator).

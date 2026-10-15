@@ -52,5 +52,6 @@ export function registerAppModes(): void {
   registerDevMode({ id: 'debug-data-height', label: 'Datakartan: höjd', href: './debug/data.html#map-height' });
   registerDevMode({ id: 'debug-data-country', label: 'Datakartan: länder', href: './debug/data.html#map-country' });
   registerDevMode({ id: 'debug-sim', label: 'Simuleringens hashar (debug/sim.html)', href: './debug/sim.html' });
+  registerDevMode({ id: 'debug-viewshed', label: 'Radarskugga och flygrutter (debug/viewshed.html)', href: './debug/viewshed.html' });
   registerDevMode({ id: 'probe', label: 'Förhandsvisningstest (probe.html)', href: './probe.html' });
 }

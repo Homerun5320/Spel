@@ -10,7 +10,7 @@ export default defineConfig({
     sourcemap: false,
     assetsDir: 'assets',
     rolldownOptions: {
-      input: { main: 'index.html', probe: 'probe.html', debugData: 'debug/data.html', debugSim: 'debug/sim.html' },
+      input: { main: 'index.html', probe: 'probe.html', debugData: 'debug/data.html', debugSim: 'debug/sim.html', debugViewshed: 'debug/viewshed.html' },
     },
   },
   // Module workers stay ES modules (they import shared chunks from assets/).
