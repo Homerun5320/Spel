@@ -206,3 +206,10 @@ Everything here would shorten `verify` further; each needs a per-test reset cont
 - The Himalaya wall: a fast pan toward the massif at 3 km height lets the camera sink to 21 % of the held height (the first-order follower lags a slope of 4.7 by slope x speed x 0.25 s). A look-ahead (aim at the higher of the ground here and the ground 0.25 s ahead) was built and measured: the dip fell to 32 % but the shake share rose from 0.33 to 0.70 and the direction reversals from 1 to 23 (the velocity estimate and the maximum of two rough samples are noise); rejected. A look-ahead on the SMOOTH ground (3 octaves) or a faster rise than fall (the tests of `tests/render/rtsFollow.test.ts` pin the symmetric step, so that is a decision, not a fix) are the next things to try.
 - Windows narrower than 0.25 or wider than 4 are clamped to those aspects in `src/render/fit.ts`; the disc does not fit at the maximum distance in a narrower window (the ceiling `DIST_ABS_MAX_KM` 150 000 km binds there).
 - The prompt's e2e wish ("count the bounding box of the non-black screenshot") is done with a lit-pixel bounding box that includes the atmosphere's glow, so the picture is asked for 3 % margin where the disc is asked 5 % (the glow is about 2 % of the half-extent); a pixel-exact disc outline would need the atmosphere off (`?`-switch) in the test.
+
+### AutoTier-1
+
+- Adaptive resolution (a run-time pixel ratio regulator that also corrects a wrong class guess) is AutoTier-2.
+- A more exact card database (device ids, per-model tiers, a "known bad driver" list) instead of the regular expressions of `src/render/gpuClass.ts`.
+- A Dev-panel / settings choice that stores the tier in the pref `quality` (the pref is read already, nothing writes it).
+- The tip card makes the start screen scroll at 960x540; a one-line tip or a separate corner badge would avoid it.

@@ -25,6 +25,9 @@ export interface PerfSnapshot {
   height: number;
   dpr: number;
   tier: string;
+  /** AutoTier-1: the class of the graphics card and where the tier came from (additive; absent in old callers). */
+  gpuClass?: string;
+  tierSource?: string;
 }
 
 export interface PerfContext {
@@ -60,6 +63,9 @@ export interface PerfReport {
   glVersion: string;
   webgl2: boolean;
   tier: string;
+  /** AutoTier-1 (additive, schema version stays 1): 'software' | 'integrated' | 'capable' and 'test' | 'param' | 'dev' | 'pref' | 'auto' | 'default'. */
+  gpuClass: string;
+  tierSource: string;
   viewport: { width: number; height: number; dpr: number };
   fps: { mean: number; p95: number; p95FrameMs: number; frames: number; windowFrames: number };
   renderInfo: { calls: number; triangles: number; geometries: number; textures: number };
@@ -84,6 +90,8 @@ export function buildPerfReport(ctx: PerfContext): PerfReport {
     glVersion: s.glVersion,
     webgl2: s.webgl2,
     tier: s.tier,
+    gpuClass: s.gpuClass ?? 'unknown',
+    tierSource: s.tierSource ?? 'unknown',
     viewport: { width: s.width, height: s.height, dpr: s.dpr },
     fps: { mean: round(st.meanFps()), p95: round(st.p95Fps()), p95FrameMs: round(st.p95Ms()), frames: st.frames, windowFrames: Math.min(st.frames, st.capacity) },
     renderInfo: { calls: s.drawCalls, triangles: s.triangles, geometries: s.geometries, textures: s.textures },
@@ -121,6 +129,7 @@ export function perfLines(r: PerfReport): string[] {
   const scene = r.scene ? sceneLines(r.scene) : [];
   return [
     `Renderer: ${r.renderer}`,
+    `grafikkort: ${r.gpuClass}  nivå ${r.tier} (källa: ${r.tierSource})`,
     `GL: ${r.glVersion}`,
     `fps: ${fps}`,
     `anrop ${r.renderInfo.calls}  trianglar ${r.renderInfo.triangles}  geometrier ${r.renderInfo.geometries}  texturer ${r.renderInfo.textures}`,

@@ -2,6 +2,7 @@
 // Play button, the controls in five lines, a language switch and a small Dev button. `?test=1` never shows it. Every text goes
 // through t(); a language switch rebuilds the texts at once. Play shows "loading" on the button until the match exists.
 import { DEV_PANEL_REQUEST_EVENT } from './events';
+import { createGpuTip } from './gpuTip';
 import { mountHudStyle } from './hudStyle';
 import { getLanguage, onLanguageChange, setLanguage, t, type TextKey } from './i18n';
 
@@ -20,6 +21,8 @@ export interface StartScreenOptions {
   onDev?: () => void;
   /** Called when the setup button is pressed (M06: choose a real country or make up a nation); without it the button is not shown. */
   onSetup?: () => void;
+  /** AutoTier-1: the graphics tip at the bottom of the card (the readable card name and the close callback); without it no tip is shown. */
+  gpuTip?: { name: string; onClose: () => void };
 }
 
 const HELP_KEYS: readonly TextKey[] = ['help.click', 'help.drag', 'help.commit', 'help.speed', 'help.dev'];
@@ -84,6 +87,8 @@ export function mountStartScreen(parent: HTMLElement, onPlay: () => void | Promi
   card.append(title, tagline, playBox);
   if (setup !== null) card.append(setupBox);
   card.append(helpTitle, help, small);
+  const tip = options.gpuTip ? createGpuTip(options.gpuTip.name, options.gpuTip.onClose) : null;
+  if (tip !== null) card.append(tip.element);
   root.append(card);
   parent.appendChild(root);
 
@@ -146,6 +151,7 @@ export function mountStartScreen(parent: HTMLElement, onPlay: () => void | Promi
     },
     dispose(): void {
       stopLang();
+      tip?.dispose();
       root.remove();
     },
   };

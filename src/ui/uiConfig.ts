@@ -86,6 +86,20 @@ export const CONTRAST_PAIRS: ReadonlyArray<readonly [keyof typeof UI_COLORS, key
   ['text', 'buttonActive'],
 ];
 
+/** The graphics tip of the start screen (AutoTier-1): sizes in em of the start card's font, colours from UI_COLORS. */
+export const GPU_TIP = {
+  fontEm: 0.8,
+  padEm: 0.6,
+  radiusEm: 0.6,
+  gapEm: 0.35,
+  background: 'rgba(24, 50, 98, 0.55)',
+  border: UI_COLORS.panelBorder,
+  text: UI_COLORS.textDim,
+} as const;
+
+/** The pref key that remembers a closed graphics tip. */
+export const GPU_TIP_PREF_KEY = 'gpuTipClosed';
+
 /** The most characters a custom nation's name may have (the setup trims it first; an empty name is refused). */
 export const CUSTOM_NAME_MAX_CHARS = 24;
 
