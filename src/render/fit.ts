@@ -156,3 +156,12 @@ export function geometricTiltLimit(distKm: number, aspect: number, fillMax = FIT
   }
   return lo;
 }
+
+/**
+ * CamFix-2: a distance chosen for a 16:9 window (the start view, the perf orbit) brought into `aspect`: not nearer than where the disc takes
+ * `FIT_FILL_SAFE` of the narrowest half-extent at tilt 0 (a tall window needs more than 21 500 km) and not beyond the window's maximum. The identity
+ * wherever `distKm` already fits, so every window of aspect 1 and more keeps its distance (and its golden pictures).
+ */
+export function fitViewDistKm(distKm: number, aspect: number): number {
+  return Math.min(maxDistKm(aspect), Math.max(distKm, tiltEaseEndKm(aspect)));
+}

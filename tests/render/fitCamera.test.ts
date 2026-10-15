@@ -3,7 +3,7 @@
 import fc from 'fast-check';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { CameraRig } from '../../src/render/camera';
-import { DIST_MAX_KM, DIST_MIN_KM, FIT_FILL_SAFE, FIT_TILT_FREE_KM, TILT_MAX_DEG } from '../../src/render/config';
+import { DIST_MAX_KM, DIST_MIN_KM, FIT_FILL_SAFE, FIT_TILT_FREE_KM, ROTATE_DEG_PER_PX, TILT_MAX_DEG } from '../../src/render/config';
 import { maxDistKm, maxTiltForDist, tiltEaseEndKm } from '../../src/render/fit';
 import { add, cross, dot, length, scale, type Vec3 } from '../../src/render/geo';
 import { raySphere } from '../../src/render/heightField';
@@ -336,10 +336,13 @@ describe('the user\'s tilt: dragging it works from what is shown (no dead zone) 
     rig.rotateBy(30, 0);
     expect(rig.view.tilt).toBe(60);
     expect(rig.view.heading).not.toBe(0);
-    rig.rotateBy(0, 20); // wanting more tilt than the distance shows
-    expect(rig.view.tilt).toBeCloseTo(cap, 9);
-    rig.rotateBy(0, -10); // and back down: the first pixel is felt
-    expect(rig.view.tilt).toBeLessThan(cap - 0.1);
+    // CamFix-2: the stored tilt changes by the drag's own delta (it used to be recomputed from the eased, shown one, which lost the user's tilt for good)
+    rig.rotateBy(0, 20);
+    expect(rig.view.tilt).toBe(Math.min(TILT_MAX_DEG, 60 + 20 * ROTATE_DEG_PER_PX));
+    rig.setView({ tilt: 60 });
+    rig.rotateBy(0, -10);
+    expect(rig.view.tilt).toBeCloseTo(60 - 10 * ROTATE_DEG_PER_PX, 9);
+    expect(rig.shownTilt).toBeLessThanOrEqual(cap + 1e-9); // still not shown beyond what the distance allows
   });
 
   it('close in (under 8 000 km) a right drag is what it was: the tilt limits are the user\'s', () => {

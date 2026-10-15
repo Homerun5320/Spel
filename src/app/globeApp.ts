@@ -12,6 +12,7 @@ import { Globe, probeGpuStrings, type GlobeInfo, type GlobePick, type ScreenHit,
 import { AdaptiveResolution } from '../render/adaptive';
 import { classifyRenderer, readableGpuName, type GpuClass } from '../render/gpuClass';
 import type { WorldTextureName } from '../render/textures';
+import { fitViewDistKm } from '../render/fit';
 import { BOOKMARKS, CAPITAL_BOOKMARK, DEFAULT_START_TIME, DEFAULT_START_VIEW, GROUND_VIEWS, type BookmarkName } from '../render/views';
 import { cellToLatLon, groundHeightAt } from '../render/transforms';
 import { setBookmarkHandler } from './bookmarks';
@@ -376,7 +377,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   canvas.style.touchAction = 'none';
 
   const globe = new Globe({ canvas, width, height, dpr, quality, world, preserveDrawingBuffer: params.test, terrain: ctx.state.terrain.terrain, chunkDebug: ctx.state.terrain.chunkDebug, detail: ctx.state.raw.detail !== '0', fineDetail: ctx.state.raw.mottle !== '0' });
-  globe.setView(DEFAULT_START_VIEW);
+  globe.setView({ ...DEFAULT_START_VIEW, distKm: fitViewDistKm(DEFAULT_START_VIEW.distKm, width / height) }); // CamFix-2: a tall window starts farther out so that the disc fits
   const groundView = ctx.state.view !== null && globe.terrainMode === 'chunks' ? GROUND_VIEWS[ctx.state.view] : null; // `?view=alps-valley` (M07a)
   if (groundView !== null) globe.setGroundView(groundView);
   if (params.blank) canvas.style.visibility = 'hidden'; // debug: the negative e2e test needs an empty picture

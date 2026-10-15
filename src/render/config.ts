@@ -176,6 +176,11 @@ export const FIT_FILL_SAFE = 0.92;
  * whole globe is in the picture, centred, whatever tilt the user came with.
  */
 export const FIT_TILT_FREE_KM = 8000;
+/**
+ * CamFix-2: the fastest the limit on the SHOWN tilt moves (degrees per second of the fx clock): M08's 2.2 degrees per frame at 60 fps. A flight that
+ * the user grabs (its poses are placed untilted by the eased limit) and a quick wheel spin then slide to the eased tilt instead of jumping to it.
+ */
+export const FIT_TILT_RATE_DEG_S = 132;
 /** Focus latitude limit while the user drags (setView may go to +-90). */
 export const LAT_LIMIT_DEG = 88;
 /** Inertia: angular velocity decays with this time constant (fx seconds). */

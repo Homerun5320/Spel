@@ -237,3 +237,7 @@ Everything here would shorten `verify` further; each needs a per-test reset cont
 - The AI builds no SAM or Silo until M14 gives them an effect; the AI places buildings by random sampling in a window around the capital, not by value (coast, front line, mountains for SAM).
 - `ViewMirror` still shows an empty structure table (M10), so a UI that wants "can I afford this" must wait for it.
 - The Defense Post scan is O(structures) per attack per tick when the target owns a Post; a per-owner Post list would remove it if profiling ever shows it.
+
+## From CamFix-2
+- `PERF_ORBIT_KM` (21 500 km) and the `earth` canonical view are not run through `fitViewDistKm`: in a tall window they are cut. Only the live start view is fitted. (The perf scene host needs the window's aspect.)
+- The Himalaya wall dive (79 % at 3 km, fast pan) stays: the follower's lag over a steep slope; a look-ahead was tried and made the camera shiver (D158 (9)).
