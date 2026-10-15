@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { readBudgets } from './helpers/budgets';
 
 describe('docs/ARCHITECTURE.md "Budgetar"', () => {
-  it('starts with the globe budget: <= 150 000 triangles and <= 30 draw calls in the test tier', () => {
+  it('starts with the globe budget: <= 150 000 triangles and <= 100 draw calls in the test tier (raised from 30 by Fix-UI, the M21 target; DECISIONS Fix-UI)', () => {
     const rows = readBudgets();
-    expect(rows[0]).toEqual({ layer: 'Glob (hela glob-scenen)', triangles: 150_000, drawCalls: 30 });
+    expect(rows[0]).toEqual({ layer: 'Glob (hela glob-scenen)', triangles: 150_000, drawCalls: 100 });
   });
 
   it('layer budgets add up inside the globe budget', () => {

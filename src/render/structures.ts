@@ -40,6 +40,8 @@ interface TypeLayer {
   readonly type: number;
   readonly model: ModelData;
   readonly cap: number;
+  /** Triangles one instance costs (the model plus, for the City, its night lights). */
+  readonly tris: number;
   readonly geometry: InstancedBufferGeometry;
   readonly material: ShaderMaterial;
   readonly mesh: Mesh;
@@ -138,8 +140,11 @@ export class StructureLayer {
   private readonly seenKey: Int32Array;
   private readonly born: Float32Array;
   private primed = false;
-  /** Structures left out because a type's instance cap was reached. */
+  /** Structures left out because the layer's triangle budget (all types together) or a type's buffer was full: the highest ids go first, deterministically. */
   dropped = 0;
+  /** Triangles of the structure instances drawn (models and City lights; not the icons, rings or the ghost). Never above the tier's STRUCT_TRIANGLE_BUDGET. */
+  trianglesDrawn = 0;
+  private readonly triangleBudget: number;
   private fxTime = 0;
   private viewH = 540;
   // M10-4: the ring mesh (selection ring + range ring) and the far icons (one draw call each)
@@ -177,14 +182,16 @@ export class StructureLayer {
       uAmbientNight: { value: v4(AMBIENT_NIGHT) },
     };
     const budget = STRUCT_TRIANGLE_BUDGET[o.tier];
+    this.triangleBudget = budget;
     for (const type of modelledTypes()) {
       const spec = STRUCTURE_MODELS[type];
       if (spec === undefined) continue;
       const model = spec.build();
-      const cap = Math.max(1, Math.floor(budget / model.triangles));
-      const geometry = new InstancedBufferGeometry();
       // the City's night lights ride in the same buffers (a tint code per light, lit in the vertex shader): no extra draw call
       const extra = type === STRUCT_CITY ? cityLights() : null;
+      const tris = model.triangles + (extra === null ? 0 : extra.positions.length / 9);
+      const cap = Math.max(1, Math.floor(budget / tris)); // the buffer of a type never needs more than the whole budget buys
+      const geometry = new InstancedBufferGeometry();
       const cat = (a: Float32Array, b: Float32Array | undefined): Float32Array => (b === undefined ? a : Float32Array.from([...a, ...b]));
       geometry.setAttribute('position', new BufferAttribute(cat(model.positions, extra?.positions), 3));
       geometry.setAttribute('aColor', new BufferAttribute(cat(model.colors, extra?.colors), 3));
@@ -207,7 +214,7 @@ export class StructureLayer {
       mesh.frustumCulled = false; // the instances are all over the globe; the bounding volume of the shared geometry says nothing
       mesh.visible = false;
       this.meshes.push(mesh);
-      this.layers.set(type, { type, model, cap, geometry, material, mesh, hi, lo, params, rgb, build, attrs, count: 0 });
+      this.layers.set(type, { type, model, cap, tris, geometry, material, mesh, hi, lo, params, rgb, build, attrs, count: 0 });
     }
     // The ring mesh: the selection ring first, the range ring after it (drawRange picks one or both).
     {
@@ -411,6 +418,7 @@ export class StructureLayer {
     this.icons.count = 0;
     this.drawn = [];
     this.dropped = 0;
+    this.trianglesDrawn = 0;
     const palette = this.palette;
     for (let id = 0; id < t.highWater; id++) {
       const owner = t.owner[id] as number;
@@ -427,10 +435,12 @@ export class StructureLayer {
         this.seenKey[id] = key;
         this.born[id] = this.primed ? this.fxTime : NEVER;
       }
-      if (layer.count >= layer.cap) {
+      // ONE triangle budget for the whole layer (all types together); the cut is by id, so it is the same on every machine
+      if (layer.count >= layer.cap || this.trianglesDrawn + layer.tris > this.triangleBudget) {
         this.dropped++;
         continue;
       }
+      this.trianglesDrawn += layer.tris;
       const level = t.level[id] as number;
       const p = this.place(cell);
       const i = layer.count++;

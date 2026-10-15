@@ -171,7 +171,7 @@ describe('the match with the AI (?test=1&seed=7, AI on by default)', () => {
       const info = await page.evaluate(() => (window as any).__test.info());
       console.log(`[ai] 6000 ticks: sim hash ${browserHashes.map((h) => h.toString(16)).join(' ')} (Node: the same); ${info.triangles} triangles, ${info.drawCalls} draw calls; ownership uploads ${end.ownership.uploads}`);
       expect(info.triangles).toBeLessThanOrEqual(150_000);
-      expect(info.drawCalls).toBeLessThanOrEqual(30);
+      expect(info.drawCalls).toBeLessThanOrEqual(100) // row 0 of the Budgetar table (Fix-UI: 30 -> 100);
       await view(page, { lat: 30, lon: 15, distKm: 11000, heading: 0, tilt: 0 });
       await shot(page, 'ai-world-t6000');
       await view(page, { lat: 47, lon: 10, distKm: 2600, heading: 0, tilt: 0 });

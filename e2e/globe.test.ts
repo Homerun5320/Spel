@@ -55,7 +55,7 @@ async function frame(page: Page, view: Record<string, number>, name?: string): P
 const sha = (b: Buffer): string => crypto.createHash('sha256').update(b).digest('hex');
 
 describe('globe scene: test tier budget', () => {
-  it('renders in the test tier with <= 150k triangles and <= 30 draw calls, WebGL2, zero console errors', async () => {
+  it('renders in the test tier with <= 150k triangles and <= 100 draw calls, WebGL2, zero console errors', async () => {
     const { page, messages } = await openGlobe('test=1&quality=high&terrain=fixed'); // M07a: the fixed mesh (the exact M02 scene) is behind ?terrain=fixed; the chunk terrain has its budget test in e2e/terrain.test.ts
     try {
       await page.evaluate(() => (window as any).__test.render());
@@ -74,7 +74,7 @@ describe('globe scene: test tier budget', () => {
       // Since checkpoint B the scene is 3 draw calls: stars (points, no triangles), the globe mesh and the 96x48 atmosphere shell.
       expect(info.triangles).toBe(2 * 256 * 128 + 9024); // 9024 = the 96x48 sphere of the shell
       expect(info.drawCalls).toBe(3);
-      expect(info.drawCalls).toBeLessThanOrEqual(30);
+      expect(info.drawCalls).toBeLessThanOrEqual(100) // row 0 of the Budgetar table (Fix-UI: 30 -> 100);
       expect([info.width, info.height, info.dpr]).toEqual([960, 540, 1]);
       expect(messages).toEqual([]);
     } finally {
