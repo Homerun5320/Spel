@@ -10,7 +10,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { chromium } from 'playwright-core';
 import { PNG } from 'pngjs';
 import pixelmatch from 'pixelmatch';
-import { SWIFTSHADER_ARGS, chromiumArgs, downgradeDriverHints, goldenCompareMode, isLocalGpu, resolveLocalBrowserPath } from './localGpu.mjs';
+import { SWIFTSHADER_ARGS, applyLocalFlag, chromiumArgs, downgradeDriverHints, goldenCompareMode, isLocalGpu, resolveLocalBrowserPath } from './localGpu.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const REPO_ROOT = path.resolve(here, '..');
@@ -508,10 +508,12 @@ export async function startViteServer() {
 }
 
 // ---------------------------------------------------------------------------------------------
-// CLI: `npm run shots` takes the smoke shot, prints the metrics and exits non-zero on failure.
+// CLI: `npm run shots` (`npm run shots:local` = LOCAL_GPU=1) takes the smoke shot, prints the metrics and exits non-zero on failure.
 // ---------------------------------------------------------------------------------------------
 
 export async function main(argv = process.argv.slice(2)) {
+  // `--local` (npm run shots:local) is LOCAL_GPU=1 without any shell syntax, so it works the same in cmd, PowerShell and bash.
+  argv = applyLocalFlag(argv);
   const outDir = path.join(OUT_DIR, 'shots');
   fs.mkdirSync(outDir, { recursive: true });
   const query = argv[0] ?? 'test=1';

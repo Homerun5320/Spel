@@ -103,7 +103,7 @@ Efter körningen finns filen `test-results\local-report.txt`. Öppna den i Antec
 ## 6. Mindre körningar
 
 - Bara snabbkontrollen: `npm run verify:fast` (typecheck, lint, unit; under en minut).
-- En skärmdump och renderern: `npm run shots`.
+- En skärmdump och renderern: `npm run shots:local` (det vanliga `npm run shots` är för molnsessionen och använder programvarurenderaren, se nedan). Raden `[shot] renderer:` i utskriften visar vilket grafikkort som användes; skärmdumpen hamnar i `test-results/shots/smoke.png`.
 
 ## 7. Om webbläsaren inte hittas eller fel webbläsare används
 
@@ -132,6 +132,7 @@ Så att Claude kan läsa rapporten och rätta saker direkt i din kopia:
 - **Bildfacit.** De inbyggda facit-bilderna är SwiftShader-bilder (se ovan). Uppdatera dem aldrig härifrån: `UPDATE_GOLDENS=1` vägras i det här läget. Facit uppdateras bara i molnsessionen.
 - **Tester kan misslyckas av skäl som bara finns hos dig**: exakta pixelregler som är skrivna för programvarurenderingen, två bilder som inte blir byte för byte lika på ett riktigt grafikkort, eller en sökväg som bara fungerar på Linux. Skicka rapporten så avgör Claude om det är ett fel i testet eller i spelet.
 - **Tid och prestanda.** Alla gränser för räknetid går genom perfguard och påverkas inte av grafikkortet. Bildfrekvensen i spelet mäter du själv med F3 eller `?perf=1` (du såg tidigare 30 till 50 bilder per sekund i Artifact-förhandsvisningen).
+- **Tester som hoppas över på Windows.** Testerna i `tests/hook.test.ts` kör ett bash-skript för molnsessionen och hoppas över (visas som skipped, inte FAIL) när bash saknas. De fem testfilerna som startar `npm`-skript som barnprocesser startar numera Node direkt och ska därför fungera även på Windows, men det är otestat där. Ett test i `tests/portableSpawn.test.ts` förbjuder `npm`, `npx` och oskyddad `bash` i barnprocesser.
 - **Radslut.** Projektet tvingar LF-radslut vid utcheckning (filen `.gitattributes`), så att kontrollsummor stämmer på Windows. Har du klonat före den ändringen: ta bort mappen Spel och klona om (avsnitt 2), annars kan bake:check och några tester klaga på radslut.
 - **Drivrutinens prestandatips.** Ett riktigt grafikkort skriver ofta varningen "GL Driver Message (OpenGL, Performance, ...): GPU stall due to ReadPixels" i webbläsarens konsol, eftersom testerna läser tillbaka pixlar med flit. I det här läget räknas den som en anteckning och inte som en varning. Står det i stället "Automatic fallback to software WebGL" används inte grafikkortet (steget gpu faller då, se avsnitt 5).
 - **Antivirus och brandvägg** kan störa npm ci eller de osynliga webbläsarna. Tillåt Node.js och webbläsaren om en ruta frågar.

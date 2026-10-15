@@ -10,6 +10,7 @@ import {
   LOCAL_GPU_ARGS,
   MAX_E2E_WORKERS,
   SWIFTSHADER_ARGS,
+  applyLocalFlag,
   candidateBrowserPaths,
   chromiumArgs,
   downgradeDriverHints,
@@ -201,5 +202,27 @@ describe('driver performance hints (a real GPU reports them as console warnings)
     const { ConsoleMessage } = require(`${dir}lib/client/consoleMessage.js`);
     const m = new ConsoleMessage({}, { type: 'warning', text: hint, args: [], location: {} }, null);
     expect([m.type(), m.text()]).toEqual(['warning', hint]);
+  });
+});
+
+describe('npm run shots:local (the screenshot CLI in LOCAL_GPU mode without shell syntax)', () => {
+  it('package.json has the script and it is plain node with --local', () => {
+    const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8')) as { scripts: Record<string, string> };
+    expect(pkg.scripts['shots:local']).toBe('node scripts/shot.mjs --local');
+    expect(pkg.scripts['shots']).toBe('node scripts/shot.mjs');
+  });
+  it('--local sets LOCAL_GPU=1 and is removed from the arguments; without it nothing changes', () => {
+    const env: Record<string, string | undefined> = {};
+    expect(applyLocalFlag(['test=1', 'smoke'], env)).toEqual(['test=1', 'smoke']);
+    expect(env.LOCAL_GPU).toBeUndefined();
+    expect(applyLocalFlag(['--local', 'test=1'], env)).toEqual(['test=1']);
+    expect(env.LOCAL_GPU).toBe('1');
+    expect(isLocalGpu(env)).toBe(true);
+    expect(chromiumArgs(env)).toEqual(LOCAL_GPU_ARGS);
+  });
+  it('docs/LOCAL.md sends the user to shots:local, not to the SwiftShader shots script', () => {
+    const doc = fs.readFileSync('docs/LOCAL.md', 'utf8');
+    expect(doc).toContain('npm run shots:local');
+    expect(doc).not.toMatch(/skärmdump och renderern: `npm run shots`/);
   });
 });

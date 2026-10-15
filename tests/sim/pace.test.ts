@@ -1,5 +1,4 @@
 // The pace report (tools/sim/pace.ts, tempo pass D142): its pure parts, the scripted human, and the report on the real world.
-import { spawnSync } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
 import type { SimView } from '../../src/sim/public';
 import { PHASE_PLAY, PHASE_SPAWN } from '../../src/sim/public';
@@ -40,6 +39,7 @@ import {
 } from '../../tools/sim/pace';
 import { parseArgs as parseScenarioArgs, runScenario } from '../../tools/sim/scenario';
 import { SOLO_BAND } from '../../tools/sim/bands';
+import { runTsxScript } from '../helpers/nodeScripts';
 
 describe('paceMath: statistics', () => {
   it('median: the middle value, the mean of the two middle ones, one decimal, NaN for nothing; the input is not changed', () => {
@@ -460,12 +460,12 @@ describe('the report on the real world', () => {
   });
 
   it('the npm script prints the solo table (a child process)', () => {
-    const r = spawnSync('npm', ['run', '-s', 'sim:pace', '--', '--part', 'solo'], { encoding: 'utf8', cwd: process.cwd() });
+    const r = runTsxScript('sim:pace', ['--part', 'solo']);
     expect(r.status, r.stderr).toBe(0);
     expect(r.stdout).toContain('solo (land cells)');
     expect(r.stdout).toContain('RUS');
     expect(r.stdout).toContain('median');
-    const bad = spawnSync('npm', ['run', '-s', 'sim:pace', '--', '--part', 'nope'], { encoding: 'utf8' });
+    const bad = runTsxScript('sim:pace', ['--part', 'nope']);
     expect(bad.status).not.toBe(0);
     expect(bad.stderr).toMatch(/--part/);
   }, 60000);

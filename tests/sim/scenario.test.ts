@@ -1,9 +1,9 @@
 // The headless scenario runner on the real world: arguments, reproducibility, the territory curves, snapshots with territory
 // active, and the npm script.
-import { spawnSync } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
 import { deserialize, hashState, serialize } from '../../src/sim/serialize';
 import { format, parseArgs, runScenario } from '../../tools/sim/scenario';
+import { runTsxScript } from '../helpers/nodeScripts';
 import { startRealMatch } from '../helpers/realMatch';
 
 describe('sim:scenario arguments', () => {
@@ -73,11 +73,11 @@ describe('sim:scenario on the real world', () => {
   }, 120000);
 
   it('the npm script prints the table (a child process)', () => {
-    const r = spawnSync('npm', ['run', '-s', 'sim:scenario', '--', '--seed', '1', '--minutes', '1', '--players', '3', '--tribes', '2'], { encoding: 'utf8', cwd: process.cwd() });
+    const r = runTsxScript('sim:scenario', ['--seed', '1', '--minutes', '1', '--players', '3', '--tribes', '2']);
     expect(r.status, r.stderr).toBe(0);
     expect(r.stdout).toContain('sim:scenario seed=1 minutes=1 players=3 tribes=2');
     expect(r.stdout).toContain('min  1:');
-    const bad = spawnSync('npm', ['run', '-s', 'sim:scenario', '--', '--minutes', 'x'], { encoding: 'utf8' });
+    const bad = runTsxScript('sim:scenario', ['--minutes', 'x']);
     expect(bad.status).not.toBe(0);
     expect(bad.stderr).toMatch(/--minutes/);
   }, 60000);

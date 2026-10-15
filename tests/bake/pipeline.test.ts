@@ -1,5 +1,4 @@
 // Tests the bake pipeline itself on SYNTHETIC input (seeded noise and a few boxes). No network, nothing from public/data.
-import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -11,6 +10,7 @@ import { gzipDeterministic, prepareOutput, sha256, writeOutput } from '../../too
 import { syntheticInputs } from '../../tools/bake/synthetic';
 import { cleanHeights, MERC_SIZE } from '../../tools/bake/terrarium';
 import { simGridView, renderPackView } from '../../src/data/world';
+import { runTsx } from '../helpers/nodeScripts';
 
 let a: BuiltWorld;
 let b: BuiltWorld;
@@ -111,7 +111,7 @@ describe('spike removal', () => {
 
 describe('CLI guard', () => {
   it('refuses to write synthetic data anywhere but the cache folder', () => {
-    const res = spawnSync('npx', ['tsx', 'tools/bake/index.ts', '--synthetic', '--out=public/data'], { encoding: 'utf8', cwd: path.resolve(__dirname, '../..') });
+    const res = runTsx('tools/bake/index.ts', ['--synthetic', '--out=public/data']);
     expect(res.status).not.toBe(0);
     expect(res.stderr).toMatch(/--synthetic may only write to/);
   }, 30_000);

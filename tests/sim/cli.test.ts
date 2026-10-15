@@ -1,13 +1,13 @@
 // `npm run sim:run -- --seed N --ticks T` prints the hashes at ticks 1/10/100/1000/6000 and the final one.
-import { spawnSync } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
 import { format, parseArgs, run } from '../../tools/sim/run';
+import { runTsxScript } from '../helpers/nodeScripts';
 import { readGolden } from '../helpers/simGolden';
 
 describe('sim:run', () => {
   it('prints the committed golden hashes for the golden seed and 6000 ticks (the real npm script, a child process)', () => {
     const golden = readGolden();
-    const r = spawnSync('npm', ['run', '-s', 'sim:run', '--', '--seed', String(golden.seed), '--ticks', '6000', '--canary'], { encoding: 'utf8', cwd: process.cwd() });
+    const r = runTsxScript('sim:run', ['--seed', String(golden.seed), '--ticks', '6000', '--canary']);
     expect(r.status, r.stderr).toBe(0);
     const lines = r.stdout.trim().split('\n');
     for (const t of golden.ticks) expect(lines).toContain(`tick ${t}: ${golden.hashes[String(t)]}`);
@@ -37,7 +37,7 @@ describe('sim:run', () => {
     expect(() => parseArgs(['--seed'])).toThrow(/--seed/);
     expect(() => parseArgs(['--ticks', 'abc'])).toThrow(/--ticks/);
     expect(() => parseArgs(['--bogus'])).toThrow(/unknown argument/);
-    const r = spawnSync('npm', ['run', '-s', 'sim:run', '--', '--ticks', 'x'], { encoding: 'utf8' });
+    const r = runTsxScript('sim:run', ['--ticks', 'x']);
     expect(r.status).not.toBe(0);
     expect(r.stderr).toMatch(/--ticks/);
   }, 30_000);

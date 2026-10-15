@@ -3,11 +3,14 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { hasBash } from './helpers/nodeScripts';
 
 const SCRIPT = path.resolve('.claude/session-start.sh');
+// The hook is a bash script for the cloud session (Linux). Without a POSIX bash (Windows) the bash-bound tests are skipped, not failed.
+const HAS_BASH = hasBash();
 
 describe('SessionStart hook', () => {
-  it('script has valid bash syntax', () => {
+  it.skipIf(!HAS_BASH)('script has valid bash syntax', () => {
     execFileSync('bash', ['-n', '.claude/session-start.sh']);
   });
   it('settings.json registers the hook with a timeout and valid JSON', () => {
@@ -27,7 +30,7 @@ describe('SessionStart hook', () => {
 
 // Behaviour tests: run the real script against a throw-away project directory with a stub `npm`
 // first on PATH (STUB_MODE=ok installs a complete tree, STUB_MODE=fail leaves a half-written one).
-describe('SessionStart hook behaviour (stub npm)', () => {
+describe.skipIf(!HAS_BASH)('SessionStart hook behaviour (stub npm)', () => {
   let dir: string;
   let stubLog: string;
 

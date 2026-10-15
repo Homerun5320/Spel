@@ -40,6 +40,16 @@ export function chromiumArgs(env = process.env) {
   return isLocalGpu(env) ? [...LOCAL_GPU_ARGS] : [...SWIFTSHADER_ARGS];
 }
 
+/**
+ * `--local` on a CLI (npm run shots:local) means LOCAL_GPU=1 without shell syntax (cmd, PowerShell and bash all differ on `VAR=1 cmd`).
+ * Returns the arguments without the flag; sets the variable on `env` when the flag was there.
+ */
+export function applyLocalFlag(argv, env = process.env) {
+  if (!argv.includes('--local')) return argv;
+  env.LOCAL_GPU = '1';
+  return argv.filter((a) => a !== '--local');
+}
+
 /** Where a desktop Chrome or Edge usually lives, in the order they are tried. */
 export function candidateBrowserPaths(platform = process.platform, env = process.env) {
   if (platform === 'win32') {

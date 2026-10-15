@@ -15,6 +15,7 @@
     "lint": "eslint .",
     "test": "vitest run --project unit",
     "shots": "node scripts/shot.mjs",
+    "shots:local": "node scripts/shot.mjs --local",
     "artifact:pack": "node scripts/artifact-pack.mjs",
     "bake": "tsx tools/bake/index.ts",
     "bake:check": "tsx tools/bake/check.ts",

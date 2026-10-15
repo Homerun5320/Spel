@@ -3,6 +3,7 @@ export const LOCAL_GPU_ARGS: string[];
 export const MAX_E2E_WORKERS: number;
 export function isLocalGpu(env?: Record<string, string | undefined>): boolean;
 export function chromiumArgs(env?: Record<string, string | undefined>): string[];
+export function applyLocalFlag(argv: string[], env?: Record<string, string | undefined>): string[];
 export function candidateBrowserPaths(platform?: string, env?: Record<string, string | undefined>): string[];
 export function resolveLocalBrowserPath(opts: {
   env?: Record<string, string | undefined>;
