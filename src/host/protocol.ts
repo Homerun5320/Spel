@@ -82,6 +82,30 @@ export interface ViewSnapshot {
   readonly attacks: Uint16Array;
   readonly owner: Uint16Array | null;
   readonly terrain: Uint8Array | null;
+  /** The structure table (M10): always present in the answer to `requestView`; in a frame's diff only when the table changed since the last frame that carried it, else null. */
+  readonly structures: StructureSnapshot | null;
+}
+
+/**
+ * The structure table as the page sees it (M10): copies of the sim's arrays for the slots 0..highWater-1 (a free slot has owner 0), the
+ * per-owner delete cooldowns and the per-(owner, type) counts. Plain typed arrays, never a reference into the sim. The build progress is
+ * not stored: it is a function of the tick (`structureProgress` in src/host/structureMirror.ts) from `buildTick` and `readyTick`.
+ */
+export interface StructureSnapshot {
+  readonly capacity: number;
+  readonly highWater: number;
+  readonly liveCount: number;
+  readonly type: Uint8Array;
+  readonly owner: Uint16Array;
+  readonly cell: Int32Array;
+  readonly level: Uint8Array;
+  readonly buildTick: Uint32Array;
+  readonly readyTick: Uint32Array;
+  readonly upgradeReadyTick: Uint32Array;
+  /** Per ownerId: the tick from which that owner may Delete again. */
+  readonly deleteReady: Uint32Array;
+  /** Structures per (ownerId, type), index ownerId * STRUCT_TYPE_SLOTS + type. */
+  readonly counts: Uint16Array;
 }
 
 export type HostEvent =
@@ -103,7 +127,30 @@ export function cloneEvent(e: HostEvent): HostEvent {
 
 /** A deep copy of a view snapshot. */
 export function cloneView(v: ViewSnapshot): ViewSnapshot {
-  return { ...v, stats: v.stats.slice(), attacks: v.attacks.slice(), owner: v.owner === null ? null : v.owner.slice(), terrain: v.terrain === null ? null : v.terrain.slice() };
+  return {
+    ...v,
+    stats: v.stats.slice(),
+    attacks: v.attacks.slice(),
+    owner: v.owner === null ? null : v.owner.slice(),
+    terrain: v.terrain === null ? null : v.terrain.slice(),
+    structures: v.structures === null ? null : cloneStructures(v.structures),
+  };
+}
+
+/** A deep copy of a structure snapshot. */
+export function cloneStructures(s: StructureSnapshot): StructureSnapshot {
+  return {
+    ...s,
+    type: s.type.slice(),
+    owner: s.owner.slice(),
+    cell: s.cell.slice(),
+    level: s.level.slice(),
+    buildTick: s.buildTick.slice(),
+    readyTick: s.readyTick.slice(),
+    upgradeReadyTick: s.upgradeReadyTick.slice(),
+    deleteReady: s.deleteReady.slice(),
+    counts: s.counts.slice(),
+  };
 }
 
 export type HostListener = (event: HostEvent) => void;

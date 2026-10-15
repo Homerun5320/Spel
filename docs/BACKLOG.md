@@ -242,3 +242,12 @@ Everything here would shorten `verify` further; each needs a per-test reset cont
 - `PERF_ORBIT_KM` (21 500 km) and the `earth` canonical view are not run through `fitViewDistKm`: in a tall window they are cut. Only the live start view is fitted. (The perf scene host needs the window's aspect.)
 - The Himalaya wall dive (79 % at 3 km, fast pan) stays: the follower's lag over a steep slope; a look-ahead was tried and made the camera shiver (D158 (9)).
 - The last step of a long wheel dolly (14 notches from 4 000 km over open sea) lands a hair under the sea-level sphere: `viewFromPose` reads the camera from the far side (distance 11 000 km, tilt 150) and the dolly flies out and back before it settles at 300 m (before and after CamFix-2; the CamFix-2 regression only made it end wrong). A guard in `stepDolly` (never let a finishing step end under `ZOOM_MIN_AGL_M`) would make the zoom direct.
+
+
+## From M10a (slice 1: the City)
+- Factory, Port, Silo, SAM and Defense Post models (one `STRUCTURE_MODELS` entry each, the key 2 to 6 binding follows the entry), the SAM dish's rotation, the Silo hatch, the Port's pier and crane.
+- Upgrade, delete and the selection panel (level, upgrade price, delete cooldown), the range ring on hover (SAM radius, the provisional Silo ring `SILO_PREVIEW_RANGE_CELLS`).
+- Icon-quad LOD at long distances (one instanced mesh) so that the instance cap can follow the original 500 of the test tier; night lights from city levels.
+- The ghost goes red on a cell the player already sent a Build for in the same frame batch (the table is updated one diff later); Shift + click on one cell twice sends two intents and the sim refuses the second (a toast shows that).
+- The distant look: the City is a 10 px speck from 1 500 km with its pale rim as the only contrast on the owner's own colour; a flag or an outline would read better. No atmosphere haze is applied to structures.
+- `buildProgress` is drawn as height growth and a stipple; a scaffold or crane silhouette would say more.

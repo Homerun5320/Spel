@@ -9,6 +9,7 @@ import { MAX_INTENTS_PER_TURN } from '../sim/rules';
 import { deserialize, hashState, serialize } from '../sim/serialize';
 import { step, type StepFn } from '../sim/step';
 import { MAX_SEATS, type GameState } from '../sim/state';
+import { snapshotStructures, structureSignature } from './structureSnapshot';
 import { StateView, attackPairs, fillSeatStats, statsLength, type SimView } from '../sim/view';
 import { scheduledTurn } from '../sim/time';
 import { FixedStepAccumulator } from './accumulator';
@@ -23,6 +24,7 @@ import {
   type Speed,
   type StateDiff,
   type Unsubscribe,
+  type StructureSnapshot,
   type ViewSnapshot,
 } from './protocol';
 
@@ -61,6 +63,8 @@ export class MainThreadHost implements SimHost {
   /** The most recent refusal seen in the outbox (REJECT_* code and the tick of the step), for the view snapshots. */
   private lastRejectReason = 0;
   private lastRejectTick = -1;
+  /** The fingerprint of the structure table in the last diff that carried it (-1 = none yet): a diff carries the table only when it changed. */
+  private lastStructSig = -1;
   /** Reused for the statistics of every view (the snapshot gets a copy). */
   private readonly statsScratch: Uint32Array;
   private readonly driver: TickDriver | null;
@@ -207,7 +211,16 @@ export class MainThreadHost implements SimHost {
       attacks: attackPairs(s),
       owner: full ? s.owner.slice() : null,
       terrain: full ? s.terrain.slice() : null,
+      structures: full ? snapshotStructures(s.structures) : this.changedStructures(),
     };
+  }
+
+  /** The structure table when it differs from the one the last diff carried, else null (the signature costs one pass over the used slots). */
+  private changedStructures(): StructureSnapshot | null {
+    const sig = structureSignature(this.state.structures);
+    if (sig === this.lastStructSig) return null;
+    this.lastStructSig = sig;
+    return snapshotStructures(this.state.structures);
   }
 
   requestView(): Promise<ViewSnapshot> {

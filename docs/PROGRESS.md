@@ -24,6 +24,19 @@ Resume: Läs CLAUDE.md och docs/PROGRESS.md, kör git log -10 och npm run verify
 
 ## Now
 
+### M10a: the City on the terrain, placement mode, build bar, toasts (slice 1 of M10; one builder in its own worktree; the orchestrator owns merging, pushing, the pull request and the Artifact)
+
+Base: 1c51073 (branch worktree-wf_65782ab4-761-1). Previous merge SHA unchanged (nothing is merged). Slice: ONLY the City, with infrastructure the other five types plug into (D-M10a-1).
+
+- [x] 1. Snapshot: the structure table in `ViewSnapshot.structures` (copied typed arrays, sent when changed), `MirrorStructures` in `ViewMirror` (validateBuild and the price work on the mirror)
+- [x] 2. Render: `STRUCTURE_MODELS` registry, `StructureLayer` (one instanced mesh per type, owner colour, level scale, groundHeightAt, globe normal, hi / lo position), City model, scale policy, pop-in, construction look
+- [x] 3. Placement: key 1 / button -> input mode, ghost (green / red by `validateBuild`), click sends Build, Shift keeps the mode, Esc / right click leave it
+- [x] 4. `src/ui/toast.ts` (max 3, fx clock), toast on a red click
+- [x] 5. i18n sv + en, data-testid everywhere, `__test.props()`, `state().structures`
+- [x] 6. Docs: ARCHITECTURE rows, Budgetar row, DECISIONS, BACKLOG
+- [x] ACCEPTANS: unit `tests/host/structureSnapshot.test.ts`, `tests/app/placement.test.ts`, `tests/render/structureModels.test.ts`; e2e `e2e/structures.test.ts` (key 1 + click builds, price 400 -> 600, count +1 past the build time, ghost red with the Peak and spacing reasons, toast key, Esc, heights vs `groundHeightAt`, draw calls <= 2, close-up golden `structures-city.png`); `npm run verify:fast` green (the full `verify` is the orchestrator's)
+- Not in this slice (BACKLOG): Factory, Port, Silo, SAM, Post models and keys 2 to 6, upgrade / delete / selection panel, icon-quad LOD, night lights, range rings.
+
 ### AutoTier-1: default tier by graphics card class and an honest tip (one small part; the orchestrator owns pushing, the pull request and the Artifact)
 
 Previous merge SHA (origin/main at start): f29121a8d1607ca169e6675b5f22a52d76c42ef7 (unchanged; nothing is merged). CamFix is Done on this branch. Adaptive resolution is AutoTier-2 (BACKLOG), not built here.
