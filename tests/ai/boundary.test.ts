@@ -187,6 +187,7 @@ describe('types: what src/sim/public.ts lets the AI reach', () => {
         'cancelAttackBody',
         'createRng',
         'deleteBody',
+        'hasFinishedFactory',
         'isPlayableClass',
         'nextBelow',
         'nextU32',

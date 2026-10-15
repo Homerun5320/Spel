@@ -41,6 +41,7 @@ export {
   STRUCT_SILO,
   buildPriceGold,
   buildPriceMilli,
+  hasFinishedFactory,
   upgradePriceGold,
   validateBuild,
 } from './structureRules';

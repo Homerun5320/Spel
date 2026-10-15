@@ -9,7 +9,7 @@
 // palette or the exaggeration changed.
 import { DoubleSide, DynamicDrawUsage, BufferAttribute, InstancedBufferAttribute, InstancedBufferGeometry, Mesh, ShaderMaterial, Vector3, Vector4 } from 'three';
 import type { StructureView } from '../sim/public';
-import { EARTH_RADIUS_KM, GHOST_ALPHA, GHOST_BAD_RGB, GHOST_MIX, GHOST_OK_RGB, HEIGHT_EXAGGERATION, STRUCT_BUILD_MIN_HEIGHT, STRUCT_LEVEL_SCALE, STRUCT_MAX_SCALE, STRUCT_POP_SECONDS, STRUCT_SCREEN_FRAC, STRUCT_TRIANGLE_BUDGET, AMBIENT_DAY, AMBIENT_NIGHT, SUN_COLOR } from './config';
+import { EARTH_RADIUS_KM, GHOST_ALPHA, GHOST_BAD_RGB, GHOST_MIX, GHOST_OK_RGB, HEIGHT_EXAGGERATION, STRUCT_BUILD_MIN_HEIGHT, STRUCT_DISH_RAD_PER_SEC, STRUCT_LEVEL_SCALE, STRUCT_MAX_SCALE, STRUCT_POP_SECONDS, STRUCT_SCREEN_FRAC, STRUCT_TRIANGLE_BUDGET, AMBIENT_DAY, AMBIENT_NIGHT, SUN_COLOR } from './config';
 import { latLonToVec } from './geo';
 import type { QualityTier } from './quality';
 import { STRUCTURE_MODELS, modelledTypes, type ModelData } from './structureModels';
@@ -129,6 +129,7 @@ export class StructureLayer {
       uTick: { value: 0 },
       uPopSeconds: { value: STRUCT_POP_SECONDS },
       uBuildMin: { value: STRUCT_BUILD_MIN_HEIGHT },
+      uSpin: { value: 0 },
       uSun: { value: o.sun },
       uSunColor: { value: v4(SUN_COLOR) },
       uAmbientDay: { value: v4(AMBIENT_DAY) },
@@ -242,6 +243,7 @@ export class StructureLayer {
     (this.uniforms.uTime as { value: number }).value = fxTime;
     (this.uniforms.uTick as { value: number }).value = tickFraction;
     this.fxTime = fxTime;
+    (this.uniforms.uSpin as { value: number }).value = (fxTime * STRUCT_DISH_RAD_PER_SEC) % (Math.PI * 2); // the SAM dish angle: one scalar, the rest is vertex-shader work
     if (this.dirty) this.rebuild();
   }
 
@@ -319,12 +321,14 @@ export class StructureLayer {
     if (g === null || !this.layers.has(type)) return;
     if (g.type === type && g.cell === cell && g.ok === ok && g.mesh.visible) return;
     if (g.type !== type) {
-      // the ghost shows the model of the type being placed: share that type's vertex buffers (no copy) and its size
-      const l = this.layers.get(type) as TypeLayer;
-      g.geometry.setAttribute('position', l.geometry.getAttribute('position'));
-      g.geometry.setAttribute('aColor', l.geometry.getAttribute('aColor'));
-      g.geometry.setAttribute('aTint', l.geometry.getAttribute('aTint'));
-      (g.material.uniforms.uSizeM as { value: number }).value = STRUCTURE_MODELS[type]?.radiusM ?? 700;
+      // the ghost wears the model of the type being placed (the attributes are shared, not copied; the draw count follows the position attribute)
+      const src = this.layers.get(type);
+      if (src !== undefined) {
+        g.geometry.setAttribute('position', src.geometry.getAttribute('position'));
+        g.geometry.setAttribute('aColor', src.geometry.getAttribute('aColor'));
+        g.geometry.setAttribute('aTint', src.geometry.getAttribute('aTint'));
+        (g.material.uniforms.uSizeM as { value: number }).value = STRUCTURE_MODELS[type]?.radiusM ?? 700;
+      }
     }
     g.type = type;
     g.cell = cell;

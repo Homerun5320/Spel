@@ -256,3 +256,8 @@ Everything here would shorten `verify` further; each needs a per-test reset cont
 - The Factory hall is partly hidden behind its chimneys from some angles (the yaw is pseudo-random): a larger hall or a fixed front would read better. The Port's pier is only about 0.45 of the model radius long over the water; a ship beside it would sell the coast.
 - The seaward test treats `groundHeightAt <= 0` as sea; a low coastal flat at exactly 0 m counts as sea. A coast direction from the sim's terrain class (water neighbours) would be exact but is not in the snapshot.
 - The ghost of a Port could show a small arrow or the coast cells that are valid.
+## From M10-3 (slice 3: Silo, SAM site, Defense Post)
+- The Silo's missile is cut by the top of the close-up crop in the golden sheet; a taller crop or a lower pitch would show it whole.
+- The Silo and SAM have no range ring yet (SAM radius from the sim, the provisional Silo ring), no launch or firing animation (M14), no night lights.
+- The Defense Post wall ring and the Silo pad are decoration; a level-dependent look (a second tower at level 3) would make an upgrade visible.
+- A heavier test of the dish at orbit distances: from far away the scale policy makes all three types the same speck; the icon LOD is what would tell them apart.

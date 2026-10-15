@@ -781,6 +781,16 @@ Previous merge SHA (origin/main at start): not recorded by this builder (nothing
 - [x] 5. Words: the mountain camera is "calm over the Alps; dives up to 79 % at the Himalaya wall" in PROGRESS, PREVIEW, DECISIONS and the test name
 - [x] ACCEPTANS: `tests/render/camFix2.test.ts` fails on the code before (16 of 25) and passes after; `npm run verify:fast` green (see the result below)
 
+### M10-3: Silo, SAM site and Defense Post on the terrain (slice 3 of M10; own worktree; the orchestrator owns merging, pushing and the Artifact)
+
+Base: 3d1a2bd. Slice: ONLY the three military models, buttons and keys 4 to 6. Factory and Port are slice M10-2 (another builder).
+
+- [x] 1. Models in `STRUCTURE_MODELS`: Silo (bunker, V hatch, pad with a standing missile), SAM site (pedestal, two launcher tubes, mast with a turning dish), Defense Post (slim tower with flag in a wall ring); each at most 250 triangles, owner-coloured base
+- [x] 2. The SAM dish turns in the vertex shader (one scalar uniform from the fx clock, the instance yaw is the phase)
+- [x] 3. Build bar buttons 4 / 5 / 6 (sim prices, dimmed state, Silo locked until a finished own Factory), keys 4 to 6 through `InputTarget.build`, the ghost wears the model of the type, the bar wraps (landscape and portrait)
+- [x] 4. i18n sv + en (`hud.build.silo|sam|post`, `*Tip`, `tooPoorOf`, `needFactory`); the `toast.build.*` keys already covered every reason these types can hit
+- [x] ACCEPTANS: `tests/render/structureModelsMilitary.test.ts`; `e2e/structuresMilitary.test.ts` (key 6 + click, price 250 -> 375; key 4 red with the Factory toast; key 5 on a Mountain ridge cell builds; heights within 1 m; draw calls; dish differs one sun day apart while the Post does not; bar fits 960x540 and 540x960; golden `structures-military.png`); `npm run verify:fast` unit part green apart from machine-load timeouts (see the report)
+
 ## Next
 
 - CamFix is built (D158); the user looks at it in the Artifact (PREVIEW 17aa) in their own window shape. Then the M08 gate items below stand as before.
