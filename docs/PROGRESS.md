@@ -20,6 +20,18 @@ Resume: Läs CLAUDE.md och docs/PROGRESS.md, kör git log -10 och npm run verify
 
 ## Now
 
+### M07b audit pass (D154): eight findings of the independent audit, fixed or answered with evidence (one session; the orchestrator owns pushing, the pull request and the Artifact)
+
+- [x] A1. LOD pop: reproduced (5.30 % and 7.95 % at the two leaf-set changes), the cause is the camera (AGL stepping over 12x detailed ground moves it by kilometres), proved with a fixed camera and two tree states; `e2e/lodPop.test.ts` (fixed-camera swaps, 0.2 % path), `tests/render/lodSwap.test.ts` (the geometric pop in pixels with a level-only control); a geomorph was built, measured (no pixel benefit) and removed, numbers in D154 (1) and BACKLOG
+- [x] A2. Relief rule: literal second implementation, flat land exactly 100 m, GLSL relief read back (`probeRelief`); mutants M14, M15 (TS and GLSL) killed
+- [x] A3. Polar rule, southern hemisphere, antimeridian: unit and e2e (twelve regions), M24 and M41 killed
+- [x] A4. Glacier rule and boreal tone: real shader statements evaluated, Greenland and boreal e2e views; S06, S13, B32 killed
+- [x] A5. Height contract for M08: `seenHeightAt`, `lastSeenOctaves`, the criterion in D154 (5) and ARCHITECTURE "Rules for layers" (4)
+- [x] A6. Executed fragment cost (`executedCost`), pinned: orbit +2.9 %, ground +14.5 % over M07a; PREVIEW 17w (6) reworded; `#mottle-0`
+- [x] A7. Run-time levers: `setDetailBias`, `setFineDetail`, `setChunkDensity`, `setOctaveLimit`; e2e and unit tests
+- [x] A8. `verify` over budget: the charter is verbatim and untouched; the plan is the first task of M08 (see Next); the numbers are in D154 (8)
+- [x] No picture changed: no golden was regenerated; `npm run verify:fast` and `npm run verify` green (12:23 on this sandbox, e2e 10:40; D154 (8))
+
 ### M07b Terrain LOD B: detail height, slope / snow / forest / beach shading, goldens (USER GATE) - three sessions: Part A (items 1, 2, 3 and their tests), Part B (item 4 and the four visual debts), Part C (item 5, goldens, finish). The orchestrator owns pushing, the pull request and the Artifact.
 
 Previous merge SHA (origin/main at start): f29121a8d1607ca169e6675b5f22a52d76c42ef7 (unchanged; nothing is merged, M00 to M07a, Tempo and TestSpeed live on this branch and in draft pull request #1; the precondition "M07a is merged" is treated as satisfied because this file lists M07a as Done). `npm ci` was already in place and `npm run verify:fast` was green at the start (137 files / 1549 tests). User feedback to respect: a steady 30 fps at the default medium tier on a real GPU, so the default tier must not get more expensive per pixel: the noise detail goes into the VERTEX path and the fragment shading stays cheap (Budgetar notes carry renderer.info and an instruction-count proxy before / after).
@@ -625,6 +637,8 @@ ACCEPTANS
 - [ ] The spike is published as an Artifact (or the local-run guide is complete); the reply ends with the question: syns klotet?
 
 ## Next
+
+- M08, FIRST TASK before anything else (D154 (8), BACKLOG): bring `npm run verify` back under 8 minutes (it is about 10 on the 4-core sandbox) and `verify:fast` under 2: read the per-file times of the e2e summary of a verify run, then the options listed in D154 (8); every threshold or golden that moves is stated in DECISIONS. M08's pick acceptance is "hit radius equals `seenRadius` within 0.05 m, and `groundHeightAt(lat, lon, octaves of the distance law)` equals the hit height" (D154 (5)), not "within 2 m of `groundHeightAt`".
 
 - M07a Part B (items 4 and 7): see "Now". Read D133 and D134 of `docs/DECISIONS.md`, the chunk rows of `docs/ARCHITECTURE.md` and the "Chunk-terräng mot det fasta nätet" table first. Then Part C (goldens, finish). The goldens of `e2e/looks.test.ts` and the M05 / M06 golden tests that render the globe fail until Part C regenerates them (D134).
 
