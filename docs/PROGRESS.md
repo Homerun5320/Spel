@@ -935,6 +935,8 @@ Base: 9c7ce89 (branch worktree-wf_359cefa4-9ed-1). Nothing is merged to main; no
 - M07a part A: from 300 m above a coast the surface under the sea pixels next to the land is raised (a wedge of water), D133 (7) and `docs/BACKLOG.md`.
 - TestSpeed (D144): `LOCAL_GPU=1` and `docs/LOCAL.md` are untested on a real GPU and on Windows (the plumbing is unit-tested). The 8-minute budget of `verify` is met with a margin of about 10 s on the 4-core sandbox at 100 % CPU; the next milestone that adds browser frames can push it over (D144 (8), BACKLOG "TestSpeed ideas not built"). One sleep stays on purpose (`e2e/globe.test.ts`: nothing renders by itself during 400 ms of wall clock).
 
+- M11a STOP RULE FIRED (Himalaya cap and Plains ratio, `docs/DECISIONS.md` "M11a"). Measured, Low, R = 24, EXAG 8, weight 60 %: Alps 14.2 %, Himalaya 25.2 % (required <= 20), Plains median 21.8 % over Kansas, Iowa, Ukraine, Pampas, Australia (required >= 2 x Alps = 28.4 and >= 15); agreement 87.7 to 92.1 %, zero one-sided errors, mask hides 87 to 89 % of what the exact line hides. Four rounds in the allowed ranges (8/60, 10/60, 6/60, 7/50) never got the Himalaya site under 24.8 %. Options for the owner: A: keep the zero-error rule but lower the agreement 85 % to 78 % and the Plains requirement to 12 % (does NOT fix the Himalaya cap: it stays 25 %); B: raise `OCCLUDER_MAX_WEIGHT_PCT` above 60 up to 80 (measured: weight 70 gives Alps 1.2, Himalaya 22.6, Plains median 17.6; weight 80 gives 0.8, 21.3, 14.4: the Himalaya cap is still missed and at 80 the Plains median drops under 15 %); C: build the mask on the 2048x1024 grid only for LOS (needs a new grid decision; a finer grid separates a valley floor from its ridge, which is what keeps the Himalaya site open at 39 km cells). Recommendation: C, because A and B do not reach the Himalaya cap and the cause is the 39 km cell (the site cell's own mean is in a valley that the max-weighted neighbours rim). Start a new session with the template, the whole M11a prompt and a last line "Beslut: A|B|C".
+
 ## Skipped
 
 (none)
@@ -1139,3 +1141,32 @@ Base: 3d1a2bd (branch worktree-wf_18008882-291-1). Slice: ONLY the Factory (key 
 - [x] 3. i18n sv + en (`hud.build.factory*`, `hud.build.port*`; the `toast.build.*` keys already covered every reason)
 - [x] ACCEPTANS: unit `tests/render/structureModelsFactoryPort.test.ts`; e2e `e2e/structuresFactoryPort.test.ts` (key 2 + click builds, the price goes up, key 3 inland is red with the Port reason and a toast, key 3 on a coast cell builds, the pier points to the water, heights within 1 m of `groundHeightAt`, draw calls within 10, six buttons fit 540 x 960, golden `structures-factory-port.png`); `npm run verify:fast` green; the full `verify` is the orchestrator's
 - Not in this slice: Silo, SAM, Post (M10-3), upgrade / delete / selection panel, icon LOD, night lights.
+
+### M11a: mountain-aware radar, LOS masks, composite coverage and exposure queries (headless; one builder in its own worktree; the orchestrator owns merging, pushing and the pull request). STOP RULE FIRED, see Known issues.
+
+GÖR and ACCEPTANS:
+- [x] 1. `src/sim/los` (terrain heights in game metres, the occluder weight, the per-site mask-altitude field, O(1) visibility test): `src/sim/los/terrain.ts`, `src/sim/los/mask.ts`
+- [x] 2. Composite coverage per owner over all SAM sites, 64x64 tiles allocated on demand, lazy rebuild on a changed site set (a signature, no hook, no hashed state, nothing after deserialize): `src/sim/los/cache.ts`
+- [x] 3. Exposure queries exported from `src/sim/public.ts`: `exposure`, `isExposed`, `fireControlExposed`, `ALT_MODE_*`, `EXPOSED_*` (pinned in `tests/ai/boundary.test.ts`)
+- [x] 4. Defense Post: finished Post radius always exposes, both modes
+- [x] 5. Constants in `src/sim/rules.ts` with `docs/BALANCE.md` rows (ten)
+- [x] ACCEPTANS mask against the exact line: >= 85 % (87.7 to 92.1 %), ZERO mask-hidden-but-line-visible cells (eight sites), the mask hides >= 60 % of what the line hides (87 to 89 %): `tests/sim/losReal.test.ts`
+- [ ] ACCEPTANS shares: Alps <= 20 % met (14.2), High >= Low met; Himalaya <= 20 % NOT met (25.2), Plains >= 2x Alps NOT met (median 21.8 against 28.4); both kept as `it.fails` tests
+- [x] ACCEPTANS wall, Post, SAM outside the radius, wrap, lazy rebuild counters, <= 4 tiles at R=24, fire control: `tests/sim/los.test.ts`
+- [x] ACCEPTANS performance: `tests/los.perf.test.ts` (mask R=24 <= budgetMs(0.5), R=64 <= budgetMs(2), 200 sites R=24 <= budgetMs(150), 1000 synced queries)
+- [ ] ACCEPTANS hashes equal in Node and Chromium: pinned in Node, the Chromium run was not done (no Chromium in this slice)
+- Not run here: the full `npm run verify` (the orchestrator runs it once after the merge). `npm run verify:fast` result below.
+
+## Measurements M11a (logged by `tests/sim/losReal.test.ts`, `tests/sim/losRounds.test.ts`, `tests/los.perf.test.ts`; EXAG 8, weight 60 %, R = 24, Low = 300 m above ground)
+
+| site | agreement with the exact line | mask hidden, line visible | mask hides of what the line hides | visible land Low | visible land High |
+|------|------|------|------|------|------|
+| Alps 46.5N 9.5E | 87.7 % | 0 | 87.4 % | 14.2 % | 100 % |
+| Himalaya 27.7N 85.3E | 91.4 % | 0 | 89.4 % | 25.2 % | 100 % |
+| Great Plains (Kansas) 38.5N 98W | 89.7 % | 0 | 88.4 % | 21.8 % | 100 % |
+| Iowa | 91.6 % | 0 | - | 20.2 % | 100 % |
+| Ukraine | 89.3 % | 0 | - | 37.3 % | 100 % |
+| Pampas | 92.1 % | 0 | - | 57.8 % | 100 % |
+| Australia | 90.8 % | 0 | - | 21.4 % | 100 % |
+
+Plains median Low (Kansas, Iowa, Ukraine, Pampas, Australia): 21.8 %. Rounds of EXAG / weight: see D-block "M11a" in `docs/DECISIONS.md` item 6. Mask build medians in the cloud sandbox (perfguard factor about 1.1): R = 24 about 0.4 ms, R = 64 about 1.8 ms, 200 sites at R = 24 about 80 ms, 1000 synced queries on 100 sites about 1.1 ms.

@@ -181,3 +181,7 @@ export {
   WIN_HOLD_TICKS,
   WIN_LAND_SHARE_PCT,
 } from './rules';
+
+// M11a (append-only): the exposure queries of the line-of-sight cache (src/sim/los). Read-only: the host builds a Los from the elevation layers and hands it in.
+export { ALT_MODE_HIGH, ALT_MODE_LOW, EXPOSED_DETECTED, EXPOSED_NONE, EXPOSED_POST, type AltMode, type Los, type LosSource } from './los/cache';
+export { exposure, fireControlExposed, isExposed } from './los/exposure';

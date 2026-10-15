@@ -343,3 +343,12 @@ Not done in the Fix-UI slice (the sim, host and AI findings belong to Fix-Sim):
 - The automatic start position for a human who did not choose is not needed while `createMatch` places everybody at tick 0; if a "choose your start" mode returns, it needs a seeded sim rule at the end of the spawn phase.
 - Allies or pacts sharing a win, a draw by mutual agreement, a "no winner" screen for `WIN_REASON_NONE` (everybody eliminated at once).
 - Outbox events (`OUTBOX_ELIMINATED`, `OUTBOX_CAPITAL_LOST`, `OUTBOX_MATCH_END`) do not cross the host seam as events; the page reads the flags in `SimView.match` and detects the transitions (capital lost / eliminated) by comparing two frames.
+
+
+## M11a leftovers
+- The owner's decision on the stop rule (A, B or C, see Known issues in `docs/PROGRESS.md`), then re-pin `tests/sim/losReal.test.ts` and turn the two `it.fails` into plain tests.
+- The Node-versus-Chromium equality of the result hashes (an e2e that builds the masks of the three fixtures in the page and compares the three hashes with the pinned ones). The page needs the SIM pack's mean and max layers; `tools/sim/losWorld.ts` is the Node loader, the browser loader belongs to M11b.
+- M11b: the nav grid, the flight-mode table, the debug page, the service ceiling that reads `ALT_HIGH_AGL_M`, and a `Los` built by the host (worker or page) from `simGridView(...)` with `createLosTerrain`.
+- Fire control of a Silo or of a radar structure type: `Los.sync` knows only SAM sites (type 5) and Posts; a radar type needs one line in `sync`.
+- Sub-cell accuracy: a second pass that tries the exact half-cell line for the cells where the two estimates differ by more than the slack, if the slack should shrink.
+- A mask per OWNER-wide union exists (composite); a "who sees this cell" listing for several enemy seats is a loop over seats, not a structure.
