@@ -376,7 +376,7 @@ export function cityLights(): ModelData {
     const a = ((n - 1) / CITY_LIGHT_COUNT) * Math.PI * 2 + 0.5;
     const cx = Math.cos(a) * 0.52;
     const cz = Math.sin(a) * 0.52;
-    const r = 0.11;
+    const r = 0.08;
     const y = 0.5;
     const top: Rgb = [cx, y + r, cz];
     const bot: Rgb = [cx, y - r, cz];
