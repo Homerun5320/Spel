@@ -4,13 +4,13 @@
 // Every intent has a seat (0-based) and an id (unsigned 32 bit, unique per seat, handed out by an IdAllocator).
 // Inside one turn intents run in the canonical order (seat, id, kind, payload); the id is the tie-break between the
 // intents of one seat, so the result never depends on the order in which they arrived.
-import { STRUCT_CAPACITY } from './rules';
+import { DISTRICT_MAX_SLOTS, STRUCT_CAPACITY } from './rules';
 import { MAX_SEATS } from './state';
 
-export type IntentKind = 'Noop' | 'DebugPaint' | 'Spawn' | 'Attack' | 'CancelAttack' | 'DebugGive' | 'Build' | 'Upgrade' | 'Delete';
+export type IntentKind = 'Noop' | 'DebugPaint' | 'Spawn' | 'Attack' | 'CancelAttack' | 'DebugGive' | 'Build' | 'Upgrade' | 'Delete' | 'BuildDistrict' | 'UpgradeDistrict' | 'RemoveDistrict';
 
 /** The intent kinds in wire order (the index is the kind byte of the codec). Append only: a published code never changes meaning. */
-export const INTENT_KINDS: readonly IntentKind[] = ['Noop', 'DebugPaint', 'Spawn', 'Attack', 'CancelAttack', 'DebugGive', 'Build', 'Upgrade', 'Delete'];
+export const INTENT_KINDS: readonly IntentKind[] = ['Noop', 'DebugPaint', 'Spawn', 'Attack', 'CancelAttack', 'DebugGive', 'Build', 'Upgrade', 'Delete', 'BuildDistrict', 'UpgradeDistrict', 'RemoveDistrict'];
 
 /** Does nothing; valid for any seat. Exists to prove the pipeline (and as the heartbeat of a lockstep client). */
 export interface NoopBody {
@@ -101,8 +101,33 @@ export interface DeleteBody {
   readonly structure: number;
 }
 
+/** A seat builds a district of `kind` (1 Housing, 2 Market, 3 Barracks, 4 Walls: src/sim/districtRules.ts) in slot `slot` of its City `structure` (a table id). The price is taken at once; the district works when its build time has run out. */
+export interface BuildDistrictBody {
+  readonly kind: 'BuildDistrict';
+  readonly seat: number;
+  readonly structure: number;
+  readonly slot: number;
+  readonly districtKind: number;
+}
+
+/** A seat upgrades the district in slot `slot` of its City `structure` one level (price base * new level, taken at once). */
+export interface UpgradeDistrictBody {
+  readonly kind: 'UpgradeDistrict';
+  readonly seat: number;
+  readonly structure: number;
+  readonly slot: number;
+}
+
+/** A seat removes the district in slot `slot` of its City `structure`; nothing is refunded and the seat's Delete cooldown starts (the same one as a structure Delete). */
+export interface RemoveDistrictBody {
+  readonly kind: 'RemoveDistrict';
+  readonly seat: number;
+  readonly structure: number;
+  readonly slot: number;
+}
+
 /** An intent before it has an id (what the UI submits to a host). */
-export type IntentBody = NoopBody | DebugPaintBody | SpawnBody | AttackBody | CancelAttackBody | DebugGiveBody | BuildBody | UpgradeBody | DeleteBody;
+export type IntentBody = NoopBody | DebugPaintBody | SpawnBody | AttackBody | CancelAttackBody | DebugGiveBody | BuildBody | UpgradeBody | DeleteBody | BuildDistrictBody | UpgradeDistrictBody | RemoveDistrictBody;
 
 export type Intent = IntentBody & { readonly id: number };
 
@@ -124,6 +149,15 @@ export function upgradeBody(seat: number, structure: number): UpgradeBody {
 }
 export function deleteBody(seat: number, structure: number): DeleteBody {
   return { kind: 'Delete', seat, structure };
+}
+export function buildDistrictBody(seat: number, structure: number, slot: number, districtKind: number): BuildDistrictBody {
+  return { kind: 'BuildDistrict', seat, structure, slot, districtKind };
+}
+export function upgradeDistrictBody(seat: number, structure: number, slot: number): UpgradeDistrictBody {
+  return { kind: 'UpgradeDistrict', seat, structure, slot };
+}
+export function removeDistrictBody(seat: number, structure: number, slot: number): RemoveDistrictBody {
+  return { kind: 'RemoveDistrict', seat, structure, slot };
 }
 
 /** The intents of one turn: all intents that run in the step that starts at tick `turn`. */
@@ -203,6 +237,18 @@ export const REJECT_STRUCT_MAX_LEVEL = 36;
 export const REJECT_STRUCT_BUSY = 37;
 /** Delete inside the seat's Delete cooldown. */
 export const REJECT_DELETE_COOLDOWN = 38;
+/** District intent on a structure that is not a City. */
+export const REJECT_DISTRICT_NOT_CITY = 39;
+/** District intent on a slot the City's level does not have (or a slot number outside 0..DISTRICT_MAX_SLOTS - 1). */
+export const REJECT_DISTRICT_SLOT = 40;
+/** BuildDistrict on a slot that holds a district. */
+export const REJECT_DISTRICT_OCCUPIED = 41;
+/** UpgradeDistrict / RemoveDistrict on an empty slot. */
+export const REJECT_DISTRICT_EMPTY = 42;
+/** BuildDistrict of a kind that is not 1..4. */
+export const REJECT_DISTRICT_KIND = 43;
+/** BuildDistrict in a City that is still being built. */
+export const REJECT_DISTRICT_CITY_BUILDING = 44;
 
 export interface ValidateContext {
   readonly seats: number;
@@ -223,7 +269,7 @@ function isIntegerIn(v: unknown, lo: number, hi: number): boolean {
 /** Why an intent is not valid in this match (REJECT_*), or REJECT_NONE. Total: any value whatsoever may be passed in. */
 export function validateIntent(x: unknown, ctx: ValidateContext): number {
   if (typeof x !== 'object' || x === null) return REJECT_SHAPE;
-  const o = x as { kind?: unknown; seat?: unknown; id?: unknown; cell?: unknown; target?: unknown; pct?: unknown; gold?: unknown; troops?: unknown; type?: unknown; structure?: unknown };
+  const o = x as { kind?: unknown; seat?: unknown; id?: unknown; cell?: unknown; target?: unknown; pct?: unknown; gold?: unknown; troops?: unknown; type?: unknown; structure?: unknown; slot?: unknown; districtKind?: unknown };
   const code = kindCode(o.kind);
   if (code < 0) return REJECT_KIND;
   if (!isIntegerIn(o.seat, 0, MAX_SEATS - 1) || (o.seat as number) >= ctx.seats) return REJECT_SEAT;
@@ -246,6 +292,10 @@ export function validateIntent(x: unknown, ctx: ValidateContext): number {
     if (!isIntegerIn(o.cell, 0, ctx.cells - 1)) return REJECT_CELL;
   } else if (o.kind === 'Upgrade' || o.kind === 'Delete') {
     if (!isIntegerIn(o.structure, 0, STRUCT_CAPACITY - 1)) return REJECT_STRUCT_ID;
+  } else if (o.kind === 'BuildDistrict' || o.kind === 'UpgradeDistrict' || o.kind === 'RemoveDistrict') {
+    if (!isIntegerIn(o.structure, 0, STRUCT_CAPACITY - 1)) return REJECT_STRUCT_ID;
+    if (!isIntegerIn(o.slot, 0, DISTRICT_MAX_SLOTS - 1)) return REJECT_DISTRICT_SLOT;
+    if (o.kind === 'BuildDistrict' && !isIntegerIn(o.districtKind, 1, 4)) return REJECT_DISTRICT_KIND;
   }
   return REJECT_NONE;
 }
@@ -259,6 +309,13 @@ function comparePayload(a: Intent, b: Intent): number {
   if (a.kind === 'DebugGive' && b.kind === 'DebugGive') return a.gold !== b.gold ? a.gold - b.gold : a.troops - b.troops;
   if (a.kind === 'Build' && b.kind === 'Build') return a.type !== b.type ? a.type - b.type : a.cell - b.cell;
   if ((a.kind === 'Upgrade' && b.kind === 'Upgrade') || (a.kind === 'Delete' && b.kind === 'Delete')) return a.structure - b.structure;
+  if (a.kind === 'BuildDistrict' && b.kind === 'BuildDistrict') {
+    if (a.structure !== b.structure) return a.structure - b.structure;
+    return a.slot !== b.slot ? a.slot - b.slot : a.districtKind - b.districtKind;
+  }
+  if ((a.kind === 'UpgradeDistrict' && b.kind === 'UpgradeDistrict') || (a.kind === 'RemoveDistrict' && b.kind === 'RemoveDistrict')) {
+    return a.structure !== b.structure ? a.structure - b.structure : a.slot - b.slot;
+  }
   return 0;
 }
 
@@ -282,7 +339,7 @@ export const INVALID_BODY: IntentBody = Object.freeze({ kind: 'Noop', seat: -1 }
  */
 export function copyBody(x: unknown): IntentBody {
   if (typeof x !== 'object' || x === null) return INVALID_BODY;
-  const o = x as { kind?: unknown; seat?: unknown; cell?: unknown; target?: unknown; pct?: unknown; gold?: unknown; troops?: unknown; type?: unknown; structure?: unknown };
+  const o = x as { kind?: unknown; seat?: unknown; cell?: unknown; target?: unknown; pct?: unknown; gold?: unknown; troops?: unknown; type?: unknown; structure?: unknown; slot?: unknown; districtKind?: unknown };
   const seat = typeof o.seat === 'number' ? o.seat : -1;
   if (o.kind === 'Noop') return { kind: 'Noop', seat };
   if (o.kind === 'DebugPaint') return { kind: 'DebugPaint', seat, cell: typeof o.cell === 'number' ? o.cell : -1 };
@@ -293,6 +350,10 @@ export function copyBody(x: unknown): IntentBody {
   if (o.kind === 'Build') return { kind: 'Build', seat, type: typeof o.type === 'number' ? o.type : -1, cell: typeof o.cell === 'number' ? o.cell : -1 };
   if (o.kind === 'Upgrade') return { kind: 'Upgrade', seat, structure: typeof o.structure === 'number' ? o.structure : -1 };
   if (o.kind === 'Delete') return { kind: 'Delete', seat, structure: typeof o.structure === 'number' ? o.structure : -1 };
+  const num = (v: unknown): number => (typeof v === 'number' ? v : -1);
+  if (o.kind === 'BuildDistrict') return { kind: 'BuildDistrict', seat, structure: num(o.structure), slot: num(o.slot), districtKind: num(o.districtKind) };
+  if (o.kind === 'UpgradeDistrict') return { kind: 'UpgradeDistrict', seat, structure: num(o.structure), slot: num(o.slot) };
+  if (o.kind === 'RemoveDistrict') return { kind: 'RemoveDistrict', seat, structure: num(o.structure), slot: num(o.slot) };
   return INVALID_BODY;
 }
 
@@ -315,6 +376,12 @@ export function withId(body: IntentBody, id: number): Intent {
       return { kind: 'Upgrade', seat: body.seat, structure: body.structure, id };
     case 'Delete':
       return { kind: 'Delete', seat: body.seat, structure: body.structure, id };
+    case 'BuildDistrict':
+      return { kind: 'BuildDistrict', seat: body.seat, structure: body.structure, slot: body.slot, districtKind: body.districtKind, id };
+    case 'UpgradeDistrict':
+      return { kind: 'UpgradeDistrict', seat: body.seat, structure: body.structure, slot: body.slot, id };
+    case 'RemoveDistrict':
+      return { kind: 'RemoveDistrict', seat: body.seat, structure: body.structure, slot: body.slot, id };
     default:
       return { kind: 'Noop', seat: body.seat, id };
   }

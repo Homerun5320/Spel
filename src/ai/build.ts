@@ -12,7 +12,24 @@ import {
   AI_BUILD_RICH_PCT,
   AI_BUILD_TRIES,
   AI_BUILD_WINDOW_CELLS,
+  AI_DISTRICT_MIN_CITIES,
+  AI_DISTRICT_RETRY_TICKS,
   AI_THINK_PERIOD_TICKS,
+  DISTRICT_BARRACKS,
+  DISTRICT_BASE_GOLD,
+  DISTRICT_HOUSING,
+  DISTRICT_MARKET,
+  DISTRICT_MAX_LEVEL,
+  DISTRICT_MAX_SLOTS,
+  DISTRICT_WALLS,
+  districtBuildPriceMilli,
+  districtIndex,
+  districtSlotsOf,
+  districtUpgradePriceGold,
+  validateBuildDistrict,
+  validateUpgradeDistrict,
+  buildDistrictBody,
+  upgradeDistrictBody,
   PHASE_SPAWN,
   REJECT_NONE,
   STRUCT_CITY,
@@ -93,6 +110,57 @@ function richUpgrade(view: SimView, owner: number, goldMilli: number): number {
   return best;
 }
 
+/** The kind a free slot gets, by slot number: Market, Housing, Barracks, Walls. */
+const DISTRICT_ORDER = [DISTRICT_MARKET, DISTRICT_BARRACKS, DISTRICT_HOUSING, DISTRICT_WALLS];
+/** The cheapest district action there can be (the cheapest base price): a purse with less spare gold does not even look. */
+const DISTRICT_CHEAPEST_MILLI = Math.min(DISTRICT_BASE_GOLD[DISTRICT_HOUSING] as number, DISTRICT_BASE_GOLD[DISTRICT_MARKET] as number, DISTRICT_BASE_GOLD[DISTRICT_BARRACKS] as number, DISTRICT_BASE_GOLD[DISTRICT_WALLS] as number) * MILLI_GOLD_PER_GOLD;
+
+/**
+ * The district move (Districts-1) of a rich seat: fill the first free slot of its finished interior Cities (lowest City id, lowest slot) with
+ * the kind of that slot number, else upgrade the cheapest district below the top level. `spare` is the purse less the next wanted structure.
+ * Every intent is checked with the validate*District functions the sim runs. Returns null (and sets the back-off) when there is nothing to do.
+ */
+function districtMove(view: SimView, memory: AiMemory, spareMilli: number): IntentBody | null {
+  const seat = memory.seat;
+  const owner = seatToOwner(seat);
+  const s = view.structures;
+  const d = view.districts;
+  for (let id = 0; id < s.highWater; id++) {
+    if (s.owner[id] !== owner || s.type[id] !== STRUCT_CITY || view.tick < (s.readyTick[id] as number)) continue;
+    const cell = s.cell[id] as number;
+    if (!interior(view, owner, cell, cell % view.width, Math.floor(cell / view.width))) continue;
+    const slots = districtSlotsOf(s.level[id] as number);
+    for (let slot = 0; slot < slots && slot < DISTRICT_MAX_SLOTS; slot++) {
+      if (d.districtKind[districtIndex(id, slot)] !== 0) continue;
+      const kind = DISTRICT_ORDER[slot] as number;
+      if (spareMilli >= districtBuildPriceMilli(d, owner, kind) && validateBuildDistrict(view, seat, id, slot, kind) === REJECT_NONE) return buildDistrictBody(seat, id, slot, kind);
+    }
+  }
+  let best = -1;
+  let bestSlot = 0;
+  let bestPrice = 1 << 30;
+  for (let id = 0; id < s.highWater; id++) {
+    if (s.owner[id] !== owner || s.type[id] !== STRUCT_CITY || view.tick < (s.readyTick[id] as number)) continue;
+    const cell = s.cell[id] as number;
+    if (!interior(view, owner, cell, cell % view.width, Math.floor(cell / view.width))) continue;
+    for (let slot = 0; slot < DISTRICT_MAX_SLOTS; slot++) {
+      const at = districtIndex(id, slot);
+      const kind = d.districtKind[at] as number;
+      const level = d.districtLevel[at] as number;
+      if (kind === 0 || level >= DISTRICT_MAX_LEVEL) continue;
+      const price = districtUpgradePriceGold(kind, level + 1) * MILLI_GOLD_PER_GOLD;
+      if (price < bestPrice && spareMilli >= price && validateUpgradeDistrict(view, seat, id, slot) === REJECT_NONE) {
+        best = id;
+        bestSlot = slot;
+        bestPrice = price;
+      }
+    }
+  }
+  if (best >= 0) return upgradeDistrictBody(seat, best, bestSlot);
+  memory.districtRetryAt = view.tick + AI_DISTRICT_RETRY_TICKS;
+  return null;
+}
+
 /** The Build the seat asks for now, or null. Draws from `rng` only when it looks for a place. */
 export function buildMove(view: SimView, memory: AiMemory, rng: Uint32Array): IntentBody | null {
   if (memory.tribe || view.phase === PHASE_SPAWN) return null;
@@ -113,6 +181,12 @@ export function buildMove(view: SimView, memory: AiMemory, rng: Uint32Array): In
   if ((stats.goldMilli[seat] as number) * 100 >= price * AI_BUILD_RICH_PCT) {
     const rich = richUpgrade(view, owner, stats.goldMilli[seat] as number);
     if (rich >= 0) return upgradeBody(seat, rich);
+  }
+  // Rich (Districts-1): no structure upgrade to buy, and what is left after the next wanted structure still pays a district, so districts never delay the Cities.
+  const spare = (stats.goldMilli[seat] as number) - price;
+  if (spare >= DISTRICT_CHEAPEST_MILLI && view.tick >= memory.districtRetryAt && view.structures.ownedCount(owner, STRUCT_CITY) >= AI_DISTRICT_MIN_CITIES) {
+    const district = districtMove(view, memory, spare);
+    if (district !== null) return district;
   }
   if ((stats.goldMilli[seat] as number) < price) return null;
   if (type === STRUCT_CITY && (stats.troopsQt[seat] as number) * 100 < (stats.capQt[seat] as number) * AI_BUILD_CITY_TROOP_PCT) return null;

@@ -17,6 +17,7 @@ import { hex32 } from '../../src/sim/hash';
 import { IdAllocator, withId, type Intent, type IntentBody } from '../../src/sim/intents';
 import { TICK_HZ } from '../../src/sim/rules';
 import { STRUCT_CITY, STRUCT_POST } from '../../src/sim/structureRules';
+import { DISTRICT_HOUSING, DISTRICT_WALLS } from '../../src/sim/districtRules';
 import { hashState } from '../../src/sim/serialize';
 import { seatToOwner, type GameState } from '../../src/sim/state';
 import { step } from '../../src/sim/step';
@@ -58,6 +59,8 @@ export interface MinuteRow {
   readonly incomeGoldPerMin: number[];
   readonly gold: number[];
   readonly structures: number[][];
+  /** Districts per seat at the end of the minute: [Housing, Market, Barracks, Walls] (Districts-1). */
+  readonly districts: number[][];
 }
 
 export interface ScenarioReport {
@@ -227,21 +230,25 @@ export async function runScenario(args: ScenarioArgs, onTick?: (state: GameState
 }
 
 /** The economy of every seat right now: income per minute (from the stats), gold, and the structure counts by type. */
-function economyRow(state: GameState, buf: Uint32Array, seats: number): { incomeGoldPerMin: number[]; gold: number[]; structures: number[][] } {
+function economyRow(state: GameState, buf: Uint32Array, seats: number): { incomeGoldPerMin: number[]; gold: number[]; structures: number[][]; districts: number[][] } {
   fillSeatStats(state, buf);
   const rateBase = STAT_FIELDS.indexOf('goldPerSecMilli') * seats;
   const goldBase = STAT_FIELDS.indexOf('goldMilli') * seats;
   const incomeGoldPerMin: number[] = [];
   const gold: number[] = [];
   const structures: number[][] = [];
+  const districts: number[][] = [];
   for (let seat = 0; seat < seats; seat++) {
     incomeGoldPerMin.push(Math.floor(((buf[rateBase + seat] as number) * 60) / 1000));
     gold.push(Math.floor((buf[goldBase + seat] as number) / 1000));
     const counts: number[] = [];
     for (let type = STRUCT_CITY; type <= STRUCT_POST; type++) counts.push(state.structures.ownedCount(seatToOwner(seat), type));
     structures.push(counts);
+    const kinds: number[] = [];
+    for (let kind = DISTRICT_HOUSING; kind <= DISTRICT_WALLS; kind++) kinds.push(state.structures.districtsOwned(seatToOwner(seat), kind));
+    districts.push(kinds);
   }
-  return { incomeGoldPerMin, gold, structures };
+  return { incomeGoldPerMin, gold, structures, districts };
 }
 
 export function format(report: ScenarioReport): string {
@@ -259,7 +266,7 @@ export function format(report: ScenarioReport): string {
   }
   for (const r of report.rows) {
     for (let seat = 0; seat < Math.min(a.players, 3); seat++) {
-      lines.push(`  economy min ${String(r.minute).padStart(2)} P${seat}: land ${r.cells[seat]} cells | income ${r.incomeGoldPerMin[seat]} gold/min | purse ${r.gold[seat]} | City/Factory/Port/Silo/SAM/Post ${(r.structures[seat] as number[]).join('/')}`);
+      lines.push(`  economy min ${String(r.minute).padStart(2)} P${seat}: land ${r.cells[seat]} cells | income ${r.incomeGoldPerMin[seat]} gold/min | purse ${r.gold[seat]} | City/Factory/Port/Silo/SAM/Post ${(r.structures[seat] as number[]).join('/')} | districts Housing/Market/Barracks/Walls ${(r.districts[seat] as number[]).join('/')}`);
     }
   }
   lines.push(`final hash ${report.finalHash} (rejects ${report.rejects}); scanned cells per tick: mean ${report.work.meanScanned}, max ${report.work.maxScanned}; changed per tick: mean ${report.work.meanChanged}, max ${report.work.maxChanged}`);

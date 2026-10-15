@@ -2,7 +2,7 @@
 // the same number is an error), so every accepted byte string has exactly one meaning and re-encodes to itself.
 //
 //   intent  = kind:u8  seat:u8  id:varint  [payload]
-//     payload: DebugPaint and Spawn: cell:varint;  Attack: target:varint pct:varint;  CancelAttack: target:varint;  DebugGive: gold:varint troops:varint;  Build: type:varint cell:varint;  Upgrade and Delete: structure:varint;  Noop: none
+//     payload: DebugPaint and Spawn: cell:varint;  Attack: target:varint pct:varint;  CancelAttack: target:varint;  DebugGive: gold:varint troops:varint;  Build: type:varint cell:varint;  Upgrade and Delete: structure:varint;  BuildDistrict: structure:varint slot:varint districtKind:varint;  UpgradeDistrict and RemoveDistrict: structure:varint slot:varint;  Noop: none
 //   turn    = turn:varint  count:varint  intent*count
 //
 // Decoding is total: any bytes give either a value or an error result; nothing throws. The decoder checks only what the
@@ -60,6 +60,11 @@ function intentSize(i: Intent): number {
     case 'Upgrade':
     case 'Delete':
       return head + varintSize(i.structure);
+    case 'BuildDistrict':
+      return head + varintSize(i.structure) + varintSize(i.slot) + varintSize(i.districtKind);
+    case 'UpgradeDistrict':
+    case 'RemoveDistrict':
+      return head + varintSize(i.structure) + varintSize(i.slot);
     default:
       return head;
   }
@@ -81,6 +86,14 @@ function putIntent(out: Uint8Array, at: number, i: Intent): number {
     p = putVarint(out, p, i.type);
     p = putVarint(out, p, i.cell);
   } else if (i.kind === 'Upgrade' || i.kind === 'Delete') p = putVarint(out, p, i.structure);
+  else if (i.kind === 'BuildDistrict') {
+    p = putVarint(out, p, i.structure);
+    p = putVarint(out, p, i.slot);
+    p = putVarint(out, p, i.districtKind);
+  } else if (i.kind === 'UpgradeDistrict' || i.kind === 'RemoveDistrict') {
+    p = putVarint(out, p, i.structure);
+    p = putVarint(out, p, i.slot);
+  }
   return p;
 }
 
@@ -100,6 +113,11 @@ function payloadEncodable(i: Intent): boolean {
     case 'Upgrade':
     case 'Delete':
       return isU32(i.structure);
+    case 'BuildDistrict':
+      return isU32(i.structure) && isU32(i.slot) && isU32(i.districtKind);
+    case 'UpgradeDistrict':
+    case 'RemoveDistrict':
+      return isU32(i.structure) && isU32(i.slot);
     default:
       return true;
   }
@@ -208,6 +226,17 @@ class Reader {
     if (kind === 'Upgrade' || kind === 'Delete') {
       const structure = this.varint();
       return this.error === null ? { kind, seat, id, structure } : null;
+    }
+    if (kind === 'BuildDistrict') {
+      const structure = this.varint();
+      const slot = this.varint();
+      const districtKind = this.varint();
+      return this.error === null ? { kind, seat, id, structure, slot, districtKind } : null;
+    }
+    if (kind === 'UpgradeDistrict' || kind === 'RemoveDistrict') {
+      const structure = this.varint();
+      const slot = this.varint();
+      return this.error === null ? { kind, seat, id, structure, slot } : null;
     }
     return this.error === null ? { kind, seat, id } : null;
   }

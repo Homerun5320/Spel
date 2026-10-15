@@ -48,8 +48,8 @@ describe('serialize / deserialize', () => {
     expect(b.length).toBe(serializedLengthOf(s));
     // fixed part + attack table (8 byte head; per attack 36 bytes, 8 per non-empty frontier bag and 4 per frontier cell) + 20 bucket counts and the queued cells (4 each) + checksum
     const attacks = s.attacks.list.reduce((n, a) => n + 36 + 4 * a.size + 8 * a.counts.reduce((k, c) => k + (c > 0 ? 1 : 0), 0), 0);
-    expect(b.length).toBe(HEADER_BYTES + 128 * 64 * 11 + 64 * 2 + 5 * 16 + 8 + attacks + 20 * 4 + 4 * s.enclaves.length + (12 + 5 * 4 + 5 * 5 + 32 * s.structures.liveCount + 4 * s.structures.recycledCount) + 4); // M09 part B: + the embargo flags, (seats + 1)^2 bytes
-    expect(serializedLength(128, 64, 4)).toBe(HEADER_BYTES + 128 * 64 * 11 + 64 * 2 + 5 * 16 + 8 + 20 * 4 + 12 + 5 * 4 + 5 * 5 + 4);
+    expect(b.length).toBe(HEADER_BYTES + 128 * 64 * 11 + 64 * 2 + 5 * 16 + 8 + attacks + 20 * 4 + 4 * s.enclaves.length + (16 + 5 * 4 + 5 * 5 + 32 * s.structures.liveCount + 4 * s.structures.recycledCount + 24 * s.structures.districtCount) + 4); // Districts-1: + districtCount (4) and 24 per district // M09 part B: + the embargo flags, (seats + 1)^2 bytes
+    expect(serializedLength(128, 64, 4)).toBe(HEADER_BYTES + 128 * 64 * 11 + 64 * 2 + 5 * 16 + 8 + 20 * 4 + 16 + 5 * 4 + 5 * 5 + 4);
     expect(HEADER_BYTES).toBe(64);
     expect(Array.from(b.subarray(0, 4))).toEqual([0x53, 0x50, 0x45, 0x4c]); // 'SPEL'
     expect(v.getUint32(0, true)).toBe(MAGIC);
@@ -358,6 +358,6 @@ describe('deserialize: errors are results, never throws', () => {
 
 describe('golden params', () => {
   it('serialized size of the golden world', () => {
-    expect(serialize(createScenarioState(GOLDEN_PARAMS)).length).toBe(64 + 8192 * 11 + 64 * 2 + 5 * 16 + 8 + 20 * 4 + 12 + 5 * 4 + 5 * 5 + 4); // M09 part B: + the embargo flags (seats + 1)^2; M09 part A: + the structure block (12 bytes and 4 per ownerId when empty)
+    expect(serialize(createScenarioState(GOLDEN_PARAMS)).length).toBe(64 + 8192 * 11 + 64 * 2 + 5 * 16 + 8 + 20 * 4 + 16 + 5 * 4 + 5 * 5 + 4); // Districts-1: + the district count (16 = 12 + 4); M09 part B: + the embargo flags (seats + 1)^2; M09 part A: + the structure block (12 bytes and 4 per ownerId when empty)
   });
 });

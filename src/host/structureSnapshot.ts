@@ -1,6 +1,7 @@
 // The structure table on its way to the page (M10): `snapshotStructures` copies the sim's table into plain typed arrays (the host calls it,
 // never the page), `structureSignature` is a cheap fingerprint the host uses to send the table in a frame's diff only when it changed.
 // Nothing here is game state: it reads the table and returns copies.
+import { DISTRICT_MAX_SLOTS } from '../sim/rules';
 import type { StructureTable } from '../sim/structures';
 import type { StructureSnapshot } from './protocol';
 
@@ -20,6 +21,11 @@ export function snapshotStructures(t: StructureTable): StructureSnapshot {
     upgradeReadyTick: t.upgradeReadyTick.slice(0, n),
     deleteReady: t.deleteReady.slice(),
     counts: t.counts.slice(),
+    districtKind: t.districtKind.slice(0, n * DISTRICT_MAX_SLOTS),
+    districtLevel: t.districtLevel.slice(0, n * DISTRICT_MAX_SLOTS),
+    districtReadyTick: t.districtReadyTick.slice(0, n * DISTRICT_MAX_SLOTS),
+    districtUpgradeReadyTick: t.districtUpgradeReadyTick.slice(0, n * DISTRICT_MAX_SLOTS),
+    districtCounts: t.districtCounts.slice(),
   };
 }
 
@@ -41,5 +47,14 @@ export function structureSignature(t: StructureTable): number {
     fold(t.upgradeReadyTick[i] as number);
   }
   for (let i = 0; i < t.deleteReady.length; i++) fold(t.deleteReady[i] as number);
+  fold(t.districtCount);
+  if (t.districtCount > 0) {
+    for (let i = 0; i < t.highWater * DISTRICT_MAX_SLOTS; i++) {
+      fold(t.districtKind[i] as number);
+      fold(t.districtLevel[i] as number);
+      fold(t.districtReadyTick[i] as number);
+      fold(t.districtUpgradeReadyTick[i] as number);
+    }
+  }
   return h;
 }

@@ -300,3 +300,12 @@ Not done in the Fix-UI slice (the sim, host and AI findings belong to Fix-Sim):
 - `buildBar` / `selectionPanel` DOM states have no unit tests (no DOM setup in the unit project); the pure functions behind them are tested. `hudLogic` / `structureInfo` mutants of boundary kind (exact equality) are left. Mutants U07-style of the host mirror and `cloneStructures` aliasing (V10, V11), L01 / L04 / L05 / L11 / L12 of the placement mode, `tiltCapAt` smoothstep flatness (F10), GPU class rows WARP / lavapipe / Mesa offscreen are left.
 - The docs lag of PROGRESS Done rows and stale BACKLOG lines (the audit's docs finding) is left to the orchestrator.
 
+## Districts-1 (ideas and leftovers)
+
+- AI: "Walls first when it lost a cell recently" (the memory has no loss tracking); kinds by need instead of by slot number (Barracks when at war, Housing when the cap binds); districts in border Cities (skipped: they change hands).
+- Districts-2 (UI): the city view with the slots, the build / upgrade / remove buttons using `validate*District`, the effect lines from `districtEffect`, `toast.*` and `reject.*` texts for the codes 39 to 44 (`rejectKey` in `src/ui/hudLogic.ts` has none), district marks on the City model.
+- A Factory bonus on Market gold would need a new cap table (the cap test counts the City with its bonus, so it would break at Market level 3).
+- `RemoveDistrict` shares the 30 s Delete cooldown; a separate shorter one may feel better when a player rearranges a City.
+- Missiles and the air milestones may want Walls / Housing effects against blasts (M14); `previewBlast` is not district aware.
+- `collectWalls` scans the structure table per attack tick (like `collectPosts`); a per-owner cache next to `effHousingQt` would make it O(walls) if a match ever holds thousands of Cities.
+

@@ -117,6 +117,11 @@ export function scenarioBodies(seed: number, turn: number, seats: number, cells:
     out.push({ kind: 'DebugPaint', seat, cell });
     out.push({ kind: 'DebugPaint', seat, cell });
   }
+  // Districts (Districts-1): a BuildDistrict of a low structure id about one turn in 29 (a kind out of range now and then), an UpgradeDistrict
+  // about one in 37, a RemoveDistrict about one in 101. Most are refused (no such City yet); they keep the intent kinds in the golden hashes. Last in the list, and from turn 13 on (nothing exists earlier), so the first turns and the picks of the adversarial repeat there stay where they were.
+  if (turn > 12 && hash2(seed, turn, 630) % 29 === 0) out.push({ kind: 'BuildDistrict', seat: hash2(seed, turn, 631) % seats, structure: hash2(seed, turn, 632) % 12, slot: hash2(seed, turn, 633) % 4, districtKind: hash2(seed, turn, 634) % 6 });
+  if (turn > 12 && hash2(seed, turn, 640) % 37 === 0) out.push({ kind: 'UpgradeDistrict', seat: hash2(seed, turn, 641) % seats, structure: hash2(seed, turn, 642) % 12, slot: hash2(seed, turn, 643) % 4 });
+  if (turn > 12 && hash2(seed, turn, 650) % 101 === 0) out.push({ kind: 'RemoveDistrict', seat: hash2(seed, turn, 651) % seats, structure: hash2(seed, turn, 652) % 12, slot: hash2(seed, turn, 653) % 4 });
   return out;
 }
 

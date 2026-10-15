@@ -344,3 +344,35 @@ export const AI_BUILD_RICH_PCT = 100;
 /** One Port per this many Cities (from the second City on); one Post per this many Cities (from the fourth). */
 export const AI_BUILD_CITIES_PER_PORT = 3;
 export const AI_BUILD_CITIES_PER_POST = 4;
+
+// ---------------------------------------------------------------------------------------------------------------
+// City districts (Districts-1). A City of level L has DISTRICT_SLOTS_BY_LEVEL[L] slots, each holds one district of a kind (1 Housing, 2 Market,
+// 3 Barracks, 4 Walls, src/sim/districtRules.ts). Arrays are indexed by the kind number (0 = none) or by the level (0 unused). Prices, times and
+// effects are PROVISIONAL (the Districts-1 block of docs/DECISIONS.md); each has a row in docs/BALANCE.md. Only FINISHED districts have effects.
+
+/** The slots of the highest level City: the row length of the district table (a structural limit, not a tunable). */
+export const DISTRICT_MAX_SLOTS = 4;
+/** The highest level of a district. */
+export const DISTRICT_MAX_LEVEL = 3;
+/** Slots of a City by its (finished) level: 2, 3, 4. */
+export const DISTRICT_SLOTS_BY_LEVEL = [0, 2, 3, 4];
+/** Base price in gold per kind (Housing, Market, Barracks, Walls); the n-th district of a kind costs the same escalation as a structure (PRICE_ESCALATION_*), n = districts of that kind the seat owns. An upgrade to level L costs base * L. */
+export const DISTRICT_BASE_GOLD = [0, 150, 60, 250, 300];
+/** Build (and upgrade) time in ticks per kind: Housing 8 s, Market 10 s, Barracks 12 s, Walls 12 s. */
+export const DISTRICT_BUILD_TICKS = [0, 80, 100, 120, 120];
+/** Housing: troop cap added per district level (400, 800, 1200 troops). */
+export const HOUSING_TROOPS_PER_LEVEL = 400;
+/** Market: gold per second by level (0.4, 1.3, 1.85). Chosen so that a level 3 City with four level 3 Markets and a level 3 Factory bonus stays under 10 level-1 Cities (15 gold/s) even with +10 percent (tests/sim/districts.test.ts) and so that both upgrades pay back in 90 s to 6 minutes at base 60. */
+export const MARKET_GOLD_MILLI_BY_LEVEL = [0, 400, 1300, 1850];
+/** Barracks: percent added to the owner's troop regeneration by level (5, 10, 15). */
+export const BARRACKS_REGEN_PCT_BY_LEVEL = [0, 5, 10, 15];
+/** The most all Barracks of one owner add together, in percent. */
+export const BARRACKS_REGEN_PCT_MAX = 50;
+/** Walls: the attacker's cell price in percent on the City's cell and the cells within DISTRICT_WALLS_RADIUS_CELLS, by level (150, 180, 200). Does not stack with a Defense Post: the larger percent applies. */
+export const WALLS_COST_PCT_BY_LEVEL = [0, 150, 180, 200];
+/** Reach of the Walls round the City in sim cells (Euclidean, x wrapping). */
+export const DISTRICT_WALLS_RADIUS_CELLS = 2;
+/** The AI's back-off after a think that found no district to build or upgrade, in ticks. */
+export const AI_DISTRICT_RETRY_TICKS = 100;
+/** The AI builds districts only once it owns this many Cities (round 1 of the Districts-1 tuning: the first Cities come first). */
+export const AI_DISTRICT_MIN_CITIES = 3;
