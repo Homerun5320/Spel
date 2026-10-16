@@ -17,10 +17,10 @@ describe('iconHalfPx', () => {
   it('keeps the full size while the structures are far apart on screen, and shrinks to a third of the spacing beyond', () => {
     expect(iconHalfPx(1_000_000, PX_PER_RAD, SPACING)).toBe(ICON_HALF_PX);
     expect(iconHalfPx(3_000_000, PX_PER_RAD, SPACING)).toBe(ICON_HALF_PX);
-    const at8000 = iconHalfPx(8_000_000, PX_PER_RAD, SPACING);
-    const spacingPx = (SPACING / 8_000_000) * PX_PER_RAD;
-    expect(at8000).toBeCloseTo(spacingPx / 3, 6);
-    expect(at8000).toBeLessThan(ICON_HALF_PX);
+    const at6500 = iconHalfPx(6_500_000, PX_PER_RAD, SPACING);
+    const spacingPx = (SPACING / 6_500_000) * PX_PER_RAD;
+    expect(at6500).toBeCloseTo(spacingPx / 3, 6);
+    expect(at6500).toBeLessThan(ICON_HALF_PX);
   });
 
   it('two neighbouring icons never touch at 8000 km, and the floor holds at 15000 and 30000 km', () => {
