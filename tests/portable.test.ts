@@ -40,7 +40,7 @@ describe('the forbidden-address scanner itself', () => {
 
 /** Size caps in bytes of gzipped JavaScript (Fix-3C): measured plus about 5 %. Raise them only with a line in docs/DECISIONS.md. */
 const JS_GZ_TOTAL_MAX = 391_000; // Round 19 merge: 370_000 before; measured 372_309 with the technology rules, the federation setup and the helicopter effects, + 5 %
-const JS_GZ_MAIN_MAX = 311_000; // M20a-2: 294_500 before, measured 296_501 with the nation labels, the front arrows and the attack-front snapshot, + 5 %. M13b: 277_000 before; measured 280_318 + 5 % (the page now carries Los, Nav, planRoute and scoreLz for the preview; before, they lived only in the sim worker)
+const JS_GZ_MAIN_MAX = 321_000; // M18d-2: 311_000 before; measured 311_035 with the research panel, + 3 %. M20a-2: 294_500 before, measured 296_501 with the nation labels, the front arrows and the attack-front snapshot, + 5 %. M13b: 277_000 before; measured 280_318 + 5 % (the page now carries Los, Nav, planRoute and scoreLz for the preview; before, they lived only in the sim worker)
 
 describe('portable build (relative addresses only)', () => {
   let dist = '';
