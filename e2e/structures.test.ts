@@ -188,11 +188,11 @@ describe('the City on the terrain', () => {
       await t.advance(0, 4);
       expect((await t.state()).structures.count).toBe(0);
       expect((await t.state()).rejects).toBe(before);
-      // the sim's own spacing rule, seen by the ghost: build one City, then hover a cell 3 cells away
+      // the sim's own spacing rule, seen by the ghost: build one City, then hover a cell 2 cells away (Sim-Growth: Cities keep 3 cells apart, SPACING_CELLS_BY_TYPE)
       await page.keyboard.press('Escape');
       await page.evaluate(([c]) => (window as any).__test.submit({ kind: 'Build', seat: 0, type: 1, cell: c }), [capital] as const);
       await t.advance(0.1, 4);
-      const near = llOf(capital + 3);
+      const near = llOf(capital + 2);
       await closeUp(page, near.lat, near.lon);
       await t.settle();
       await page.keyboard.press('1');
@@ -200,7 +200,7 @@ describe('the City on the terrain', () => {
       await page.mouse.move(pn.x, pn.y);
       await t.settle();
       const spacing = (await t.props()).ghost;
-      expect([spacing?.cell, spacing?.ok, spacing?.reason]).toEqual([capital + 3, false, REJECT_BUILD_SPACING]);
+      expect([spacing?.cell, spacing?.ok, spacing?.reason]).toEqual([capital + 2, false, REJECT_BUILD_SPACING]);
       await page.keyboard.press('Escape');
       expect(messages).toEqual([]);
     } finally {

@@ -1,5 +1,5 @@
 // Look-1 in headless Chromium (software WebGL2): the two City styles ('old' / 'new') and the City tiers by level, the close-range City size, and the
-// fast "open city" flight. Screenshots go to test-results/shots/look-*.png; the goldens city-old.png and city-new.png are the level 3 City at 3 km.
+// fast "open city" flight. Screenshots go to test-results/shots/look-*.png; the goldens city-old.png and city-new.png are the top level (10, Sim-Growth) City at 3 km.
 import fs from 'node:fs';
 import path from 'node:path';
 import pixelmatch from 'pixelmatch';
@@ -8,7 +8,7 @@ import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
 import { OUT_DIR, compareGolden, decodePng, launchBrowser, openPage } from '../scripts/shot.mjs';
 import { timeForSubsolarLon } from '../src/render/geo';
 import { cellToLatLon } from '../src/render/transforms';
-import { STRUCT_CITY, buildBody, upgradeBody } from '../src/sim/public';
+import { STRUCT_CITY, buildBody, maxLevelOf, upgradeBody, upgradeTicksOf } from '../src/sim/public';
 
 let browser: Browser;
 const baseUrl = inject('baseUrl');
@@ -52,7 +52,7 @@ function diffPixels(a: Buffer, b: Buffer): number {
 }
 
 describe('the City styles and tiers', () => {
-  it('draws both styles in the same draw calls, differing in pixels; level 1 and level 3 differ; the switch is live; goldens; the fast open-city flight', async () => {
+  it('draws both styles in the same draw calls, differing in pixels; levels 1, 5 and 10 differ; the switch is live; goldens; the fast open-city flight', async () => {
     const { page, consoleMessages } = await openPage(browser, baseUrl, 'test=1&seed=7&ai=0&hud=1', { width: 960, height: 540 });
     try {
       const t = T(page);
@@ -102,25 +102,37 @@ describe('the City styles and tiers', () => {
       console.log(`[look] old vs new at level 1: ${styleDiff} px differ`);
       expect(styleDiff).toBeGreaterThan(300);
 
-      // level 3: both styles
+      // levels 5 and 10 (Sim-Growth: the City climbs in ten small steps, five visual bands): both styles each time
+      const top = maxLevelOf(STRUCT_CITY);
+      let level = 1;
+      const raiseTo = async (to: number): Promise<void> => {
+        for (; level < to; ) {
+          level++;
+          await t.submit(upgradeBody(0, cityId));
+          await t.advance(0.1, upgradeTicksOf(STRUCT_CITY, level) + 10);
+        }
+        await t.settle(1);
+        expect((await t.props()).list.find((s) => s.id === cityId)?.level).toBe(to);
+        await page.evaluate(() => (window as any).__test.settle(1, 2)); // the pop-in is over
+      };
       await t.style('old');
-      for (let lvl = 2; lvl <= 3; lvl++) {
-        await t.submit(upgradeBody(0, cityId));
-        await t.advance(0.1, 260);
-      }
-      await t.settle(1);
-      expect((await t.props()).list.find((s) => s.id === cityId)?.level).toBe(3);
-      await page.evaluate(() => (window as any).__test.settle(1, 2)); // the pop-in is over
-      const oldL3 = await shot('old-l3');
+      await raiseTo(5);
+      const oldL5 = await shot('old-l5');
       await t.style('new');
-      const newL3 = await shot('new-l3');
-      const tierDiffOld = diffPixels(oldL1, oldL3);
-      const tierDiffNew = diffPixels(newL1, newL3);
-      console.log(`[look] level 1 vs 3: old ${tierDiffOld} px, new ${tierDiffNew} px; old vs new at 3: ${diffPixels(oldL3, newL3)} px`);
-      expect(tierDiffOld).toBeGreaterThan(300);
-      expect(tierDiffNew).toBeGreaterThan(300);
-      expect(diffPixels(oldL3, newL3)).toBeGreaterThan(300);
-      for (const [png, name] of [[oldL3, 'city-old'], [newL3, 'city-new']] as const) {
+      const newL5 = await shot('new-l5');
+      await raiseTo(top);
+      await t.style('old');
+      const oldTop = await shot(`old-l${top}`);
+      await t.style('new');
+      const newTop = await shot(`new-l${top}`);
+      const tierMidOld = diffPixels(oldL1, oldL5);
+      const tierMidNew = diffPixels(newL1, newL5);
+      const tierTopOld = diffPixels(oldL5, oldTop);
+      const tierTopNew = diffPixels(newL5, newTop);
+      console.log(`[look] level 1 vs 5: old ${tierMidOld} px, new ${tierMidNew} px; level 5 vs ${top}: old ${tierTopOld} px, new ${tierTopNew} px; old vs new at ${top}: ${diffPixels(oldTop, newTop)} px`);
+      for (const n of [tierMidOld, tierMidNew, tierTopOld, tierTopNew]) expect(n).toBeGreaterThan(300);
+      expect(diffPixels(oldTop, newTop)).toBeGreaterThan(300);
+      for (const [png, name] of [[oldTop, 'city-old'], [newTop, 'city-new']] as const) {
         const g = compareGolden(png, name);
         console.log(`[golden] ${name}: ${g.status}, ${g.diffPixels} px differ`);
       }

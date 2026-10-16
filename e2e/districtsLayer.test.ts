@@ -1,5 +1,5 @@
-// Districts-2b in headless Chromium (software WebGL2): the district layer on a City. A City is built through the intent API, taken to level 3 (four
-// slots) and given one district of each kind; the layer draws them as ONE instanced draw call, standing on the ground, with the owner colour; it is
+// Districts-2b in headless Chromium (software WebGL2): the district layer on a City. A City is built through the intent API, taken to level 9 (Sim-Growth:
+// five slots, the full ring) and given a district on every slot (one of each kind and a second Market); the layer draws them as ONE instanced draw call, standing on the ground, with the owner colour; it is
 // empty (and costs no draw call) without districts and beyond the cut distance; a close-up is compared with the golden districts-layer.png.
 // Screenshots go to test-results/shots/districts-layer-*.png.
 import fs from 'node:fs';
@@ -9,7 +9,7 @@ import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
 import { OUT_DIR, analyzeImage, compareGolden, decodePng, launchBrowser, openPage } from '../scripts/shot.mjs';
 import { timeForSubsolarLon } from '../src/render/geo';
 import { cellToLatLon } from '../src/render/transforms';
-import { DISTRICT_BARRACKS, DISTRICT_HOUSING, DISTRICT_MARKET, DISTRICT_WALLS, STRUCT_CITY, buildBody, buildDistrictBody, upgradeBody } from '../src/sim/public';
+import { DISTRICT_BARRACKS, DISTRICT_HOUSING, DISTRICT_MARKET, DISTRICT_MAX_SLOTS, DISTRICT_WALLS, STRUCT_CITY, buildBody, buildDistrictBody, districtSlotsOf, upgradeBody, upgradeTicksOf } from '../src/sim/public';
 
 let browser: Browser;
 const baseUrl = inject('baseUrl');
@@ -59,7 +59,12 @@ async function closeUp(page: Page, lat: number, lon: number, dKm: number, aglM: 
   await page.evaluate(([la, lo, d, agl, pitch, tm]) => (window as any).__test.setGroundView({ lat: la - d / 111.2, lon: lo, heading: 0, pitchDeg: pitch, aglM: agl, time: tm }), [lat, lon, dKm, aglM, pitchDeg, time] as const);
 }
 
-/** A page with a spawned local seat, a finished City of level 3 on the capital and (when `districts`) one district of each kind, all finished. */
+/** The City level of these pages: the first one with all five district slots. */
+const CITY_LEVEL = 9;
+/** The kinds on the five slots: one of each and a second Market. */
+const SLOT_KINDS = [DISTRICT_HOUSING, DISTRICT_MARKET, DISTRICT_BARRACKS, DISTRICT_WALLS, DISTRICT_MARKET];
+
+/** A page with a spawned local seat, a finished City of level 9 on the capital and (when `districts`) a district on every slot, all finished. */
 async function cityPage(districts: boolean): Promise<{ page: Page; messages: Array<{ type: string; text: string }>; cityId: number; cell: number }> {
   const { page, consoleMessages } = await openPage(browser, baseUrl, 'test=1&seed=7&ai=0&hud=1', { width: 960, height: 540 });
   const t = T(page);
@@ -80,16 +85,16 @@ async function cityPage(districts: boolean): Promise<{ page: Page; messages: Arr
   const city = props.list.find((s) => s.type === STRUCT_CITY);
   expect(city, 'the City is built').toBeDefined();
   const cityId = (city as { id: number }).id;
-  for (let lvl = 2; lvl <= 3; lvl++) {
+  for (let lvl = 2; lvl <= CITY_LEVEL; lvl++) {
     await t.submit(upgradeBody(0, cityId));
-    await t.advance(0.1, 260);
+    await t.advance(0.1, upgradeTicksOf(STRUCT_CITY, lvl) + 10);
   }
   await t.settle(1);
   props = await t.props();
-  expect(props.list.find((s) => s.id === cityId)?.level).toBe(3);
+  expect(props.list.find((s) => s.id === cityId)?.level).toBe(CITY_LEVEL);
+  expect(districtSlotsOf(CITY_LEVEL)).toBe(DISTRICT_MAX_SLOTS);
   if (districts) {
-    const kinds = [DISTRICT_HOUSING, DISTRICT_MARKET, DISTRICT_BARRACKS, DISTRICT_WALLS];
-    for (let s = 0; s < 4; s++) await t.submit(buildDistrictBody(0, cityId, s, kinds[s] as number));
+    for (let s = 0; s < DISTRICT_MAX_SLOTS; s++) await t.submit(buildDistrictBody(0, cityId, s, SLOT_KINDS[s] as number));
     await t.advance(0.1, 140);
   }
   return { page, messages: consoleMessages, cityId, cell };
@@ -113,7 +118,7 @@ describe('the district layer', () => {
     }
   }, 240_000);
 
-  it('draws four districts in ONE draw call, on the ground, in the owner colour; golden close-up; night; cut', async () => {
+  it('draws five districts (the full ring of a level 9 City) in ONE draw call, on the ground, in the owner colour; golden close-up; night; cut', async () => {
     const empty = await cityPage(false);
     let withoutCalls: number;
     let cell: number;
@@ -133,11 +138,11 @@ describe('the district layer', () => {
       await closeUp(page, at.lat, at.lon, 2.2, 900, 24);
       await t.settle();
       const props = await t.props();
-      expect(props.districts.total).toBe(4);
-      expect(props.districts.counts.slice(1)).toEqual([1, 1, 1, 1]);
+      expect(props.districts.total).toBe(DISTRICT_MAX_SLOTS);
+      expect(props.districts.counts.slice(1)).toEqual([1, 2, 1, 1]);
       expect(props.districts.dropped).toBe(0);
       expect(props.districts.drawn).toBe(true);
-      expect(props.districts.list.every((d) => d.structure === cityId && d.cityLevel === 3)).toBe(true);
+      expect(props.districts.list.every((d) => d.structure === cityId && d.cityLevel === CITY_LEVEL)).toBe(true);
       // heights: every instance stands within 1 m of the ground under its slot (the exaggeration of the test tier is 12)
       for (const d of props.districts.list) {
         const h = await t.groundAt(d.lat, d.lon);
@@ -155,7 +160,7 @@ describe('the district layer', () => {
         fs.writeFileSync(path.join(SHOT_DIR, `districts-layer-${name}.png`), png);
         return png;
       };
-      await closeUp(page, at.lat, at.lon, 4.6, 7600, 56);
+      await closeUp(page, at.lat, at.lon, 5.1, 7600, 56); // aimed at the City itself, so that the whole five-slot ring (1.6 km out at level 9) is in the picture
       await page.evaluate(() => (window as any).__test.settle(1, 2)); // the pop-in of the new districts (0.45 s of fx time) is over
       const day = await shot('day');
       expect(analyzeImage(decodePng(day)).lumaStd).toBeGreaterThan(15);
@@ -163,7 +168,7 @@ describe('the district layer', () => {
       console.log(`[golden] districts-layer: ${r.status}, ${r.diffPixels} px differ`);
 
       // night view: still readable (the picture is not black: the owner glow and rim lift the models)
-      await closeUp(page, at.lat, at.lon, 4.6, 7600, 56, true);
+      await closeUp(page, at.lat, at.lon, 5.1, 7600, 56, true);
       const night = decodePng(await shot('night'));
       expect(analyzeImage(night).lumaStd).toBeGreaterThan(6);
 
@@ -171,7 +176,7 @@ describe('the district layer', () => {
       await t.view({ lat: at.lat, lon: at.lon, distKm: 3000, heading: 0, tilt: 0 });
       await t.settle();
       const far = await t.props();
-      expect(far.districts.total).toBe(4); // still in the buffers ...
+      expect(far.districts.total).toBe(DISTRICT_MAX_SLOTS); // still in the buffers ...
       expect(far.districts.drawn).toBe(false); // ... but not in the draw
       expect((await t.info()).drawCalls).toBe(withoutCalls);
       expect(messages.filter((m) => m.type === 'error')).toEqual([]);

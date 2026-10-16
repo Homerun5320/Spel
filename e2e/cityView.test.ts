@@ -12,7 +12,9 @@ import { timeForSubsolarLon } from '../src/render/geo';
 import { DISTRICT_BARRACKS, DISTRICT_HOUSING, DISTRICT_MARKET, DISTRICT_WALLS } from '../src/sim/districtRules';
 import { REJECT_BUILD_GOLD } from '../src/sim/intents';
 import { BARRACKS_REGEN_PCT_BY_LEVEL, CITY_GOLD_MILLI_PER_SEC_PER_LEVEL, DISTRICT_BUILD_TICKS, MARKET_GOLD_MILLI_BY_LEVEL } from '../src/sim/rules';
-import { STRUCT_CITY } from '../src/sim/structureRules';
+import { STRUCT_CITY, maxLevelOf, upgradeTicksOf } from '../src/sim/structureRules';
+import { districtSlotsOf } from '../src/sim/districtRules';
+import { formatFixed } from '../src/ui/i18n';
 
 let browser: Browser;
 const baseUrl = inject('baseUrl');
@@ -75,6 +77,17 @@ async function withCity(query: string, viewport: { width: number; height: number
 async function closeUp(page: Page, lat: number, lon: number): Promise<void> {
   const d = 2.2;
   await page.evaluate(([la, lo, dd, time]) => (window as any).__test.setGroundView({ lat: la - dd / 111.2, lon: lo, heading: 0, pitchDeg: 24, aglM: 900, time }), [lat, lon, d, timeForSubsolarLon(lon + 25)] as const);
+}
+
+/** Upgrades the selected City one step at a time (the panel's button) until it is `level`, each step waiting its own sim time (Sim-Growth: levels 1 to 10). */
+async function raiseTo(page: Page, level: number): Promise<void> {
+  const t = T(page);
+  for (let l = 2; l <= level; l++) {
+    await tid(page, 'sel-upgrade').click();
+    await t.advance(0.1, upgradeTicksOf(STRUCT_CITY, l) + 10);
+    await t.settle();
+    expect(await tid(page, 'sel-panel').getAttribute('data-level')).toBe(String(l));
+  }
 }
 
 async function clickCity(page: Page, lat: number, lon: number, count = 1): Promise<void> {
@@ -189,7 +202,7 @@ describe('the city view', () => {
       await t.advance(0.1, total + 6);
       await t.settle();
       expect([await tile0.getAttribute('data-state'), await tile0.getAttribute('data-level')]).toEqual(['ready', '2']);
-      const fx = await t.text('sel.district.fxMarket', { gold: '1,3' });
+      const fx = await t.text('sel.district.fxMarket', { gold: formatFixed((MARKET_GOLD_MILLI_BY_LEVEL[2] as number) / 1000, 1) }); // Sim-Growth: the lowered Market table, level 2 = 0,7
       expect(await tid(page, 'city-fx-0').textContent()).toBe(await t.text('sel.district.now', { fx }));
 
       // the second tile: a Barracks
@@ -252,21 +265,18 @@ describe('the city view', () => {
     }
   });
 
-  it('fits a portrait window (540x960) as a bottom sheet in English, with all four tiles of a level 3 City; screenshots', async () => {
+  it('fits a portrait window (540x960) as a bottom sheet in English, with all five tiles of a level 9 City; screenshots', async () => {
     const { page, messages } = await withCity('test=1&seed=7&ai=0&hud=1&lang=en', { width: 540, height: 960 });
     try {
       const t = T(page);
       await t.give(8000);
       await t.advance(0.1, 4);
-      for (let level = 2; level <= 3; level++) {
-        await tid(page, 'sel-upgrade').click();
-        await t.advance(0.1, 160);
-        await t.settle();
-        expect(await tid(page, 'sel-panel').getAttribute('data-level')).toBe(String(level));
-      }
+      const level = 9; // Sim-Growth: five slots from level 9, the tallest panel
+      await raiseTo(page, level);
+      expect(districtSlotsOf(level)).toBe(5);
       await openByButton(page);
       await t.settle();
-      for (let slot = 0; slot < 4; slot++) expect(await tid(page, `city-tile-${slot}`).isVisible()).toBe(true);
+      for (let slot = 0; slot < 5; slot++) expect(await tid(page, `city-tile-${slot}`).isVisible()).toBe(true);
       await tid(page, `city-build-0-${DISTRICT_MARKET}`).click();
       await tid(page, `city-build-1-${DISTRICT_BARRACKS}`).click();
       await t.advance(0.1, 20);
@@ -278,7 +288,7 @@ describe('the city view', () => {
       expect(box.y + box.height).toBeLessThanOrEqual(960);
       expect(box.width).toBeGreaterThan(540 - 24);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-      expect(await tid(page, 'city-title').textContent()).toBe(await t.text('sel.city.title', { level: 3, max: 3 }));
+      expect(await tid(page, 'city-title').textContent()).toBe(await t.text('sel.city.title', { level, max: maxLevelOf(STRUCT_CITY) }));
       expect(await tid(page, 'city-title').textContent()).toContain('City');
       await page.screenshot({ path: path.join(SHOT_DIR, 'city-view-portrait-en.png') });
       expect(messages).toEqual([]);
@@ -287,17 +297,14 @@ describe('the city view', () => {
     }
   });
 
-  it('the Swedish texts at 960x540 with a level 3 City: nothing leaves the window', async () => {
+  it('the Swedish texts at 960x540 with a level 9 City (five tiles): nothing leaves the window', async () => {
     const { page, messages } = await withCity('test=1&seed=7&ai=0&hud=1', { width: 960, height: 540 });
     try {
       const t = T(page);
       await t.give(8000);
       await t.advance(0.1, 4);
-      for (let level = 2; level <= 3; level++) {
-        await tid(page, 'sel-upgrade').click();
-        await t.advance(0.1, 160);
-        await t.settle();
-      }
+      const level = 9;
+      await raiseTo(page, level);
       await openByButton(page);
       await tid(page, `city-build-0-${DISTRICT_MARKET}`).click();
       await t.advance(0.1, 20);
@@ -305,7 +312,7 @@ describe('the city view', () => {
       const box = (await tid(page, 'city-view').boundingBox())!;
       expect(box.x + box.width).toBeLessThanOrEqual(960);
       expect(box.y + box.height).toBeLessThanOrEqual(540);
-      expect(await tid(page, 'city-title').textContent()).toBe(await t.text('sel.city.title', { level: 3, max: 3 }));
+      expect(await tid(page, 'city-title').textContent()).toBe(await t.text('sel.city.title', { level, max: maxLevelOf(STRUCT_CITY) }));
       await page.screenshot({ path: path.join(SHOT_DIR, 'city-view-landscape-sv.png') });
       expect(messages).toEqual([]);
     } finally {

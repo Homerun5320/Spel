@@ -1,4 +1,4 @@
-// The city view panel (Districts-2a): a small map of one City. One tile per district slot (2 / 3 / 4 by the City's level), the City's level and
+// The city view panel (Districts-2a): a small map of one City. One tile per district slot (2 / 3 / 4 / 5 by the City's level, `districtSlotsOf`), the City's level and
 // its upgrade button on top, the totals the City gives. DOM only. The panel only reports clicks (build / upgrade / remove); the page sends the
 // intents. Every frame `update` computes the cheap numeric signature of `cityViewModel.ts` and rebuilds texts and attributes ONLY when it changed
 // (no innerHTML, no allocation while nothing changes). Icons are inline SVG built in code.
