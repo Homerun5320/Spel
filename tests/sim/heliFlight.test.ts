@@ -42,6 +42,7 @@ import {
 } from '../../src/sim/rules';
 import { deserialize, hashState, serialize } from '../../src/sim/serialize';
 import { step } from '../../src/sim/step';
+import { createScenarioState, runScenario } from '../../src/sim/scenario';
 import { createState, rebuildAggregates, type GameState } from '../../src/sim/state';
 import { STRUCT_CITY, STRUCT_FACTORY } from '../../src/sim/structureRules';
 import { CLASS_DEEP_SEA, CLASS_PLAINS } from '../../src/sim/terrain';
@@ -399,7 +400,7 @@ describe('fuel, Downed, a lost Factory', () => {
     expect(s.helis.liveCount).toBe(0);
   });
 
-  it('a Factory conquered away from under an airborne helicopter does not stop it (scrapFactoryHelis only takes parked and queued ones), and it comes home to its own other Factory', () => {
+  it('a Factory conquered away from under a helicopter that is lifting off does not stop it (scrapFactoryHelis only takes parked and queued ones)', () => {
     const s = world();
     const f = factoryWithHeli(s);
     run(s, launchHeliBody(0, f, LZ, 100, 0));
@@ -408,6 +409,46 @@ describe('fuel, Downed, a lost Factory', () => {
     expect(s.helis.state[0]).toBe(HELI_LIFT);
     idle(s, 40);
     expect(s.helis.state[0]).toBe(HELI_CRUISE);
+  });
+});
+
+describe('the way home and the date line', () => {
+  it('the return goes to the NEAREST own Factory (not the home one, not the lowest id) and the helicopter changes its home', () => {
+    const s = world();
+    const home = factoryWithHeli(s); // at (20, 60), id 0 in the structure table
+    const far = s.structures.add(STRUCT_FACTORY, 1, at(10, 120), s.tick);
+    const near = s.structures.add(STRUCT_FACTORY, 1, at(90, 62), s.tick); // 10 cells from the landing zone
+    idle(s, BUILD_TICKS[STRUCT_FACTORY] as number);
+    s.troops[1] = TROOPS_QT;
+    expect(applyLaunchHeli(s, 0, home, LZ, 100, 0)).toBe(REJECT_NONE);
+    let guard = 0;
+    while (s.helis.state[0] !== HELI_PAD && guard++ < 3000) fly(s, 1);
+    expect(s.helis.state[0]).toBe(HELI_PAD);
+    expect(s.helis.factory[0]).toBe(near);
+    expect(s.helis.factory[0]).not.toBe(far);
+    expect(s.helis.x[0]).toBe(90 * HELI_POS_ONE + HELI_POS_ONE / 2);
+    expect(s.troops[1]).toBe(TROOPS_QT);
+  });
+
+  it('a flight over the date line wraps x: the position stays inside the world on every tick and the helicopter arrives on the far side', () => {
+    const s = world();
+    const f = factoryWithHeli(s, 5, 60);
+    s.troops[1] = TROOPS_QT;
+    const lz = at(W - 40, 60); // 45 cells WEST of the Factory across the seam, 467 cells east the long way
+    expect(applyLaunchHeli(s, 0, f, lz, 100, 0)).toBe(REJECT_NONE);
+    let sawLow = false;
+    let hovered = false;
+    for (let i = 0; i < 2000 && !hovered; i++) {
+      fly(s, 1);
+      const x = s.helis.x[0] as number;
+      expect(x).toBeGreaterThanOrEqual(0);
+      expect(x).toBeLessThan(W * HELI_POS_ONE);
+      if (x > (W - 5) * HELI_POS_ONE) sawLow = true;
+      if (s.helis.state[0] === HELI_HOVER) hovered = true;
+    }
+    expect(sawLow).toBe(true); // it crossed the seam westwards
+    expect(hovered).toBe(true);
+    expect(s.helis.x[0]).toBe((W - 40) * HELI_POS_ONE + HELI_POS_ONE / 2);
   });
 });
 
@@ -488,5 +529,19 @@ describe('events, codec and determinism with helicopters in the air', () => {
       expect(s.helis.alt[0]).toBe(40 + agl);
       expect(losOf(s).terrain.groundGm[at(40, 60)]).toBe(40);
     }
+  });
+});
+
+describe('the golden scenario carries flights', () => {
+  it('the scripted LaunchHeli / RecallHeli lines are part of the pinned run, and at least one launch is accepted in the two pinned seeds (so the golden hashes cover a helicopter in the air)', () => {
+    let launched = 0;
+    for (const seed of [1, 2]) {
+      const s = createScenarioState({ seed });
+      while (s.tick < 6000) {
+        runScenario(s, s.tick + 100);
+        launched += events(s, OUTBOX_HELI_LAUNCHED).length;
+      }
+    }
+    expect(launched).toBeGreaterThanOrEqual(1);
   });
 });

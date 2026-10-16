@@ -16,6 +16,8 @@ import { readGolden } from '../helpers/simGolden';
 import { driveScenario } from './helpers';
 
 const CELLS = GOLDEN_PARAMS.width * GOLDEN_PARAMS.height;
+// M12a-2: the golden scenario world carries the occluder layer (LaunchHeli needs it), and a restored host must be handed the same layer.
+const ELEV = { maxElev: createScenarioState().env.maxElev as Int16Array };
 const drive = (host: MainThreadHost, ticks: number): void => driveScenario(host, GOLDEN_PARAMS.seed, GOLDEN_PARAMS.seats, CELLS, ticks);
 
 describe('a snapshot is a resume point of the host', () => {
@@ -26,7 +28,7 @@ describe('a snapshot is a resume point of the host', () => {
     drive(host, 3000);
     const snap = await host.requestSnapshot();
     expect(snap.tick).toBe(3000);
-    const resumed = MainThreadHost.resume(snap);
+    const resumed = MainThreadHost.resume(snap, ELEV);
     expect(resumed).not.toBeNull();
     if (resumed === null) return;
     expect(resumed.tick).toBe(3000);
@@ -41,7 +43,7 @@ describe('a snapshot is a resume point of the host', () => {
   it.each([1, 2, 3, 17, 999, 2501])('resuming at tick %i reaches the golden hash of tick 6000 (every phase of the T + 2 pipeline)', async (k) => {
     const host = new MainThreadHost(createScenarioState());
     drive(host, k);
-    const resumed = MainThreadHost.resume(await host.requestSnapshot());
+    const resumed = MainThreadHost.resume(await host.requestSnapshot(), ELEV);
     if (resumed === null) throw new Error('resume failed');
     drive(resumed, 6000 - k);
     expect(hex32((await resumed.requestSnapshot()).hash)).toBe(golden.hashes['6000']);
@@ -88,7 +90,7 @@ describe('a snapshot is a resume point of the host', () => {
     for (const t of a.resume.pending) (t.intents as unknown as unknown[]).length = 0;
     const b = await host.requestSnapshot();
     expect(b.resume.idNext.every((n) => n !== 7)).toBe(true);
-    const c = MainThreadHost.resume(b);
+    const c = MainThreadHost.resume(b, ELEV);
     if (c === null) throw new Error('resume failed');
     drive(c, 5960);
     expect(hex32((await c.requestSnapshot()).hash)).toBe(golden.hashes['6000']);
@@ -103,7 +105,7 @@ describe('a snapshot is a resume point of the host', () => {
       remote.advance(TICK_MS);
     }
     const snap = await remote.requestSnapshot();
-    const resumed = MainThreadHost.resume(snap);
+    const resumed = MainThreadHost.resume(snap, ELEV);
     if (resumed === null) throw new Error('resume failed');
     drive(resumed, 4000);
     expect(hex32((await resumed.requestSnapshot()).hash)).toBe(golden.hashes['6000']);
@@ -112,7 +114,7 @@ describe('a snapshot is a resume point of the host', () => {
   it('a resumed host keeps its options (speed, hash events) and emits a diff that starts at the snapshot tick', async () => {
     const host = new MainThreadHost(createScenarioState());
     drive(host, 50);
-    const resumed = MainThreadHost.resume(await host.requestSnapshot(), { hashEveryTicks: 10 });
+    const resumed = MainThreadHost.resume(await host.requestSnapshot(), { hashEveryTicks: 10, ...ELEV });
     if (resumed === null) throw new Error('resume failed');
     const events: HostEvent[] = [];
     resumed.subscribe((e) => events.push(e));

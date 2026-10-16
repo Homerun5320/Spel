@@ -118,21 +118,22 @@ ACCEPTANS
 ### M12a-2: helicopters in the sim, part 2 of 3 (LaunchHeli, the flight, fuel, RecallHeli, the return; headless sim; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
 Previous merge SHA: nothing of this branch is merged (pull request #1 is a draft); base commit 6b1a032.
 GÖR
-- [ ] 1. GÖR and ACCEPTANS written here first
-- [ ] 2. Intents `LaunchHeli` (wire kind 13) and `RecallHeli` (kind 14) with codec, reason codes 51 to 54, texts sv and en, ONE shared check (`checkLaunchHeli` / `checkRecallHeli`) behind `validateLaunchHeli` / `validateRecallHeli`, exports pinned
-- [ ] 3. The flight in `heliPhase` (`src/sim/heliFlight.ts`): Pad, TakeOff 20, Cruise, Approach, Hover 30, placeholder, RTB, Pad; Downed; fixed point, wrapX, terrain following, fuel, Recall, home Factory lost
-- [ ] 4. The landing placeholder (HELI_LANDED, no conquest, no troops created or lost) and the exact replacement point for part 3
-- [ ] 5. ENGINE_VERSION once, goldens recomputed once, Node equals worker
-- [ ] 6. Tests (each reason code, tick-exact TakeOff/Hover, property test over Alps / Himalaya / Andes in both modes, fuel, Recall, home lost, round trip, snapshot equals straight run, perf with 12 airborne, SimView.helis transfer measured)
-- [ ] 7. Docs and `npm run verify:fast` green
+- [x] 1. GÖR and ACCEPTANS written here first
+- [x] 2. Intents `LaunchHeli` (wire kind 13) and `RecallHeli` (kind 14) with codec, reason codes 51 to 54, texts sv and en, ONE shared check (`checkLaunchHeli` / `checkRecallHeli`) behind `validateLaunchHeli` / `validateRecallHeli`, exports pinned
+- [x] 3. The flight in `heliPhase` (`src/sim/heliFlight.ts`): Pad, TakeOff 20, Cruise, Approach, Hover 30, placeholder, RTB, Pad; Downed; fixed point, wrapX, terrain following, fuel, Recall, home Factory lost
+- [x] 4. The landing placeholder (HELI_LANDED, no conquest, no troops created or lost) and the exact replacement point for part 3
+- [x] 5. ENGINE_VERSION once, goldens recomputed once, Node equals worker
+- [x] 6. Tests (each reason code, tick-exact TakeOff/Hover, property test over Alps / Himalaya / Andes in both modes, fuel, Recall, home lost, round trip, snapshot equals straight run, perf with 12 airborne, SimView.helis transfer measured)
+- [x] 7. Docs and `npm run verify:fast` green
 ACCEPTANS
-- [ ] LaunchHeli / RecallHeli: every reason code, one shared implementation, exports pinned
-- [ ] Flight: clearance, Peak, NaN, liveness, speed cap, fuel, Recall, home lost: property and unit tests
-- [ ] Landing placeholder documented with the exact replacement point; no troops created or lost
-- [ ] ENGINE raised once, goldens recomputed once, Node == worker; round trip and snapshot == straight run with helicopters airborne
-- [ ] Perf: median <= budgetMs(0.5) per tick with 12 airborne; the SimView.helis transfer measured
-- [ ] `npm run verify:fast` green
+- [x] LaunchHeli / RecallHeli: every reason code, one shared implementation, exports pinned
+- [x] Flight: clearance, Peak, NaN, liveness, speed cap, fuel, Recall, home lost: property and unit tests
+- [x] Landing placeholder documented with the exact replacement point; no troops created or lost
+- [x] ENGINE raised once, goldens recomputed once, Node == worker; round trip and snapshot == straight run with helicopters airborne
+- [x] Perf: median <= budgetMs(0.5) per tick with 12 airborne; the SimView.helis transfer measured
+- [x] `npm run verify:fast` green
 
+- Result: `npm run verify:fast` green (typecheck, lint, 233 unit files, 2545+ tests; 2 min 58 s); perf alone: heliFlight.perf, heli.perf, sim.perf green (flight phase of 12 airborne 25.8 us on a quiet run); the full `npm run verify`, Chromium, the pack and the pull request are the orchestrator's. Details, mutant table, measured flight times and the hooks for part 3 and M13 in `docs/DECISIONS.md` "M12a-2".
 ## Next
 
 - Next slices: M12a (helicopters in the sim, headless) and M20a-lite (the HUD; the keydown rule of the M20a note in `docs/ARCHITECTURE.md` counts `src/ui/matchPanels.ts` and `src/app/debugViewshed.ts` too).

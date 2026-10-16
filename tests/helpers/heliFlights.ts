@@ -55,6 +55,8 @@ export interface FlightResult {
   /** max over the cruise of (alt - (ground + 300)), game metres */
   readonly maxLiftOverNoe: number;
   readonly maxAlt: number;
+  /** alt - (EXAG * mean + 300) at the highest ground the flight crossed (the ridge pass), game metres */
+  readonly liftAtPass: number;
   readonly violations: string[];
 }
 
@@ -100,6 +102,8 @@ interface Pending {
   homeTicks: number;
   maxLift: number;
   maxAlt: number;
+  passGround: number;
+  passLift: number;
   violations: string[];
 }
 
@@ -179,6 +183,8 @@ export function runFlights(s: GameState, rounds: number, seed: number): FlightRe
         homeTicks: -1,
         maxLift: 0,
         maxAlt: 0,
+        passGround: -1,
+        passLift: 0,
         violations: [],
       };
       if (s.helis.state[id] !== HELI_LIFT) rec.violations.push(`launch refused: ${JSON.stringify(refused.map((e) => e.a))}`);
@@ -227,6 +233,10 @@ export function runFlights(s: GameState, rounds: number, seed: number): FlightRe
           const lift = alt - ((terr.groundGm[cell] as number) + 300);
           if (lift > p.maxLift) p.maxLift = lift;
           if (alt > p.maxAlt) p.maxAlt = alt;
+          if ((terr.groundGm[cell] as number) > p.passGround) {
+            p.passGround = terr.groundGm[cell] as number;
+            p.passLift = lift;
+          }
         }
         if (st === HELI_CRUISE || st === HELI_APPROACH) {
           p.cruiseMoved += moved;
@@ -258,6 +268,7 @@ export function runFlights(s: GameState, rounds: number, seed: number): FlightRe
         maxStepRatio: p.maxStep / stepNominal,
         maxLiftOverNoe: p.maxLift,
         maxAlt: p.maxAlt,
+        liftAtPass: p.passLift,
         violations: p.violations,
       });
     }
@@ -279,7 +290,7 @@ export function checkFlights(label: string, rs: readonly FlightResult[]): void {
       `out-flight Low mean ${(mean(by((r) => r.mode === 0).map((r) => r.outTicks)) / 10).toFixed(1)} s, High ${(mean(by((r) => r.mode === 1).map((r) => r.outTicks)) / 10).toFixed(1)} s; ` +
       `speed ratio min/max ${Math.min(...rs.map((r) => r.meanSpeedRatio)).toFixed(3)}/${Math.max(...rs.map((r) => r.meanSpeedRatio)).toFixed(3)}; max step ratio ${Math.max(...rs.map((r) => r.maxStepRatio)).toFixed(3)}; ` +
       `max-dist/route min ${Math.min(...rs.map((r) => r.maxDistRatioRoute)).toFixed(3)}, max-dist/straight min ${Math.min(...rs.map((r) => r.maxDistRatioStraight)).toFixed(3)}; ` +
-      `Alps alt over EXAG*mean+300: max ${Math.max(0, ...alps.map((r) => r.maxLiftOverNoe))} m (Low ${Math.max(0, ...alps.filter((r) => r.mode === 0).map((r) => r.maxLiftOverNoe))}, High ${Math.max(0, ...alps.filter((r) => r.mode === 1).map((r) => r.maxLiftOverNoe))}); max alt ${Math.max(...rs.map((r) => r.maxAlt))}`,
+      `Alps alt over EXAG*mean+300: max ${Math.max(0, ...alps.map((r) => r.maxLiftOverNoe))} m (Low ${Math.max(0, ...alps.filter((r) => r.mode === 0).map((r) => r.maxLiftOverNoe))}, High ${Math.max(0, ...alps.filter((r) => r.mode === 1).map((r) => r.maxLiftOverNoe))}); max alt ${Math.max(...rs.map((r) => r.maxAlt))}; Alps lift at the ridge pass min/mean/max ${Math.min(...alps.map((r) => r.liftAtPass))}/${mean(alps.map((r) => r.liftAtPass)).toFixed(0)}/${Math.max(...alps.map((r) => r.liftAtPass))} m (Low mean ${mean(alps.filter((r) => r.mode === 0).map((r) => r.liftAtPass)).toFixed(0)})`,
   );
   const bad = rs.filter((r) => r.violations.length > 0).map((r) => `${r.region}/${r.mode}: ${r.violations[0]}`);
   expect(bad).toEqual([]);

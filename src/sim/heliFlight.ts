@@ -38,7 +38,7 @@ import {
   QT_PER_TROOP,
   TICK_HZ,
 } from './rules';
-import { seatToOwner, type GameState } from './state';
+import { ownerToSeat, seatToOwner, type GameState } from './state';
 import { STRUCT_FACTORY } from './structureRules';
 import { spawnPhaseRefuses } from './structures';
 
@@ -152,7 +152,7 @@ function startReturn(state: GameState, id: number, recalled: number): void {
     t.routeLen[id] = 1;
     t.routeIdx[id] = 1; // already there: the next flight pass sets it down
   } else {
-    const r = hasOccluders(state) ? planRouteOf(state, owner - 1, cur, fcell, t.mode[id] === 1 ? 1 : 0) : null;
+    const r = hasOccluders(state) ? planRouteOf(state, ownerToSeat(owner), cur, fcell, t.mode[id] === 1 ? 1 : 0) : null;
     if (r !== null && r.ok && r.waypoints.length >= 2 && r.waypoints.length <= HELI_ROUTE_CAPACITY) {
       for (let k = 0; k < r.waypoints.length; k++) t.route[base + k] = r.waypoints[k] as number;
       t.routeLen[id] = r.waypoints.length;

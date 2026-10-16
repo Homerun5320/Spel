@@ -308,3 +308,10 @@ Economy script result (M09c, Russia, seed 1, 10 minutes, `npm run sim:scenario -
 | `HELI_MAX_TROOPS` | 600 | troops | plan | M12a-1: most troops one helicopter carries (part 2). |
 | `HELI_HP_TENTHS` | 1000 | tenths of HP | plan | M12a-1: hit points of a helicopter, 100.0 HP stored in tenths. |
 | `HELI_FUEL_MAX_Q8` | 46080 | Q8 sim cells | eget val | M12a-1: a full tank, HELI_FUEL_CELLS * 256. |
+| `HELI_TAKEOFF_TICKS` | 20 | ticks | eget val | M12a-2: a helicopter lifts off for 2 s before it cruises (the altitude climbs to the floor of its cell). |
+| `HELI_HOVER_TICKS` | 30 | ticks | plan | M12a-2: it hovers 3 s over the landing zone; part 3 unloads after that. |
+| `HELI_DOWNED_TICKS` | 50 | ticks | plan | M12a-2: a downed helicopter stays 5 s in the table, then it is removed. |
+| `HELI_CLEARANCE_GAME_M` | 100 | game metres | eget val | M12a-2: clearance above the occluder height of the cell: alt = max(EXAG * mean + AGL, occluder + this). Over the Alps this lifts the Low flight 328 to 5552 m (game metres, mean 2711) above EXAG * mean + 300 at the ridge pass (DECISIONS M12a-2). |
+| `HELI_VERT_GM_PER_CELL` | 4000 | game metres per cell flown | eget val | M12a-2: the most the altitude changes per cell flown (the floor above wins when the ground is steeper). |
+| `HELI_LOOKAHEAD_CELLS` | 4 | cells | plan | M12a-2: terrain-following look-ahead along the heading. |
+| `HELI_APPROACH_CELLS` | 5 | cells | eget val | M12a-2: a helicopter on the last leg is APPROACHING within this distance of the landing zone. |

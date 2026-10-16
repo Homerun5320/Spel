@@ -444,3 +444,12 @@ Not done in the Fix-UI slice (the sim, host and AI findings belong to Fix-Sim):
 - Touch: the `?` overlay has no button, only the key (M20b adds the radial menu and a touch route).
 - The win meter shows the land condition only; a score or last-standing match shows no meter (the timer stays). A "time left" row for the score condition (`MatchView.timeLeftTicks`) is a one-liner when wanted.
 - Layout: the selection panel could sit beside the build bar now that the status panel left the bottom; the banner, the paused badge and the spectator bar are tied to the `TOPBAR` constants, not measured at run time.
+
+## M12a-2
+- Fuel is checked ONE WAY at launch (`scoreLz`: route at most `HELI_FUEL_CELLS`); the way home can be longer (the return is planned from the zone, 1 of 42 flights of the quick run ran dry on a 83-cell route). A round-trip check (`2 * route`) or a "one-way raid" mark in the UI is a balance call for M19 / M13.
+- A recalled or returning helicopter has no re-route when its target Factory is lost in flight except at arrival (nearest remaining, else scrapped); a re-plan at the moment of loss would save the flight time.
+- A helicopter that cannot be planned home (its cell is closed to the nav grid) flies the straight line; the altitude floor clears the ground but the line can cross a Peak cell. A fix is a "nearest open nav cell" start for `planRoute`.
+- Hovering and lifting cost no fuel; a small hover fuel cost would make waiting over the zone a choice.
+- The golden scenario contains refused launches and one accepted launch (seed 1, tick 5998): the fixture world has few valid zones. A dedicated flight scenario (fixed Factory and zone) would pin more of the flight in the hash.
+- A troop count returned to a seat that is over its cap decays like any other surplus; no special handling.
+- UI: the launch needs a zone picker with `validateLaunchHeli` (M13b), a recall button and a fuel bar; the hover and the way home are visible in `SimView.helis` (`state`, `alt`, `load`, `fuel`).
