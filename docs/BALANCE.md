@@ -315,3 +315,9 @@ Economy script result (M09c, Russia, seed 1, 10 minutes, `npm run sim:scenario -
 | `HELI_VERT_GM_PER_CELL` | 4000 | game metres per cell flown | eget val | M12a-2: the most the altitude changes per cell flown (the floor above wins when the ground is steeper). |
 | `HELI_LOOKAHEAD_CELLS` | 4 | cells | plan | M12a-2: terrain-following look-ahead along the heading. |
 | `HELI_APPROACH_CELLS` | 5 | cells | eget val | M12a-2: a helicopter on the last leg is APPROACHING within this distance of the landing zone. |
+| `HELI_UNLOAD_TICKS` | 10 | ticks | plan | M12a-3: a helicopter sets down and unloads for 1 s; the cells are taken in the last step. |
+| `BEACHHEAD_LANDING_CELLS` | 9 | cells | plan | M12a-3: a landing takes the zone and its eight neighbours at most (N, E, S, W, NE, SE, SW, NW). |
+| `BEACHHEAD_ESTABLISH_CELLS` | 80 | cells | plan | M12a-3: a cut-off cluster is established when the search from its seed reaches this many cells (the search is bounded by it) or meets a City. |
+| `BEACHHEAD_CHECK_TICKS` | 10 | ticks | plan | M12a-3: the cluster of a beachhead is searched every 10 ticks after the landing. |
+| `BEACHHEAD_REVERT_TICKS` | 450 | ticks | plan | M12a-3: a cut-off beachhead that is not established returns to neutral exactly 45 s after its landing. |
+| `LANDING_ENEMY_COST_PCT` | 200 | percent | plan | M12a-3: a landing cell that belongs to somebody else costs twice the plain cell price (the Attack price at depth 0 on level ground, terrain, home trait, Post and Walls included). |

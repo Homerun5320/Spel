@@ -204,6 +204,10 @@ export class BeachheadTable {
   /** The tick of the landing. */
   readonly landTick = new Uint32Array(BEACHHEAD_CAPACITY);
   readonly status = new Uint8Array(BEACHHEAD_CAPACITY);
+  /** DERIVED (M12a-3, never hashed or serialised): the cut-off cache below must be recomputed (a cell changed owner, a row came or went, a restore). */
+  dirty = true;
+  /** DERIVED: per ownerId, the Q15 cos-weighted area of its cut-off clusters, which the economy leaves out (src/sim/beachheadCluster.ts). Allocated at the first refresh. */
+  cutWeight: Uint32Array | null = null;
 
   /** Takes the lowest free slot; -1 when full. */
   add(ownerId: number, seed: number, landTick: number, status: number): number {
@@ -214,6 +218,7 @@ export class BeachheadTable {
       this.landTick[i] = landTick;
       this.status[i] = status;
       this.liveCount++;
+      this.dirty = true;
       return i;
     }
     return -1;
@@ -226,12 +231,14 @@ export class BeachheadTable {
     this.landTick[i] = 0;
     this.status[i] = 0;
     this.liveCount--;
+    this.dirty = true;
   }
 
   rebuildIndex(): void {
     let live = 0;
     for (let i = 0; i < BEACHHEAD_CAPACITY; i++) if (this.owner[i] !== 0) live++;
     this.liveCount = live;
+    this.dirty = true;
   }
 }
 

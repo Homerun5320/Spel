@@ -6,7 +6,7 @@ import { decodeIntent, encodeIntent } from '../../src/sim/codec';
 import { checkRecallHeli, validateLaunchHeli, validateRecallHeli } from '../../src/sim/heliRules';
 import { applyLaunchHeli, applyRecallHeli, heliStepQ8 } from '../../src/sim/heliFlight';
 import { heliPhase } from '../../src/sim/heliPhase';
-import { HELI_APPROACH, HELI_CRUISE, HELI_DOWNED, HELI_HOVER, HELI_LIFT, HELI_PAD, HELI_POS_ONE, HELI_RETURN } from '../../src/sim/heliTable';
+import { HELI_APPROACH, HELI_CRUISE, HELI_DOWNED, HELI_HOVER, HELI_LIFT, HELI_PAD, HELI_POS_ONE, HELI_RETURN, HELI_UNLOAD } from '../../src/sim/heliTable';
 import {
   compareIntents,
   copyBody,
@@ -36,6 +36,7 @@ import {
   HELI_HOVER_TICKS,
   HELI_MAX_TROOPS,
   HELI_TAKEOFF_TICKS,
+  HELI_UNLOAD_TICKS,
   MILLI_GOLD_PER_GOLD,
   QT_PER_TROOP,
   TICK_HZ,
@@ -265,7 +266,7 @@ describe('the flight: tick-exact states, the whole mission, the speed', () => {
     expect(s.helis.alt[0]).toBeGreaterThan(0);
   });
 
-  it('Hover lasts HELI_HOVER_TICKS exactly, then HELI_LANDED (placeholder: the load as the figure) and the way home; the whole mission loses and creates no troops', () => {
+  it('Hover lasts HELI_HOVER_TICKS exactly, then HELI_UNLOAD for HELI_UNLOAD_TICKS, HELI_LANDED (b = 0: the zone is own land, nothing taken) and the way home; the whole mission loses and creates no troops', () => {
     const s = world();
     const f = factoryWithHeli(s);
     const total = (): number => (s.troops[1] as number) + (s.helis.owner[0] === 0 ? 0 : (s.helis.load[0] as number) * QT_PER_TROOP);
@@ -273,6 +274,7 @@ describe('the flight: tick-exact states, the whole mission, the speed', () => {
     expect(applyLaunchHeli(s, 0, f, LZ, 250, 0)).toBe(REJECT_NONE);
     let hoverStart = -1;
     let hoverEnd = -1;
+    let returnStart = -1;
     let landed: OutboxEvent[] = [];
     let sawApproach = false;
     for (let i = 0; i < 3000 && s.helis.state[0] !== HELI_PAD; i++) {
@@ -281,17 +283,19 @@ describe('the flight: tick-exact states, the whole mission, the speed', () => {
       const st = s.helis.state[0];
       if (st === HELI_APPROACH) sawApproach = true;
       if (st === HELI_HOVER && hoverStart < 0) hoverStart = s.tick - 1;
-      if (st === HELI_RETURN && hoverEnd < 0) hoverEnd = s.tick - 1;
+      if (st === HELI_UNLOAD && hoverEnd < 0) hoverEnd = s.tick - 1;
+      if (st === HELI_RETURN && returnStart < 0) returnStart = s.tick - 1;
       landed = landed.concat(events(s, OUTBOX_HELI_LANDED));
       if (st === HELI_PAD) break;
     }
     expect(sawApproach).toBe(true);
     expect(hoverEnd - hoverStart).toBe(HELI_HOVER_TICKS);
+    expect(returnStart - hoverEnd).toBe(HELI_UNLOAD_TICKS); // M12a-3: the landing takes its own ticks between the hover and the way home
     expect(s.helis.state[0]).toBe(HELI_PAD);
     expect(s.troops[1]).toBe(before);
     expect(s.helis.load[0]).toBe(0);
     expect(landed).toHaveLength(1);
-    expect(landed[0]?.b).toBe(250);
+    expect(landed[0]?.b).toBe(0); // M12a-3: b = cells taken; LZ is the seat's own land, so nothing is taken and the 250 flew home
   });
 
   it('flies at the mode speed: 60 cells Low takes at least 15 s one way, High is faster than Low, and no tick moves more than 1.05 x the speed', () => {

@@ -537,3 +537,20 @@ export const HELI_VERT_GM_PER_CELL = 4000;
 export const HELI_APPROACH_CELLS = 5;
 /** Terrain-following look-ahead in cells along the heading (samples at 1..this). */
 export const HELI_LOOKAHEAD_CELLS = 4;
+
+// ---------------------------------------------------------------------------------------------------------------
+// M12a-3: the landing, the beachhead and the cut-off cluster (src/sim/heliLanding.ts, src/sim/beachheadCluster.ts). Every constant has a row in
+// docs/BALANCE.md. Provisional: the M12a-3 block of docs/DECISIONS.md.
+
+/** Ticks a helicopter spends setting down and unloading before the cells are taken (1 s). */
+export const HELI_UNLOAD_TICKS = 10;
+/** The most cells one landing takes: the landing zone and its eight neighbours. */
+export const BEACHHEAD_LANDING_CELLS = 9;
+/** A cut-off cluster is ESTABLISHED when its breadth-first search from the seed reaches this many cells (the search is bounded by it). */
+export const BEACHHEAD_ESTABLISH_CELLS = 80;
+/** The cluster of a beachhead is searched every this many ticks after the landing. */
+export const BEACHHEAD_CHECK_TICKS = 10;
+/** A cut-off beachhead that is not established this many ticks after the landing returns to neutral (45 s). */
+export const BEACHHEAD_REVERT_TICKS = 450;
+/** The price of a landing cell that belongs to somebody else, in percent of the plain cell price (the Attack price of an owned cell is the same at depth 0; this is the plan's "x2"). */
+export const LANDING_ENEMY_COST_PCT = 200;

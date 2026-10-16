@@ -39,7 +39,7 @@ describe('the forbidden-address scanner itself', () => {
 });
 
 /** Size caps in bytes of gzipped JavaScript (Fix-3C): measured plus about 5 %. Raise them only with a line in docs/DECISIONS.md. */
-const JS_GZ_TOTAL_MAX = 329_000;
+const JS_GZ_TOTAL_MAX = 335_000; // M12a-3: 329 471 measured (was 329 000 at Fix-3C; DECISIONS M12a-3 point 11)
 const JS_GZ_MAIN_MAX = 277_000;
 
 describe('portable build (relative addresses only)', () => {

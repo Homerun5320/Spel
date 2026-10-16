@@ -9,6 +9,7 @@
 // is queued whenever a cell next to it changes owner (territory.ts), into the bucket given by a hash of the cell, so it is
 // checked within ENCLAVE_FLIP_TICKS ticks of the change that may have closed it in. A tick therefore does the work of one
 // bucket, at most ENCLAVE_PASS_BUDGET_CELLS visited cells (the rest waits for the next pass), and never scans the map.
+import { holdsBeachhead } from './beachheadCluster';
 import { ENCLAVE_FLIP_TICKS, ENCLAVE_MAX_CELLS, ENCLAVE_PASS_BUDGET_CELLS } from './rules';
 import type { GameState } from './state';
 import { setOwner } from './territory';
@@ -69,6 +70,8 @@ function checkRegion(state: GameState, start: number): number {
       }
     }
   }
+  // A cut-off helicopter beachhead (M12a-3) is never an enclave: it is surrounded by design and returns to neutral by its own timer.
+  if (!open && surround > 0 && x > 0 && state.beachheads.liveCount !== 0 && holdsBeachhead(state, x, MARK_FILL)) open = true;
   if (!open && surround > 0) {
     for (let i = 0; i < size; i++) mark[fill[i] as number] = 0;
     for (let i = 0; i < size; i++) setOwner(state, fill[i] as number, surround, 0);
