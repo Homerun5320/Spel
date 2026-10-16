@@ -66,6 +66,7 @@ const CASES: Array<[string, number, number, { x: number; y: number }]> = [
   ['1366x768, a narrow free part (panel at x=500)', 1366, 768, { x: 500, y: 64 }],
   ['540x960, bottom sheet from y=318', 540, 960, { x: 8, y: 318 }],
   ['960x540, a panel exactly a third wide counts as a bottom sheet', 960, 540, { x: 320, y: 380 }],
+  ['1366x768, a bottom sheet (the vertical term decides the altitude, below the cap)', 1366, 768, { x: 8, y: 450 }],
   ['480x200, a window so low that a quarter of its height is less than the status bar', 480, 200, { x: 8, y: 120 }],
 ];
 
@@ -94,6 +95,13 @@ describe('cityFitFlight, computed: the City and its ring fit the free part of th
       expect(Math.max(fx, fy)).toBeGreaterThan(0.75 * (CITY_VIEW.fitMargin / 2));
       expect(Math.max(fx, fy)).toBeLessThanOrEqual(1);
     }
+  });
+
+  it('where the VERTICAL term decides (a wide window with a bottom sheet, below the altitude cap) the ring fills about half the free height, not more (mutant: the 1.4 near-side factor is dropped and the ring grows to 0.69)', () => {
+    const { box, free } = picture(1366, 768, { x: 8, y: 450 });
+    const fy = (box.y1 - box.y0) / (free.y1 - free.y0);
+    expect(fy).toBeGreaterThan(0.75 * (CITY_VIEW.fitMargin / 2));
+    expect(fy).toBeLessThan(0.6);
   });
 
   it('it holds at other tilts too (the ring is foreshortened, the north offset is divided by cos tilt)', () => {

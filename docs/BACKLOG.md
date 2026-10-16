@@ -470,6 +470,7 @@ Not done in the Fix-UI slice (the sim, host and AI findings belong to Fix-Sim):
 - The helicopter list has no ETA per row: `HeliView` carries no target cell. Add `target` to the view and show the seconds left.
 - The preview asks the sim's rules at 5 Hz on the main thread (an A* of a few ms on the 256x128 nav grid, measured by the perf scene only when a user hovers). If the A* ever shows in the report, run it in the WorkerHost (M24a) behind the same `query` function.
 - Touch: a tap on a valid zone sends at once (no hover on a phone); a two-step "tap to preview, tap again to send" would be kinder.
+- First-load size (Fix-4B, correcting the earlier idea of a lazy `import()` of `launchPreview`, which would save only about 1.6 kB gzipped because `step()` has imported Los / Nav since M12a-1 and the shared `view` chunk is a static import of main): the real candidates are (1) the English string table, which is not needed until a language switch (a second chunk loaded on demand), (2) the sim chunk until Play is pressed (the menu and the setup screen need no `step`), (3) the three.js share of the main chunk (tree-shaking of unused renderers and loaders). A per-chunk or first-load cap in `tests/portable.test.ts` would say more than the measured-plus-percent ratchet.
 
 ## M12a-3 leftovers (landing, beachhead, cut-off cluster)
 

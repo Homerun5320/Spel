@@ -188,21 +188,53 @@ function stripComments(text: string): string {
 }
 
 describe('no Swedish text hides in the player-facing code', () => {
-  // The Dev panel, the perf overlay and its report, the report modal and the debug pages are developer tools, Swedish only (D98).
+  // The Dev panel, the perf overlay and its report, the report modal and the debug pages are developer tools, Swedish only (D98). Fix-4B: the files are DISCOVERED (every .ts under
+  // src/ui and src/app that is not on this explicit list of developer tools (the Dev panel and its mode registry `modes.ts`, the perf and debug files, the report) and of the translation tables themselves), so a new file is covered by default.
+  const DEV_TOOLS = /^(?:app\/(?:devpanel|modes|debug[A-Za-z]*|perf[A-Za-z]*|probe[A-Za-z]*)\.ts|ui\/(?:perf[A-Za-z]*|report|debug[A-Za-z]*|probe[A-Za-z]*)\.ts)$/;
+  /** The translation tables hold the Swedish text on purpose. */
+  const TABLE_FILES = new Set(['ui/i18n.ts']);
+  const discover = (): string[] => {
+    const found: string[] = [];
+    for (const dir of ['ui', 'app']) {
+      for (const f of fs.readdirSync(path.join(SRC, dir))) {
+        const rel = `${dir}/${f}`;
+        if (f.endsWith('.ts') && !f.endsWith('.d.ts') && !DEV_TOOLS.test(rel) && !TABLE_FILES.has(rel)) found.push(rel);
+      }
+    }
+    return found.sort();
+  };
+  // The list of the earlier passes stays as a floor: the discovery may never find fewer files than these.
   const PLAYER_FACING = ['ui/matchHud.ts', 'ui/startScreen.ts', 'ui/hudLogic.ts', 'ui/hudStyle.ts', 'ui/clickTracker.ts', 'ui/hudValues.ts', 'app/tooltip.ts', 'app/globeApp.ts', 'app/match.ts', 'app/matchKeys.ts', 'app/clickTarget.ts', 'app/main.ts', 'app/eligibility.ts', 'app/matchSetup.ts', 'app/matchWorld.ts', 'app/countrySearch.ts', 'app/landmass.ts', 'app/inventedNames.ts', 'ui/seatLabels.ts', 'ui/flag.ts', 'app/setupScreen.ts', 'app/setupModel.ts', 'app/countryGeo.ts', 'app/cellGeo.ts', 'ui/uiConfig.ts',
     // Fix-3C: the files added since (match flow, city view, build UI)
     'ui/matchPanels.ts', 'ui/matchFlow.ts', 'ui/cityViewPanel.ts', 'ui/cityViewModel.ts', 'ui/structureInfo.ts', 'ui/selectionPanel.ts', 'ui/buildBar.ts', 'ui/buildReasons.ts', 'ui/toast.ts', 'ui/gpuTip.ts', 'app/winSetup.ts', 'app/cityViewMode.ts', 'app/placement.ts', 'app/structureSelect.ts',
   ];
+  /** The code of a file without comments, and every string literal in it that holds å, ä or ö. */
+  const offendersIn = (rel: string, text: string): string[] => {
+    const out: string[] = [];
+    const code = stripComments(text);
+    for (const m of code.matchAll(/(['"`])(?:(?!\1)[^\\\n]|\\.)*[åäöÅÄÖ](?:(?!\1)[^\\\n]|\\.)*\1/g)) out.push(`${rel}: ${m[0].slice(0, 60)}`);
+    return out;
+  };
 
-  it('the files exist and hold no string literal with å, ä or ö', () => {
+  it('every .ts under src/ui and src/app except the developer tools and the tables is covered, and the covered set includes every file of the earlier list', () => {
+    const files = discover();
+    for (const rel of PLAYER_FACING) expect(files, rel).toContain(rel);
+    for (const rel of ['ui/deployBox.ts', 'ui/heliInfo.ts', 'ui/helpOverlay.ts', 'ui/winMeter.ts', 'ui/diploReasons.ts', 'ui/hudGate.ts', 'ui/beachheadInfo.ts', 'app/hotkeys.ts', 'app/commandResolver.ts', 'app/deployMode.ts', 'app/launchPreview.ts']) expect(files, rel).toContain(rel);
+    for (const rel of ['ui/i18n.ts', 'app/devpanel.ts', 'app/modes.ts', 'ui/perfOverlay.ts', 'ui/report.ts', 'app/debugSim.ts', 'app/perfScene.ts']) expect(files, rel).not.toContain(rel);
+    expect(files.length).toBeGreaterThan(55);
+  });
+
+  it('the covered files hold no string literal with å, ä or ö', () => {
     const offenders: string[] = [];
-    for (const rel of PLAYER_FACING) {
-      const file = path.join(SRC, rel);
-      expect(fs.existsSync(file), rel).toBe(true);
-      const code = stripComments(fs.readFileSync(file, 'utf8'));
-      for (const m of code.matchAll(/(['"`])(?:(?!\1)[^\\\n]|\\.)*[åäöÅÄÖ](?:(?!\1)[^\\\n]|\\.)*\1/g)) offenders.push(`${rel}: ${m[0].slice(0, 60)}`);
-    }
+    for (const rel of discover()) offenders.push(...offendersIn(rel, fs.readFileSync(path.join(SRC, rel), 'utf8')));
     expect(offenders).toEqual([]);
+  });
+
+  it('the scan finds a Swedish literal in a file nobody listed (mutant: the literal check is dropped), in all three quote styles, and ignores a comment', () => {
+    expect(offendersIn('ui/new.ts', "export const a = 'Avbryt flygningen på riktigt';").length).toBe(1);
+    expect(offendersIn('ui/new.ts', 'export const a = "Skicka";\nexport const b = "Välj mål";').length).toBe(1);
+    expect(offendersIn('ui/new.ts', 'export const a = `Hög ${1}`;').length).toBe(1);
+    expect(offendersIn('ui/new.ts', "// på riktigt\n/* Välj */ export const a = 'x';").length).toBe(0);
   });
 
   it('the comment stripper keeps strings and drops comments', () => {

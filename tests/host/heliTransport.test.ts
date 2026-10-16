@@ -327,13 +327,13 @@ describe('MissionWatcher (landing / loss news)', () => {
     w2.update(fakeView(t2), 1, 0);
     t2.state[h2] = HELI_RETURN;
     expect(w2.update(fakeView(t2), 2, 0)).toBe(0);
-    // the id is reused by another owner's helicopter in the same version: no news for us
+    // the id is reused: seat 1's helicopter was unloading in the slot, now OUR helicopter sits in it in another state: that is no landing of ours
     const t3 = new HeliTable(OWNERS);
-    const h3 = t3.addBuilding(1, 3, 0, 0);
+    const h3 = t3.addBuilding(2, 3, 0, 0);
     t3.state[h3] = HELI_UNLOAD;
     const w3 = new MissionWatcher();
     w3.update(fakeView(t3), 1, 0);
-    t3.owner[h3] = 2; // a seat 1 helicopter now sits in the slot
+    t3.owner[h3] = 1;
     t3.state[h3] = HELI_RETURN;
     expect(w3.update(fakeView(t3), 2, 0)).toBe(0);
     // another seat's landing is not ours
@@ -361,17 +361,20 @@ describe('HeliWatcher (produced / scrapped news)', () => {
     expect(w.update(v, 1, 0)).toBeNull();
     t.addBuilding(1, 5, 0, 100); // a second build starts: the fleet grew, but nothing finished
     expect(w.update(v, 2, 0)).toBeNull();
+    const extra = t.addBuilding(1, 7, 0, 100);
+    t.state[extra] = HELI_PAD; // a helicopter that simply appears READY (nothing was under production for it): the fleet grew, nothing finished
+    expect(w.update(v, 3, 0)).toBeNull();
     t.state[a] = HELI_PAD; // one finished
-    expect(w.update(v, 3, 0)).toBe('produced');
-    expect(w.update(v, 4, 0)).toBeNull();
+    expect(w.update(v, 4, 0)).toBe('produced');
+    expect(w.update(v, 5, 0)).toBeNull();
     t.remove(1); // the other build is scrapped (its Factory went)
-    expect(w.update(v, 5, 0)).toBe('scrapped');
+    expect(w.update(v, 6, 0)).toBe('scrapped');
     // somebody else's helicopter changing is not ours
     t.addBuilding(2, 3, 0, 100);
-    expect(w.update(v, 6, 0)).toBeNull();
-    t.state[2] = HELI_PAD;
     expect(w.update(v, 7, 0)).toBeNull();
-    w.reset();
+    t.state[2] = HELI_PAD;
     expect(w.update(v, 8, 0)).toBeNull();
+    w.reset();
+    expect(w.update(v, 9, 0)).toBeNull();
   });
 });
