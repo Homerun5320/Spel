@@ -124,7 +124,7 @@ The AI only emits intents (`src/ai`, read through `src/sim/public.ts`); these va
 | `AI_NATION_REACH_CELLS` | 90 | sim cells | eget val | A nation's capital is at most this far from the human's (a square, x wrapping; about 3500 km at the equator). Measured with a scripted human expander: first contact with a nation after 2 to 6 minutes, with a tribe after about a minute (D104). |
 | `AI_TRIBE_REACH_CELLS` | 90 | sim cells | eget val | The same for a tribe. |
 | `AI_SPAWN_TRIES` | 400 | places | eget val | Random places tried for one Spawn; the clearance is halved after every quarter of them, and the second half ignores the reach. |
-| `AI_EXPAND_TROOP_PCT` | 36 | % of the cap | eget val | An AI seat expands when its troops are at least this share of the cap. The plan said 50; with the slower capture in rough terrain (D106) 40 keeps the nations' growth where D104 measured it (mean about 1 250 cells after 5 minutes, the weakest of eight seeds above 690). M09c: 37 (was 40) lets an AI with Cities act earlier; it is what brings the solo AI with building into the economy target (see "M09c" below); 25 broke the human-share floor of tests/sim/pace.test.ts, 33 and 30 the refused-intent test of the driver. Sim-Growth: 37 -> 36 (tuning round 2, with `AI_CITY_UPGRADE_LEVELS_PER_CITY`; solo band factor 1.01). |
+| `AI_EXPAND_TROOP_PCT` | 32 | % of the cap | eget val | An AI seat expands when its troops are at least this share of the cap. The plan said 50; with the slower capture in rough terrain (D106) 40 keeps the nations' growth where D104 measured it (mean about 1 250 cells after 5 minutes, the weakest of eight seeds above 690). M09c: 37 (was 40) lets an AI with Cities act earlier; it is what brings the solo AI with building into the economy target (see "M09c" below); 25 broke the human-share floor of tests/sim/pace.test.ts, 33 and 30 the refused-intent test of the driver. Sim-Growth: 37 -> 36 (tuning round 2, with `AI_CITY_UPGRADE_LEVELS_PER_CITY`; solo band factor 1.01). Sim-Levels2: 36 -> 32 (the weaker level curves and the dearer City upgrades, base x L, took away the cheap upgrade income; tuning: 36 gave factor 0.95, 34 0.99, 33 0.9985, 32 1.08 on the solo band; the pace test is green). |
 | `AI_EXPAND_COMMIT_PCT` | 70 | % of troops | eget val | Share of its troops a nation commits to an Attack on unowned land. |
 | `AI_WAR_COMMIT_PCT` | 50 | % of troops | eget val | Share of its troops a nation commits to an Attack on a neighbour. |
 | `AI_WAR_MIN_RATIO_PCT` | 130 | % | eget val | A nation attacks a neighbour only with at least 1.3 times its troops. |
@@ -164,7 +164,9 @@ The structure table, the prices and the placement numbers. The base prices and t
 | Constant | Value | Unit | Source | Note |
 |----------|-------|------|--------|------|
 | `STRUCT_CAPACITY` | 4096 | slots | plan | Slots of the structure table; ids 0..4095. A structural limit. |
-| `STRUCT_MAX_LEVEL` | 3 | level | plan | Highest level of a Factory, Port, Silo, SAM and Post. A City has `CITY_MAX_LEVEL` (`maxLevelOf(type)` in `src/sim/structureRules.ts`). |
+| `STRUCT_MAX_LEVEL` | 3 | level | plan | Sim-Levels2: LEGACY visual reference level of Factory, Port, Silo, SAM and Post (models reach full size here). NOT a limit any more: `maxLevelOf(type)` is `STRUCT_LEVEL_HARD_CAP` for every type. |
+| `STRUCT_LEVEL_HARD_CAP` | 999 | level | eget val | Sim-Levels2: the practical top level of EVERY structure type and district kind (`maxLevelOf(type)`, `districtMaxLevel()`); u16 in the tables. The dearest upgrade, Silo base 1000 x 999, is 999 000 000 milli, inside Int32 and the Uint32 purse. |
+| `LEVEL_CONQUEST_KEEP_PCT` | 75 | percent | eget val | Sim-Levels2: a conquered City, Factory, Port or district keeps this percent of its level, rounded down, at least 1 (`levelAfterConquest`): 1, 2, 4, 10, 100, 999 become 1, 1, 3, 7, 75, 749. |
 | `BUILD_BASE_GOLD` | [0, 400, 500, 400, 1000, 600, 250] | gold | plan | Base price per type (City 400, Factory 500, Port 400, Silo 1000, SAM 600, Post 250); provisional. An upgrade to level L costs base * L, no escalation. |
 | `BUILD_TICKS` | [0, 150, 200, 120, 250, 200, 80] | ticks | plan | Build time per type: City 15 s, Factory 20 s, Port 12 s, Silo 25 s, SAM 20 s, Post 8 s. An upgrade takes the same time (own choice). |
 | `PRICE_ESCALATION_ONE_HALVES` | 2 | halves | plan | 1.0 in halves; price = base * min(12, 2 + n) / 2, so the n-th extra structure costs 0.5 base more. |
@@ -179,20 +181,24 @@ Gold effects are in milli-gold per second (the economy turns them into milli-gol
 
 | Constant | Value | Unit | Source | Note |
 |----------|-------|------|--------|------|
-| `CITY_GOLD_MILLI_PER_SEC_PER_LEVEL` | 1500 | milli-gold/s | plan | A level 1 City pays 1.5 gold/s and lifts the troop cap by `CAP_CITY_LEVEL_TROOPS`. A level-1 City costs 400 and pays back in 4.4 minutes. Each further level adds `CITY_GOLD_STEP_MILLI_PER_LEVEL` (`cityGoldMilli(level)`). |
-| `CITY_MAX_LEVEL` | 10 | level | eget val | Sim-Growth: the highest City level (`maxLevelOf(STRUCT_CITY)`). The other types stay at `STRUCT_MAX_LEVEL`. |
-| `CITY_GOLD_STEP_MILLI_PER_LEVEL` | 500 | milli-gold/s | eget val | Sim-Growth: gold per second every City level above 1 adds (a third of the old step): level 10 pays 6 gold/s, the old level 4. |
-| `CITY_TROOP_STEP_TROOPS` | 250 | troops | eget val | Sim-Growth: troop cap every City level above 1 adds (`cityTroopCap(level)`): level 10 adds 3050, the old level 4 added 3200. |
+| `CITY_GOLD_MILLI_PER_SEC_PER_LEVEL` | 1500 | milli-gold/s | plan | A level 1 City pays 1.5 gold/s and lifts the troop cap by `CAP_CITY_LEVEL_TROOPS`. A level-1 City costs 400 and pays back in 4.4 minutes. Higher levels follow the concave curve of `LEVEL_SAT_K` and `CITY_GOLD_EXTRA_MILLI` (`cityGoldMilli(level)`). The upgrade to level L costs `BUILD_BASE_GOLD` x L like every other type. |
+| `CITY_MAX_LEVEL` | 10 | level | eget val | Sim-Levels2: LEGACY visual reference level of a City; not a limit any more (`maxLevelOf(STRUCT_CITY)` is `STRUCT_LEVEL_HARD_CAP`). |
+| `LEVEL_SAT_K` | 3 | levels | eget val | Sim-Levels2: shape of every level curve, value(L) = base + floor(extra x sat(L) / 1000), sat(L) = 1000 x (L - 1) / (L - 1 + K): level 10 gets 75 percent of the extra, level 100 97 percent, level 999 99.7 percent, never all (`src/sim/levelCurves.ts`). |
+| `CITY_GOLD_EXTRA_MILLI` | 1500 | milli-gold/s | eget val | Sim-Levels2: a City gains up to this above the level 1 value of 1.5 gold/s (asymptote 3.0; level 10 pays 2.625). |
+| `CITY_TROOP_EXTRA_TROOPS` | 1600 | troops | eget val | Sim-Levels2: a City adds up to this many troops to the cap above `CAP_CITY_LEVEL_TROOPS` (asymptote 2400; level 10 adds 2000). |
 | `AI_CITY_UPGRADE_LEVELS_PER_CITY` | 5 | levels per City | eget val | Sim-Growth: the AI upgrades a City to at most level 1 + (Cities it owns) * this (5). Without the limit the cheap City upgrades (80 to 144 gold) starve the building of new Cities (tuning round 1: factor 0.95, below the band; round 2 chose 5 per City with `AI_EXPAND_TROOP_PCT` 36: factor 1.01; the AI is a chaotic system, so the value was picked from a sweep of 20 combinations by the band, the driver tests and the pace test). |
-| `CITY_UPGRADE_BASE_GOLD` | 80 | gold | eget val | Sim-Growth: the City upgrade to level L costs `CITY_UPGRADE_BASE_GOLD * (100 + CITY_UPGRADE_PRICE_STEP_PCT * (L - 2)) / 100`: 80 at level 2, 144 at level 10. Every step pays back in 90 s to 6 minutes (bare City 160 s to 288 s). |
-| `CITY_UPGRADE_PRICE_STEP_PCT` | 10 | percent | eget val | Sim-Growth: price growth per level, see `CITY_UPGRADE_BASE_GOLD`. |
-| `CITY_UPGRADE_TICKS_BASE` | 60 | ticks | eget val | Sim-Growth: the City upgrade to level 2 takes 6 s; level L takes `min(CITY_UPGRADE_TICKS_MAX, BASE + STEP * (L - 2))`. |
-| `CITY_UPGRADE_TICKS_STEP` | 10 | ticks | eget val | Sim-Growth: one more second per level. |
-| `CITY_UPGRADE_TICKS_MAX` | 120 | ticks | eget val | Sim-Growth: the longest City upgrade (12 s, from level 8). |
+| `AI_CITY_LEVEL_CAP` | 10 | level | eget val | Sim-Levels2: the AI lets a City rise to at most this level (it pays the same base x L as the human); the human can go on to `STRUCT_LEVEL_HARD_CAP`. |
+| `AI_STRUCT_LEVEL_CAP` | 3 | level | eget val | Sim-Levels2: the AI lets a Factory or Port rise to at most this level. |
+| `AI_DISTRICT_LEVEL_CAP` | 3 | level | eget val | Sim-Levels2: the AI lets a district rise to at most this level. |
 | `FACTORY_GOLD_MILLI_PER_SEC` | 2000 | milli-gold/s | plan | A Factory pays 2 gold/s, flat. |
+| `FACTORY_GOLD_EXTRA_MILLI` | 2000 | milli-gold/s | eget val | Sim-Levels2: extra own gold of a Factory at the asymptote (4 gold/s in all). |
+| `FACTORY_CITY_BONUS_EXTRA_PCT` | 10 | percent | eget val | Sim-Levels2: extra City bonus of a Factory at the asymptote (25 to 35 percent). |
+| `FACTORY_RADIUS_EXTRA_CELLS` | 4 | sim cells | eget val | Sim-Levels2: extra reach of a Factory at the asymptote (20 to 24 cells). |
 | `FACTORY_CITY_BONUS_PCT` | 25 | percent | plan | The owner's Cities within FACTORY_RADIUS_CELLS of a finished Factory pay 25 % more; Factories do not stack. |
 | `FACTORY_RADIUS_CELLS` | 20 | sim cells | plan | Reach of the Factory bonus (Euclidean, x wrapping). |
 | `PORT_GOLD_MILLI_PER_SEC` | 2000 | milli-gold/s | plan | A Port pays 2 gold/s before trade, flat; the owner's port trait (+-10 %) multiplies the whole Port income. |
+| `PORT_GOLD_EXTRA_MILLI` | 2000 | milli-gold/s | eget val | Sim-Levels2: extra own gold of a Port at the asymptote (4 gold/s in all, before trade and the `PORT_INCOME_MAX_MILLI_PER_SEC` clamp). |
+| `PORT_TRADE_EXTRA_PCT` | 20 | percent | eget val | Sim-Levels2: extra share of its trade value a Port earns at the asymptote (100 to 120 percent). |
 | `TRADE_MAX_PARTNERS` | 3 | ports | plan | Each Port trades with its 3 nearest partner Ports (the lowest id on a tie). |
 | `TRADE_MIN_DIST_CELLS` | 40 | sim cells | plan | A partner must be at least this far away. |
 | `TRADE_BASE_MILLI` | 1500 | milli-gold/s | plan | Trade value per Port of a pair = 1.5 * (1 + min(d, 120) / 100) gold/s. |
@@ -201,8 +207,9 @@ Gold effects are in milli-gold per second (the economy turns them into milli-gol
 | `POST_RADIUS_CELLS` | 12 | sim cells | plan | A finished Defense Post makes the attacker's cell price x2.5 for cells of its owner within this distance. |
 | `POST_COST_NUM` | 5 | ratio | plan | The Post multiplier 5 / 2 = 2.5 (numerator); the price is floored once. |
 | `POST_COST_DEN` | 2 | ratio | plan | The denominator of the Post multiplier. |
-| `SAM_RADIUS_CELLS` | [0, 24, 26, 29] | sim cells | plan | SAM / Silo radius per level, R(L) = 22 - 60 / (L + 5) std-cells x 2, rounded down. Nothing reads it before M14. |
 | `SAM_MOUNTAIN_PCT` | 120 | percent | plan | A SAM or Silo on a Mountain cell reaches 20 % further. |
+| `SAM_RADIUS_BASE_CELLS` | 24 | sim cells | plan | SAM / Silo radius on flat ground at level 1 (was the first entry of the old table). Nothing reads it before M14. |
+| `SAM_RADIUS_EXTRA_CELLS` | 8 | sim cells | eget val | Sim-Levels2: extra SAM / Silo radius at the asymptote (24 to 32 cells). |
 | `AI_BUILD_CITIES_PER_FACTORY` | 2 | cities | eget val | The AI builds a Factory for every 2 Cities (the build ratio). |
 | `AI_BUILD_CITY_TROOP_PCT` | 0 | percent | eget val | Troop gate of a new City: 0 = none. A gate of 50 % (or 20 %) never opened while the AI spent its troops on a long attack, and a City is paid in gold, not troops (tuning round 1). |
 | `AI_BUILD_WINDOW_CELLS` | 56 | sim cells | eget val | The AI looks for a build place in a square of this half-width around its capital. |
@@ -219,24 +226,23 @@ Index = level 1 to 3. Upgrade prices are base * level (Factory 1000 / 1500, Port
 
 | Constant | Value | Unit | Source | Note |
 |----------|-------|------|--------|------|
-| `FACTORY_GOLD_MILLI_BY_LEVEL` | [0, 2000, 4500, 8500] | milli-gold/s | eget val | Own gold of a Factory per level (level 1 is FACTORY_GOLD_MILLI_PER_SEC). |
-| `FACTORY_CITY_BONUS_PCT_BY_LEVEL` | [0, 25, 30, 35] | percent | eget val | The bonus on the Cities a Factory boosts, per Factory level. |
-| `FACTORY_RADIUS_CELLS_BY_LEVEL` | [0, 20, 22, 24] | sim cells | eget val | Reach of the bonus per Factory level. |
 | `FACTORY_BONUS_MAX_CITIES` | 3 | cities | eget val | A Factory boosts at most 3 Cities (the lowest ids first; a City takes the best Factory in reach that still has a free slot). Keeps the Factory under the 10x limit. |
-| `PORT_GOLD_MILLI_BY_LEVEL` | [0, 2000, 4500, 8500] | milli-gold/s | eget val | Own gold of a Port per level (level 1 is PORT_GOLD_MILLI_PER_SEC). |
-| `PORT_TRADE_PCT_BY_LEVEL` | [0, 100, 110, 120] | percent | eget val | A Port earns this share of its trade value (the Port's own level, not the partner's). |
 | `PORT_INCOME_MAX_MILLI_PER_SEC` | 13000 | milli-gold/s | eget val | One Port (own gold plus trade, before the +-10 % trait) never pays more: 13 gold/s, 14.3 with the trait, under the 15 of the limit. |
 | `AI_BUILD_RICH_PCT` | 100 | percent | eget val | When the purse is at least this percent of the next wanted structure's price and pays an upgrade, the AI upgrades its lowest finished City, then Factory, then Port (an interior one: no foreign neighbour) instead of building. |
 | `DISTRICT_MAX_SLOTS` | 5 | slots | eget val | Districts-1, Sim-Growth: the row length of the district table (the slots of a level 9 to 10 City), a structural limit. |
-| `DISTRICT_MAX_LEVEL` | 3 | level | eget val | The highest level of a district. |
+| `DISTRICT_MAX_LEVEL` | 3 | level | eget val | Sim-Levels2: LEGACY visual reference level of a district; districts rise to `STRUCT_LEVEL_HARD_CAP`. |
+| `HOUSING_TROOPS_BASE` | 400 | troops | eget val | A finished level 1 Housing district raises the owner's troop cap by this (Sim-Levels2: the old per-level step is a curve now). |
+| `HOUSING_TROOPS_EXTRA` | 800 | troops | eget val | Sim-Levels2: extra Housing cap at the asymptote (towards 1200 troops). |
+| `MARKET_GOLD_MILLI_BASE` | 300 | milli-gold/s | eget val | Gold of a finished level 1 Market (0.3 gold/s, unchanged). The worst single City (asymptote City, five asymptote Markets, a Factory at the asymptote, +10 percent trait) stays under the 15 gold/s of ten level 1 Cities (`tests/sim/levels2.test.ts`). |
+| `MARKET_GOLD_EXTRA_MILLI` | 300 | milli-gold/s | eget val | Sim-Levels2: extra Market gold at the asymptote (towards 0.6 gold/s). |
+| `BARRACKS_REGEN_PCT_BASE` | 5 | percent | eget val | Percent a finished level 1 Barracks adds to the owner's (positive) troop regeneration; the sum of all stays under `BARRACKS_REGEN_PCT_MAX`. |
+| `BARRACKS_REGEN_EXTRA_PCT` | 10 | percent | eget val | Sim-Levels2: extra Barracks percent at the asymptote (towards 15). |
+| `WALLS_COST_PCT_BASE` | 150 | percent | eget val | A finished level 1 Walls district multiplies the attacker's cell price on its City's cell and the cells within `DISTRICT_WALLS_RADIUS_CELLS`; it does not stack with a Defense Post (the larger percent applies). |
+| `WALLS_COST_EXTRA_PCT` | 50 | percent | eget val | Sim-Levels2: extra Walls percent at the asymptote (150 to 200). |
 | `DISTRICT_SLOTS_BY_LEVEL` | [0, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5] | slots | eget val | Sim-Growth: district slots of a City by its finished level (2 at levels 1 to 2, 3 at 3 to 5, 4 at 6 to 8, 5 at 9 to 10); `districtSlotsOf(level)`. |
 | `DISTRICT_BASE_GOLD` | [0, 150, 40, 250, 300] | gold | eget val | Base price per kind (Housing, Market, Barracks, Walls). The n-th district of a kind costs base * min(12, 2 + n) / 2 (the structure escalation); an upgrade to level L costs base * L. Market is cheap because its gain is capped by the 10-City limit (Sim-Growth: 60 -> 40 with the lower Market table, so both upgrades still pay back in 90 s to 6 minutes). |
 | `DISTRICT_BUILD_TICKS` | [0, 80, 100, 120, 120] | ticks | eget val | Build and upgrade time per kind: Housing 8 s, Market 10 s, Barracks 12 s, Walls 12 s. |
-| `HOUSING_TROOPS_PER_LEVEL` | 400 | troops | eget val | A finished Housing district raises the owner's troop cap by this per district level (400, 800, 1200). |
-| `MARKET_GOLD_MILLI_BY_LEVEL` | [0, 300, 700, 1100] | milli-gold/s | eget val | Gold of a finished Market by level (0.3, 0.7, 1.1 gold/s; Sim-Growth: was 0.4, 1.3, 1.85). A level 10 City (6 gold/s, 8.1 with a level 3 Factory bonus) plus five level 3 Markets is 13.6 gold/s, 14.96 with +10 percent, under the 15 of the 10-City limit; the upgrades pay back in 200 s and 300 s. |
-| `BARRACKS_REGEN_PCT_BY_LEVEL` | [0, 5, 10, 15] | percent | eget val | Percent a finished Barracks adds to the owner's (positive) troop regeneration, by level. |
 | `BARRACKS_REGEN_PCT_MAX` | 50 | percent | eget val | All Barracks of one owner together add at most this. |
-| `WALLS_COST_PCT_BY_LEVEL` | [0, 150, 180, 200] | percent | eget val | A finished Walls district multiplies the attacker's cell price on its City's cell and the cells within the radius below; it does not stack with a Defense Post (the larger percent applies). |
 | `DISTRICT_WALLS_RADIUS_CELLS` | 2 | cells | eget val | Reach of the Walls round the City (Euclidean, x wrapping). |
 | `AI_DISTRICT_RETRY_TICKS` | 100 | ticks | eget val | After a think that found no district to build or upgrade the AI does not look again for this long (10 s). |
 | `AI_DISTRICT_MIN_CITIES` | 3 | cities | eget val | The AI builds districts only once it owns this many Cities (tuning round 1 of Districts-1: with 1 the solo land fell to 0.93 of the band, with 3 it is 1.02 as before). |

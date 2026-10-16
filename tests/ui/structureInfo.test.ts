@@ -61,8 +61,8 @@ describe('effectLines: the numbers of the structure\'s own level, from the sim t
       expect(l?.key).toBe('sel.fx.factory');
       expect(l?.params.pct).toBe(FACTORY_CITY_BONUS_PCT_BY_LEVEL[level]);
       expect(l?.params.radius).toBe(FACTORY_RADIUS_CELLS_BY_LEVEL[level]);
-      expect(l?.params.gold).toBe(['', '2', '4,5', '8,5'][level]);
-      expect(FACTORY_GOLD_MILLI_BY_LEVEL[level]).toBe([0, 2000, 4500, 8500][level]);
+      expect(l?.params.gold).toBe(['', '2', '2,5', '2,8'][level]); // Sim-Levels2: the concave curve
+      expect(FACTORY_GOLD_MILLI_BY_LEVEL[level]).toBe([0, 2000, 2500, 2800][level]);
     }
     expect(new Set([1, 2, 3].map((l) => JSON.stringify(effectLines(STRUCT_FACTORY, l)))).size).toBe(3);
   });
@@ -74,20 +74,21 @@ describe('effectLines: the numbers of the structure\'s own level, from the sim t
       expect(l?.params.pct).toBe(PORT_TRADE_PCT_BY_LEVEL[level]);
     }
     expect(effectLines(STRUCT_PORT, 1)[0]?.params.gold).toBe('2');
-    expect(effectLines(STRUCT_PORT, 2)[0]?.params.gold).toBe('4,5');
-    expect(effectLines(STRUCT_PORT, 3)[0]?.params.gold).toBe('8,5');
-    expect(PORT_GOLD_MILLI_BY_LEVEL[2]).toBe(4500);
+    expect(effectLines(STRUCT_PORT, 2)[0]?.params.gold).toBe('2,5');
+    expect(effectLines(STRUCT_PORT, 3)[0]?.params.gold).toBe('2,8');
+    expect(PORT_GOLD_MILLI_BY_LEVEL[2]).toBe(2500);
   });
 
   it('City: gold and troop cap follow the sim per level, levels 1 to 10 (thousands grouped)', () => {
     expect(effectLines(STRUCT_CITY, 1)[0]?.params).toEqual({ gold: '1,5', troops: formatInt(CAP_CITY_LEVEL_TROOPS) });
     for (const level of [2, 3, 5, maxLevelOf(STRUCT_CITY)]) {
-      expect(effectLines(STRUCT_CITY, level)[0]?.params.gold).toBe(String(cityGoldMilli(level) / 1000).replace('.', ','));
+      const tenths = Math.round(cityGoldMilli(level) / 100); // the panel shows at most one decimal
+      expect(effectLines(STRUCT_CITY, level)[0]?.params.gold).toBe(String(tenths / 10).replace('.', ','));
       expect(effectLines(STRUCT_CITY, level)[0]?.params.troops).toBe(formatInt(cityTroopCap(level)));
     }
-    // Sim-Growth pins: +0.5 gold/s and +250 troops per level (level 3: 2,5 and 1 300; level 10: 6 and 3 050)
-    expect(effectLines(STRUCT_CITY, 3)[0]?.params).toEqual({ gold: '2,5', troops: formatInt(1300) });
-    expect(effectLines(STRUCT_CITY, 10)[0]?.params).toEqual({ gold: '6', troops: formatInt(3050) });
+    // Sim-Levels2 pins: the concave curve (level 3: 2,1 and 1 440; level 10: 2,6 and 2 000)
+    expect(effectLines(STRUCT_CITY, 3)[0]?.params).toEqual({ gold: '2,1', troops: formatInt(1440) });
+    expect(effectLines(STRUCT_CITY, 10)[0]?.params).toEqual({ gold: '2,6', troops: formatInt(2000) });
   });
 
   it('the Silo has no function yet (no radius, not the SAM text); the SAM takes its mountain percent from the sim; the Post says 2,5 times', () => {
@@ -161,7 +162,7 @@ describe('selectionInfo', () => {
     send(s, { kind: 'Upgrade', seat: 0, structure: id });
     idle(s, (BUILD_TICKS[STRUCT_FACTORY] as number) + 1);
     info = selectionInfo(new StateView(s), 0, id);
-    expect([info?.level, info?.upgradePrice, info?.upgradeReason]).toEqual([3, 0, REJECT_STRUCT_MAX_LEVEL]);
+    expect([info?.level, info?.upgradePrice, info?.upgradeReason]).toEqual([3, upgradePriceGold(STRUCT_FACTORY, 4), REJECT_NONE]); // Sim-Levels2: level 3 is no top any more
   });
 
   it('a City climbs to level 10: the price of the next level is the sim\'s, 0 only at the top; the other types stop at level 3', () => {
@@ -177,7 +178,7 @@ describe('selectionInfo', () => {
     }
     s.structures.level[city] = maxLevelOf(STRUCT_CITY);
     const top = selectionInfo(new StateView(s), 0, city);
-    expect([top?.level, top?.upgradePrice, top?.upgradeSeconds, top?.upgradeReason]).toEqual([10, 0, 0, REJECT_STRUCT_MAX_LEVEL]);
+    expect([top?.level, top?.upgradePrice, top?.upgradeSeconds, top?.upgradeReason]).toEqual([maxLevelOf(STRUCT_CITY), 0, 0, REJECT_STRUCT_MAX_LEVEL]);
     const port = s.structures.add(STRUCT_PORT, 1, at(20, 10), 0);
     s.structures.readyTick[port] = 0;
     s.structures.level[port] = maxLevelOf(STRUCT_PORT);

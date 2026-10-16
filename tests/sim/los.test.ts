@@ -5,7 +5,7 @@ import { ALT_MODE_HIGH, ALT_MODE_LOW, EXPOSED_DETECTED, EXPOSED_NONE, EXPOSED_PO
 import { exposure, fireControlExposed } from '../../src/sim/los/exposure';
 import { MASK_NONE, buildMask, maskSide } from '../../src/sim/los/mask';
 import { createLosTerrain, type LosTerrain } from '../../src/sim/los/terrain';
-import { ALT_LOW_AGL_M, GAMEPLAY_HEIGHT_EXAG, LOS_TILE_CELLS, POST_RADIUS_CELLS, SAM_RADIUS_CELLS } from '../../src/sim/rules';
+import { ALT_LOW_AGL_M, GAMEPLAY_HEIGHT_EXAG, LOS_TILE_CELLS, POST_RADIUS_CELLS, SAM_RADIUS_BASE_CELLS } from '../../src/sim/rules';
 import { createEmptyState, type GameState } from '../../src/sim/state';
 import { STRUCT_POST, STRUCT_SAM } from '../../src/sim/structureRules';
 import { exactVisible } from './helpers/losOracle';
@@ -68,9 +68,9 @@ describe('M11a mask on synthetic terrain', () => {
     expect(exposure(los, src, 0, at(30 + POST_RADIUS_CELLS, 30), ALT_MODE_HIGH)).toBe(EXPOSED_POST);
     expect(exposure(los, src, 0, at(30 + POST_RADIUS_CELLS + 1, 30), ALT_MODE_HIGH)).toBe(EXPOSED_NONE);
     // seat 1 owns the SAM at x=100: inside 24 it sees Low on flat ground, one cell beyond it sees nothing
-    expect(exposure(los, src, 1, at(100 - SAM_RADIUS_CELLS[1]!, 30), ALT_MODE_LOW)).toBe(EXPOSED_DETECTED);
-    expect(exposure(los, src, 1, at(100 - SAM_RADIUS_CELLS[1]! - 1, 30), ALT_MODE_LOW)).toBe(EXPOSED_NONE);
-    expect(exposure(los, src, 1, at(100 - SAM_RADIUS_CELLS[1]! - 1, 30), ALT_MODE_HIGH)).toBe(EXPOSED_NONE);
+    expect(exposure(los, src, 1, at(100 - SAM_RADIUS_BASE_CELLS, 30), ALT_MODE_LOW)).toBe(EXPOSED_DETECTED);
+    expect(exposure(los, src, 1, at(100 - SAM_RADIUS_BASE_CELLS - 1, 30), ALT_MODE_LOW)).toBe(EXPOSED_NONE);
+    expect(exposure(los, src, 1, at(100 - SAM_RADIUS_BASE_CELLS - 1, 30), ALT_MODE_HIGH)).toBe(EXPOSED_NONE);
     // the SAM's owner is not exposed to the Post of the other seat's coverage
     expect(exposure(los, src, 2, at(100, 30), ALT_MODE_LOW)).toBe(EXPOSED_NONE);
   });

@@ -5,13 +5,15 @@ import {
   BUILD_BASE_GOLD,
   CITY_GOLD_MILLI_PER_SEC_PER_LEVEL,
   FACTORY_BONUS_MAX_CITIES,
+  PORT_INCOME_MAX_MILLI_PER_SEC,
+} from '../../src/sim/rules';
+import {
   FACTORY_CITY_BONUS_PCT_BY_LEVEL,
   FACTORY_GOLD_MILLI_BY_LEVEL,
   FACTORY_RADIUS_CELLS_BY_LEVEL,
   PORT_GOLD_MILLI_BY_LEVEL,
-  PORT_INCOME_MAX_MILLI_PER_SEC,
   PORT_TRADE_PCT_BY_LEVEL,
-} from '../../src/sim/rules';
+} from '../../src/sim/levelCurves';
 import { createState, type GameState } from '../../src/sim/state';
 import { setOwner } from '../../src/sim/territory';
 import { CLASS_PLAINS } from '../../src/sim/terrain';
@@ -40,8 +42,8 @@ const income = (s: GameState, o = 1): number => {
 const pct = (milli: number, p: number): number => Math.floor((milli * p) / 100);
 
 describe('Factory levels', () => {
-  it('its own gold is 2.0 / 4.5 / 8.5 gold/s at levels 1 to 3', () => {
-    expect([1, 2, 3].map((l) => FACTORY_GOLD_MILLI_BY_LEVEL[l])).toEqual([2000, 4500, 8500]);
+  it('its own gold is 2.0 / 2.5 / 2.8 gold/s at levels 1 to 3 (Sim-Levels2: the concave curve, was 2.0 / 4.5 / 8.5)', () => {
+    expect([1, 2, 3].map((l) => FACTORY_GOLD_MILLI_BY_LEVEL[l])).toEqual([2000, 2500, 2800]);
     for (const l of [1, 2, 3]) {
       const s = strip(2);
       add(s, STRUCT_FACTORY, 1, at(100), l);
@@ -49,9 +51,9 @@ describe('Factory levels', () => {
     }
   });
 
-  it('the City bonus is 25 / 30 / 35 percent and the reach 20 / 22 / 24 cells at levels 1 to 3', () => {
-    expect([1, 2, 3].map((l) => FACTORY_CITY_BONUS_PCT_BY_LEVEL[l])).toEqual([25, 30, 35]);
-    expect([1, 2, 3].map((l) => FACTORY_RADIUS_CELLS_BY_LEVEL[l])).toEqual([20, 22, 24]);
+  it('the City bonus is 25 / 27 / 29 percent and the reach 20 / 21 / 21 cells at levels 1 to 3 (Sim-Levels2: was 25 / 30 / 35 and 20 / 22 / 24)', () => {
+    expect([1, 2, 3].map((l) => FACTORY_CITY_BONUS_PCT_BY_LEVEL[l])).toEqual([25, 27, 29]);
+    expect([1, 2, 3].map((l) => FACTORY_RADIUS_CELLS_BY_LEVEL[l])).toEqual([20, 21, 21]);
     for (const l of [1, 2, 3]) {
       const r = FACTORY_RADIUS_CELLS_BY_LEVEL[l] as number;
       const inside = strip(2);
@@ -71,16 +73,16 @@ describe('Factory levels', () => {
     add(s, STRUCT_FACTORY, 1, at(100), 3);
     for (const [x, y] of [[100, 32], [116, 32], [84, 32], [100, 48]] as const) add(s, STRUCT_CITY, 1, at(x, y));
     const c = CITY_GOLD_MILLI_PER_SEC_PER_LEVEL;
-    expect(income(s)).toBe(8500 + 3 * (c + pct(c, 35)) + c);
+    expect(income(s)).toBe(2800 + 3 * (c + pct(c, 29)) + c);
     add(s, STRUCT_FACTORY, 1, at(100, 40), 1);
-    expect(income(s)).toBe(8500 + 2000 + 3 * (c + pct(c, 35)) + c + pct(c, 25));
+    expect(income(s)).toBe(2800 + 2000 + 3 * (c + pct(c, 29)) + c + pct(c, 25));
   });
 });
 
 describe('Port levels', () => {
-  it('its own gold is 2.0 / 4.5 / 8.5 gold/s and its trade share 100 / 110 / 120 percent at levels 1 to 3', () => {
-    expect([1, 2, 3].map((l) => PORT_GOLD_MILLI_BY_LEVEL[l])).toEqual([2000, 4500, 8500]);
-    expect([1, 2, 3].map((l) => PORT_TRADE_PCT_BY_LEVEL[l])).toEqual([100, 110, 120]);
+  it('its own gold is 2.0 / 2.5 / 2.8 gold/s and its trade share 100 / 105 / 108 percent at levels 1 to 3 (Sim-Levels2: was 2.0 / 4.5 / 8.5 and 100 / 110 / 120)', () => {
+    expect([1, 2, 3].map((l) => PORT_GOLD_MILLI_BY_LEVEL[l])).toEqual([2000, 2500, 2800]);
+    expect([1, 2, 3].map((l) => PORT_TRADE_PCT_BY_LEVEL[l])).toEqual([100, 105, 108]);
     for (const l of [1, 2, 3]) {
       const alone = strip(2);
       add(alone, STRUCT_PORT, 1, at(100), l);
@@ -101,7 +103,7 @@ describe('the limit of 10 level-1 Cities per structure (15 gold/s)', () => {
     const s = strip(4);
     add(s, STRUCT_PORT, 1, at(100), 3);
     for (const [o, x] of [[2, 300], [3, 500], [4, 700]] as const) add(s, STRUCT_PORT, o, at(x), 3);
-    const raw = (PORT_GOLD_MILLI_BY_LEVEL[3] as number) + pct(3 * 3300, PORT_TRADE_PCT_BY_LEVEL[3] as number);
+    const raw = (PORT_GOLD_MILLI_BY_LEVEL[3] as number) + pct(3 * 3300, PORT_TRADE_PCT_BY_LEVEL[3] as number); // 2800 + 10692 = 13 492
     expect(raw).toBeGreaterThan(PORT_INCOME_MAX_MILLI_PER_SEC); // without the clamp the limit would break
     expect(income(s)).toBe(PORT_INCOME_MAX_MILLI_PER_SEC);
     expect(income(s)).toBeLessThanOrEqual(13000);
@@ -117,7 +119,7 @@ describe('the limit of 10 level-1 Cities per structure (15 gold/s)', () => {
       add(s, STRUCT_CITY, 1, at(100 + Math.round(20 * Math.cos(a)), 32 + Math.round(20 * Math.sin(a))), 3);
     }
     const factoryShare = income(s) - cityAll; // own gold plus the bonuses
-    expect(factoryShare).toBe(8500 + 3 * pct(cityGoldMilli(3), 35));
+    expect(factoryShare).toBe(2800 + 3 * pct(cityGoldMilli(3), 29));
     expect(factoryShare).toBeLessThanOrEqual(LIMIT);
   });
 });
@@ -140,14 +142,15 @@ describe('payback of an upgrade', () => {
     add(s, STRUCT_PORT, 2, at(200)); // one partner at 100 cells
   };
 
-  it('every Factory and Port upgrade pays back in 90 s to 6 minutes (a new City, 267 s, is the yardstick)', () => {
+  it('Sim-Levels2: the payback of a Factory or Port upgrade is long and GROWS with the level (a soft cap through the price base * L); it is logged, the old window of 90 s to 6 minutes is gone (see DECISIONS Sim-Levels2)', () => {
     const rows: string[] = [];
     for (const [name, type, scene] of [['Factory', STRUCT_FACTORY, factoryScene], ['Port', STRUCT_PORT, portScene]] as const) {
-      for (const level of [2, 3]) {
+      let last = 0;
+      for (const level of [2, 3, 4, 6, 10]) {
         const sec = payback(type, level, scene);
         rows.push(`${name} -> L${level}: ${sec.toFixed(0)} s`);
-        expect(sec, rows.join('; ')).toBeGreaterThanOrEqual(90);
-        expect(sec, rows.join('; ')).toBeLessThanOrEqual(360);
+        expect(sec, rows.join('; ')).toBeGreaterThan(last);
+        last = sec;
       }
     }
     console.log(`[payback] ${rows.join('; ')}`);

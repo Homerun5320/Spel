@@ -110,14 +110,9 @@ export {
 } from './rules';
 
 // Fix-UI: the level tables the selection panel shows (append-only; rules.ts is the source, each has a row in docs/BALANCE.md).
-export {
-  FACTORY_CITY_BONUS_PCT_BY_LEVEL,
-  FACTORY_GOLD_MILLI_BY_LEVEL,
-  FACTORY_RADIUS_CELLS_BY_LEVEL,
-  PORT_GOLD_MILLI_BY_LEVEL,
-  PORT_TRADE_PCT_BY_LEVEL,
-  SAM_MOUNTAIN_PCT,
-} from './rules';
+export { SAM_MOUNTAIN_PCT } from './rules';
+// Sim-Levels2: the same tables, now generated for levels 1 to 999 from the concave curves of levelCurves.ts.
+export { FACTORY_CITY_BONUS_PCT_BY_LEVEL, FACTORY_GOLD_MILLI_BY_LEVEL, FACTORY_RADIUS_CELLS_BY_LEVEL, PORT_GOLD_MILLI_BY_LEVEL, PORT_TRADE_PCT_BY_LEVEL } from './levelCurves';
 
 // Districts-1 (append-only): the district kinds, the checks and reason codes, the effect numbers, the intent constructors and the constants of rules.ts the UI / AI read.
 export type { BuildDistrictBody, RemoveDistrictBody, UpgradeDistrictBody } from './intents';
@@ -198,4 +193,12 @@ export { navFingerprint } from './nav/fingerprint';
 // Sim-Growth (append-only): City levels 1 to 10 with small steps. The UI and the AI never hard-code a level count: maxLevelOf(type) is the top level,
 // cityGoldMilli / cityTroopCap what a finished City of a level gives, upgradeTicksOf how long the upgrade to a level takes (upgradePriceGold is above).
 export { cityGoldMilli, cityTroopCap, maxLevelOf, upgradeTicksOf } from './structureRules';
-export { AI_CITY_UPGRADE_LEVELS_PER_CITY, CITY_GOLD_STEP_MILLI_PER_LEVEL, CITY_MAX_LEVEL, CITY_TROOP_STEP_TROOPS, SPACING_CELLS_BY_TYPE } from './rules';
+export { AI_CITY_UPGRADE_LEVELS_PER_CITY, CITY_MAX_LEVEL, SPACING_CELLS_BY_TYPE } from './rules';
+
+// Sim-Levels2 (append-only): unlimited levels. STRUCT_LEVEL_HARD_CAP is the practical top level of every structure and district (maxLevelOf(type) returns it;
+// CITY_MAX_LEVEL, STRUCT_MAX_LEVEL and DISTRICT_MAX_LEVEL are only the visual reference scale now), districtMaxLevel() the same for districts,
+// levelAfterConquest(level) what a conquered structure or district keeps, satPermille(level) the saturation of the level curves.
+export { AI_CITY_LEVEL_CAP, AI_DISTRICT_LEVEL_CAP, AI_STRUCT_LEVEL_CAP, STRUCT_LEVEL_HARD_CAP, LEVEL_CONQUEST_KEEP_PCT } from './rules';
+export { districtMaxLevel } from './districtRules';
+export { levelAfterConquest } from './structures';
+export { satPermille } from './levelCurves';

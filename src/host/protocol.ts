@@ -100,7 +100,7 @@ export interface StructureSnapshot {
   readonly type: Uint8Array;
   readonly owner: Uint16Array;
   readonly cell: Int32Array;
-  readonly level: Uint8Array;
+  readonly level: Uint16Array;
   readonly buildTick: Uint32Array;
   readonly readyTick: Uint32Array;
   readonly upgradeReadyTick: Uint32Array;
@@ -110,7 +110,7 @@ export interface StructureSnapshot {
   readonly counts: Uint16Array;
   /** The district table (Districts-1) for the slots 0..highWater-1: index id * DISTRICT_MAX_SLOTS + slot. */
   readonly districtKind: Uint8Array;
-  readonly districtLevel: Uint8Array;
+  readonly districtLevel: Uint16Array;
   readonly districtReadyTick: Uint32Array;
   readonly districtUpgradeReadyTick: Uint32Array;
   /** Districts per (ownerId, kind), index ownerId * DISTRICT_KIND_SLOTS + kind. */

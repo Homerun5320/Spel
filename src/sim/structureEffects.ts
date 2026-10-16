@@ -6,28 +6,18 @@
 // not every tick. The cache is a pure function of the table, the embargo flags and the tick, so a restored state recomputes the same.
 import { isqrt } from './detmath';
 import {
-  BARRACKS_REGEN_PCT_BY_LEVEL,
   BARRACKS_REGEN_PCT_MAX,
-  CITY_TROOP_STEP_TROOPS,
+  CAP_CITY_LEVEL_TROOPS,
   DISTRICT_MAX_SLOTS,
   DISTRICT_WALLS_RADIUS_CELLS,
-  HOUSING_TROOPS_PER_LEVEL,
-  MARKET_GOLD_MILLI_BY_LEVEL,
   QT_PER_TROOP,
-  WALLS_COST_PCT_BY_LEVEL,
   FACTORY_BONUS_MAX_CITIES,
-  FACTORY_CITY_BONUS_PCT_BY_LEVEL,
-  FACTORY_GOLD_MILLI_BY_LEVEL,
-  FACTORY_RADIUS_CELLS_BY_LEVEL,
-  PORT_GOLD_MILLI_BY_LEVEL,
   PORT_INCOME_MAX_MILLI_PER_SEC,
-  PORT_TRADE_PCT_BY_LEVEL,
   STRUCT_CAPACITY,
   POST_COST_DEN,
   POST_COST_NUM,
   POST_RADIUS_CELLS,
   SAM_MOUNTAIN_PCT,
-  SAM_RADIUS_CELLS,
   TICK_HZ,
   TRADE_BASE_MILLI,
   TRADE_DIST_CAP_CELLS,
@@ -36,6 +26,19 @@ import {
   TRADE_SAME_OWNER_PCT,
   TRAIT_NEUTRAL_MILLI,
 } from './rules';
+import {
+  barracksRegenPctAt,
+  cityTroopCapAt,
+  factoryCityBonusPctAt,
+  factoryGoldMilliAt,
+  factoryRadiusCellsAt,
+  housingTroopsAt,
+  marketGoldMilliAt,
+  portGoldMilliAt,
+  portTradePctAt,
+  samRadiusBaseAt,
+  wallsCostPctAt,
+} from './levelCurves';
 import { DISTRICT_BARRACKS, DISTRICT_HOUSING, DISTRICT_MARKET, DISTRICT_WALLS } from './districtRules';
 import type { GameState } from './state';
 import { STRUCT_CITY, STRUCT_FACTORY, STRUCT_PORT, STRUCT_POST, cityGoldMilli } from './structureRules';
@@ -76,7 +79,7 @@ export function applyPortTrait(milli: number, traitMilli: number): number {
 
 /** SAM / Silo radius in sim cells for a level, 20 % further on a Mountain cell. */
 export function samRadiusCells(level: number, onMountain: boolean): number {
-  const r = SAM_RADIUS_CELLS[level] ?? 0;
+  const r = samRadiusBaseAt(level);
   return onMountain ? Math.floor((r * SAM_MOUNTAIN_PCT) / 100) : r;
 }
 
@@ -95,10 +98,10 @@ function districtEffects(t: StructureTable, id: number, o: number, tick: number,
       continue;
     }
     const level = t.districtLevel[at] as number;
-    if (kind === DISTRICT_MARKET) t.effFixedMilli[o] = (t.effFixedMilli[o] as number) + (MARKET_GOLD_MILLI_BY_LEVEL[level] as number);
-    else if (kind === DISTRICT_HOUSING) t.effHousingQt[o] = (t.effHousingQt[o] as number) + HOUSING_TROOPS_PER_LEVEL * level * QT_PER_TROOP;
+    if (kind === DISTRICT_MARKET) t.effFixedMilli[o] = (t.effFixedMilli[o] as number) + marketGoldMilliAt(level);
+    else if (kind === DISTRICT_HOUSING) t.effHousingQt[o] = (t.effHousingQt[o] as number) + housingTroopsAt(level) * QT_PER_TROOP;
     else if (kind === DISTRICT_BARRACKS) {
-      const sum = (t.effBarracksPct[o] as number) + (BARRACKS_REGEN_PCT_BY_LEVEL[level] as number);
+      const sum = (t.effBarracksPct[o] as number) + barracksRegenPctAt(level);
       t.effBarracksPct[o] = sum > BARRACKS_REGEN_PCT_MAX ? BARRACKS_REGEN_PCT_MAX : sum;
     }
   }
@@ -135,7 +138,7 @@ function recompute(state: GameState): void {
       const level = t.level[id] as number;
       t.effCityLevels[o] = (t.effCityLevels[o] as number) + level;
       t.effCityCount[o] = (t.effCityCount[o] as number) + 1;
-      t.effCityStepQt[o] = (t.effCityStepQt[o] as number) + CITY_TROOP_STEP_TROOPS * (level - 1) * QT_PER_TROOP;
+      t.effCityStepQt[o] = (t.effCityStepQt[o] as number) + (cityTroopCapAt(level) - CAP_CITY_LEVEL_TROOPS) * QT_PER_TROOP;
       let income = cityGoldMilli(level);
       // The best finished Factory of the owner in reach that still has a free slot (highest level, then lowest id) boosts this City.
       const cell = t.cell[id] as number;
@@ -145,7 +148,7 @@ function recompute(state: GameState): void {
         if (t.owner[f] !== o || t.type[f] !== STRUCT_FACTORY || tick < (t.readyTick[f] as number)) continue;
         const fl = t.level[f] as number;
         if (fl <= bestFLevel || (boosted[f] as number) >= FACTORY_BONUS_MAX_CITIES) continue;
-        const r = FACTORY_RADIUS_CELLS_BY_LEVEL[fl] as number;
+        const r = factoryRadiusCellsAt(fl);
         if (dist2Cells(w, cell, t.cell[f] as number) <= r * r) {
           bestF = f;
           bestFLevel = fl;
@@ -153,15 +156,15 @@ function recompute(state: GameState): void {
       }
       if (bestF >= 0) {
         boosted[bestF] = (boosted[bestF] as number) + 1;
-        income += Math.floor((income * (FACTORY_CITY_BONUS_PCT_BY_LEVEL[bestFLevel] as number)) / 100);
+        income += Math.floor((income * factoryCityBonusPctAt(bestFLevel)) / 100);
       }
       t.effFixedMilli[o] = (t.effFixedMilli[o] as number) + income;
       if (t.districtCount > 0) next = districtEffects(t, id, o, tick, next);
     } else if (type === STRUCT_FACTORY) {
-      t.effFixedMilli[o] = (t.effFixedMilli[o] as number) + (FACTORY_GOLD_MILLI_BY_LEVEL[t.level[id] as number] as number);
+      t.effFixedMilli[o] = (t.effFixedMilli[o] as number) + factoryGoldMilliAt(t.level[id] as number);
     } else if (type === STRUCT_PORT) {
       const portLevel = t.level[id] as number;
-      let income = PORT_GOLD_MILLI_BY_LEVEL[portLevel] as number;
+      let income = portGoldMilliAt(portLevel);
       let trade = 0;
       const cell = t.cell[id] as number;
       let n = 0;
@@ -186,7 +189,7 @@ function recompute(state: GameState): void {
         const partnerOwner = t.owner[bestId[k] as number] as number;
         trade += tradeMilliPerSec(isqrt(bestD2[k] as number), partnerOwner === o, t.embargoed(o, partnerOwner));
       }
-      income += Math.floor((trade * (PORT_TRADE_PCT_BY_LEVEL[portLevel] as number)) / 100);
+      income += Math.floor((trade * portTradePctAt(portLevel)) / 100);
       if (income > PORT_INCOME_MAX_MILLI_PER_SEC) income = PORT_INCOME_MAX_MILLI_PER_SEC;
       t.effPortMilli[o] = (t.effPortMilli[o] as number) + income;
     }
@@ -217,7 +220,7 @@ export function cityCountOf(state: GameState, owner: number): number {
   return t.effCityCount[owner] as number;
 }
 
-/** The troop cap in QT the owner's City levels above 1 add (CITY_TROOP_STEP_TROOPS per level; Sim-Growth). */
+/** The troop cap in QT the owner's City levels above 1 add (cityTroopCap(level) - CAP_CITY_LEVEL_TROOPS per City; Sim-Levels2). */
 export function cityStepQtOf(state: GameState, owner: number): number {
   const t = state.structures;
   if (t.liveCount === 0) return 0;
@@ -288,7 +291,7 @@ export function collectWalls(state: GameState, target: number): number {
       const at = id * DISTRICT_MAX_SLOTS + slot;
       if (t.districtKind[at] !== DISTRICT_WALLS || tick < (t.districtReadyTick[at] as number)) continue;
       t.wallCells[n] = t.cell[id] as number;
-      t.wallPcts[n] = WALLS_COST_PCT_BY_LEVEL[t.districtLevel[at] as number] as number;
+      t.wallPcts[n] = wallsCostPctAt(t.districtLevel[at] as number);
       n++;
     }
   }

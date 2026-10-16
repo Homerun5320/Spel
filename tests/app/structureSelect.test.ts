@@ -150,7 +150,7 @@ describe('the panel numbers', () => {
     const l3 = effectLines(STRUCT_CITY, 3)[0];
     expect(l1?.params.troops).toBe(formatInt(CAP_CITY_LEVEL_TROOPS));
     expect(l3?.params.troops).toBe(formatInt(cityTroopCap(3))); // Sim-Growth: 800 + 250 per further level = 1 300 (a thin-space group in Swedish)
-    expect(effectLines(STRUCT_CITY, maxLevelOf(STRUCT_CITY))[0]?.params.troops).toBe(formatInt(cityTroopCap(10))); // 3 050
+    expect(effectLines(STRUCT_CITY, maxLevelOf(STRUCT_CITY))[0]?.params.troops).toBe(formatInt(cityTroopCap(maxLevelOf(STRUCT_CITY))));
     expect(upgradeWhyKey(REJECT_BUILD_GOLD)).toBe('sel.why.gold');
     expect(upgradeWhyKey(REJECT_STRUCT_BUSY)).toBe('sel.why.busy');
     expect(deleteWhyKey(REJECT_DELETE_COOLDOWN)).toBe('sel.why.cooldown');

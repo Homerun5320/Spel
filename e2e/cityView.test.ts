@@ -11,7 +11,8 @@ import { cellToLatLon } from '../src/render/transforms';
 import { timeForSubsolarLon } from '../src/render/geo';
 import { DISTRICT_BARRACKS, DISTRICT_HOUSING, DISTRICT_MARKET, DISTRICT_WALLS } from '../src/sim/districtRules';
 import { REJECT_BUILD_GOLD } from '../src/sim/intents';
-import { BARRACKS_REGEN_PCT_BY_LEVEL, CITY_GOLD_MILLI_PER_SEC_PER_LEVEL, DISTRICT_BUILD_TICKS, MARKET_GOLD_MILLI_BY_LEVEL } from '../src/sim/rules';
+import { CITY_GOLD_MILLI_PER_SEC_PER_LEVEL, DISTRICT_BUILD_TICKS } from '../src/sim/rules';
+import { barracksRegenPctAt, marketGoldMilliAt } from '../src/sim/levelCurves';
 import { STRUCT_CITY, maxLevelOf, upgradeTicksOf } from '../src/sim/structureRules';
 import { districtSlotsOf } from '../src/sim/districtRules';
 import { formatFixed } from '../src/ui/i18n';
@@ -183,8 +184,8 @@ describe('the city view', () => {
       expect(await tile0.getAttribute('data-state')).toBe('ready');
       expect(await tile0.getAttribute('data-level')).toBe('1');
       expect(await tid(page, 'city-progress-0').isVisible()).toBe(false);
-      expect(Number(await tid(page, 'city-total-gold').getAttribute('data-milli'))).toBe(CITY_GOLD_MILLI_PER_SEC_PER_LEVEL + (MARKET_GOLD_MILLI_BY_LEVEL[1] as number));
-      expect((await t.state()).local.goldPerSecMilli).toBe(incomeBefore + (MARKET_GOLD_MILLI_BY_LEVEL[1] as number));
+      expect(Number(await tid(page, 'city-total-gold').getAttribute('data-milli'))).toBe(CITY_GOLD_MILLI_PER_SEC_PER_LEVEL + marketGoldMilliAt(1));
+      expect((await t.state()).local.goldPerSecMilli).toBe(incomeBefore + marketGoldMilliAt(1));
 
       // the golden: the panel itself (tile 0 ready, tile 1 empty)
       const png = await view.screenshot({ type: 'png' });
@@ -202,7 +203,7 @@ describe('the city view', () => {
       await t.advance(0.1, total + 6);
       await t.settle();
       expect([await tile0.getAttribute('data-state'), await tile0.getAttribute('data-level')]).toEqual(['ready', '2']);
-      const fx = await t.text('sel.district.fxMarket', { gold: formatFixed((MARKET_GOLD_MILLI_BY_LEVEL[2] as number) / 1000, 1) }); // Sim-Growth: the lowered Market table, level 2 = 0,7
+      const fx = await t.text('sel.district.fxMarket', { gold: formatFixed(marketGoldMilliAt(2) / 1000, 1) }); // Sim-Growth: the lowered Market table, level 2 = 0,7
       expect(await tid(page, 'city-fx-0').textContent()).toBe(await t.text('sel.district.now', { fx }));
 
       // the second tile: a Barracks
@@ -212,7 +213,7 @@ describe('the city view', () => {
       await t.settle();
       expect(await tid(page, 'city-tile-1').getAttribute('data-kind')).toBe(String(DISTRICT_BARRACKS));
       expect(await tid(page, 'city-tile-1').getAttribute('data-state')).toBe('ready');
-      expect(await tid(page, 'city-total-regen').getAttribute('data-pct')).toBe(String(BARRACKS_REGEN_PCT_BY_LEVEL[1]));
+      expect(await tid(page, 'city-total-regen').getAttribute('data-pct')).toBe(String(barracksRegenPctAt(1)));
 
       // Remove takes two clicks: the first arms (and the arm runs out), the second removes
       const remove1 = tid(page, 'city-district-remove-1');

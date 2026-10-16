@@ -9,19 +9,17 @@ import { REJECT_BUILD_SPACING, REJECT_DISTRICT_SLOT, REJECT_NONE, REJECT_STRUCT_
 import {
   CAP_CITY_LEVEL_TROOPS,
   CITY_GOLD_MILLI_PER_SEC_PER_LEVEL,
-  CITY_GOLD_STEP_MILLI_PER_LEVEL,
-  CITY_MAX_LEVEL,
-  CITY_TROOP_STEP_TROOPS,
-  CITY_UPGRADE_TICKS_MAX,
+  BUILD_BASE_GOLD,
+  BUILD_TICKS,
   DISTRICT_MAX_SLOTS,
   DISTRICT_SLOTS_BY_LEVEL,
-  FACTORY_CITY_BONUS_PCT_BY_LEVEL,
-  MARKET_GOLD_MILLI_BY_LEVEL,
   MILLI_GOLD_PER_GOLD,
   QT_PER_TROOP,
   SPACING_CELLS_BY_TYPE,
-  STRUCT_MAX_LEVEL,
+  STRUCT_LEVEL_HARD_CAP,
 } from '../../src/sim/rules';
+import { FACTORY_CITY_BONUS_PCT_BY_LEVEL } from '../../src/sim/levelCurves';
+import { districtEffect } from '../../src/sim/districtRules';
 import { deserialize, serialize } from '../../src/sim/serialize';
 import { createState, type GameState } from '../../src/sim/state';
 import { step } from '../../src/sim/step';
@@ -66,28 +64,35 @@ const income = (s: GameState, o = 1): number => {
   return structGoldMilliPerSec(s, o);
 };
 
-describe('City levels 1 to 10: small equal steps', () => {
-  it('CITY_MAX_LEVEL is 10 and only the City has it; the other types stay at 3', () => {
-    expect(CITY_MAX_LEVEL).toBe(10);
-    expect(maxLevelOf(STRUCT_CITY)).toBe(10);
-    for (const t of [STRUCT_FACTORY, STRUCT_PORT, STRUCT_SILO, STRUCT_SAM, STRUCT_POST]) expect(maxLevelOf(t), `type ${t}`).toBe(STRUCT_MAX_LEVEL);
+describe('City levels (Sim-Levels2): a concave curve, unlimited in practice', () => {
+  it('every type tops out at STRUCT_LEVEL_HARD_CAP (999); CITY_MAX_LEVEL and STRUCT_MAX_LEVEL are only the visual reference scale', () => {
+    expect(STRUCT_LEVEL_HARD_CAP).toBe(999);
+    for (const t of [STRUCT_CITY, STRUCT_FACTORY, STRUCT_PORT, STRUCT_SILO, STRUCT_SAM, STRUCT_POST]) expect(maxLevelOf(t), `type ${t}`).toBe(STRUCT_LEVEL_HARD_CAP);
   });
 
-  it('gold and troop cap rise by one equal small step per level (a third of the old step), level 1 is unchanged, level 10 ends near the old level 4', () => {
+  it('level 1 is unchanged, gold and troop cap never fall, the gain per window of levels shrinks, level 10 is 1.6 to 2 times level 1, level 100 only a little more than level 10, and the asymptote is never reached', () => {
     expect(cityGoldMilli(1)).toBe(CITY_GOLD_MILLI_PER_SEC_PER_LEVEL);
     expect(cityTroopCap(1)).toBe(CAP_CITY_LEVEL_TROOPS);
-    for (let l = 2; l <= CITY_MAX_LEVEL; l++) {
-      expect(cityGoldMilli(l) - cityGoldMilli(l - 1), `gold step ${l}`).toBe(CITY_GOLD_STEP_MILLI_PER_LEVEL);
-      expect(cityTroopCap(l) - cityTroopCap(l - 1), `cap step ${l}`).toBe(CITY_TROOP_STEP_TROOPS);
+    // Concave up to the floor of the integer maths: the gain of a window of 10 levels is no larger than that of the window before it, plus two units of floor rounding.
+    for (let l = 11; l + 10 <= STRUCT_LEVEL_HARD_CAP; l += 7) {
+      expect(cityGoldMilli(l + 10) - cityGoldMilli(l), `gold concave ${l}`).toBeLessThanOrEqual(cityGoldMilli(l) - cityGoldMilli(l - 10) + 2);
+      expect(cityTroopCap(l + 10) - cityTroopCap(l), `cap concave ${l}`).toBeLessThanOrEqual(cityTroopCap(l) - cityTroopCap(l - 10) + 2);
     }
-    expect(CITY_GOLD_STEP_MILLI_PER_LEVEL * 3).toBe(CITY_GOLD_MILLI_PER_SEC_PER_LEVEL);
-    expect(cityGoldMilli(10)).toBe(6000); // the old level 4 paid 6000
-    expect(cityGoldMilli(10)).toBeLessThan(3 * cityGoldMilli(3)); // not three times a level 3
-    expect(cityTroopCap(10)).toBe(3050);
+    for (let l = 2; l <= STRUCT_LEVEL_HARD_CAP; l++) {
+      expect(cityGoldMilli(l) - cityGoldMilli(l - 1), `gold step ${l}`).toBeGreaterThanOrEqual(0);
+      expect(cityTroopCap(l) - cityTroopCap(l - 1), `cap step ${l}`).toBeGreaterThanOrEqual(0);
+    }
+    expect(cityGoldMilli(10)).toBe(2625);
+    expect(cityGoldMilli(10) / cityGoldMilli(1)).toBeGreaterThanOrEqual(1.6);
+    expect(cityGoldMilli(10) / cityGoldMilli(1)).toBeLessThanOrEqual(2);
+    expect(cityGoldMilli(100)).toBeLessThan(1.15 * cityGoldMilli(10));
+    expect(cityGoldMilli(STRUCT_LEVEL_HARD_CAP)).toBeLessThan(2 * CITY_GOLD_MILLI_PER_SEC_PER_LEVEL);
+    expect(cityTroopCap(10)).toBe(2000);
+    expect(cityTroopCap(STRUCT_LEVEL_HARD_CAP)).toBeLessThan(CAP_CITY_LEVEL_TROOPS + 1600);
   });
 
-  it('the effects cache pays and caps exactly those numbers for a finished City of every level', () => {
-    for (let l = 1; l <= CITY_MAX_LEVEL; l++) {
+  it('the effects cache pays and caps exactly those numbers for a finished City of levels 1, 2, 5, 10, 100 and 999', () => {
+    for (const l of [1, 2, 5, 10, 100, STRUCT_LEVEL_HARD_CAP]) {
       const s = strip();
       const base = ownerCapQt(s, 1);
       addCity(s, 1, 100, l);
@@ -96,45 +101,38 @@ describe('City levels 1 to 10: small equal steps', () => {
     }
   });
 
-  it('the upgrade price grows gently (about 10 gold per level) and the time grows to a cap', () => {
-    const prices = [];
-    for (let l = 2; l <= CITY_MAX_LEVEL; l++) prices.push(upgradePriceGold(STRUCT_CITY, l));
-    expect(prices).toEqual([80, 88, 96, 104, 112, 120, 128, 136, 144]);
-    for (let l = 3; l <= CITY_MAX_LEVEL; l++) expect(upgradePriceGold(STRUCT_CITY, l)).toBeGreaterThan(upgradePriceGold(STRUCT_CITY, l - 1));
-    expect(upgradePriceGold(STRUCT_CITY, 10)).toBeLessThan(2 * upgradePriceGold(STRUCT_CITY, 2)); // not base * level
-    expect(upgradePriceGold(STRUCT_FACTORY, 3)).toBe(1500); // the other types are unchanged
-    const ticks = [];
-    for (let l = 2; l <= CITY_MAX_LEVEL; l++) ticks.push(upgradeTicksOf(STRUCT_CITY, l));
-    expect(ticks).toEqual([60, 70, 80, 90, 100, 110, 120, 120, 120]);
-    expect(Math.max(...ticks)).toBe(CITY_UPGRADE_TICKS_MAX);
+  it('ONE price rule: the upgrade to level L costs base * L for the City exactly like for every other type, and takes the build time of the type', () => {
+    for (const t of [STRUCT_CITY, STRUCT_FACTORY, STRUCT_PORT, STRUCT_SILO, STRUCT_SAM, STRUCT_POST]) {
+      for (const l of [2, 3, 10, 100, STRUCT_LEVEL_HARD_CAP]) {
+        expect(upgradePriceGold(t, l), `type ${t} level ${l}`).toBe((BUILD_BASE_GOLD[t] as number) * l);
+        expect(upgradeTicksOf(t, l), `time type ${t} level ${l}`).toBe(BUILD_TICKS[t]);
+      }
+    }
+    expect(upgradePriceGold(STRUCT_CITY, 2)).toBe(800);
+    expect(upgradePriceGold(STRUCT_CITY, 10)).toBe(4000);
   });
 
-  it('every level step pays back in 90 s to 6 minutes at the solo income: bare City and a City under a level 1 Factory', () => {
+  it('the payback of a City level step is long and grows with the level (a soft cap through the price); logged, the old window of 90 s to 6 minutes is gone', () => {
     const rows: string[] = [];
-    for (const factory of [false, true]) {
-      for (let l = 2; l <= CITY_MAX_LEVEL; l++) {
-        const scene = (level: number): GameState => {
-          const s = strip();
-          if (factory) s.structures.add(STRUCT_FACTORY, 1, at(110), 0);
-          const base = income(s);
-          addCity(s, 1, 100, level);
-          return Object.assign(s, { probe: income(s) - base });
-        };
-        const gain = (scene(l) as unknown as { probe: number }).probe - (scene(l - 1) as unknown as { probe: number }).probe;
-        const sec = (upgradePriceGold(STRUCT_CITY, l) * GOLD) / gain;
-        rows.push(`${factory ? 'F' : '-'}L${l}:${sec.toFixed(0)}s`);
-        expect(sec, rows.join(' ')).toBeGreaterThanOrEqual(90);
-        expect(sec, rows.join(' ')).toBeLessThanOrEqual(360);
-      }
+    let last = 0;
+    for (const l of [2, 3, 4, 6, 10, 30]) {
+      const a = strip();
+      addCity(a, 1, 100, l - 1);
+      const b = strip();
+      addCity(b, 1, 100, l);
+      const sec = (upgradePriceGold(STRUCT_CITY, l) * GOLD) / (income(b) - income(a));
+      rows.push(`L${l}:${sec.toFixed(0)}s`);
+      expect(sec, rows.join(' ')).toBeGreaterThan(last);
+      last = sec;
     }
     console.log(`[payback city levels] ${rows.join(' ')}`);
   });
 
-  it('applyUpgrade walks a City from level 1 to 10 with the real price and time, refuses at 10, and refuses while busy', () => {
+  it('applyUpgrade walks a City from level 1 to 10 with the real price and time and refuses at the hard cap', () => {
     const s = strip();
     const id = addCity(s, 1, 100, 1);
     s.gold[1] = 100000 * GOLD;
-    for (let l = 2; l <= CITY_MAX_LEVEL; l++) {
+    for (let l = 2; l <= 10; l++) {
       const before = s.gold[1] as number;
       expect(applyUpgrade(s, 0, id), `to ${l}`).toBe(REJECT_NONE);
       expect(before - (s.gold[1] as number)).toBe(upgradePriceGold(STRUCT_CITY, l) * GOLD);
@@ -144,38 +142,41 @@ describe('City levels 1 to 10: small equal steps', () => {
       while (s.tick <= ready) step(s, { turn: s.tick, intents: [] });
       expect(s.structures.level[id]).toBe(l);
     }
+    s.structures.level[id] = STRUCT_LEVEL_HARD_CAP;
     expect(applyUpgrade(s, 0, id)).toBe(REJECT_STRUCT_MAX_LEVEL);
   });
 });
 
-describe('the limit of 10 level-1 Cities (15 gold/s) for ONE City at level 10', () => {
+describe('the limit of 10 level-1 Cities (15 gold/s) for ONE City at any level', () => {
   const LIMIT = 10 * CITY_GOLD_MILLI_PER_SEC_PER_LEVEL;
-  function worst(markets: number): number {
+  function worst(markets: number, level: number): number {
     const s = strip();
     const factory = s.structures.add(STRUCT_FACTORY, 1, at(110), 0);
-    s.structures.level[factory] = 3;
+    s.structures.level[factory] = level;
     const alone = income(s);
-    const city = addCity(s, 1, 100, 10);
-    for (let k = 0; k < markets; k++) s.structures.setDistrict(city, k, DISTRICT_MARKET, 3, 1000, 0);
+    const city = addCity(s, 1, 100, level);
+    for (let k = 0; k < markets; k++) s.structures.setDistrict(city, k, DISTRICT_MARKET, level, 1000, 0);
     return income(s) - alone;
   }
-  it('a level 10 City + a level 3 Factory bonus + five level 3 Markets pays 13.6 gold/s, 14.96 with +10 percent: under 15; the old Market table would break it', () => {
-    const noMarkets = worst(0);
-    expect(noMarkets).toBe(cityGoldMilli(10) + Math.floor((cityGoldMilli(10) * (FACTORY_CITY_BONUS_PCT_BY_LEVEL[3] as number)) / 100));
-    const total = worst(DISTRICT_MAX_SLOTS);
-    expect(DISTRICT_MAX_SLOTS).toBe(5);
-    expect(total - noMarkets).toBe(5 * (MARKET_GOLD_MILLI_BY_LEVEL[3] as number));
-    expect(total).toBeLessThanOrEqual(LIMIT);
-    expect(applyPortTrait(total, 1100)).toBeLessThanOrEqual(LIMIT); // with the +10 percent trait
-    expect(noMarkets + 5 * 1850).toBeGreaterThan(LIMIT); // the Districts-1 Market (1.85 gold/s) in five slots would have broken the limit
+  it('a City + its Factory bonus + five Markets of the same level pays under 15 gold/s, also with +10 percent, at levels 1, 10, 100 and 999', () => {
+    for (const level of [1, 10, 100, STRUCT_LEVEL_HARD_CAP]) {
+      const noMarkets = worst(0, level);
+      expect(noMarkets, `level ${level}`).toBe(cityGoldMilli(level) + Math.floor((cityGoldMilli(level) * (FACTORY_CITY_BONUS_PCT_BY_LEVEL[level] as number)) / 100));
+      const total = worst(DISTRICT_MAX_SLOTS, level);
+      expect(total - noMarkets).toBe(5 * districtEffect(DISTRICT_MARKET, level).goldMilliPerSec);
+      expect(total, `level ${level}`).toBeLessThanOrEqual(LIMIT);
+      expect(applyPortTrait(total, 1100), `level ${level}`).toBeLessThanOrEqual(LIMIT);
+    }
+    expect(worst(DISTRICT_MAX_SLOTS, 1)).toBeLessThan(worst(DISTRICT_MAX_SLOTS, 10));
+    expect(worst(DISTRICT_MAX_SLOTS, STRUCT_LEVEL_HARD_CAP) - worst(DISTRICT_MAX_SLOTS, 100)).toBeLessThan(300); // the tail is flat
   });
 });
 
 describe('district slots grow slowly with the City level', () => {
-  it('districtSlotsOf: 2 at levels 1 to 2, 3 at 3 to 5, 4 at 6 to 8, 5 at 9 to 10, 0 outside', () => {
-    expect(DISTRICT_SLOTS_BY_LEVEL.length).toBe(CITY_MAX_LEVEL + 1);
+  it('districtSlotsOf: 2 at levels 1 to 2, 3 at 3 to 5, 4 at 6 to 8, 5 at 9 and above (never more), 0 below level 1', () => {
+    expect(DISTRICT_SLOTS_BY_LEVEL.length).toBe(11);
     expect(Array.from({ length: 10 }, (_, i) => districtSlotsOf(i + 1))).toEqual([2, 2, 3, 3, 3, 4, 4, 4, 5, 5]);
-    expect([districtSlotsOf(0), districtSlotsOf(11)]).toEqual([0, 0]);
+    expect([districtSlotsOf(0), districtSlotsOf(11), districtSlotsOf(999)]).toEqual([0, 5, 5]);
     expect(Math.max(...DISTRICT_SLOTS_BY_LEVEL)).toBe(DISTRICT_MAX_SLOTS);
   });
 
@@ -189,7 +190,7 @@ describe('district slots grow slowly with the City level', () => {
   });
 });
 
-describe('conquest at several levels: one level lower (at least 1), slots follow the new level', () => {
+describe('conquest at several levels: 75 percent of the level, rounded down (at least 1); slots follow the new level', () => {
   const cell = (x: number, y: number): number => y * 40 + x;
   function conquered(level: number): { s: GameState; id: number } {
     const s = landState(40, 20, { seats: 3 });
@@ -202,8 +203,8 @@ describe('conquest at several levels: one level lower (at least 1), slots follow
     setOwner(s, cell(30, 10), 1, 0);
     return { s, id };
   }
-  it('levels 1, 2, 6, 7, 9 and 10 become 1, 1, 5, 6, 8 and 9; the districts that do not fit are lost, the others drop one level', () => {
-    for (const [from, to] of [[1, 1], [2, 1], [6, 5], [7, 6], [9, 8], [10, 9]] as const) {
+  it('levels 1, 2, 6, 7, 9 and 10 become 1, 1, 4, 5, 6 and 7; the districts that do not fit are lost, the others keep 75 percent of their level (3 becomes 2)', () => {
+    for (const [from, to] of [[1, 1], [2, 1], [6, 4], [7, 5], [9, 6], [10, 7]] as const) {
       const { s, id } = conquered(from);
       const t = s.structures;
       expect([t.owner[id], t.level[id]], `from ${from}`).toEqual([1, to]);
@@ -216,11 +217,11 @@ describe('conquest at several levels: one level lower (at least 1), slots follow
       expect(t.districtsOwned(2, DISTRICT_MARKET) + t.districtsOwned(2, DISTRICT_HOUSING) + t.districtsOwned(2, DISTRICT_BARRACKS) + t.districtsOwned(2, DISTRICT_WALLS)).toBe(0);
     }
   });
-  it('a level 6 City (4 slots) conquered to 5 (3 slots) loses exactly slot 3; a level 10 City (5 slots) to 9 (5 slots) loses nothing', () => {
+  it('a level 6 City (4 slots) conquered to 4 (3 slots) loses exactly slot 3; a level 10 City (5 slots) to 7 (4 slots) loses slot 4', () => {
     const six = conquered(6);
     expect(six.s.structures.districtCount).toBe(3);
     const ten = conquered(10);
-    expect(ten.s.structures.districtCount).toBe(5);
+    expect(ten.s.structures.districtCount).toBe(4);
   });
 });
 
@@ -295,22 +296,27 @@ describe('forged blobs with a valid checksum: the new level range and slot layou
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error).toBe('structure-range');
   };
-  it('a City of level 10 round trips with five districts; level 11 is refused', () => {
+  it('a City of level 999 round trips with five districts of level 999; level 1000 is refused', () => {
     const s = base();
-    s.structures.level[0] = 10;
-    for (let slot = 0; slot < 5; slot++) s.structures.setDistrict(0, slot, DISTRICT_MARKET, 3, 1000, 0);
+    s.structures.level[0] = STRUCT_LEVEL_HARD_CAP;
+    for (let slot = 0; slot < 5; slot++) s.structures.setDistrict(0, slot, DISTRICT_MARKET, STRUCT_LEVEL_HARD_CAP, 1000, 0);
     const r = deserialize(serialize(s));
     expect(r.ok).toBe(true);
-    refused((t) => (t.structures.level[0] = 11));
+    refused((t) => (t.structures.level[0] = STRUCT_LEVEL_HARD_CAP + 1));
   });
-  it('a Factory above level 3 is refused (only the City has more)', () => refused((t) => (t.structures.level[1] = 4)));
-  it('an upgrade running on a level 10 City is refused, on a level 9 City it is legal', () => {
+  it('a Factory above the hard cap is refused, below it a Factory of level 500 is legal', () => {
+    refused((t) => (t.structures.level[1] = STRUCT_LEVEL_HARD_CAP + 1));
+    const s = base();
+    s.structures.level[1] = 500;
+    expect(deserialize(serialize(s)).ok).toBe(true);
+  });
+  it('an upgrade running on a level 999 City is refused, on a level 998 City it is legal', () => {
     refused((t) => {
-      t.structures.level[0] = 10;
+      t.structures.level[0] = STRUCT_LEVEL_HARD_CAP;
       t.structures.upgradeReadyTick[0] = 2000;
     });
     const s = base();
-    s.structures.level[0] = 9;
+    s.structures.level[0] = STRUCT_LEVEL_HARD_CAP - 1;
     s.structures.upgradeReadyTick[0] = 2000;
     expect(deserialize(serialize(s)).ok).toBe(true);
   });

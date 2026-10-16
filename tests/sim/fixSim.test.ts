@@ -10,13 +10,11 @@ import {
   REJECT_STRUCT_BUSY,
   withId,
 } from '../../src/sim/intents';
+import { FACTORY_CITY_BONUS_PCT_BY_LEVEL, FACTORY_GOLD_MILLI_BY_LEVEL, PORT_GOLD_MILLI_BY_LEVEL } from '../../src/sim/levelCurves';
 import {
   BUILD_TICKS,
   CITY_GOLD_MILLI_PER_SEC_PER_LEVEL,
-  FACTORY_CITY_BONUS_PCT_BY_LEVEL,
-  FACTORY_GOLD_MILLI_BY_LEVEL,
   MILLI_GOLD_PER_GOLD,
-  PORT_GOLD_MILLI_BY_LEVEL,
   SPAWN_PHASE_TICKS,
   STRUCT_CAPACITY,
   TICK_HZ,
@@ -50,8 +48,8 @@ const addDone = (s: GameState, type: number, owner: number, cell: number, level 
 };
 
 describe('Fix-Sim: engine version', () => {
-  it('is 12 after Sim-Growth, and a snapshot with another engine version is refused', () => {
-    expect(ENGINE_VERSION).toBe(12);
+  it('is 13 after Sim-Levels2, and a snapshot with another engine version is refused', () => {
+    expect(ENGINE_VERSION).toBe(13);
     const s = strip(2);
     const bytes = serialize(s);
     expect(deserialize(bytes).ok).toBe(true);

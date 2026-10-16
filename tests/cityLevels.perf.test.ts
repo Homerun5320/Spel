@@ -1,14 +1,16 @@
-// CPU budget of the dense world (Sim-Growth; perf project). 12 players that hold land, 600 FINISHED structures at the new spacing (300 Cities of levels 1 to 10 with
+// CPU budget of the dense world (Sim-Growth, Sim-Levels2: levels up to 999; perf project). 12 players that hold land, 600 FINISHED structures at the new spacing (300 Cities of levels from 1 to 999 with
 // the districts their level has, 100 Factories, 100 Ports, 100 Posts), the economy and the effects cache in play. The second run makes every step recompute
 // the cache (a build or a conquest on every tick): the worst case. Budgets go through budgetMs (tests/perfguard.ts); the statistic is the median of 200 steps
 // after 50 warm-ups.
 import { describe, expect, it } from 'vitest';
-import { DISTRICT_SLOTS_BY_LEVEL } from '../src/sim/rules';
+import { districtSlotsOf } from '../src/sim/districtRules';
 import { step } from '../src/sim/step';
 import { createEmptyState } from '../src/sim/state';
 import { STRUCT_CITY, STRUCT_FACTORY, STRUCT_PORT, STRUCT_POST } from '../src/sim/structureRules';
 import { setOwner } from '../src/sim/territory';
 import { budgetMs, measureMedianMs } from './perfguard';
+
+const LEVELS = [1, 2, 5, 10, 50, 100, 500, 999];
 
 function world() {
   const s = createEmptyState(1024, 512, 1, 12);
@@ -21,11 +23,11 @@ function world() {
     const type = i % 2 === 0 ? STRUCT_CITY : [STRUCT_FACTORY, STRUCT_PORT, STRUCT_POST][(i >> 1) % 3];
     const id = s.structures.add(type as number, owner, cell, 0);
     expect(id).toBe(i);
+    s.structures.level[id] = LEVELS[(i >> 1) % LEVELS.length] as number;
     if (type === STRUCT_CITY) {
-      const level = 1 + (cities % 10);
-      s.structures.level[id] = level;
-      for (let slot = 0; slot < (DISTRICT_SLOTS_BY_LEVEL[level] as number); slot++) {
-        s.structures.setDistrict(id, slot, 1 + ((cities + slot) % 4), 1 + (slot % 3), 100, (cities + slot) % 5 === 0 ? 100000000 : 0);
+      const level = s.structures.level[id] as number;
+      for (let slot = 0; slot < districtSlotsOf(level); slot++) {
+        s.structures.setDistrict(id, slot, 1 + ((cities + slot) % 4), LEVELS[(cities + slot) % LEVELS.length] as number, 100, (cities + slot) % 5 === 0 ? 100000000 : 0);
       }
       cities++;
     }
@@ -35,7 +37,7 @@ function world() {
 }
 
 describe('dense world performance', () => {
-  it('a step with 12 players, 600 finished structures and City levels 1 to 10 with their districts takes at most budgetMs(4) (median of 200 steps after 50 warm-ups), also when every step recomputes the effects', () => {
+  it('a step with 12 players, 600 finished structures and levels 1 to 999 with their districts takes at most budgetMs(4) (median of 200 steps after 50 warm-ups), also when every step recomputes the effects', () => {
     const s = world();
     expect(s.structures.liveCount).toBe(600);
     expect(s.structures.districtCount).toBeGreaterThan(600);

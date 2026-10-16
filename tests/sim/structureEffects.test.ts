@@ -191,8 +191,8 @@ describe('income per structure', () => {
   });
 
   it('the SAM radius grows with the level and is 20 percent longer on a Mountain', () => {
-    expect([1, 2, 3].map((l) => samRadiusCells(l, false))).toEqual([24, 26, 29]);
-    expect([1, 2, 3].map((l) => samRadiusCells(l, true))).toEqual([28, 31, 34]);
+    expect([1, 2, 3].map((l) => samRadiusCells(l, false))).toEqual([24, 26, 27]); // Sim-Levels2: 24 + 8 * sat(L) / 1000, a concave curve towards 32
+    expect([1, 2, 3].map((l) => samRadiusCells(l, true))).toEqual([28, 31, 32]);
   });
 });
 
