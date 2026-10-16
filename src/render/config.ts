@@ -418,6 +418,10 @@ export const ADAPT_DENSITY_SCALE = 0.7;
 // --- Structures (M10 slice 1: the City; the registry in src/render/structureModels.ts is open for the other types) ---------------
 /** Size factor of a structure by level (index = level; 0 unused): the model grows 25 % and 50 % with the upgrades. */
 export const STRUCT_LEVEL_SCALE: readonly number[] = [0, 1.0, 1.25, 1.5];
+/** Look-1: close-range enlargement. Below STRUCT_CLOSE_NEAR_M of camera distance a structure (and its districts) is drawn this many times its true size, easing to 1x at STRUCT_CLOSE_FAR_M (smoothstep, shader maths, no extra draw call): a City reads as a town at 3 km. */
+export const STRUCT_CLOSE_MUL = 2.4;
+export const STRUCT_CLOSE_NEAR_M = 15000;
+export const STRUCT_CLOSE_FAR_M = 150000;
 /** The model keeps at least this share of the camera distance as its radius (the scale policy: world size grows with the distance so that a structure is visible from high up). */
 export const STRUCT_SCREEN_FRAC = 0.011;
 /** The most the scale policy enlarges a model beyond its true size (a structure from orbit stays a speck rather than a blob the size of a country). */

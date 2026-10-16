@@ -4,7 +4,7 @@
 // changes (never per frame); `frame` sets uniforms and decides, with a distance test over the instances, whether the mesh is drawn at all.
 import { BufferAttribute, DoubleSide, DynamicDrawUsage, InstancedBufferAttribute, InstancedBufferGeometry, Mesh, ShaderMaterial, Vector3, Vector4 } from 'three';
 import { DISTRICT_BUILD_TICKS, DISTRICT_MAX_SLOTS, STRUCT_CITY, districtIndex, type DistrictView, type StructureView } from '../sim/public';
-import { AMBIENT_DAY, AMBIENT_NIGHT, DISTRICT_FADE_PX_HI, DISTRICT_FADE_PX_LO, DISTRICT_LEVEL_SCALE, DISTRICT_MODEL_UNIT, DISTRICT_TRIANGLE_BUDGET, EARTH_RADIUS_KM, HEIGHT_EXAGGERATION, STRUCT_BUILD_MIN_HEIGHT, STRUCT_LEVEL_SCALE, STRUCT_POP_SECONDS, SUN_COLOR } from './config';
+import { AMBIENT_DAY, AMBIENT_NIGHT, DISTRICT_FADE_PX_HI, DISTRICT_FADE_PX_LO, DISTRICT_LEVEL_SCALE, DISTRICT_MODEL_UNIT, DISTRICT_TRIANGLE_BUDGET, EARTH_RADIUS_KM, HEIGHT_EXAGGERATION, STRUCT_BUILD_MIN_HEIGHT, STRUCT_CLOSE_FAR_M, STRUCT_CLOSE_MUL, STRUCT_CLOSE_NEAR_M, STRUCT_LEVEL_SCALE, STRUCT_POP_SECONDS, SUN_COLOR } from './config';
 import { latLonToVec } from './geo';
 import { buildDistrictModels, districtRadiusM, districtSlotModelOffset, districtSlotOffsetM } from './districtModels';
 import type { QualityTier } from './quality';
@@ -125,6 +125,7 @@ export class DistrictLayer {
         uViewH: { value: 540 },
         uFadeLo: { value: DISTRICT_FADE_PX_LO },
         uFadeHi: { value: DISTRICT_FADE_PX_HI },
+        uClose: { value: new Vector3(STRUCT_CLOSE_MUL, STRUCT_CLOSE_NEAR_M, STRUCT_CLOSE_FAR_M) },
         uSun: { value: o.sun },
         uSunColor: { value: v3(SUN_COLOR) },
         uAmbientDay: { value: v3(AMBIENT_DAY) },
@@ -271,7 +272,7 @@ export class DistrictLayer {
         this.rgb[i * 3] = (palette[owner * 4] as number) / 255;
         this.rgb[i * 3 + 1] = (palette[owner * 4 + 1] as number) / 255;
         this.rgb[i * 3 + 2] = (palette[owner * 4 + 2] as number) / 255;
-        this.cut[i] = districtRadiusM(cityLevel, level, CITY_RADIUS_M); // metres; `frame` turns it into a cut distance (districtCutDistanceM)
+        this.cut[i] = districtRadiusM(cityLevel, level, CITY_RADIUS_M) * STRUCT_CLOSE_MUL; // metres; `frame` turns it into a cut distance (districtCutDistanceM)
         this.trianglesDrawn += this.triPerInstance;
         this.kindCounts[kind] = (this.kindCounts[kind] as number) + 1;
         this.drawn.push({

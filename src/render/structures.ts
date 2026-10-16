@@ -9,7 +9,7 @@
 // palette or the exaggeration changed.
 import { BufferAttribute, BufferGeometry, DoubleSide, DynamicDrawUsage, InstancedBufferAttribute, InstancedBufferGeometry, Mesh, ShaderMaterial, Vector3, Vector4 } from 'three';
 import { STRUCT_CITY, type StructureView } from '../sim/public';
-import { EARTH_RADIUS_KM, GHOST_ALPHA, GHOST_BAD_RGB, GHOST_MIX, GHOST_OK_RGB, HEIGHT_EXAGGERATION, STRUCT_BUILD_MIN_HEIGHT, STRUCT_DISH_RAD_PER_SEC, STRUCT_LEVEL_SCALE, STRUCT_MAX_SCALE, STRUCT_POP_SECONDS, STRUCT_SCREEN_FRAC, STRUCT_TRIANGLE_BUDGET, AMBIENT_DAY, AMBIENT_NIGHT, SUN_COLOR, ICON_FADE_PX_HI, ICON_FADE_PX_LO, ICON_HALF_PX, NIGHT_LIGHT_SUN_DOT, RANGE_RING_RGB, RING_HALF_WIDTH_FRAC, RING_HALF_WIDTH_M, RING_SEGMENTS, SELECT_RING_RGB } from './config';
+import { EARTH_RADIUS_KM, GHOST_ALPHA, GHOST_BAD_RGB, GHOST_MIX, GHOST_OK_RGB, HEIGHT_EXAGGERATION, STRUCT_BUILD_MIN_HEIGHT, STRUCT_CLOSE_FAR_M, STRUCT_CLOSE_MUL, STRUCT_CLOSE_NEAR_M, STRUCT_DISH_RAD_PER_SEC, STRUCT_LEVEL_SCALE, STRUCT_MAX_SCALE, STRUCT_POP_SECONDS, STRUCT_SCREEN_FRAC, STRUCT_TRIANGLE_BUDGET, AMBIENT_DAY, AMBIENT_NIGHT, SUN_COLOR, ICON_FADE_PX_HI, ICON_FADE_PX_LO, ICON_HALF_PX, NIGHT_LIGHT_SUN_DOT, RANGE_RING_RGB, RING_HALF_WIDTH_FRAC, RING_HALF_WIDTH_M, RING_SEGMENTS, SELECT_RING_RGB } from './config';
 import { selectRingLiftsM, selectRingRadiusM } from './rings';
 import { latLonToVec } from './geo';
 import type { QualityTier } from './quality';
@@ -172,6 +172,7 @@ export class StructureLayer {
       uCamLo: { value: this.camLo },
       uPxK: { value: STRUCT_SCREEN_FRAC },
       uMaxScale: { value: STRUCT_MAX_SCALE },
+      uClose: { value: new Vector3(STRUCT_CLOSE_MUL, STRUCT_CLOSE_NEAR_M, STRUCT_CLOSE_FAR_M) },
       uKmPerUnit: { value: EARTH_RADIUS_KM },
       uTime: { value: 0 },
       uTick: { value: 0 },
@@ -296,6 +297,7 @@ export class StructureLayer {
           uKmPerUnit: this.uniforms.uKmPerUnit as { value: unknown },
           uPxK: this.uniforms.uPxK as { value: unknown },
           uMaxScale: this.uniforms.uMaxScale as { value: unknown },
+          uClose: this.uniforms.uClose as { value: unknown },
           uViewH: { value: this.viewH },
           uFadeHi: { value: ICON_FADE_PX_HI },
           uFadeLo: { value: ICON_FADE_PX_LO },

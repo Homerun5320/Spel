@@ -13,6 +13,7 @@ uniform vec3 uCamLo;
 uniform float uSizeM;      // metres per model unit at true size
 uniform float uPxK;        // minimum radius as a share of the camera distance
 uniform float uMaxScale;
+uniform vec3 uClose;       // Look-1: x: enlargement close up, y/z: the camera distances (m) where it starts to ease and where it is gone
 uniform float uKmPerUnit;  // kilometres per Earth radius
 uniform float uTime;       // fx seconds
 uniform float uTick;       // the sim tick as a fraction
@@ -54,7 +55,8 @@ void main() {
   vec3 north = cross(up, east);
   vec3 rel0 = (aHi - uCamHi) + (aLo - uCamLo);
   float distM = length(rel0) * uKmPerUnit * 1000.0;
-  float k = clamp(distM * uPxK / uSizeM, 1.0, uMaxScale) * uSizeM * aParams.x / (uKmPerUnit * 1000.0);
+  float closeK = mix(uClose.x, 1.0, smoothstep(uClose.y, uClose.z, distM));
+  float k = max(clamp(distM * uPxK / uSizeM, 1.0, uMaxScale), closeK) * uSizeM * aParams.x / (uKmPerUnit * 1000.0);
   float age = uTime - aParams.z;
   float pop = age < 0.0 ? 1.0 : clamp(age / uPopSeconds, 0.0, 1.0); // a clock set back by a test hook shows the finished model
   float popScale = pop >= 1.0 ? 1.0 : max(easeOutBack(pop), 0.0);
@@ -187,6 +189,7 @@ uniform vec3 uCamLo;
 uniform float uKmPerUnit;
 uniform float uPxK;
 uniform float uMaxScale;
+uniform vec3 uClose;
 uniform float uViewH;      // drawing-buffer height in pixels
 uniform float uFadeHi;     // projected model radius (px) above which there is no icon
 uniform float uFadeLo;     // ... and below which the icon is full
@@ -205,7 +208,7 @@ void main() {
   vec3 up = normalize(centre);
   vec3 rel0 = (aHi - uCamHi) + (aLo - uCamLo);
   float distM = length(rel0) * uKmPerUnit * 1000.0;
-  float k = clamp(distM * uPxK / aInfo.y, 1.0, uMaxScale);
+  float k = max(clamp(distM * uPxK / aInfo.y, 1.0, uMaxScale), mix(uClose.x, 1.0, smoothstep(uClose.y, uClose.z, distM)));
   float pxPerRad = uViewH * 0.5 * projectionMatrix[1][1];
   float modelPx = k * aInfo.y * aInfo.z / distM * pxPerRad;
   float a = 1.0 - smoothstep(uFadeLo, uFadeHi, modelPx);

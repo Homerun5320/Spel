@@ -1021,7 +1021,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     if (globe.terrainMode === 'chunks') {
       const at = latLonOfCell(sess.view.structures.cell[id] as number, world.sim.width, world.sim.height);
       const p = globe.project(at.lat, at.lon);
-      if (cityFlightNeeded(globe.cameraAglM(), p.facing && p.inView)) globe.flyTo(at.lat, at.lon, 0, { altAglM: CITY_VIEW.flyAltM, tilt: CITY_VIEW.flyTiltDeg });
+      if (cityFlightNeeded(globe.cameraAglM(), p.facing && p.inView)) globe.flyTo(at.lat, at.lon, 0, { altAglM: CITY_VIEW.flyAltM, tilt: CITY_VIEW.flyTiltDeg, fast: true });
     }
     refreshHud();
   };
