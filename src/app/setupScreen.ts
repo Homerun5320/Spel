@@ -17,6 +17,8 @@ import { countryViews, flyDistanceKm } from './countryGeo';
 import { countryEligibility, startCellEligibility } from './eligibility';
 import { CUSTOM_COLORS, DIFFICULTIES, maxAiNations, type Difficulty, type MatchSetupConfig, type SetupError } from './matchSetup';
 import type { CountryInfo, PreparedWorld } from './matchWorld';
+import type { CityStyle } from '../render/cityTiers';
+import { otherCityStyle } from './cityStyle';
 import { checkDraft, type DraftCheck, type SetupDraft, type SetupTab } from './setupModel';
 import { WIN_PRESETS, clampWinDraft, presetDraft, presetOf, winConfigOf, winInfoOfConfig, winSummaryText, type WinPreset } from './winSetup';
 
@@ -34,6 +36,8 @@ export interface SetupHooks {
   start(config: MatchSetupConfig, draft: SetupDraft): Promise<SetupError | null>;
   /** Leave the screen (back to the main menu). */
   back(): void;
+  /** Look-1: the City style setting (a button in the header cycles it). */
+  cityStyle?: { get(): CityStyle; set(style: CityStyle): void };
 }
 
 export interface SetupScreen {
@@ -104,7 +108,10 @@ export function mountSetupScreen(parent: HTMLElement, world: PreparedWorld, init
   langBtn.type = 'button';
   const backBtn = el('button', 'start-btn setup-btn', 'setup-back');
   backBtn.type = 'button';
-  headBtns.append(langBtn, backBtn);
+  const styleBtn = el('button', 'start-btn setup-btn', 'setup-citystyle');
+  styleBtn.type = 'button';
+  styleBtn.hidden = hooks.cityStyle === undefined;
+  headBtns.append(styleBtn, langBtn, backBtn);
   head.append(title, headBtns);
 
   const body = el('div', 'setup-body', 'setup-body');
@@ -396,6 +403,11 @@ export function mountSetupScreen(parent: HTMLElement, world: PreparedWorld, init
 
   const texts = (): void => {
     title.textContent = t('setup.title');
+    if (hooks.cityStyle !== undefined) {
+      const cur = hooks.cityStyle.get();
+      styleBtn.textContent = t('setup.cityStyle', { style: cur === 'new' ? t('setup.cityStyleNew') : t('setup.cityStyleOld') });
+      styleBtn.setAttribute('data-style', cur);
+    }
     langBtn.textContent = t('start.language');
     langBtn.setAttribute('aria-label', t('start.languageAria'));
     backBtn.textContent = t('setup.back');
@@ -649,6 +661,12 @@ export function mountSetupScreen(parent: HTMLElement, world: PreparedWorld, init
   langBtn.addEventListener('click', () => {
     setLanguage(getLanguage() === 'sv' ? 'en' : 'sv');
     langBtn.blur();
+  });
+  styleBtn.addEventListener('click', () => {
+    if (hooks.cityStyle === undefined) return;
+    hooks.cityStyle.set(otherCityStyle(hooks.cityStyle.get()));
+    texts();
+    styleBtn.blur();
   });
   backBtn.addEventListener('click', () => hooks.back());
   startBtn.addEventListener('click', () => {

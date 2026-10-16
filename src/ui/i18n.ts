@@ -108,6 +108,9 @@ const sv = {
 
   'setup.title': 'Ny match',
   'setup.back': 'Tillbaka',
+  'setup.cityStyle': 'Stadsstil: {style}',
+  'setup.cityStyleOld': 'Gammal',
+  'setup.cityStyleNew': 'Modern',
   'setup.loading': 'Förbereder världen...',
   'setup.tab.real': 'Riktigt land',
   'setup.tab.custom': 'Eget land',
@@ -427,6 +430,9 @@ const en: Record<TextKey, string> = {
 
   'setup.title': 'New match',
   'setup.back': 'Back',
+  'setup.cityStyle': 'City style: {style}',
+  'setup.cityStyleOld': 'Old',
+  'setup.cityStyleNew': 'New',
   'setup.loading': 'Preparing the world...',
   'setup.tab.real': 'Real country',
   'setup.tab.custom': 'Custom nation',

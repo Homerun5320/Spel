@@ -46,6 +46,8 @@ import { CITY_VIEW, GPU_TIP_PREF_KEY, START_FLY_KM, START_SPIN_DEG_PER_S, SETUP_
 import { mountStartScreen, type StartScreen } from '../ui/startScreen';
 import { applyStartLanguage } from './langPref';
 import { getPref, setPref } from './prefs';
+import { rememberCityStyle, startCityStyle } from './cityStyle';
+import type { CityStyle } from '../render/cityTiers';
 import { createMatch, defaultWinConfig, type BuiltMatch, type MatchSetupConfig } from './matchSetup';
 import { countryEligibility } from './eligibility';
 import { regionMask, type RegionId } from '../data/regions';
@@ -129,6 +131,8 @@ export interface PropsInfo {
   list: readonly DrawnStructure[];
   /** Districts-2b: the district layer: instances per kind (index = kind), the total, the triangles in the draw, the left-out count, whether the mesh is drawn, the drawn districts. */
   districts: { counts: readonly number[]; total: number; triangles: number; dropped: number; drawn: boolean; list: readonly DrawnDistrict[] };
+  /** Look-1: the City style now drawn. */
+  cityStyle: CityStyle;
   /** The placement mode: the type being placed (0 = none) and the ghost. */
   placing: number;
   ghost: PlacementState | null;
@@ -274,6 +278,8 @@ export interface GlobeTestHooks {
   state(): MatchStateInfo | null;
   /** M10: the structure layer (instance counts per type, the drawn structures) and the placement mode. */
   props(): PropsInfo;
+  /** Look-1: switches the City style live (the preference is not written in test mode). */
+  setCityStyle(style: CityStyle): void;
   /** Sends a raw intent body of any seat through the host (what a UI would; used to try illegal ones). Effective T + 2 ticks later. */
   submit(body: IntentBody): void;
   /** Test-only gift: sends a DebugGive intent (valid only when the match config has debugIntents, which test mode sets). Effective T + 2 ticks later. */
@@ -442,6 +448,13 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   if (groundView !== null) globe.setGroundView(groundView);
   if (params.blank) canvas.style.visibility = 'hidden'; // debug: the negative e2e test needs an empty picture
   setFxTime(groundView?.time ?? DEFAULT_START_TIME); // the sun starts 67 degrees west of the default view so that the terminator is visible at once
+
+  // Look-1: the City style ('old' / 'new'): the address, else the stored choice; a change is live (the vertex buffers of the City are swapped) and remembered.
+  const applyCityStyle = (style: CityStyle): void => {
+    globe.structures.setCityStyle(style);
+    rememberCityStyle(style, params.test);
+  };
+  globe.structures.setCityStyle(startCityStyle(ctx.state.raw, params.test));
 
   const abort = new AbortController();
   const { signal } = abort;
@@ -1212,6 +1225,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
           startScreen = null;
           return null;
         },
+        cityStyle: { get: () => globe.structures.cityStyleNow, set: (st) => applyCityStyle(st) },
         back: leaveSetup,
       },
       { debugIntents: params.test },
@@ -1309,6 +1323,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       cityTriangles: layer.trianglesOf(STRUCT_CITY),
       list: layer.instances(),
       districts: { counts: globe.districts.counts(), total: globe.districts.total(), triangles: globe.districts.trianglesDrawn, dropped: globe.districts.dropped, drawn: globe.districts.drawnNow, list: globe.districts.instances() },
+      cityStyle: globe.structures.cityStyleNow,
       placing,
       ghost: placementMode === null ? null : placementMode.state(),
       toasts: visibleToastKeys(),
@@ -1478,6 +1493,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       },
       state: matchState,
       props: propsInfo,
+      setCityStyle: (style) => applyCityStyle(style),
       submit(body): void {
         session?.submit(body);
       },

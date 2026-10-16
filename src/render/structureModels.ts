@@ -6,6 +6,7 @@
 // reaches below it so that the base never floats over a slope). `radiusM` is what one unit is in metres at true size; the layer multiplies
 // by it, by the level scale and by the scale policy. Every vertex has a colour and a TINT: tint 1 takes the owner's colour, 0 keeps the
 // model's own. Normals are not stored: the fragment shader takes the flat normal from screen derivatives (the stylised look of the terrain).
+import type { CityStyle } from './cityTiers';
 import { STRUCT_CITY, STRUCT_FACTORY, STRUCT_PORT, STRUCT_POST, STRUCT_SAM, STRUCT_SILO } from '../sim/public';
 
 export interface ModelData {
@@ -15,6 +16,8 @@ export interface ModelData {
   readonly colors: Float32Array;
   /** 0 = own colour, 1 = owner colour, per vertex. */
   readonly tints: Float32Array;
+  /** Look-1: the first City band (0..4, see cityTiers.ts) in which each vertex is drawn; absent = every vertex always (0). */
+  readonly bands?: Float32Array;
   readonly triangles: number;
 }
 
@@ -24,7 +27,7 @@ export interface StructureModel {
   readonly radiusM: number;
   /** True when the model has a front (a pier) that should point to the sea: the layer turns it to the water instead of a pseudo-random yaw. Its front is model +x. */
   readonly seaward?: boolean;
-  build(): ModelData;
+  build(style?: CityStyle): ModelData;
 }
 
 export type Rgb = readonly [number, number, number];
@@ -34,12 +37,16 @@ export class MeshBuilder {
   private readonly p: number[] = [];
   private readonly c: number[] = [];
   private readonly t: number[] = [];
+  private readonly b: number[] = [];
+  /** Look-1: the band (0..4) of the triangles added from now on (parts of a higher band appear only on a City of a higher level). */
+  band = 0;
 
   tri(a: Rgb, b: Rgb, c: Rgb, color: Rgb, tint: number): void {
     for (const v of [a, b, c]) {
       this.p.push(v[0], v[1], v[2]);
       this.c.push(color[0], color[1], color[2]);
       this.t.push(tint);
+      this.b.push(this.band);
     }
   }
 
@@ -164,7 +171,7 @@ export class MeshBuilder {
   }
 
   done(): ModelData {
-    return { positions: Float32Array.from(this.p), colors: Float32Array.from(this.c), tints: Float32Array.from(this.t), triangles: this.p.length / 9 };
+    return { positions: Float32Array.from(this.p), colors: Float32Array.from(this.c), tints: Float32Array.from(this.t), bands: Float32Array.from(this.b), triangles: this.p.length / 9 };
   }
 }
 
@@ -186,7 +193,8 @@ function buildCity(): ModelData {
   // a pale stone rim (it reads against any territory colour from far away) round an owner-coloured disc
   m.plate(8, 1.0, -0.22, 0.04, PLATE_RIM, 0, PLATE_SIDE);
   m.disc(8, 0.8, 0.055, PLATE_TOP, 1);
-  // the tower and its spire (the spire takes the owner's colour: it reads from every side)
+  // Look-1 bands: 0 hamlet (3 houses), 1 village (7 houses), 2 town (tower and two blocks), 3 city (three more blocks), 4 metropolis (two high-rises)
+  m.band = 2;
   m.box(0, 0, 0.26, 0.26, 0.04, 0.7, 0.3, WALL_C, FLAT_ROOF, 0);
   m.pyramid(0, 0, 0.26, 0.7, 1.0, PLATE_TOP, 1);
   // five mid-rise blocks on a ring of radius 0.42
@@ -198,11 +206,13 @@ function buildCity(): ModelData {
     [2.9, 0.4, 0.34],
   ];
   mid.forEach(([ang, w, h], i) => {
+    m.band = i < 2 ? 2 : 3;
     const a = ang * 2.0;
     m.box(Math.cos(a) * 0.42, Math.sin(a) * 0.42, w * 0.5, w * 0.42, 0.04, 0.04 + h, a + 0.4, i % 2 === 0 ? WALL_A : WALL_B, FLAT_ROOF, 0);
   });
   // seven gabled houses on the outer ring of radius 0.76
   for (let i = 0; i < 7; i++) {
+    m.band = i < 3 ? 0 : 1;
     const a = (i / 7) * Math.PI * 2 + 0.3;
     const h = 0.12 + (i % 3) * 0.04;
     const x = Math.cos(a) * 0.76;
@@ -210,6 +220,42 @@ function buildCity(): ModelData {
     m.box(x, z, 0.26, 0.18, 0.04, 0.04 + h, a, i % 2 === 0 ? WALL_B : WALL_A, SLATE, 0);
     m.gable(x, z, 0.26, 0.18, 0.04 + h, 0.04 + h + 0.08, a, SLATE, i % 3 === 0 ? 1 : 0, WALL_A);
   }
+  // the metropolis band: two high-rises beside the central tower
+  m.band = 4;
+  m.box(0.2, 0.2, 0.17, 0.17, 0.04, 0.58, 0.6, WALL_B, FLAT_ROOF, 0);
+  m.box(-0.22, -0.15, 0.16, 0.16, 0.04, 0.5, 0.2, WALL_A, FLAT_ROOF, 0);
+  return m.done();
+}
+
+const GLASS_A: Rgb = [0.5, 0.7, 0.82];
+const GLASS_B: Rgb = [0.4, 0.58, 0.72];
+const STEEL: Rgb = [0.64, 0.68, 0.72];
+const CAP_LIGHT: Rgb = [0.93, 0.95, 0.97];
+
+/**
+ * Look-1, the 'Modern' City: the same plate and the same footprint rules as the old one, but boxy glass and steel towers of different heights
+ * with flat roofs under a lighter cap; the tallest tower's cap takes the owner's colour. Bands as in `buildCity` (low blocks, more low blocks,
+ * two mid towers, two tall towers, the central high-rise and one more). About 222 triangles; with the night lights under 260.
+ */
+function buildCityModern(): ModelData {
+  const m = new MeshBuilder();
+  m.plate(8, 1.0, -0.22, 0.04, PLATE_RIM, 0, PLATE_SIDE);
+  m.disc(8, 0.8, 0.055, PLATE_TOP, 1);
+  const tower = (band: number, ang: number, r: number, w: number, d: number, h: number, wall: Rgb, capTint = 0): void => {
+    m.band = band;
+    const x = Math.cos(ang) * r;
+    const z = Math.sin(ang) * r;
+    m.box(x, z, w, d, 0.04, 0.04 + h, ang, wall, STEEL, 0);
+    if (h > 0.3) m.box(x, z, w + 0.03, d + 0.03, 0.04 + h, 0.07 + h, ang, CAP_LIGHT, CAP_LIGHT, capTint);
+  };
+  for (const a of [0.5, 2.6, 4.7]) tower(0, a, 0.62, 0.3, 0.22, 0.14, STEEL);
+  for (const a of [1.5, 3.6, 5.5, 0.0]) tower(1, a, 0.7, 0.28, 0.2, 0.2, GLASS_B);
+  tower(2, 1.0, 0.4, 0.3, 0.26, 0.38, GLASS_A);
+  tower(2, 4.0, 0.4, 0.3, 0.26, 0.34, GLASS_B);
+  tower(3, 2.5, 0.3, 0.26, 0.26, 0.66, GLASS_A);
+  tower(3, 5.3, 0.3, 0.26, 0.24, 0.6, GLASS_B);
+  tower(4, 0, 0, 0.3, 0.3, 1.0, GLASS_A, 1);
+  tower(4, 0.3, 0.5, 0.24, 0.24, 0.8, GLASS_B);
   return m.done();
 }
 
@@ -344,7 +390,7 @@ function buildPost(): ModelData {
 
 /** The registry: structure type number -> model. A type without an entry is not drawn (yet). */
 export const STRUCTURE_MODELS: Readonly<Record<number, StructureModel>> = {
-  [STRUCT_CITY]: { name: 'city', radiusM: 700, build: buildCity },
+  [STRUCT_CITY]: { name: 'city', radiusM: 700, build: (style: CityStyle = 'old') => (style === 'new' ? buildCityModern() : buildCity()) },
   // M10-2
   [STRUCT_FACTORY]: { name: 'factory', radiusM: 700, build: buildFactory },
   [STRUCT_PORT]: { name: 'port', radiusM: 700, seaward: true, build: buildPort },
