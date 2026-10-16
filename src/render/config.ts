@@ -435,6 +435,11 @@ export const STRUCT_POP_SECONDS = 0.45;
 export const STRUCT_BUILD_MIN_HEIGHT = 0.3;
 /** The triangle allowance of the structure layer per tier; the instance cap of a type is this divided by the triangles of its model. */
 export const STRUCT_TRIANGLE_BUDGET: Record<'test' | 'low' | 'medium' | 'high', number> = { test: 15000, low: 30000, medium: 60000, high: 120000 };
+/** Fix-3B: over its allowance the layer ranks the local player's structures first and then the nearest the camera, but only when the camera is lower than this (Earth radii of altitude, about 3200 km: higher up a model is under the icon threshold anyway and the cut is by id). */
+export const STRUCT_RANK_NEAR_ER = 0.5;
+/** Fix-3B: a ranked layer is re-ranked when the camera has moved more than this share of its altitude (never below STRUCT_RANK_MIN_ALT_ER of altitude) since the last ranking: not every frame. */
+export const STRUCT_RERANK_MOVE_FRAC = 0.25;
+export const STRUCT_RANK_MIN_ALT_ER = 0.005;
 /** M10-3: the SAM site's radar dish turns this many radians per fx second (a slow sweep; the angle is computed in the vertex shader). */
 export const STRUCT_DISH_RAD_PER_SEC = 0.9;
 /** Ghost colours (placement preview), sRGB 0 to 1, and how far they pull the model's own colours. */
@@ -449,6 +454,10 @@ export const ICON_FADE_PX_HI = 6;
 export const ICON_FADE_PX_LO = 3;
 /** The icon's half size on screen in pixels. */
 export const ICON_HALF_PX = 5;
+/** Fix-3B: far icons are never wider than this share of the on-screen distance between two structures (half size = share x spacing in pixels), and never smaller than ICON_HALF_PX_MIN pixels; `ICON_SPACING_LAT_FACTOR` narrows the grid spacing for the latitudes where most nations stand. */
+export const ICON_SPACING_FRAC = 1 / 3;
+export const ICON_HALF_PX_MIN = 3.5;
+export const ICON_SPACING_LAT_FACTOR = 0.65;
 /** Ring line half width: at least this many render metres, and at least this share of the camera distance (about 1.5 px at 540 px). */
 export const RING_HALF_WIDTH_M = 25;
 export const RING_HALF_WIDTH_FRAC = 0.0022;

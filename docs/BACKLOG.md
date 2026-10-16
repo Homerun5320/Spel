@@ -409,3 +409,12 @@ Not done in the Fix-UI slice (the sim, host and AI findings belong to Fix-Sim):
 - Still unlocked in `scoreLz` / nav: the score weights (spread coefficient, floor 1), the `>=` boundaries (spread 200 m, 3500 m, exactly HELI_FUEL_CELLS), ENEMY_CITY_NEAR before TOO_HIGH, an enemy City across the date line, A* tie handling, and `landReachable` / `landLabel` (no caller: test it or remove it).
 - The A* weight 1.3 still lets a route be 16 percent dearer than the optimum (measured worst, real grid); `AIR_ROUTE_WEIGHT_PCT` 115 would halve that for a few percent more expansions.
 - `Los.invalidate()` exists for hand edits inside one tick; if M12 ever edits the structure table in two places per tick, give the table a version counter instead of the (highWater, liveCount) pair.
+## Fix-3B leftovers
+- feel[5] districts in the modern style, camera changes and more quality tiers stay out of scope (as the prompt said).
+- Pure formulas of Look-1 still unpinned: the `closeMul` fall-off start, `districtRadiusM` level and City-level factors, the district cut distance's `STRUCT_CLOSE_MUL`, `cityBand` / `levelScale` clamping outside the range.
+- The modelled-structure priority ranks by the camera position only; ranking by what is on screen (frustum, horizon) would be fairer.
+- Cluster icons beyond the icon switch distance (one icon per 2x2 cells with a count) would make 15000 km views of a big territory readable; the radius cap only keeps them from merging.
+- The open-city flight keeps heading 0; a heading chosen so that the district ring's largest extent faces the free part would need less altitude.
+- When the camera stands within `flyNearM` of the ground and the City is on screen, opening the city view still starts no flight, so the five districts may be partly off screen or under the panel.
+
+- Far icons: the shader limits the half size by the smallest possible spacing (3 cells), so a LONE structure shrinks too (floor 3.5 px). A per-icon nearest-neighbour spacing computed at rebuild would keep lone icons at 5 px and shrink only the crowded ones.

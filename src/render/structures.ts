@@ -9,9 +9,10 @@
 // palette or the exaggeration changed.
 import { BufferAttribute, BufferGeometry, DoubleSide, DynamicDrawUsage, InstancedBufferAttribute, InstancedBufferGeometry, Mesh, ShaderMaterial, Vector3, Vector4 } from 'three';
 import { STRUCT_CITY, type StructureView } from '../sim/public';
-import { EARTH_RADIUS_KM, GHOST_ALPHA, GHOST_BAD_RGB, GHOST_MIX, GHOST_OK_RGB, HEIGHT_EXAGGERATION, STRUCT_BUILD_MIN_HEIGHT, STRUCT_CLOSE_FAR_M, STRUCT_CLOSE_MUL, STRUCT_CLOSE_RISE_LO_M, STRUCT_CLOSE_RISE_HI_M, STRUCT_DISH_RAD_PER_SEC, STRUCT_APPARENT_CAP_MUL, STRUCT_MAX_SCALE, STRUCT_POP_SECONDS, STRUCT_SCREEN_FRAC, STRUCT_TRIANGLE_BUDGET, AMBIENT_DAY, AMBIENT_NIGHT, SUN_COLOR, ICON_FADE_PX_HI, ICON_FADE_PX_LO, ICON_HALF_PX, NIGHT_LIGHT_SUN_DOT, RANGE_RING_RGB, RING_HALF_WIDTH_FRAC, RING_HALF_WIDTH_M, RING_SEGMENTS, SELECT_RING_RGB } from './config';
+import { EARTH_RADIUS_KM, GHOST_ALPHA, GHOST_BAD_RGB, GHOST_MIX, GHOST_OK_RGB, HEIGHT_EXAGGERATION, STRUCT_BUILD_MIN_HEIGHT, STRUCT_CLOSE_FAR_M, STRUCT_CLOSE_MUL, STRUCT_CLOSE_RISE_LO_M, STRUCT_CLOSE_RISE_HI_M, STRUCT_DISH_RAD_PER_SEC, STRUCT_APPARENT_CAP_MUL, STRUCT_MAX_SCALE, STRUCT_POP_SECONDS, STRUCT_SCREEN_FRAC, STRUCT_TRIANGLE_BUDGET, STRUCT_RANK_NEAR_ER, STRUCT_RERANK_MOVE_FRAC, STRUCT_RANK_MIN_ALT_ER, AMBIENT_DAY, AMBIENT_NIGHT, SUN_COLOR, ICON_FADE_PX_HI, ICON_FADE_PX_LO, ICON_HALF_PX, ICON_HALF_PX_MIN, ICON_SPACING_FRAC, NIGHT_LIGHT_SUN_DOT, RANGE_RING_RGB, RING_HALF_WIDTH_FRAC, RING_HALF_WIDTH_M, RING_SEGMENTS, SELECT_RING_RGB } from './config';
 import { selectRingLiftsM, selectRingRadiusM } from './rings';
 import { latLonToVec } from './geo';
+import { iconSpacingM } from './iconScale';
 import type { QualityTier } from './quality';
 import { DEFAULT_CITY_STYLE, TALL_EXTRA, levelArcShare, levelCode, levelScale, type CityStyle } from './cityTiers';
 import { CITY_LIGHT_COUNT, STRUCTURE_MODELS, cityLights, modelledTypes, type ModelData } from './structureModels';
@@ -145,8 +146,18 @@ export class StructureLayer {
   private readonly seenKey: Int32Array;
   private readonly born: Float32Array;
   private primed = false;
-  /** Structures left out because the layer's triangle budget (all types together) or a type's buffer was full: the highest ids go first, deterministically. */
+  /** Structures left without a model (they keep their far icon) because the layer's triangle budget (all types together) or a type's buffer was full: the local player's first, then the nearest the camera, then by id (Fix-3B). */
   dropped = 0;
+  private localOwner = -1;
+  private order = new Int32Array(0);
+  private rankKey = new Float64Array(0);
+  private readonly typeCount = new Map<number, number>();
+  private camX = 0;
+  private camY = 0;
+  private camZ = 3;
+  private readonly rankCam = new Float64Array(3);
+  /** The last rebuild was over the allowance and ranked its candidates (so a big camera move re-ranks). */
+  private ranked = false;
   /** Triangles of the structure instances drawn (models and City lights; not the icons, rings or the ghost). Never above the tier's STRUCT_TRIANGLE_BUDGET. */
   trianglesDrawn = 0;
   private readonly triangleBudget: number;
@@ -316,6 +327,7 @@ export class StructureLayer {
           uFadeHi: { value: ICON_FADE_PX_HI },
           uFadeLo: { value: ICON_FADE_PX_LO },
           uHalfPx: { value: ICON_HALF_PX },
+          uIconSpacing: { value: new Vector3(iconSpacingM(this.gridHeight), ICON_SPACING_FRAC, ICON_HALF_PX_MIN) },
         },
         vertexShader: iconVertexShader,
         fragmentShader: iconFragmentShader,
@@ -419,6 +431,17 @@ export class StructureLayer {
     (this.uniforms.uSpin as { value: number }).value = (fxTime * STRUCT_DISH_RAD_PER_SEC) % (Math.PI * 2); // the SAM dish angle: one scalar, the rest is vertex-shader work
     this.viewH = viewH;
     (this.icons.material.uniforms.uViewH as { value: number }).value = viewH;
+    this.camX = x;
+    this.camY = y;
+    this.camZ = z;
+    if (this.ranked && !this.dirty) {
+      // over the allowance and close to the ground: nearest-first is by the camera, so a real move re-ranks (not every frame, only past a quarter of the altitude)
+      const alt = Math.max(Math.hypot(x, y, z) - 1, STRUCT_RANK_MIN_ALT_ER);
+      const mx = x - (this.rankCam[0] as number);
+      const my = y - (this.rankCam[1] as number);
+      const mz = z - (this.rankCam[2] as number);
+      if (alt < STRUCT_RANK_NEAR_ER && mx * mx + my * my + mz * mz > alt * alt * STRUCT_RERANK_MOVE_FRAC * STRUCT_RERANK_MOVE_FRAC) this.dirty = true;
+    }
     if (this.dirty) this.rebuild();
     if (this.selVisible) {
       const dx = x - this.selX;
@@ -438,6 +461,14 @@ export class StructureLayer {
     return { lat: ll.lat, lon: ll.lon, radius, heightM: (radius - 1) * EARTH_RADIUS_KM * 1000, x: d[0] * radius, y: d[1] * radius, z: d[2] * radius };
   }
 
+  /** Fix-3B: the layer's local player (owner id); their structures get a model before anyone else's when the layer is over its allowance. */
+  setLocalOwner(owner: number): void {
+    if (owner !== this.localOwner) {
+      this.localOwner = owner;
+      this.dirty = true;
+    }
+  }
+
   private rebuild(): void {
     this.dirty = false;
     const t = this.table;
@@ -448,6 +479,16 @@ export class StructureLayer {
     this.dropped = 0;
     this.trianglesDrawn = 0;
     const palette = this.palette;
+    // Pass 1: the candidates (live structures of a modelled type) in id order, the born times, and whether the whole set fits the allowance.
+    if (this.order.length < t.highWater) {
+      this.order = new Int32Array(t.highWater * 2);
+      this.rankKey = new Float64Array(t.highWater * 2);
+    }
+    const order = this.order;
+    let n = 0;
+    let fits = true;
+    let tris = 0;
+    for (const l of this.layers.values()) this.typeCount.set(l.type, 0);
     for (let id = 0; id < t.highWater; id++) {
       const owner = t.owner[id] as number;
       if (owner === 0) {
@@ -463,47 +504,93 @@ export class StructureLayer {
         this.seenKey[id] = key;
         this.born[id] = this.primed ? this.fxTime : NEVER;
       }
-      // ONE triangle budget for the whole layer (all types together); the cut is by id, so it is the same on every machine
-      if (layer.count >= layer.cap || this.trianglesDrawn + layer.tris > this.triangleBudget) {
-        this.dropped++;
-        continue;
+      order[n++] = id;
+      tris += layer.tris;
+      const c = (this.typeCount.get(type) as number) + 1;
+      this.typeCount.set(type, c);
+      if (c > layer.cap || tris > this.triangleBudget) fits = false;
+    }
+    // Over the allowance: the local player's own first, then (when the camera is close enough for models to matter) nearest the camera, then by id.
+    this.rankCam[0] = this.camX;
+    this.rankCam[1] = this.camY;
+    this.rankCam[2] = this.camZ;
+    this.ranked = !fits;
+    if (!fits) {
+      const near = Math.hypot(this.camX, this.camY, this.camZ) - 1 < STRUCT_RANK_NEAR_ER;
+      const rk = this.rankKey;
+      for (let k = 0; k < n; k++) {
+        const id = order[k] as number;
+        let key = t.owner[id] === this.localOwner ? 0 : 1e9;
+        if (near) {
+          const ll = cellToLatLon(t.cell[id] as number, this.gridWidth, this.gridHeight);
+          const d = latLonToVec(ll.lat, ll.lon);
+          const dx = (d[0] as number) - this.camX;
+          const dy = (d[1] as number) - this.camY;
+          const dz = (d[2] as number) - this.camZ;
+          key += dx * dx + dy * dy + dz * dz;
+        }
+        rk[id] = key;
       }
-      this.trianglesDrawn += layer.tris;
+      order.subarray(0, n).sort((x, y) => (rk[x] as number) - (rk[y] as number) || x - y);
+    }
+    // Pass 2: the model while the allowance lasts; the rest get the far icon only (one draw call for all of them).
+    for (let k = 0; k < n; k++) {
+      const id = order[k] as number;
+      const owner = t.owner[id] as number;
+      const type = t.type[id] as number;
+      const layer = this.layers.get(type) as TypeLayer;
+      const cell = t.cell[id] as number;
+      const hasModel = !(layer.count >= layer.cap || this.trianglesDrawn + layer.tris > this.triangleBudget);
       const level = this.levelOverride.get(id) ?? (t.level[id] as number);
       const p = this.place(cell);
-      const i = layer.count++;
-      layer.hi[i * 3] = Math.fround(p.x);
-      layer.hi[i * 3 + 1] = Math.fround(p.y);
-      layer.hi[i * 3 + 2] = Math.fround(p.z);
-      layer.lo[i * 3] = p.x - (layer.hi[i * 3] as number);
-      layer.lo[i * 3 + 1] = p.y - (layer.hi[i * 3 + 1] as number);
-      layer.lo[i * 3 + 2] = p.z - (layer.hi[i * 3 + 2] as number);
-      layer.params[i * 4] = levelScale(level);
-      let yaw = NaN;
-      if (STRUCTURE_MODELS[type]?.seaward === true) yaw = seawardYaw(p.lat, p.lon, this.gridWidth, this.gridHeight, cell);
-      if (Number.isNaN(yaw)) yaw = yawOf(id);
-      layer.params[i * 4 + 1] = yaw;
-      layer.params[i * 4 + 2] = this.born[id] as number;
-      layer.params[i * 4 + 3] = levelCode(level);
-      layer.rgb[i * 3] = (palette[owner * 4] as number) / 255;
-      layer.rgb[i * 3 + 1] = (palette[owner * 4 + 1] as number) / 255;
-      layer.rgb[i * 3 + 2] = (palette[owner * 4 + 2] as number) / 255;
-      layer.build[i * 2] = t.buildTick[id] as number;
-      layer.build[i * 2 + 1] = t.readyTick[id] as number;
+      const hx = Math.fround(p.x);
+      const hy = Math.fround(p.y);
+      const hz = Math.fround(p.z);
+      const r = (palette[owner * 4] as number) / 255;
+      const g = (palette[owner * 4 + 1] as number) / 255;
+      const bl = (palette[owner * 4 + 2] as number) / 255;
+      if (hasModel) {
+        this.trianglesDrawn += layer.tris;
+        const i = layer.count++;
+        layer.hi[i * 3] = hx;
+        layer.hi[i * 3 + 1] = hy;
+        layer.hi[i * 3 + 2] = hz;
+        layer.lo[i * 3] = p.x - hx;
+        layer.lo[i * 3 + 1] = p.y - hy;
+        layer.lo[i * 3 + 2] = p.z - hz;
+        layer.params[i * 4] = levelScale(level);
+        let yaw = NaN;
+        if (STRUCTURE_MODELS[type]?.seaward === true) yaw = seawardYaw(p.lat, p.lon, this.gridWidth, this.gridHeight, cell);
+        if (Number.isNaN(yaw)) yaw = yawOf(id);
+        layer.params[i * 4 + 1] = yaw;
+        layer.params[i * 4 + 2] = this.born[id] as number;
+        layer.params[i * 4 + 3] = levelCode(level);
+        layer.rgb[i * 3] = r;
+        layer.rgb[i * 3 + 1] = g;
+        layer.rgb[i * 3 + 2] = bl;
+        layer.build[i * 2] = t.buildTick[id] as number;
+        layer.build[i * 2 + 1] = t.readyTick[id] as number;
+        this.drawn.push({ id, type, owner, cell, level, lat: p.lat, lon: p.lon, radius: p.radius, heightM: p.heightM, yaw, ready: t.readyTick[id] as number });
+      } else {
+        this.dropped++;
+      }
       const ic = this.icons;
       if (ic.count < ic.cap) {
         const j = ic.count++;
-        for (let a = 0; a < 3; a++) {
-          ic.hi[j * 3 + a] = layer.hi[i * 3 + a] as number;
-          ic.lo[j * 3 + a] = layer.lo[i * 3 + a] as number;
-          ic.rgb[j * 3 + a] = layer.rgb[i * 3 + a] as number;
-        }
+        ic.hi[j * 3] = hx;
+        ic.hi[j * 3 + 1] = hy;
+        ic.hi[j * 3 + 2] = hz;
+        ic.lo[j * 3] = p.x - hx;
+        ic.lo[j * 3 + 1] = p.y - hy;
+        ic.lo[j * 3 + 2] = p.z - hz;
+        ic.rgb[j * 3] = r;
+        ic.rgb[j * 3 + 1] = g;
+        ic.rgb[j * 3 + 2] = bl;
         ic.info[j * 4] = type;
         ic.info[j * 4 + 1] = STRUCTURE_MODELS[type]?.radiusM ?? 700;
         ic.info[j * 4 + 2] = levelScale(level);
         ic.info[j * 4 + 3] = type === STRUCT_CITY ? levelArcShare(level) : 1;
       }
-      this.drawn.push({ id, type, owner, cell, level, lat: p.lat, lon: p.lon, radius: p.radius, heightM: p.heightM, yaw, ready: t.readyTick[id] as number });
     }
     this.primed = true;
     for (const l of this.layers.values()) {

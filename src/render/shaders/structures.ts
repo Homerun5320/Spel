@@ -201,7 +201,8 @@ uniform vec4 uClose;
 uniform float uViewH;      // drawing-buffer height in pixels
 uniform float uFadeHi;     // projected model radius (px) above which there is no icon
 uniform float uFadeLo;     // ... and below which the icon is full
-uniform float uHalfPx;     // the icon's half size in pixels
+uniform float uHalfPx;     // the icon's largest half size in pixels
+uniform vec3 uIconSpacing; // x: closest spacing of two structures (m), y: share of it an icon may take, z: smallest half size (px); mirrors src/render/iconScale.ts
 attribute vec2 corner;     // (-1..1, -1..1)
 attribute vec3 aHi;
 attribute vec3 aLo;
@@ -227,7 +228,8 @@ void main() {
   vType = aInfo.x;
   vFrac = aInfo.w;
   vec3 v = mat3(viewMatrix) * rel0;
-  float worldHalf = uHalfPx * 2.0 * max(-v.z, 1e-6) / (uViewH * projectionMatrix[1][1]);
+  float halfPx = clamp(uIconSpacing.x / max(distM, 1.0) * pxPerRad * uIconSpacing.y, uIconSpacing.z, uHalfPx);
+  float worldHalf = halfPx * 2.0 * max(-v.z, 1e-6) / (uViewH * projectionMatrix[1][1]);
   v += mat3(viewMatrix) * up * worldHalf; // sits one half size above the ground
   v.xy += corner * worldHalf;
   gl_Position = a < 0.01 ? vec4(2.0, 2.0, 2.0, 1.0) : projectionMatrix * vec4(v, 1.0);

@@ -933,6 +933,18 @@ Base: aa9b996. ENGINE_VERSION 13, FORMAT_VERSION 11. The render/UI track (Look-2
 - [x] 3. Looked at the result: City, Factory, Silo at real levels 1, 5, 20, 50 and drawn levels 100 and 999 in both City styles at about 3 km and 800 m (nothing wider than the Look-2 cap); `e2e/goldFit.test.ts` keeps every gold surface inside the window at 960x540, 1366x640, 540x960 in both languages
 - [x] 4. Final run: tsc, eslint on the changed files, `npm run verify:fast`; the full `npm run verify` is the orchestrator's
 
+### Fix-3B: visible faults of audit 2 (render, app, UI; one slice in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+- [x] 1. Match keys and the reserved keys 1 to 6 are dead behind the pause menu, the elimination panel and the result screen (only Escape passes); `e2e/modalKeys.test.ts` (mutants shown to fail)
+- [x] 2. Structure layer over its allowance: the local player's structures first, then the nearest the camera (when low enough), the rest keep the far icon; a one-time toast; `tests/render/structurePriority.test.ts`; draw calls and triangles measured (DECISIONS Fix-3B)
+- [x] 3. "Oppna stad" flies high enough and looks away from the panel (`cityFitFlight`): all five districts of a level-9 City inside the free window in 960x540, 1366x768 and 540x960 (`e2e/cityOpenFit.test.ts`)
+- [x] 4. Escape (closing the view any way) cancels the open-city flight (same e2e file)
+- [x] 5. Layout: setup header buttons wrap under the title, spectator bar below the leaderboard on narrow windows (`e2e/fixLayout.test.ts`, looked at in three sizes)
+- [x] 6. Far icons: half size at most a third of the on-screen structure spacing (`src/render/iconScale.ts`, `tests/render/iconScale.test.ts`, looked at 3000, 8000 and 15000 km in `e2e/farIcons.test.ts`)
+- [x] 7. Draw-call ceilings: per-layer sum <= 16 in `tests/budgets.test.ts`, 10 for the city scene in `e2e/cityOpenFit.test.ts` (measured 7)
+- [x] 8. Unlocked Look-1 / Polish-1 formulas pinned with mutants (`tests/render/lookFormulas.test.ts`, `tests/app/inputShift.test.ts`, `tests/render/flyToFastDuration.test.ts`)
+- [x] 9. `__test.give` above DEBUG_GIVE_MAX throws with the reason (e2e in `e2e/modalKeys.test.ts`)
+- Not run here: the full `npm run verify`, the Artifact pack, the pull request (the orchestrator). Leftovers: "Fix-3B" in `docs/BACKLOG.md`.
+
 ## Next
 
 - Audit 1 (the batch audit of versions 12 to 16, range 7018b4c..cf01c79) found no blocker and a list of majors; the fix slices 'Fix-Sim' and 'Fix-UI' work through them (see their sections under Now and docs/BACKLOG.md 'Audit 1 leftovers'). After that: the building roadmap continues (more kinds of buildings, the city detail map of M18e), then M11a radar and the air milestones M11b to M13b.

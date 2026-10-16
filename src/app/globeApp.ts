@@ -34,7 +34,8 @@ import { mountToasts, showToast, tickToasts, visibleToastKeys } from '../ui/toas
 import { createPlacementMode, type PlacementMode, type PlacementState } from './placement';
 import { STRUCT_CITY, buildBody, buildDistrictBody, deleteBody, removeDistrictBody, upgradeBody, upgradeDistrictBody, validateBuild } from '../sim/public';
 import { createCityViewPanel, type CityViewPanel } from '../ui/cityViewPanel';
-import { cityFlightNeeded, createCityViewMode, isDoubleClick } from './cityViewMode';
+import { CAMERA_FOV_DEG, EARTH_RADIUS_KM } from '../render/config';
+import { cityFitFlight, cityFlightNeeded, createCityViewMode, isDoubleClick } from './cityViewMode';
 import type { InputMode } from './input';
 import { CLASS_MOUNTAIN } from '../sim/terrain';
 import { createSelectionPanel, type SelectionPanel } from '../ui/selectionPanel';
@@ -62,7 +63,7 @@ import { winInfoOfView, winSummaryText } from './winSetup';
 import { nextFlagSeed } from './setupScreen';
 import type { MatchView } from '../sim/public';
 import { PHASE_IMMUNITY, PHASE_SPAWN } from '../sim/flow';
-import { REJECT_NOT_SPAWNED } from '../sim/intents';
+import { DEBUG_GIVE_MAX, REJECT_NOT_SPAWNED } from '../sim/intents';
 import { seatToOwner } from '../sim/state';
 import type { IntentBody } from '../sim/intents';
 import { clickMeaning, resolveClickCell } from './clickTarget';
@@ -284,7 +285,7 @@ export interface GlobeTestHooks {
   setLevelOverride(id: number, level: number | null): void;
   /** Sends a raw intent body of any seat through the host (what a UI would; used to try illegal ones). Effective T + 2 ticks later. */
   submit(body: IntentBody): void;
-  /** Test-only gift: sends a DebugGive intent (valid only when the match config has debugIntents, which test mode sets). Effective T + 2 ticks later. */
+  /** Test-only gift: sends a DebugGive intent (valid only when the match config has debugIntents, which test mode sets). Effective T + 2 ticks later. At most DEBUG_GIVE_MAX (1 000 000) of each per call: more throws (the sim would drop the intent silently). */
   give(seat: number, gift: { gold?: number; troops?: number }): void;
   /** The sim state hash (through a snapshot request). */
   hash(): Promise<number>;
@@ -509,6 +510,8 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   let selectPanel = null as SelectionPanel | null;
   /** Districts-2a: the city view (the City id while open, -1 = closed), its input mode and panel. */
   let cityId = -1;
+  /** The open-city flight is the flight running (Escape or closing the view cancels it; a drag or the wheel already do). */
+  let cityFlightOn = false;
   let cityMode = null as InputMode | null;
   let cityPanel = null as CityViewPanel | null;
   let lastSelClickId = -1;
@@ -613,9 +616,16 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     session.setPaused(true);
     panels.openPause();
   };
+  /** A modal (pause menu, elimination panel, result screen) is open or the match is over: the match keys and the reserved keys but Escape are dead (Fix-3B). */
+  let structToastShown = false;
+  const keysBlockedByModal = (): boolean => panels !== null && (panels.modalOpen || flowEnded);
   /** Once per frame: the toasts for other nations' elimination and capital loss, the elimination panel, the result screen. Allocates only when something happens. */
   const updateMatchFlow = (): void => {
     const s = session;
+    if (s !== null && !structToastShown && globe.structures.dropped > 0) {
+      structToastShown = true; // Fix-3B: said once per match when the structure layer first runs out of allowance (the rest keep their icon)
+      showToast('toast.structuresSimplified', {}, 'info');
+    }
     if (s === null || panels === null || flowEnded) return;
     const m = flowMatch();
     const ev = watcher.scan(m, s.view.players, s.localSeat);
@@ -641,6 +651,8 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     flowLabels = s.labels ?? createSeatLabels([], s.view.players, s.localSeat);
     flowEnded = false;
     elimHandled = false;
+    structToastShown = false;
+    globe.structures.setLocalOwner(s.localOwner);
     panels = createMatchPanels(
       wrapper,
       {
@@ -857,7 +869,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       }
       const t = e.target instanceof HTMLElement ? e.target : null;
       // The reserved keys (1 to 6, E, H, F, Escape) belong to the input stack: `attachDomKeys` below hands them to it, and the match keys never bind them.
-      if (session === null) return;
+      if (session === null || keysBlockedByModal()) return;
       const action = matchKeyAction({ key: e.key, code: e.code, ctrlKey: e.ctrlKey, altKey: e.altKey, metaKey: e.metaKey, repeat: e.repeat, targetTag: t?.tagName, targetType: t instanceof HTMLInputElement ? t.type : undefined });
       if (action === null) return;
       e.preventDefault();
@@ -998,7 +1010,10 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   const inputTarget: InputTarget = {
     camera: globe.rig,
     now: fxNow,
-    cancelFlight: () => globe.cancelFlight(),
+    cancelFlight: () => {
+      cityFlightOn = false;
+      globe.cancelFlight();
+    },
     click: (x, y) => onGlobeClick(x, y),
     pickCell: (x, y) => {
       const p = globe.pick(x, y);
@@ -1026,6 +1041,8 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     cityId = id;
     const mode = createCityViewMode({
       closed: () => {
+        if (cityFlightOn && globe.flight.active) globe.cancelFlight(); // Fix-3B: closing the view (Escape) ends the open-city flight too
+        cityFlightOn = false;
         cityId = -1;
         cityMode = null;
         cityPanel?.update(sess.view, sess.localSeat, -1);
@@ -1036,7 +1053,18 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     if (globe.terrainMode === 'chunks') {
       const at = latLonOfCell(sess.view.structures.cell[id] as number, world.sim.width, world.sim.height);
       const p = globe.project(at.lat, at.lon);
-      if (cityFlightNeeded(globe.cameraAglM(), p.facing && p.inView)) globe.flyTo(at.lat, at.lon, 0, { altAglM: CITY_VIEW.flyAltM, tilt: CITY_VIEW.flyTiltDeg, fast: true });
+      if (cityFlightNeeded(globe.cameraAglM(), p.facing && p.inView)) {
+        // Fix-3B: high enough and shifted away from the panel so that the City and its district ring fit the free part of the window
+        cityPanel?.update(sess.view, sess.localSeat, cityId); // shows the panel now so that its box can be measured
+        const box = cityPanel?.root.getBoundingClientRect();
+        const cvs = canvas.getBoundingClientRect();
+        const fit = cityFitFlight(cvs.width, cvs.height, box === undefined ? { x: cvs.width, y: cvs.height } : { x: box.left - cvs.left, y: box.top - cvs.top }, CAMERA_FOV_DEG, CITY_VIEW.flyTiltDeg);
+        const mPerDeg = (Math.PI / 180) * EARTH_RADIUS_KM * 1000;
+        const toLat = at.lat + fit.offNorthM / mPerDeg;
+        const toLon = at.lon + fit.offEastM / (mPerDeg * Math.max(0.05, Math.cos((at.lat * Math.PI) / 180)));
+        globe.flyTo(toLat, toLon, 0, { altAglM: fit.altAglM, tilt: CITY_VIEW.flyTiltDeg, heading: 0, fast: true });
+        cityFlightOn = true;
+      }
     }
     refreshHud();
   };
@@ -1134,7 +1162,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     inputStack.push(mode);
   };
   // The reserved keys go to the stack while a match is on (the setup screen and the menus own the keyboard before it).
-  attachDomKeys(window, inputStack, () => setupScreen === null && session !== null, signal);
+  attachDomKeys(window, inputStack, () => setupScreen === null && session !== null, signal, keysBlockedByModal);
   let inputOn = false;
   const attachInput = (): void => {
     if (inputOn) return;
@@ -1504,6 +1532,8 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
         session?.submit(body);
       },
       give(seat, gift): void {
+        // Fix-3B: the sim ignores a gift above DEBUG_GIVE_MAX silently; the hook says so out loud instead
+        if ((gift.gold ?? 0) > DEBUG_GIVE_MAX || (gift.troops ?? 0) > DEBUG_GIVE_MAX) throw new Error(`__test.give: gold and troops are at most DEBUG_GIVE_MAX = ${DEBUG_GIVE_MAX} per call (the sim would drop the intent); give twice`);
         session?.submit({ kind: 'DebugGive', seat, gold: gift.gold ?? 0, troops: gift.troops ?? 0 });
       },
       hash: () => (session === null ? Promise.resolve(0) : session.hash()),

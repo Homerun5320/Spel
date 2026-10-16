@@ -138,7 +138,7 @@ describe('the City styles and tiers', () => {
       }
 
       await hideHud.evaluate((n) => (n as Element).remove());
-      // the fast open-city flight: from 3000 km the camera is at the City (1500 m up) within 2.5 s of fx time, the panel opens at once
+      // the fast open-city flight: from 3000 km the camera is at the City (at least 1500 m up, Fix-3B) within 2.5 s of fx time, the panel opens at once
       await closeUp(page, at.lat, at.lon, 2.2, 2000, 45);
       await t.settle(1);
       const q = await t.project(at.lat, at.lon);
@@ -155,9 +155,13 @@ describe('the City styles and tiers', () => {
       await t.advance(2.5, 0);
       await t.settle(1);
       expect(await t.flying(), 'arrived within 2.8 s of fx time').toBe(false);
-      expect(Math.abs((await t.agl()) - 1500)).toBeLessThan(150);
+      // Fix-3B: the flight ends at least 1500 m up (higher so that the district ring fits the free window) and the City stands in the free part left of the panel
+      expect(await t.agl()).toBeGreaterThan(1450);
+      expect(await t.agl()).toBeLessThan(5000);
       const c = await t.project(at.lat, at.lon);
-      expect(Math.hypot(c.x - 480, c.y - 270), 'the City is at the screen centre').toBeLessThan(60);
+      const panelX = ((await page.locator('[data-testid="city-view"]').boundingBox()) as { x: number }).x;
+      expect(c.x, 'the City is in the free part, left of the panel').toBeLessThan(panelX);
+      expect(Math.hypot(c.x - panelX / 2, c.y - 270), 'and near the middle of it').toBeLessThan(80);
       await page.keyboard.press('Escape');
       await t.settle(1);
       expect(await page.locator('[data-testid="city-view"]').isVisible(), 'Escape closes the city view').toBe(false);
