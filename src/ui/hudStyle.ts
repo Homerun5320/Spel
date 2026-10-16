@@ -315,6 +315,7 @@ export function hudCss(): string {
 .help-hint { margin-top: 0.4em; color: ${C.textDim}; font-size: 0.85em; }
 @media (max-width: ${NARROW_MAX_PX}px), (max-aspect-ratio: 1/1) {
   .mp-spectator { top: ${MATCH_PANELS.spectatorTopNarrowEm}em; }
+  .mp-scrim:has(.mp-small) { padding-top: ${MATCH_PANELS.pauseTopNarrowEm}em; }
   .mp-table th, .mp-table td { padding: 0.3em 0.25em; }
   .mp-table { font-size: 0.9em; }
 }

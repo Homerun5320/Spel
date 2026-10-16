@@ -157,8 +157,10 @@ export const MATCH_PANELS = {
   /** The result card never grows past this share of the window height; the table scrolls inside it. */
   maxHeightVh: 92,
   scrim: 'rgba(3, 6, 14, 0.55)',
-  /** The pause menu sits this far from the top, so the spawn countdown banner stays uncovered. */
-  pauseTopEm: 6.5,
+  /** The pause menu sits this far from the top, so the spawn countdown banner stays uncovered: the banner's top (TOPBAR.wideEm + 0.4) plus its height (about 2.9em) plus a gap (M20a-lite moved the banner below the top bar). */
+  pauseTopEm: TOPBAR.wideEm + 3.8,
+  /** The same on a narrow or portrait window, where the top bar is taller. */
+  pauseTopNarrowEm: TOPBAR.narrowEm + 3.8,
   /** Fix-3B: on a narrow or portrait window the spectator bar sits below the leaderboard: its top (6.4em) plus the title (1.4em), the rows (LEADERBOARD_ROWS and the player's own, 1.5em each) and the padding (0.9em). */
   spectatorTopNarrowEm: TOPBAR.narrowBoardEm + 1.4 + (LEADERBOARD_ROWS + 1) * 1.5 + 0.9,
   winnerBorder: '#ffd666',

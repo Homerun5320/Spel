@@ -1338,3 +1338,7 @@ Two rows were first NOT killed and were fixed in the tests before this table was
 8. **Goldens.** No golden PNG changed: the globe goldens are taken with the HUD hidden; the only shots with the HUD (`hud=1`) are looked at, not compared.
 9. **Not done (BACKLOG "M20a-2")**: pooled nation labels, front arrows (need the host snapshot's attacks), minimap, alerts, tactical view, touch (M20b).
 10. **Known failure on the base, not caused by this slice:** `e2e/rts.test.ts` "the capital bookmark and F need a spawned capital ..." fails on commit 51e30b3 itself (run in an unmodified copy of the base): Escape with an empty stack opens the pause menu since M18 and Fix-3B makes F dead behind it, the test still expects F to fly. The test is left as it is (it must not be weakened); it needs the orchestrator's decision (press Escape twice, or drop the Escape step).
+
+## M20a-lite integration (orchestrator)
+
+The full `npm run verify` of the merge of M12a-1 and M20a-lite found one stale e2e expectation that was a real layout fault: `e2e/matchEnd.test.ts` ("the pause menu does not cover the spawn banner") failed because M20a-lite moved the spawn banner below the top bar (top `TOPBAR.wideEm + 0.4` em, about 2.9 em high) while the pause menu card still started at the old 6.5 em and covered the countdown. The fix is in the code, the test is unchanged: `MATCH_PANELS.pauseTopEm` is now `TOPBAR.wideEm + 3.8` and the new `pauseTopNarrowEm` (`TOPBAR.narrowEm + 3.8`) applies in the narrow / portrait media block of `src/ui/hudStyle.ts`.
