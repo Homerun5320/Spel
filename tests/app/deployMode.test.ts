@@ -90,7 +90,7 @@ describe('the helicopter list and the mission news', () => {
     return { helis: t, tick: 100, flow: false, phase: 0, structures: { highWater: 0 } } as unknown as SimView;
   }
   it('lists the seat\'s helicopters but not those under production, with the fuel as a percentage', () => {
-    const t = new HeliTable();
+    const t = new HeliTable(4);
     const a = t.addBuilding(1, 0, 0, 50);
     void a;
     const b = t.addBuilding(1, 0, 0, 0);
@@ -105,7 +105,7 @@ describe('the helicopter list and the mission news', () => {
   });
 
   it('a hovering helicopter that is gone from HOVER has landed; a downed one is lost; only the seat\'s own count', () => {
-    const t = new HeliTable();
+    const t = new HeliTable(4);
     const mine = t.addBuilding(1, 0, 0, 0);
     const other = t.addBuilding(2, 0, 0, 0);
     t.state[mine] = HELI_HOVER;

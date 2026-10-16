@@ -122,6 +122,8 @@ export function createDeployBox(parent: HTMLElement, actions: DeployBoxActions):
         openBtn.dataset.state = m.canOpen ? 'ok' : 'dim';
         openBtn.title = m.canOpen ? t('deploy.openTip') : t(rejectKey(m.openReason), { code: m.openReason });
         controls.hidden = !m.active;
+        const panel = parent.parentElement; // the Factory panel: while the mode is on, the CSS shows only this block
+        if (panel !== null) panel.dataset.deploying = m.active ? '1' : '0';
         hint.textContent = t('deploy.hint');
         troopsLabel.textContent = t('deploy.troops', { n: formatInt(troops) });
         troopsLabel.dataset.value = String(troops);
