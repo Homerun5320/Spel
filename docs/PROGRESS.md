@@ -31,7 +31,7 @@ Resume: Läs CLAUDE.md och docs/PROGRESS.md, kör git log -10 och npm run verify
 ## Now
 
 ### Integration Sim-Growth + Look-1: the UI and render read the ten City levels and five district slots (one session on HEAD 7cfad4b; the orchestrator owns merging, pushing and the Artifact)
-- [x] 1. `structureInfo`, `cityViewModel`, `cityViewPanel`, `selectionPanel`, `structures.ts`, `rings.ts`, `cityTiers.ts` read `cityGoldMilli`, `cityTroopCap`, `maxLevelOf`, `upgradePriceGold`, `upgradeTicksOf`; five fixed district slots on a pentagon (`DISTRICT_SLOT_ANGLES`); the five failing unit tests follow the sim numbers (details in `docs/DECISIONS.md`, Integration Sim-Growth + Look-1)
+- [x] 1. `structureInfo`, `cityViewModel`, `cityViewPanel`, `selectionPanel`, `src/render/structures.ts`, `src/render/rings.ts`, `src/render/cityTiers.ts` read `cityGoldMilli`, `cityTroopCap`, `maxLevelOf`, `upgradePriceGold`, `upgradeTicksOf`; five fixed district slots on a pentagon (`DISTRICT_SLOT_ANGLES`); the five failing unit tests follow the sim numbers (details in `docs/DECISIONS.md`, Integration Sim-Growth + Look-1)
 - [x] 2. e2e: `cityView`, `districtsLayer`, `lookCities`, `structures` follow the new numbers and the 3-cell spacing; goldens `city-view` and `districts-layer` re-pinned once after looking, `city-old` / `city-new` unchanged
 - [x] 3. Looked at the City at levels 1, 3, 5, 7, 10 in both styles (3 km, 800 m) and at the full ring of five districts: grows in five steps, the ring fits, nothing needed a render change beyond the slot angles
 - Not run here: the full `npm run verify`, the Artifact pack, the pull request (the orchestrator).
