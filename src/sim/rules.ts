@@ -333,6 +333,8 @@ export const TRADE_BASE_MILLI = 1500;
 export const TRADE_DIST_CAP_CELLS = 120;
 /** A pair with the same owner trades at this percent; a pair under embargo at 0. */
 export const TRADE_SAME_OWNER_PCT = 50;
+/** Two Ports of allied owners trade at this percent of the open rate (Fix-4A1: an alliance must not pay less than a war; the per-Port cap PORT_INCOME_MAX_MILLI_PER_SEC still holds). */
+export const TRADE_ALLIANCE_PCT = 125;
 
 // ---------------------------------------------------------------------------------------------------------------
 // M18c-1: diplomacy (src/sim/diplomacy.ts, src/ai/diplomacy.ts). Every constant has a row in docs/BALANCE.md; provisional, see the M18c-1 block of docs/DECISIONS.md.
@@ -531,7 +533,7 @@ export const LZ_SCORE_EXPOSED_PER_CELL = 60;
 // M12a-1: the helicopter table, production and the fleet cap (src/sim/helis.ts, src/sim/heliRules.ts). The flight numbers of part 2 are the
 // M11b mode table above; every constant has a row in docs/BALANCE.md. Provisional: the M12a-1 block of docs/DECISIONS.md.
 
-/** Slots of the helicopter table (a structural limit): ids 0..HELI_CAPACITY - 1. The fleet cap (HELI_FLEET_MAX) is far below it, so the table never fills. */
+/** Slots of the helicopter table (a structural limit): ids 0..HELI_CAPACITY - 1. The table is GLOBAL (all seats) while the fleet cap (HELI_FLEET_MAX) is per seat, so many seats can fill it: ProduceHeli then answers REJECT_HELI_TABLE_FULL, and LaunchHeli answers REJECT_HELI_BEACHHEAD_FULL when the beachhead table (BEACHHEAD_CAPACITY) has no free row (Fix-4A1). */
 export const HELI_CAPACITY = 64;
 /** Slots of the beachhead table (a structural limit): at most this many landings are tracked at once. */
 export const BEACHHEAD_CAPACITY = 64;

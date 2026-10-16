@@ -60,6 +60,13 @@ function probeOf(state: GameState, seat: number): LaunchProbe {
     canNavigate: hasOccluders(state),
     score: (cell, from, mode) => scoreLzOf(state, seat, cell, from, mode),
     route: (from, to, mode) => planRouteOf(state, seat, from, to, mode),
+    beachheadFull: () => {
+      // Every row in use plus every helicopter on its way to a landing (each will want a row) must leave one free.
+      const t = state.helis;
+      let pending = 0;
+      for (let id = 0; id < t.highWater; id++) if (t.owner[id] !== 0 && t.target[id] !== 0) pending++;
+      return state.beachheads.liveCount + pending >= state.beachheads.capacity;
+    },
     zoneBound: (cell) => {
       const o = state.owner[cell] as number;
       return o !== 0 && o !== seatToOwner(seat) && !atWar(state, seatToOwner(seat), o);

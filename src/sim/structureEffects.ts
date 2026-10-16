@@ -24,6 +24,7 @@ import {
   TRADE_DIST_CAP_CELLS,
   TRADE_MAX_PARTNERS,
   TRADE_MIN_DIST_CELLS,
+  TRADE_ALLIANCE_PCT,
   TRADE_SAME_OWNER_PCT,
   TRAIT_NEUTRAL_MILLI,
 } from './rules';
@@ -64,13 +65,14 @@ export function dist2Cells(width: number, a: number, b: number): number {
 
 /**
  * The trade value one Port of a pair earns, in milli-gold per second: TRADE_BASE_MILLI * (100 + min(distance, TRADE_DIST_CAP_CELLS)) / 100,
- * half of it when both Ports have the same owner, nothing under embargo.
+ * half of it when both Ports have the same owner, TRADE_ALLIANCE_PCT of it for allied owners (Fix-4A1), nothing under embargo.
  */
-export function tradeMilliPerSec(distCells: number, sameOwner: boolean, embargo: boolean): number {
+export function tradeMilliPerSec(distCells: number, sameOwner: boolean, embargo: boolean, allied = false): number {
   if (embargo) return 0;
   const d = distCells > TRADE_DIST_CAP_CELLS ? TRADE_DIST_CAP_CELLS : distCells;
   const v = Math.floor((TRADE_BASE_MILLI * (100 + d)) / 100);
-  return sameOwner ? Math.floor((v * TRADE_SAME_OWNER_PCT) / 100) : v;
+  if (sameOwner) return Math.floor((v * TRADE_SAME_OWNER_PCT) / 100);
+  return allied ? Math.floor((v * TRADE_ALLIANCE_PCT) / 100) : v;
 }
 
 /** A trait multiplier in thousandths (already clamped to +-10 % by the setter) applied to a port income. */
@@ -188,8 +190,8 @@ function recompute(state: GameState): void {
       }
       for (let k = 0; k < n; k++) {
         const partnerOwner = t.owner[bestId[k] as number] as number;
-        // Allied Ports trade as if they had one owner (M18c-1); an embargo beats everything.
-        trade += tradeMilliPerSec(isqrt(bestD2[k] as number), partnerOwner === o || state.diplo.relationOf(o, partnerOwner) === RELATION_ALLIANCE, t.embargoed(o, partnerOwner));
+        // Allied Ports trade at TRADE_ALLIANCE_PCT of the open rate (Fix-4A1; M18c-1 had them at the same-owner half); an embargo beats everything.
+        trade += tradeMilliPerSec(isqrt(bestD2[k] as number), partnerOwner === o, t.embargoed(o, partnerOwner), partnerOwner !== o && state.diplo.relationOf(o, partnerOwner) === RELATION_ALLIANCE);
       }
       income += Math.floor((trade * portTradePctAt(portLevel)) / 100);
       if (income > PORT_INCOME_MAX_MILLI_PER_SEC) income = PORT_INCOME_MAX_MILLI_PER_SEC;

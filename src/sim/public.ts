@@ -218,7 +218,7 @@ export { HELI_BUILD_TICKS, HELI_FLEET_BASE, HELI_FLEET_MAX, HELI_HP_TENTHS, HELI
 export { validateLaunchHeli, validateRecallHeli } from './heliRules';
 export type { LaunchHeliBody, RecallHeliBody } from './intents';
 export { launchHeliBody, recallHeliBody } from './intents';
-export { REJECT_HELI_BAD_TROOPS, REJECT_HELI_NO_PAD, REJECT_HELI_NO_ROUTE, REJECT_HELI_NOT_FLYING } from './intents';
+export { REJECT_HELI_BEACHHEAD_FULL, REJECT_HELI_TABLE_FULL, REJECT_HELI_BAD_TROOPS, REJECT_HELI_NO_PAD, REJECT_HELI_NO_ROUTE, REJECT_HELI_NOT_FLYING } from './intents';
 export { HELI_CLEARANCE_GAME_M, HELI_DOWNED_TICKS, HELI_HOVER_TICKS, HELI_TAKEOFF_TICKS } from './rules';
 
 // M18c-1 (append-only): diplomacy. The read-only `DiplomacyView` (`SimView.diplomacy`), the relation and treaty numbers, the six intent bodies and constructors, the

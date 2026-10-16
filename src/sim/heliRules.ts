@@ -5,7 +5,9 @@ import { HELI_FLEET_BASE, HELI_FLEET_MAX, HELI_MAX_TROOPS, HELI_PRICE_GOLD, HELI
 import {
   REJECT_HELI_BAD_TROOPS,
   REJECT_HELI_FACTORY_BUILDING,
+  REJECT_HELI_BEACHHEAD_FULL,
   REJECT_HELI_FLEET_CAP,
+  REJECT_HELI_TABLE_FULL,
   REJECT_HELI_NO_FACTORY,
   REJECT_HELI_NO_GOLD,
   REJECT_HELI_NO_PAD,
@@ -72,7 +74,8 @@ export function checkProduceHeli(src: HeliSource, goldMilli: number, phaseRefuse
   for (let id = 0; id < h.highWater; id++) {
     if (h.owner[id] !== 0 && h.state[id] === HELI_BUILDING && h.factory[id] === factory) return REJECT_HELI_QUEUE_BUSY;
   }
-  if (fleetCountOf(src, seat) >= fleetCapOf(src, seat) || h.liveCount >= h.capacity) return REJECT_HELI_FLEET_CAP;
+  if (fleetCountOf(src, seat) >= fleetCapOf(src, seat)) return REJECT_HELI_FLEET_CAP;
+  if (h.liveCount >= h.capacity) return REJECT_HELI_TABLE_FULL; // the table is global (all seats), the cap is per seat
   if (goldMilli < HELI_PRICE_MILLI) return REJECT_HELI_NO_GOLD;
   return REJECT_NONE;
 }
@@ -93,6 +96,8 @@ export interface LaunchProbe {
   route(from: number, to: number, mode: AltMode): RouteResult;
   /** M18c-1 integration: true when the zone cell belongs to a nation the seat has a truce or an alliance with (a landing there is not allowed, like an Attack). */
   zoneBound(lzCell: number): boolean;
+  /** Fix-4A1: true when the global beachhead table has no free row (a landing would keep its land for ever). The sim reads its table; the page-side view has no table yet and answers false (the sim still refuses). */
+  beachheadFull(): boolean;
 }
 
 /** What a successful LaunchHeli check found: the helicopter that goes and its planned route. */
@@ -127,6 +132,7 @@ export function checkLaunchHeli(src: HeliSource, phaseRefuses: boolean, seat: nu
   const heli = padHeliAt(src.helis, factory);
   if (heli < 0) return REJECT_HELI_NO_PAD;
   if (!Number.isInteger(troops) || troops < 1 || troops > HELI_MAX_TROOPS || troops > probe.troops) return REJECT_HELI_BAD_TROOPS;
+  if (probe.beachheadFull()) return REJECT_HELI_BEACHHEAD_FULL; // before the departure: no troops are drawn
   if (!probe.canNavigate) return REJECT_HELI_NO_ROUTE;
   const mode: AltMode = altMode === 1 ? 1 : 0;
   const from = s.cell[factory] as number;
@@ -159,6 +165,7 @@ export function validateLaunchHeli(view: SimView, nav: Nav, seat: number, factor
     canNavigate: true,
     score: (cell, from, mode) => scoreLz(nav, view, seat, cell, from, mode),
     route: (from, to, mode) => planRoute(nav, view, seat, from, to, mode),
+    beachheadFull: () => false,
     zoneBound: (cell) => {
       const o = view.owner[cell] as number;
       return o !== 0 && o !== seatToOwner(seat) && view.diplomacy.relation(seat, o - 1) !== RELATION_WAR;

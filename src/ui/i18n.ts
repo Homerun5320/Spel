@@ -469,6 +469,8 @@ const sv = {
   'toast.diplo.expired': 'Ditt förslag till {name} gick ut utan svar.',
   'result.col.treaties': 'Ingångna avtal',
   'result.col.betrayals': 'Brutna avtal',
+  'toast.heli.tableFull': 'Det finns inga fler platser för helikoptrar i matchen just nu.',
+  'toast.heli.beachheadFull': 'Inga fler brohuvuden kan finnas samtidigt. Vänta tills ett landningsställe är etablerat eller har gått förlorat.',
 } as const;
 
 export type TextKey = keyof typeof sv;
@@ -927,6 +929,8 @@ const en: Record<TextKey, string> = {
   'toast.diplo.expired': 'Your proposal to {name} ran out without an answer.',
   'result.col.treaties': 'Treaties made',
   'result.col.betrayals': 'Treaties broken',
+  'toast.heli.tableFull': 'There is no room for more helicopters in the match right now.',
+  'toast.heli.beachheadFull': 'No more beachheads can exist at once. Wait until one is established or lost.',
 };
 
 /** The two tables, for the parity test and for tools. Treat as read-only. */

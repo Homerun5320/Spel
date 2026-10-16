@@ -43,6 +43,16 @@ Resume: Läs CLAUDE.md och docs/PROGRESS.md, kör git log -10 och npm run verify
 
 ## Now
 
+### Fix-4A1: audit 3, the helicopter, beachhead and treaty rules (headless sim, ENGINE 19; one slice in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+- [x] [0.0] An eliminated seat's helicopters are scrapped in the elimination tick; a landing for an eliminated owner does nothing.
+- [x] [0.1] A landing that touches the owner's land makes no beachhead; a cluster with the capital cell is established.
+- [x] [0.2] Tests for the neighbour guard and the page-side `validateLaunchHeli` treaty refusal.
+- [x] [0.6] `REJECT_HELI_TABLE_FULL` 57 and `REJECT_HELI_BEACHHEAD_FULL` 58 (texts sv and en); comment and `BEACHHEAD_CAPACITY` fixed.
+- [x] [1.10] Allied Ports trade at `TRADE_ALLIANCE_PCT` 125 %.
+- [x] [1.1] to [1.4] Mutation killers (table in DECISIONS, block Fix-4A1).
+- [x] ENGINE_VERSION 19 once; sim-hashes.json and match-hashes.json recomputed once. FORMAT unchanged (13).
+- [x] `npm run verify:fast` (see DECISIONS Fix-4A1 for the result).
+
 ### Fix-3C: docs that lied, test holes in app and UI, hygiene (audit 2, lens fit and mutation; headless, no Chromium; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
 - [x] 1. PROGRESS.md: Done rows, finished slices moved to the Archive section, Known issues M11a, Next
 - [x] 2. ARCHITECTURE.md: stale rows corrected, "Aktuella versioner" line

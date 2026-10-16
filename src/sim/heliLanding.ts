@@ -84,6 +84,12 @@ export function performLanding(state: GameState, id: number): void {
   const h = grid.cells / w;
   const lzOwner = state.owner[lz] as number;
   t.target[id] = 0;
+  if (state.match.eliminated[ownerId] === 1) {
+    // Fix-4A1: an eliminated seat never gets land back (winPhase scraps its helicopters; this is the guard for a state restored from before that rule).
+    t.load[id] = 0;
+    state.outbox.push(OUTBOX_HELI_LANDED, tick, id, -1);
+    return;
+  }
   if (lzOwner === ownerId || (lzOwner !== 0 && landingBlockedBy(state, ownerId, lzOwner))) {
     state.outbox.push(OUTBOX_HELI_LANDED, tick, id, 0); // nothing to take here: the load flies home with the helicopter
     return;
@@ -92,6 +98,8 @@ export function performLanding(state: GameState, id: number): void {
   t.load[id] = 0;
   let frac = 0;
   let taken = 0;
+  let joined = false; // Fix-4A1: some landed cell touches land the owner already held (before this landing)
+  const got = LANDED;
   for (let k = 0; k < BEACHHEAD_LANDING_CELLS; k++) {
     const c = landingCell(w, h, lz, k);
     if (c < 0 || grid.playable[c] === 0) {
@@ -109,9 +117,11 @@ export function performLanding(state: GameState, id: number): void {
     if (rem < whole) break;
     rem -= whole;
     frac = owed - whole * MILLI_QT_PER_QT;
+    got[taken] = c;
     changeOwner(state, c, ownerId, 0, -1, 0);
     taken++;
   }
+  if (taken > 0) joined = touchesOwnLand(state, ownerId, taken);
   if (taken === 0 || state.owner[lz] !== ownerId) {
     // The zone itself could not be taken: the load is lost.
     state.outbox.push(OUTBOX_HELI_LANDED, tick, id, -1);
@@ -120,13 +130,47 @@ export function performLanding(state: GameState, id: number): void {
   if (frac > 0 && rem > 0) rem -= 1; // the unpaid part of the last cell is paid, rounded up (as CancelAttack does)
   state.match.conquered[ownerId] = ((state.match.conquered[ownerId] as number) + taken) >>> 0;
   state.outbox.push(OUTBOX_HELI_LANDED, tick, id, taken);
-  const slot = state.beachheads.add(ownerId, lz, tick, BEACH_CUT_OFF);
+  // A landing that joins land the owner already held is no beachhead: it is ordinary land at once (Fix-4A1; otherwise a small nation that lands
+  // next to its own territory lost ALL of it 450 ticks later, the whole connected territory being the "cluster").
+  const slot = joined ? -1 : state.beachheads.add(ownerId, lz, tick, BEACH_CUT_OFF);
   if (slot >= 0) state.outbox.push(OUTBOX_BEACHHEAD_FORMED, tick, slot, lz);
   if (rem > 0) {
     // The rest of the load is an ordinary Attack from the beachhead on the land the zone was taken from.
     if (state.borders.contact(ownerId, lzOwner) > 0) launchAttack(state, ownerId, lzOwner, rem);
     else addTroops(state, ownerId, rem);
   }
+}
+
+/** The cells a landing took (in order), at most BEACHHEAD_LANDING_CELLS. */
+const LANDED = new Int32Array(BEACHHEAD_LANDING_CELLS);
+
+/** Is `cell` part of the cluster of a live cut-off row of `ownerId` (land that is itself still on probation)? Landings next to such land are merged by the row check instead. */
+function inCutOffCluster(state: GameState, ownerId: number, cell: number): boolean {
+  const b = state.beachheads;
+  for (let i = 0; i < b.capacity; i++) {
+    if (b.owner[i] !== ownerId) continue;
+    const n = scanCluster(state, b.seed[i] as number, ownerId);
+    const hit = n > 0 && state.scratch.mark[cell] === 1;
+    clearCluster(state, n);
+    if (hit) return n < BEACHHEAD_ESTABLISH_CELLS;
+  }
+  return false;
+}
+
+/** Does any of the first `count` cells of LANDED touch (8 neighbours) a cell of `ownerId` that is not itself one of them? */
+function touchesOwnLand(state: GameState, ownerId: number, count: number): boolean {
+  const w = state.grid.width;
+  const h = state.grid.cells / w;
+  for (let i = 0; i < count; i++) {
+    for (let k = 1; k <= 8; k++) {
+      const n = landingCell(w, h, LANDED[i] as number, k);
+      if (n < 0 || state.owner[n] !== ownerId || state.grid.playable[n] === 0) continue;
+      let landed = false;
+      for (let j = 0; j < count; j++) if (LANDED[j] === n) landed = true;
+      if (!landed && !inCutOffCluster(state, ownerId, n)) return true;
+    }
+  }
+  return false;
 }
 
 /** The first of the eight neighbours of `cell` (order N, E, S, W, NE, SE, SW, NW) that is a playable cell of `ownerId`, else -1. */
@@ -154,7 +198,8 @@ function checkBeachhead(state: GameState, i: number): void {
     b.dirty = true;
   }
   const n = scanCluster(state, b.seed[i] as number, ownerId);
-  const city = clusterHasCity();
+  const cap = state.capital[ownerId] as number;
+  const city = clusterHasCity() || (cap !== 0 && n < BEACHHEAD_ESTABLISH_CELLS && state.scratch.mark[cap - 1] === 1); // the capital cell makes a cluster established (Fix-4A1)
   // Merge: another cut-off row of this owner whose seed lies in this cluster. The younger row (later landing, else the higher slot) is freed.
   let mergedAway = false;
   if (b.liveCount > 1) {
