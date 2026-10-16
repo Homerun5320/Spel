@@ -6,7 +6,7 @@ import { ownerCapQt } from '../../src/sim/economy';
 import { createState, type GameState } from '../../src/sim/state';
 import { setOwnerRules } from '../../src/sim/homeRules';
 import {
-  CAP_CITY_LEVEL_QT,
+  QT_PER_TROOP,
   CITY_GOLD_MILLI_PER_SEC_PER_LEVEL,
   ENCLAVE_FLIP_TICKS,
   FACTORY_GOLD_MILLI_PER_SEC,
@@ -16,7 +16,7 @@ import {
 } from '../../src/sim/rules';
 import { deserialize, hashState, serialize } from '../../src/sim/serialize';
 import { step } from '../../src/sim/step';
-import { STRUCT_CITY, STRUCT_FACTORY, STRUCT_PORT, STRUCT_POST, STRUCT_SAM, STRUCT_SILO } from '../../src/sim/structureRules';
+import { STRUCT_CITY, STRUCT_FACTORY, STRUCT_PORT, STRUCT_POST, STRUCT_SAM, STRUCT_SILO, cityGoldMilli, cityTroopCap } from '../../src/sim/structureRules';
 import {
   applyPortTrait,
   collectPosts,
@@ -166,18 +166,18 @@ describe('income per structure', () => {
     expect(structGoldMilliPerSec(c, 1)).toBeLessThanOrEqual(15000);
   });
 
-  it('a finished City pays 1.5 gold/s per level and lifts the troop cap by 800 troops per level; an unfinished one does nothing', () => {
+  it('a finished City pays 1.5 gold/s at level 1 plus 0.5 per level and lifts the troop cap by 800 troops plus 250 per level; an unfinished one does nothing', () => {
     const s = strip(2);
     const cap0 = ownerCapQt(s, 1);
     const id = addDone(s, STRUCT_CITY, 1, at(100), 2);
-    expect(structGoldMilliPerSec(s, 1)).toBe(2 * CITY_GOLD_MILLI_PER_SEC_PER_LEVEL);
-    expect(ownerCapQt(s, 1) - cap0).toBe(2 * CAP_CITY_LEVEL_QT);
+    expect(structGoldMilliPerSec(s, 1)).toBe(cityGoldMilli(2));
+    expect(ownerCapQt(s, 1) - cap0).toBe(cityTroopCap(2) * QT_PER_TROOP);
     s.structures.readyTick[id] = s.tick + 50; // not finished
     s.structures.effDirty = true;
     expect(structGoldMilliPerSec(s, 1)).toBe(0);
     expect(ownerCapQt(s, 1)).toBe(cap0);
     for (let i = 0; i < 50; i++) step(s, { turn: s.tick, intents: [] });
-    expect(structGoldMilliPerSec(s, 1)).toBe(2 * CITY_GOLD_MILLI_PER_SEC_PER_LEVEL); // finished by itself, with no change of the table
+    expect(structGoldMilliPerSec(s, 1)).toBe(cityGoldMilli(2)); // finished by itself, with no change of the table
   });
 
   it('a Factory pays 2 gold/s and adds 25 percent to the Cities within 20 cells, once however many Factories', () => {
@@ -270,7 +270,7 @@ describe('conquest of structures', () => {
     expect(t.byCell).toEqual(byCell);
     expect(t.counts).toEqual(counts);
     // The conquered City now pays its new owner.
-    expect(structGoldMilliPerSec(s, 1)).toBe(Math.floor((2 * CITY_GOLD_MILLI_PER_SEC_PER_LEVEL * 125) / 100) + FACTORY_GOLD_MILLI_PER_SEC + PORT_GOLD_MILLI_PER_SEC); // the Factory is 4 cells from the City
+    expect(structGoldMilliPerSec(s, 1)).toBe(Math.floor((cityGoldMilli(2) * 125) / 100) + FACTORY_GOLD_MILLI_PER_SEC + PORT_GOLD_MILLI_PER_SEC); // the Factory is 4 cells from the City
     expect(structGoldMilliPerSec(s, 2)).toBe(0);
   });
 

@@ -38,12 +38,12 @@ describe('deserialize refuses a forged structure block', () => {
   it('Z03 two structures on one cell', () => refused((s) => (s.structures.cell[2] = s.structures.cell[0] as number)));
   it('Z04 an upgrade running at the top level', () =>
     refused((s) => {
-      s.structures.level[0] = STRUCT_MAX_LEVEL;
-      s.structures.upgradeReadyTick[0] = 500;
+      s.structures.level[2] = STRUCT_MAX_LEVEL; // the Port: only a City goes past 3
+      s.structures.upgradeReadyTick[2] = 500;
     }));
   it('Z06 live + recycled does not add up to highWater', () => refused((s) => (s.structures.highWater = 4)));
   it('Z08 an owner one past the seats', () => refused((s) => (s.structures.owner[2] = 3)));
-  it('Z09 a level above the maximum', () => refused((s) => (s.structures.level[0] = STRUCT_MAX_LEVEL + 1)));
+  it('Z09 a level above the maximum', () => refused((s) => (s.structures.level[2] = STRUCT_MAX_LEVEL + 1)));
   it('Z11 a recycled id beyond highWater', () => refused((s) => (s.structures.recycled[0] = 7)));
   it('a recycled id that is also alive', () => refused((s) => (s.structures.recycled[0] = 2)));
   it('a structure type of 0 or beyond the six', () => refused((s) => (s.structures.type[0] = 7)));

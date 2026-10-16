@@ -83,7 +83,7 @@ describe('the AI build thresholds', () => {
 
   it('a rich seat upgrades the LOWEST level first, then City before Factory: a level-1 Factory beats a level-2 City', () => {
     const p = plain(1000000);
-    give(p.state, [[STRUCT_CITY, 1, 2]], 0, 30);
+    give(p.state, [[STRUCT_CITY, 2, 2]], 0, 30); // two Cities: the wanted type is a Port, so the cheap City upgrade of Sim-Growth (cheaperUpgrade) is not tried and only the rich order decides
     const f = p.state.structures.add(STRUCT_FACTORY, 1, 60 * W + 30, 0);
     p.state.structures.level[f] = 1;
     p.state.tick = 1000; // everything finished and idle

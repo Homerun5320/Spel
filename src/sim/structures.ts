@@ -18,6 +18,7 @@ import {
   checkDelete,
   checkUpgrade,
   upgradePriceGold,
+  upgradeTicksOf,
   type BuildSource,
   type StructureView,
 } from './structureRules';
@@ -61,6 +62,9 @@ export class StructureTable implements StructureView, DistrictView {
   effDirty = true;
   effNextTick = 0;
   readonly effCityLevels: Uint32Array;
+  /** Derived (Sim-Growth): finished Cities per owner, and the troop cap their levels above 1 add in QT. */
+  readonly effCityCount: Uint32Array;
+  readonly effCityStepQt: Uint32Array;
   readonly effFixedMilli: Uint32Array;
   readonly effPortMilli: Uint32Array;
   /** Scratch for the Defense Post scan of an attack (cells of the target's finished Posts). */
@@ -77,6 +81,8 @@ export class StructureTable implements StructureView, DistrictView {
     this.deleteReady = new Uint32Array(ownerSlotCount);
     this.embargo = new Uint8Array(ownerSlotCount * ownerSlotCount);
     this.effCityLevels = new Uint32Array(ownerSlotCount);
+    this.effCityCount = new Uint32Array(ownerSlotCount);
+    this.effCityStepQt = new Uint32Array(ownerSlotCount);
     this.effFixedMilli = new Uint32Array(ownerSlotCount);
     this.effPortMilli = new Uint32Array(ownerSlotCount);
     this.byCell = new Uint16Array(cells);
@@ -350,7 +356,7 @@ export function applyUpgrade(state: GameState, seat: number, id: number): number
   if (why !== REJECT_NONE) return why;
   const type = t.type[id] as number;
   state.gold[ownerId] = (state.gold[ownerId] as number) - upgradePriceGold(type, (t.level[id] as number) + 1) * MILLI_GOLD_PER_GOLD;
-  t.upgradeReadyTick[id] = state.tick + (BUILD_TICKS[type] as number);
+  t.upgradeReadyTick[id] = state.tick + upgradeTicksOf(type, (t.level[id] as number) + 1);
   return REJECT_NONE;
 }
 

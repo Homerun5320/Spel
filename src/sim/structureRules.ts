@@ -3,10 +3,21 @@
 // validation (src/sim/structures.ts) calls `checkBuild` below, the SAME function `validateBuild` wraps, so there is one implementation.
 import {
   BUILD_BASE_GOLD,
+  BUILD_TICKS,
+  CAP_CITY_LEVEL_TROOPS,
+  CITY_GOLD_MILLI_PER_SEC_PER_LEVEL,
+  CITY_GOLD_STEP_MILLI_PER_LEVEL,
+  CITY_MAX_LEVEL,
+  CITY_TROOP_STEP_TROOPS,
+  CITY_UPGRADE_BASE_GOLD,
+  CITY_UPGRADE_PRICE_STEP_PCT,
+  CITY_UPGRADE_TICKS_BASE,
+  CITY_UPGRADE_TICKS_MAX,
+  CITY_UPGRADE_TICKS_STEP,
   MILLI_GOLD_PER_GOLD,
   PRICE_ESCALATION_MAX_HALVES,
   PRICE_ESCALATION_ONE_HALVES,
-  SPACING_CELLS,
+  SPACING_CELLS_BY_TYPE,
   SPACING_SCOPE,
   STRUCT_MAX_LEVEL,
 } from './rules';
@@ -65,7 +76,7 @@ export interface StructureView {
   /** ownerId (0 = free slot). */
   readonly owner: Numbers;
   readonly cell: Numbers;
-  /** Level 1..STRUCT_MAX_LEVEL (the finished level; an upgrade in progress is not counted yet). */
+  /** Level 1..maxLevelOf(type) (the finished level; an upgrade in progress is not counted yet). */
   readonly level: Numbers;
   readonly buildTick: Numbers;
   /** The tick at which the structure is finished (works from then on). */
@@ -103,9 +114,32 @@ export function buildPriceGold(type: number, owned: number): number {
   return Math.floor(((BUILD_BASE_GOLD[type] as number) * capped) / PRICE_ESCALATION_ONE_HALVES);
 }
 
-/** Price in gold of an upgrade to `level` (2..STRUCT_MAX_LEVEL): base * level, no escalation. */
+/** The highest level of a structure type: CITY_MAX_LEVEL for a City, STRUCT_MAX_LEVEL for the others. The one function UI and AI use, never a level count of their own. */
+export function maxLevelOf(type: number): number {
+  return type === STRUCT_CITY ? CITY_MAX_LEVEL : STRUCT_MAX_LEVEL;
+}
+
+/** Gold per second (milli) a FINISHED City of `level` pays before the Factory bonus: 1.5 at level 1 plus 0.5 per further level. */
+export function cityGoldMilli(level: number): number {
+  return level < 1 ? 0 : CITY_GOLD_MILLI_PER_SEC_PER_LEVEL + CITY_GOLD_STEP_MILLI_PER_LEVEL * (level - 1);
+}
+
+/** Troop cap (troops) a FINISHED City of `level` adds: CAP_CITY_LEVEL_TROOPS at level 1 plus CITY_TROOP_STEP_TROOPS per further level. */
+export function cityTroopCap(level: number): number {
+  return level < 1 ? 0 : CAP_CITY_LEVEL_TROOPS + CITY_TROOP_STEP_TROOPS * (level - 1);
+}
+
+/** Price in gold of an upgrade to `level` (2..maxLevelOf(type)), no escalation: a City gently grows with the level, the others cost base * level. */
 export function upgradePriceGold(type: number, level: number): number {
+  if (type === STRUCT_CITY) return Math.floor((CITY_UPGRADE_BASE_GOLD * (100 + CITY_UPGRADE_PRICE_STEP_PCT * (level - 2))) / 100);
   return (BUILD_BASE_GOLD[type] as number) * level;
+}
+
+/** Ticks an upgrade to `level` takes: the build time of the type, except a City, whose upgrades start short and grow to CITY_UPGRADE_TICKS_MAX. */
+export function upgradeTicksOf(type: number, level: number): number {
+  if (type !== STRUCT_CITY) return BUILD_TICKS[type] as number;
+  const ticks = CITY_UPGRADE_TICKS_BASE + CITY_UPGRADE_TICKS_STEP * (level - 2);
+  return ticks > CITY_UPGRADE_TICKS_MAX ? CITY_UPGRADE_TICKS_MAX : ticks;
 }
 
 /** The price of the next structure of `type` for a seat, in milli-gold (what the purse is counted in). */
@@ -128,13 +162,14 @@ function isWater(cls: number): boolean {
   return cls === CLASS_DEEP_SEA || cls === CLASS_SHALLOWS;
 }
 
-/** Is any structure in the spacing scope closer than SPACING_CELLS to `cell` (Euclidean in sim cells, x wrapping)? */
+/** Is any structure in the spacing scope closer than SPACING_CELLS_BY_TYPE[type] to `cell` (Euclidean in sim cells, x wrapping)? */
 export function violatesSpacing(src: BuildSource, ownerId: number, type: number, cell: number): boolean {
   const s = src.structures;
   const w = src.width;
   const x = cell % w;
   const y = (cell - x) / w;
-  const limit = SPACING_CELLS * SPACING_CELLS;
+  const spacing = SPACING_CELLS_BY_TYPE[type] as number;
+  const limit = spacing * spacing;
   const scope: number = SPACING_SCOPE;
   for (let i = 0; i < s.highWater; i++) {
     const o = s.owner[i] as number;
@@ -190,7 +225,7 @@ export function checkUpgrade(structures: StructureView, tick: number, goldMilli:
   if (!Number.isInteger(id) || id < 0 || id >= structures.highWater || structures.owner[id] === 0) return REJECT_STRUCT_ID;
   if (structures.owner[id] !== seatToOwner(seat)) return REJECT_STRUCT_NOT_OWNER;
   const level = structures.level[id] as number;
-  if (level >= STRUCT_MAX_LEVEL) return REJECT_STRUCT_MAX_LEVEL;
+  if (level >= maxLevelOf(structures.type[id] as number)) return REJECT_STRUCT_MAX_LEVEL;
   if (tick < (structures.readyTick[id] as number) || (structures.upgradeReadyTick[id] as number) !== 0) return REJECT_STRUCT_BUSY;
   if (goldMilli < upgradePriceGold(structures.type[id] as number, level + 1) * MILLI_GOLD_PER_GOLD) return REJECT_BUILD_GOLD;
   return REJECT_NONE;

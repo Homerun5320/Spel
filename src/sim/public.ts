@@ -194,3 +194,8 @@ export { AIR_EXPOSURE_LAMBDA, AIR_MODE_AGL_M, AIR_MODE_SPEED_MILLICELLS_S, HELI_
 export { createLos } from './los/cache';
 export { createLosTerrain, type LosTerrain } from './los/terrain';
 export { navFingerprint } from './nav/fingerprint';
+
+// Sim-Growth (append-only): City levels 1 to 10 with small steps. The UI and the AI never hard-code a level count: maxLevelOf(type) is the top level,
+// cityGoldMilli / cityTroopCap what a finished City of a level gives, upgradeTicksOf how long the upgrade to a level takes (upgradePriceGold is above).
+export { cityGoldMilli, cityTroopCap, maxLevelOf, upgradeTicksOf } from './structureRules';
+export { AI_CITY_UPGRADE_LEVELS_PER_CITY, CITY_GOLD_STEP_MILLI_PER_LEVEL, CITY_MAX_LEVEL, CITY_TROOP_STEP_TROOPS, SPACING_CELLS_BY_TYPE } from './rules';

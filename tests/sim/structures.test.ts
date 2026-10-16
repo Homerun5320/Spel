@@ -29,7 +29,7 @@ import {
   type IntentBody,
 } from '../../src/sim/intents';
 import { OUTBOX_REJECT } from '../../src/sim/outbox';
-import { BUILD_TICKS, DELETE_COOLDOWN_TICKS, MILLI_GOLD_PER_GOLD, SPACING_CELLS, STRUCT_CAPACITY } from '../../src/sim/rules';
+import { BUILD_TICKS, DELETE_COOLDOWN_TICKS, MILLI_GOLD_PER_GOLD, SPACING_CELLS_BY_TYPE, STRUCT_CAPACITY } from '../../src/sim/rules';
 import { createScenarioState, runScenario } from '../../src/sim/scenario';
 import { deserialize, hashState, serialize } from '../../src/sim/serialize';
 import { applyIntent, step } from '../../src/sim/step';
@@ -100,9 +100,10 @@ describe('prices', () => {
     expect(s.structures.ownedCount(1, STRUCT_CITY)).toBe(2);
   });
 
-  it('an upgrade to level L costs base * L with no escalation, starts at once and raises the level when the build time has run out', () => {
-    expect(upgradePriceGold(STRUCT_CITY, 2)).toBe(800);
-    expect(upgradePriceGold(STRUCT_CITY, 3)).toBe(1200);
+  it('an upgrade to level L costs a gentle City price or base * L for the others, with no escalation, starts at once and raises the level when the build time has run out', () => {
+    expect(upgradePriceGold(STRUCT_CITY, 2)).toBe(80);
+    expect(upgradePriceGold(STRUCT_CITY, 3)).toBe(88);
+    expect(upgradePriceGold(STRUCT_FACTORY, 2)).toBe(1000);
     const s = world();
     const id = mustBuild(s, STRUCT_CITY, at(10, 30));
     const up = (): number => applyIntent(s, withId({ kind: 'Upgrade', seat: 0, structure: id }, nextId++));
@@ -110,16 +111,17 @@ describe('prices', () => {
     idle(s, BUILD_TICKS[STRUCT_CITY] as number);
     const before = s.gold[1] as number;
     expect(up()).toBe(REJECT_NONE);
-    expect(before - (s.gold[1] as number)).toBe(800 * MILLI_GOLD_PER_GOLD);
+    expect(before - (s.gold[1] as number)).toBe(80 * MILLI_GOLD_PER_GOLD);
     expect(up()).toBe(REJECT_STRUCT_BUSY); // upgrading
     expect(s.structures.level[id]).toBe(1);
     idle(s, (BUILD_TICKS[STRUCT_CITY] as number) + 1);
     expect(s.structures.level[id]).toBe(2);
     const before3 = s.gold[1] as number;
     expect(up()).toBe(REJECT_NONE);
-    expect(before3 - (s.gold[1] as number)).toBe(1200 * MILLI_GOLD_PER_GOLD); // not escalated by the two Cities-to-be
+    expect(before3 - (s.gold[1] as number)).toBe(88 * MILLI_GOLD_PER_GOLD); // not escalated by the two Cities-to-be
     idle(s, (BUILD_TICKS[STRUCT_CITY] as number) + 1);
     expect(s.structures.level[id]).toBe(3);
+    s.structures.level[id] = 10; // the City's top level (CITY_MAX_LEVEL)
     expect(up()).toBe(REJECT_STRUCT_MAX_LEVEL);
   });
 
@@ -213,21 +215,23 @@ describe('placement rules', () => {
     expect(build(s, STRUCT_POST, at(10, 30))).toBe(REJECT_BUILD_OCCUPIED);
   });
 
-  it('spacing: structures of the same type must be SPACING_CELLS apart (any owner, x wrapping); other types are free', () => {
-    expect(SPACING_CELLS).toBe(16);
+  it('spacing: structures of the same type must be SPACING_CELLS_BY_TYPE apart (any owner, x wrapping); other types are free', () => {
+    expect(SPACING_CELLS_BY_TYPE).toEqual([0, 3, 3, 3, 6, 5, 3]);
     const s = world();
     mustBuild(s, STRUCT_CITY, at(10, 30));
-    expect(build(s, STRUCT_CITY, at(10 + 15, 30))).toBe(REJECT_BUILD_SPACING);
-    expect(build(s, STRUCT_CITY, at(10 + 11, 30 + 11))).toBe(REJECT_BUILD_SPACING); // Euclidean: 15.6
-    expect(build(s, STRUCT_CITY, at(10 + 16, 30))).toBe(REJECT_NONE);
+    expect(build(s, STRUCT_CITY, at(10 + 2, 30))).toBe(REJECT_BUILD_SPACING);
+    expect(build(s, STRUCT_CITY, at(10 + 2, 30 + 2))).toBe(REJECT_BUILD_SPACING); // Euclidean: 2.83 < 3
+    expect(build(s, STRUCT_CITY, at(10 + 3, 30))).toBe(REJECT_NONE); // exactly 3 is allowed
     expect(build(s, STRUCT_POST, at(11, 30))).toBe(REJECT_NONE);
-    // another owner counts too
+    // another owner counts too; a SAM needs 5
     s.owner[at(60, 5)] = 2;
     mustBuild(s, STRUCT_SAM, at(60, 5), 1);
-    expect(build(s, STRUCT_SAM, at(70, 5))).toBe(REJECT_BUILD_SPACING);
-    // across the seam: x = 126 and x = 2 are 4 apart
+    expect(build(s, STRUCT_SAM, at(64, 5))).toBe(REJECT_BUILD_SPACING);
+    expect(build(s, STRUCT_SAM, at(65, 5))).toBe(REJECT_NONE);
+    // across the seam (the world is 128 wide)
     mustBuild(s, STRUCT_CITY, at(126, 50));
-    expect(build(s, STRUCT_CITY, at(2, 50))).toBe(REJECT_BUILD_SPACING);
+    expect(build(s, STRUCT_CITY, at(0, 50))).toBe(REJECT_BUILD_SPACING); // 2 apart over the seam
+    expect(build(s, STRUCT_CITY, at(1, 50))).toBe(REJECT_NONE); // 3 apart over the seam
   });
 
   it('fallout blocks (the layer is zero until M14, so the rule is shown through a source with fallout)', () => {
@@ -262,7 +266,7 @@ describe('placement rules', () => {
     mustBuild(s, STRUCT_CITY, at(10, 30));
     const view = new StateView(s);
     for (const [t, c] of [
-      [STRUCT_CITY, at(10 + 15, 30)],
+      [STRUCT_CITY, at(10 + 2, 30)],
       [STRUCT_PORT, at(80, 20)],
       [STRUCT_CITY, at(60, 30)],
       [STRUCT_POST, at(60, 30)],
@@ -273,7 +277,7 @@ describe('placement rules', () => {
       expect(build(s, t, c), `type ${t} cell ${c}`).toBe(expected);
       if (expected === REJECT_NONE) break; // the state has changed
     }
-    expect(validateBuild(view, 0, STRUCT_CITY, at(10 + 15, 30))).toBe(REJECT_BUILD_SPACING);
+    expect(validateBuild(view, 0, STRUCT_CITY, at(10 + 2, 30))).toBe(REJECT_BUILD_SPACING);
     expect(validateBuild(view, 0, STRUCT_CITY, at(60, 30))).toBe(REJECT_BUILD_GOLD); // 450 gold left, a second City costs 600
   });
 });

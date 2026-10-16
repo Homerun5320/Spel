@@ -202,7 +202,7 @@ export const AI_TRIBE_REACH_CELLS = 90;
 /** Random places tried for one Spawn; the clearance is halved after every quarter of them, and the second half ignores the reach, so a crowded map still finds a place. */
 export const AI_SPAWN_TRIES = 400;
 /** An AI seat expands or attacks only with at least this share of its troop cap (percent). */
-export const AI_EXPAND_TROOP_PCT = 37;
+export const AI_EXPAND_TROOP_PCT = 36;
 /** Percent of its troops an AI nation commits to an attack on unowned land / on a neighbour. A tribe commits troops / TRIBE_ATTACK_DIV whatever this says. */
 export const AI_EXPAND_COMMIT_PCT = 70;
 export const AI_WAR_COMMIT_PCT = 50;
@@ -262,7 +262,7 @@ export const TRAIT_MOUNTAIN_GAIN_PCT = 50;
 
 /** Slots of the structure table (a structural limit, not a tunable): ids 0..STRUCT_CAPACITY - 1. */
 export const STRUCT_CAPACITY = 4096;
-/** The highest level of a structure; a new structure is level 1. */
+/** The highest level of a Factory, Port, Silo, SAM and Post; a new structure is level 1. A City has CITY_MAX_LEVEL (use maxLevelOf(type)). */
 export const STRUCT_MAX_LEVEL = 3;
 /** Base price in gold per type (City, Factory, Port, Silo, SAM, Post). */
 export const BUILD_BASE_GOLD = [0, 400, 500, 400, 1000, 600, 250];
@@ -274,8 +274,8 @@ export const PRICE_ESCALATION_ONE_HALVES = 2;
 export const PRICE_ESCALATION_MAX_HALVES = 12;
 /** After a Delete the same seat may not Delete again for this many ticks (30 s). */
 export const DELETE_COOLDOWN_TICKS = 300;
-/** Two structures in the spacing scope must be at least this many sim cells apart (a Euclidean distance, x wrapping, no latitude weight). */
-export const SPACING_CELLS = 16;
+/** Two structures of a type in the spacing scope must be at least this many sim cells apart (a Euclidean distance, x wrapping, no latitude weight), by type (City, Factory, Port, Silo, SAM, Post). A cell is about 39 km: towns, not countries (Sim-Growth: was 16 for every type). */
+export const SPACING_CELLS_BY_TYPE = [0, 3, 3, 3, 6, 5, 3];
 /** Which structures the spacing applies between: 0 = the same type, any owner; 1 = the same type, same owner; 2 = any type, any owner. M19 may change it. */
 export const SPACING_SCOPE = 0;
 
@@ -283,8 +283,21 @@ export const SPACING_SCOPE = 0;
 // Structure effects (M09 part B). Gold is counted in milli-gold per second here (the economy turns it into milli-gold per tick).
 // Only FINISHED structures count. Provisional numbers (the M09b block of docs/DECISIONS.md); each has a row in docs/BALANCE.md.
 
-/** A City pays this per level (1.5 gold/s). Its troop cap bonus is CAP_CITY_LEVEL_TROOPS per level. */
+/** A level 1 City pays this (1.5 gold/s); each further level adds CITY_GOLD_STEP_MILLI_PER_LEVEL (cityGoldMilli(level) in structureRules.ts). Its troop cap at level 1 is CAP_CITY_LEVEL_TROOPS. */
 export const CITY_GOLD_MILLI_PER_SEC_PER_LEVEL = 1500;
+/** Sim-Growth: the highest City level (the other types stay at STRUCT_MAX_LEVEL). */
+export const CITY_MAX_LEVEL = 10;
+/** Sim-Growth: gold per second every City level above 1 adds (0.5 gold/s: a third of the old step, level 10 pays 6 gold/s, the old level 4). */
+export const CITY_GOLD_STEP_MILLI_PER_LEVEL = 500;
+/** Sim-Growth: troop cap every City level above 1 adds, in troops (level 10: 800 + 9 * 250 = 3050, the old level 4). */
+export const CITY_TROOP_STEP_TROOPS = 250;
+/** Sim-Growth: the City upgrade to level L costs CITY_UPGRADE_BASE_GOLD * (100 + CITY_UPGRADE_PRICE_STEP_PCT * (L - 2)) / 100 (80 gold at level 2, 144 at level 10): each step pays back in 90 s to 6 minutes. */
+export const CITY_UPGRADE_BASE_GOLD = 80;
+export const CITY_UPGRADE_PRICE_STEP_PCT = 10;
+/** Sim-Growth: the City upgrade to level L takes min(MAX, BASE + STEP * (L - 2)) ticks (6 s at level 2, 12 s from level 8). */
+export const CITY_UPGRADE_TICKS_BASE = 60;
+export const CITY_UPGRADE_TICKS_STEP = 10;
+export const CITY_UPGRADE_TICKS_MAX = 120;
 /** A Factory pays this flat, whatever its level (2 gold/s). */
 export const FACTORY_GOLD_MILLI_PER_SEC = 2000;
 /** A level-1 Factory raises the income of the owner's Cities within FACTORY_RADIUS_CELLS by this many percent (once: Factories do not stack). */
@@ -341,6 +354,8 @@ export const AI_BUILD_TRIES = 24;
 export const AI_BUILD_RETRY_TICKS = 50;
 /** The AI upgrades its lowest finished City / Factory / Port (the best gain first) instead of waiting, when its purse is at least this percent of the next wanted structure's price AND pays the upgrade (M09c: gold that would otherwise sit idle). */
 export const AI_BUILD_RICH_PCT = 100;
+/** Sim-Growth: the AI upgrades a City to at most level 1 + (Cities it owns) * this, so cheap City upgrades never starve the building of new Cities (round 1 of the Sim-Growth tuning: without it the AI upgraded every City before it built the next one and fell under the band). */
+export const AI_CITY_UPGRADE_LEVELS_PER_CITY = 5;
 /** One Port per this many Cities (from the second City on); one Post per this many Cities (from the fourth). */
 export const AI_BUILD_CITIES_PER_PORT = 3;
 export const AI_BUILD_CITIES_PER_POST = 4;
@@ -351,19 +366,19 @@ export const AI_BUILD_CITIES_PER_POST = 4;
 // effects are PROVISIONAL (the Districts-1 block of docs/DECISIONS.md); each has a row in docs/BALANCE.md. Only FINISHED districts have effects.
 
 /** The slots of the highest level City: the row length of the district table (a structural limit, not a tunable). */
-export const DISTRICT_MAX_SLOTS = 4;
+export const DISTRICT_MAX_SLOTS = 5;
 /** The highest level of a district. */
 export const DISTRICT_MAX_LEVEL = 3;
-/** Slots of a City by its (finished) level: 2, 3, 4. */
-export const DISTRICT_SLOTS_BY_LEVEL = [0, 2, 3, 4];
+/** Slots of a City by its (finished) level (Sim-Growth): 2 at levels 1 to 2, 3 at 3 to 5, 4 at 6 to 8, 5 at 9 to 10. */
+export const DISTRICT_SLOTS_BY_LEVEL = [0, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5];
 /** Base price in gold per kind (Housing, Market, Barracks, Walls); the n-th district of a kind costs the same escalation as a structure (PRICE_ESCALATION_*), n = districts of that kind the seat owns. An upgrade to level L costs base * L. */
-export const DISTRICT_BASE_GOLD = [0, 150, 60, 250, 300];
+export const DISTRICT_BASE_GOLD = [0, 150, 40, 250, 300];
 /** Build (and upgrade) time in ticks per kind: Housing 8 s, Market 10 s, Barracks 12 s, Walls 12 s. */
 export const DISTRICT_BUILD_TICKS = [0, 80, 100, 120, 120];
 /** Housing: troop cap added per district level (400, 800, 1200 troops). */
 export const HOUSING_TROOPS_PER_LEVEL = 400;
-/** Market: gold per second by level (0.4, 1.3, 1.85). Chosen so that a level 3 City with four level 3 Markets and a level 3 Factory bonus stays under 10 level-1 Cities (15 gold/s) even with +10 percent (tests/sim/districts.test.ts) and so that both upgrades pay back in 90 s to 6 minutes at base 60. */
-export const MARKET_GOLD_MILLI_BY_LEVEL = [0, 400, 1300, 1850];
+/** Market: gold per second by level (0.3, 0.7, 1.1; Sim-Growth: was 0.4, 1.3, 1.85). Chosen so that a level 10 City with five level 3 Markets and a level 3 Factory bonus stays under 10 level-1 Cities (15 gold/s) even with +10 percent (tests/sim/cityLevels.test.ts) and so that both upgrades pay back in 90 s to 6 minutes at base 40. */
+export const MARKET_GOLD_MILLI_BY_LEVEL = [0, 300, 700, 1100];
 /** Barracks: percent added to the owner's troop regeneration by level (5, 10, 15). */
 export const BARRACKS_REGEN_PCT_BY_LEVEL = [0, 5, 10, 15];
 /** The most all Barracks of one owner add together, in percent. */

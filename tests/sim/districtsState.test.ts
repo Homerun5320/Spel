@@ -21,7 +21,7 @@ function base(): GameState {
   const s = createState({ width: W, height: H, seed: 4, seats: 2, terrain: new Uint8Array(W * H).fill(CLASS_PLAINS), elevation: new Uint16Array(W * H) });
   for (let c = 0; c < W * H; c++) setOwner(s, c, 1, 0);
   const city = s.structures.add(STRUCT_CITY, 1, 10, 0);
-  s.structures.level[city] = 3;
+  s.structures.level[city] = 6; // four slots (Sim-Growth: slots 2/3/4/5 by level)
   s.structures.add(STRUCT_FACTORY, 1, 5000, 0);
   const small = s.structures.add(STRUCT_CITY, 1, 7000, 0);
   s.structures.setDistrict(city, 0, DISTRICT_MARKET, 3, 500, 0);
@@ -42,9 +42,9 @@ function refused(tamper: (s: GameState) => void, error = 'structure-range'): voi
 }
 
 describe('versions', () => {
-  it('ENGINE_VERSION is 11 and FORMAT_VERSION is 9 (M18-1: the match block follows the districts)', () => {
-    expect(ENGINE_VERSION).toBe(11);
-    expect(FORMAT_VERSION).toBe(9);
+  it('ENGINE_VERSION is 12 and FORMAT_VERSION is 10 (Sim-Growth: City levels to 10, five district slots)', () => {
+    expect(ENGINE_VERSION).toBe(12);
+    expect(FORMAT_VERSION).toBe(10);
   });
 });
 
@@ -128,14 +128,14 @@ describe('deserialize refuses a forged district block', () => {
       s.structures.districtReadyTick[districtIndex(1, 0)] = 500;
       s.structures.districtCount++; // the derived count follows the arrays, as the sim keeps it
     }));
-  it('D08 a district count beyond 4 per live structure, and a count that does not match the bytes', () => {
+  it('D08 a district count beyond 5 per live structure, and a count that does not match the bytes', () => {
     const st = base();
     const bytes = serialize(st);
     const countAt = bytes.length - 4 - (40 + 24 * (st.header.seats + 1)) - 4 * 24 - 4; // M18-1: the match block sits between the districts and the checksum
     const view = (b: Uint8Array): DataView => new DataView(b.buffer);
     expect(view(bytes).getUint32(countAt, true)).toBe(4);
     const huge = bytes.slice();
-    view(huge).setUint32(countAt, 3 * 4 + 1, true);
+    view(huge).setUint32(countAt, 3 * 5 + 1, true);
     const r = deserialize(huge);
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error).toBe('structure-range');
@@ -175,7 +175,7 @@ describe('deserialize refuses a forged district block', () => {
     for (let c = 0; c < 128 * 64; c++) setOwner(s, c, 1, 0);
     for (let k = 0; k < 400; k++) {
       const id = s.structures.add(STRUCT_CITY, 1, k * 17, 0);
-      s.structures.level[id] = 3;
+      s.structures.level[id] = 6;
       for (let slot = 0; slot < 4; slot++) s.structures.setDistrict(id, slot, 1 + slot, 1 + (slot % 3), 500, 0);
     }
     expect(s.structures.districtCount).toBe(1600);
