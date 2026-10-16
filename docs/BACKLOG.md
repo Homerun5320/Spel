@@ -577,3 +577,11 @@ Not done in the Fix-UI slice (the sim, host and AI findings belong to Fix-Sim):
 - DONE in M13a-2 (from "M13a-1 leftovers" and "M13b leftovers"): the effects (shadow, rotor wash, smoke), the H chase camera, the far icon, interpolation between tables, the SAM variant in an e2e (a leak test too: `e2e/heliFx.serial.test.ts`). Still open from there: the scenario "slice" (dropped by the user), a tilt in the turn, the Factory level at the pad corner.
 
 - H is not listed in the help overlay (the registry entry `chase` is `hidden`: `tests/app/hotkeys.test.ts` and `tests/app/appFaults.test.ts` pin H as hidden); change those two tests and drop `hidden` to list it.
+
+## M18d-3 (from M18d-2)
+
+- The research tree drawn as a graph with lines between the steps (the panel is a 4 x 4 grid).
+- Techs that unlock buildings or missiles (later milestones add their own `TECH_*` rows and a cell each; the panel reads `TECH_COUNT`, but its grid is 4 x 4).
+- Shared research between allies; showing what an AI nation has researched (the result column is the only place now).
+- District upgrade prices have no technology discount in the sim; if one is wanted it needs a rule first, then the panel follows `districtUpgradePriceGold`.
+- A tooltip on a research cell with the full effect sentence (the cell line is short).

@@ -173,6 +173,19 @@ ACCEPTANS
 
 Result (details and numbers in `docs/DECISIONS.md` "M13a-2"): effects, chase camera, far icon and the glide between tables are in; `e2e/heliFx.test.ts` (4 tests: pictures, enemy SAM crash, chase, sim hash with and without the layer) and `e2e/heliFx.serial.test.ts` (leak and allocation) pass; unit tests `tests/render/heliFx.test.ts` and `tests/app/chaseMode.test.ts`. Not done: ETA per list row, the cause colour of a downing, H in the help overlay (BACKLOG "M13a-2"). The full `npm run verify` was NOT run here (the orchestrator runs it after the merge).
 
+### M18d-2: technology, part 2 of 2 (the research panel; app, UI and the price display; one slice in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+
+GÖR och ACCEPTANS:
+
+- [x] Research panel: key T and the top-bar button "Teknik" open an input mode (Esc closes, modal block respected); 4 columns x 4 rows; name, effect line from `TECH_FX`, price through `formatGold`, time, status (Forskad / Pågår with countdown and bar / Tillgänglig / Låst with the prerequisite / Kan inte nu with the `validateResearch` reason); Forska sends Research, Avbryt (two clicks, no refund) sends CancelResearch.
+- [x] The running research in the top bar ("Forskar: Namn 0:42", written only on change); toast `toast.tech.done` for the own finished research (`TechWatcher`).
+- [x] Texts: 16 names, 12 effect channels, branches and statuses in sv and en (own block at the end of both tables).
+- [x] Discounted upgrade price: the selection panel, the city view and the AI (`src/ai/build.ts`) use `upgradePriceNowMilli` (the sim's own `upgradePriceMilliFor` with the seat's researched discount); shown == debited (unit test, e2e). Districts have no tech discount in the sim, so they keep the base price.
+- [x] Result screen: the column "Teknik" (MatchView `techCount`).
+- [x] Tests: `tests/ui/techModel.test.ts`, `tests/ai/upgradeDiscount.test.ts`, `tests/app/techKey.test.ts`, `e2e/research.test.ts`.
+- [x] `npm run verify:fast` green; the affected e2e green (result in `docs/DECISIONS.md` "M18d-2").
+
+
 ## Next
 
 - Next slices: M12b (anti-air against helicopters and raid statistics; must follow "Audit 3 downstream decisions" in `docs/DECISIONS.md`), M13a-2 (effects, the H camera), M20a-2 (nation labels and front arrows), M18b (federations), M18d (technology), M18e (more building types and a city map), M13c (travel over land, sea and air), M14 and onwards.
