@@ -23,7 +23,7 @@ export const OUTBOX_HELI_PRODUCED = 7;
 export const OUTBOX_HELI_SCRAPPED = 8;
 /** (part 2) A helicopter took off: a = helicopter id, b = landing-zone cell. */
 export const OUTBOX_HELI_LAUNCHED = 9;
-/** (part 3) A helicopter set down and unloaded: a = helicopter id, b = landing-zone cell. */
+/** A helicopter reached its landing zone and its hover ended. PART 2 PLACEHOLDER: a = helicopter id, b = the troops it carries (no cell is taken, the load flies home); part 3 replaces it (`landingPlaceholder` in src/sim/heliFlight.ts) and may redefine b. */
 export const OUTBOX_HELI_LANDED = 10;
 /** (part 3) A beachhead was formed: a = beachhead slot, b = seed cell. */
 export const OUTBOX_BEACHHEAD_FORMED = 11;
@@ -31,6 +31,10 @@ export const OUTBOX_BEACHHEAD_FORMED = 11;
 export const OUTBOX_BEACHHEAD_REVERTED = 12;
 /** (part 2) A helicopter went down: a = helicopter id, b = cause (1 = out of fuel; the air-defence causes come with M12b). */
 export const OUTBOX_HELI_DOWNED = 13;
+/** (part 2) A helicopter turned for home: a = helicopter id, b = 1 when recalled, 0 when its mission ended. */
+export const OUTBOX_HELI_RTB = 14;
+/** (part 2) A helicopter set down on a Factory pad again: a = helicopter id, b = Factory structure id. */
+export const OUTBOX_HELI_HOME = 15;
 
 export interface OutboxEvent {
   readonly kind: number;

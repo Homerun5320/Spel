@@ -35,6 +35,10 @@ import {
   REJECT_HELI_FLEET_CAP,
   REJECT_HELI_NO_FACTORY,
   REJECT_HELI_NO_GOLD,
+  REJECT_HELI_BAD_TROOPS,
+  REJECT_HELI_NO_PAD,
+  REJECT_HELI_NO_ROUTE,
+  REJECT_HELI_NOT_FLYING,
   REJECT_HELI_NOT_OWNER,
   REJECT_HELI_QUEUE_BUSY,
 } from '../sim/public';
@@ -132,6 +136,14 @@ export function airRefusalKey(reason: number): TextKey {
       return 'toast.heli.fleetCap';
     case REJECT_HELI_NO_GOLD:
       return 'toast.heli.noGold';
+    case REJECT_HELI_NO_PAD:
+      return 'toast.heli.noPad';
+    case REJECT_HELI_BAD_TROOPS:
+      return 'toast.heli.badTroops';
+    case REJECT_HELI_NO_ROUTE:
+      return 'toast.heli.noRoute';
+    case REJECT_HELI_NOT_FLYING:
+      return 'toast.heli.notFlying';
     case LZ_WATER:
       return 'toast.lz.water';
     case LZ_PEAK:

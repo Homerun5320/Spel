@@ -16,6 +16,7 @@ import { OUTBOX_REJECT } from './outbox';
 import { nextU32 } from './rng';
 import { applySpawn } from './spawn';
 import { applyBuildDistrict, applyRemoveDistrict, applyUpgradeDistrict } from './districts';
+import { applyLaunchHeli, applyRecallHeli } from './heliFlight';
 import { applyProduceHeli, heliPhase } from './heliPhase';
 import { applyBuild, applyDelete, applyUpgrade, structuresPhase } from './structures';
 import { seatToOwner, type GameState } from './state';
@@ -64,6 +65,10 @@ export function applyIntent(state: GameState, intent: Intent): number {
       return applyRemoveDistrict(state, intent.seat, intent.structure, intent.slot);
     case 'ProduceHeli':
       return applyProduceHeli(state, intent.seat, intent.factory);
+    case 'LaunchHeli':
+      return applyLaunchHeli(state, intent.seat, intent.factory, intent.lzCell, intent.troops, intent.altMode);
+    case 'RecallHeli':
+      return applyRecallHeli(state, intent.seat, intent.heli);
     default:
       return REJECT_NONE;
   }

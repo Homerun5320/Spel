@@ -212,3 +212,11 @@ export type { ProduceHeliBody } from './intents';
 export { produceHeliBody } from './intents';
 export { REJECT_HELI_FACTORY_BUILDING, REJECT_HELI_FLEET_CAP, REJECT_HELI_NO_FACTORY, REJECT_HELI_NO_GOLD, REJECT_HELI_NOT_OWNER, REJECT_HELI_QUEUE_BUSY } from './intents';
 export { HELI_BUILD_TICKS, HELI_FLEET_BASE, HELI_FLEET_MAX, HELI_HP_TENTHS, HELI_MAX_TROOPS, HELI_PRICE_GOLD, LZ_REASON_BASE } from './rules';
+
+// M12a-2 (append-only): helicopters, part 2. The LaunchHeli / RecallHeli checks (the very functions the sim runs), their intent bodies, the refusal codes 51 to 54
+// and the flight constants of rules.ts the UI reads (each has a row in docs/BALANCE.md).
+export { validateLaunchHeli, validateRecallHeli } from './heliRules';
+export type { LaunchHeliBody, RecallHeliBody } from './intents';
+export { launchHeliBody, recallHeliBody } from './intents';
+export { REJECT_HELI_BAD_TROOPS, REJECT_HELI_NO_PAD, REJECT_HELI_NO_ROUTE, REJECT_HELI_NOT_FLYING } from './intents';
+export { HELI_CLEARANCE_GAME_M, HELI_DOWNED_TICKS, HELI_HOVER_TICKS, HELI_TAKEOFF_TICKS } from './rules';

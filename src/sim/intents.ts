@@ -4,13 +4,13 @@
 // Every intent has a seat (0-based) and an id (unsigned 32 bit, unique per seat, handed out by an IdAllocator).
 // Inside one turn intents run in the canonical order (seat, id, kind, payload); the id is the tie-break between the
 // intents of one seat, so the result never depends on the order in which they arrived.
-import { DISTRICT_MAX_SLOTS, STRUCT_CAPACITY } from './rules';
+import { DISTRICT_MAX_SLOTS, HELI_CAPACITY, STRUCT_CAPACITY } from './rules';
 import { MAX_SEATS } from './state';
 
-export type IntentKind = 'Noop' | 'DebugPaint' | 'Spawn' | 'Attack' | 'CancelAttack' | 'DebugGive' | 'Build' | 'Upgrade' | 'Delete' | 'BuildDistrict' | 'UpgradeDistrict' | 'RemoveDistrict' | 'ProduceHeli';
+export type IntentKind = 'Noop' | 'DebugPaint' | 'Spawn' | 'Attack' | 'CancelAttack' | 'DebugGive' | 'Build' | 'Upgrade' | 'Delete' | 'BuildDistrict' | 'UpgradeDistrict' | 'RemoveDistrict' | 'ProduceHeli' | 'LaunchHeli' | 'RecallHeli';
 
 /** The intent kinds in wire order (the index is the kind byte of the codec). Append only: a published code never changes meaning. */
-export const INTENT_KINDS: readonly IntentKind[] = ['Noop', 'DebugPaint', 'Spawn', 'Attack', 'CancelAttack', 'DebugGive', 'Build', 'Upgrade', 'Delete', 'BuildDistrict', 'UpgradeDistrict', 'RemoveDistrict', 'ProduceHeli'];
+export const INTENT_KINDS: readonly IntentKind[] = ['Noop', 'DebugPaint', 'Spawn', 'Attack', 'CancelAttack', 'DebugGive', 'Build', 'Upgrade', 'Delete', 'BuildDistrict', 'UpgradeDistrict', 'RemoveDistrict', 'ProduceHeli', 'LaunchHeli', 'RecallHeli'];
 
 /** Does nothing; valid for any seat. Exists to prove the pipeline (and as the heartbeat of a lockstep client). */
 export interface NoopBody {
@@ -133,8 +133,29 @@ export interface ProduceHeliBody {
   readonly factory: number;
 }
 
+/**
+ * A seat sends the parked helicopter of its Factory `factory` (the lowest id in state HELI_PAD) with `troops` (1..HELI_MAX_TROOPS, taken from the seat's
+ * troops at once) to the landing zone `lzCell` in flight mode `altMode` (0 = Low, 1 = High). The refusals are REJECT_PHASE, REJECT_HELI_NO_FACTORY,
+ * REJECT_HELI_NOT_OWNER, REJECT_HELI_NO_PAD, REJECT_HELI_BAD_TROOPS, the landing-zone reason of `scoreLz` (65..72) and REJECT_HELI_NO_ROUTE.
+ */
+export interface LaunchHeliBody {
+  readonly kind: 'LaunchHeli';
+  readonly seat: number;
+  readonly factory: number;
+  readonly lzCell: number;
+  readonly troops: number;
+  readonly altMode: number;
+}
+
+/** A seat sends its airborne helicopter `heli` (a helicopter table id) home to the nearest own Factory; a load it still carries goes back to the seat on arrival. */
+export interface RecallHeliBody {
+  readonly kind: 'RecallHeli';
+  readonly seat: number;
+  readonly heli: number;
+}
+
 /** An intent before it has an id (what the UI submits to a host). */
-export type IntentBody = NoopBody | DebugPaintBody | SpawnBody | AttackBody | CancelAttackBody | DebugGiveBody | BuildBody | UpgradeBody | DeleteBody | BuildDistrictBody | UpgradeDistrictBody | RemoveDistrictBody | ProduceHeliBody;
+export type IntentBody = NoopBody | DebugPaintBody | SpawnBody | AttackBody | CancelAttackBody | DebugGiveBody | BuildBody | UpgradeBody | DeleteBody | BuildDistrictBody | UpgradeDistrictBody | RemoveDistrictBody | ProduceHeliBody | LaunchHeliBody | RecallHeliBody;
 
 export type Intent = IntentBody & { readonly id: number };
 
@@ -169,6 +190,13 @@ export function removeDistrictBody(seat: number, structure: number, slot: number
 
 export function produceHeliBody(seat: number, factory: number): ProduceHeliBody {
   return { kind: 'ProduceHeli', seat, factory };
+}
+
+export function launchHeliBody(seat: number, factory: number, lzCell: number, troops: number, altMode: number): LaunchHeliBody {
+  return { kind: 'LaunchHeli', seat, factory, lzCell, troops, altMode };
+}
+export function recallHeliBody(seat: number, heli: number): RecallHeliBody {
+  return { kind: 'RecallHeli', seat, heli };
 }
 
 /** The intents of one turn: all intents that run in the step that starts at tick `turn`. */
@@ -273,6 +301,14 @@ export const REJECT_HELI_QUEUE_BUSY = 48;
 export const REJECT_HELI_FLEET_CAP = 49;
 /** ProduceHeli the purse cannot pay. */
 export const REJECT_HELI_NO_GOLD = 50;
+/** LaunchHeli from a Factory with no helicopter parked on its pad. */
+export const REJECT_HELI_NO_PAD = 51;
+/** LaunchHeli with 0 troops, more than HELI_MAX_TROOPS, or more than the seat has. */
+export const REJECT_HELI_BAD_TROOPS = 52;
+/** LaunchHeli whose route cannot be planned (or does not fit the route buffer, or the world has no occluder layer). */
+export const REJECT_HELI_NO_ROUTE = 53;
+/** RecallHeli of a helicopter that is not in the air on a mission (no such helicopter, parked, in production, already returning or down). */
+export const REJECT_HELI_NOT_FLYING = 54;
 
 export interface ValidateContext {
   readonly seats: number;
@@ -293,7 +329,7 @@ function isIntegerIn(v: unknown, lo: number, hi: number): boolean {
 /** Why an intent is not valid in this match (REJECT_*), or REJECT_NONE. Total: any value whatsoever may be passed in. */
 export function validateIntent(x: unknown, ctx: ValidateContext): number {
   if (typeof x !== 'object' || x === null) return REJECT_SHAPE;
-  const o = x as { kind?: unknown; seat?: unknown; id?: unknown; cell?: unknown; target?: unknown; pct?: unknown; gold?: unknown; troops?: unknown; type?: unknown; structure?: unknown; slot?: unknown; districtKind?: unknown; factory?: unknown };
+  const o = x as { kind?: unknown; seat?: unknown; id?: unknown; cell?: unknown; target?: unknown; pct?: unknown; gold?: unknown; troops?: unknown; type?: unknown; structure?: unknown; slot?: unknown; districtKind?: unknown; factory?: unknown; lzCell?: unknown; altMode?: unknown; heli?: unknown };
   const code = kindCode(o.kind);
   if (code < 0) return REJECT_KIND;
   if (!isIntegerIn(o.seat, 0, MAX_SEATS - 1) || (o.seat as number) >= ctx.seats) return REJECT_SEAT;
@@ -318,6 +354,13 @@ export function validateIntent(x: unknown, ctx: ValidateContext): number {
     if (!isIntegerIn(o.structure, 0, STRUCT_CAPACITY - 1)) return REJECT_STRUCT_ID;
   } else if (o.kind === 'ProduceHeli') {
     if (!isIntegerIn(o.factory, 0, STRUCT_CAPACITY - 1)) return REJECT_STRUCT_ID;
+  } else if (o.kind === 'LaunchHeli') {
+    if (!isIntegerIn(o.factory, 0, STRUCT_CAPACITY - 1)) return REJECT_STRUCT_ID;
+    if (!isIntegerIn(o.lzCell, 0, ctx.cells - 1)) return REJECT_CELL;
+    if (!isIntegerIn(o.troops, 0, 4294967295)) return REJECT_AMOUNT;
+    if (!isIntegerIn(o.altMode, 0, 1)) return REJECT_SHAPE;
+  } else if (o.kind === 'RecallHeli') {
+    if (!isIntegerIn(o.heli, 0, HELI_CAPACITY - 1)) return REJECT_ID;
   } else if (o.kind === 'BuildDistrict' || o.kind === 'UpgradeDistrict' || o.kind === 'RemoveDistrict') {
     if (!isIntegerIn(o.structure, 0, STRUCT_CAPACITY - 1)) return REJECT_STRUCT_ID;
     if (!isIntegerIn(o.slot, 0, DISTRICT_MAX_SLOTS - 1)) return REJECT_DISTRICT_SLOT;
@@ -340,6 +383,12 @@ function comparePayload(a: Intent, b: Intent): number {
     return a.slot !== b.slot ? a.slot - b.slot : a.districtKind - b.districtKind;
   }
   if (a.kind === 'ProduceHeli' && b.kind === 'ProduceHeli') return a.factory - b.factory;
+  if (a.kind === 'LaunchHeli' && b.kind === 'LaunchHeli') {
+    if (a.factory !== b.factory) return a.factory - b.factory;
+    if (a.lzCell !== b.lzCell) return a.lzCell - b.lzCell;
+    return a.troops !== b.troops ? a.troops - b.troops : a.altMode - b.altMode;
+  }
+  if (a.kind === 'RecallHeli' && b.kind === 'RecallHeli') return a.heli - b.heli;
   if ((a.kind === 'UpgradeDistrict' && b.kind === 'UpgradeDistrict') || (a.kind === 'RemoveDistrict' && b.kind === 'RemoveDistrict')) {
     return a.structure !== b.structure ? a.structure - b.structure : a.slot - b.slot;
   }
@@ -366,7 +415,7 @@ export const INVALID_BODY: IntentBody = Object.freeze({ kind: 'Noop', seat: -1 }
  */
 export function copyBody(x: unknown): IntentBody {
   if (typeof x !== 'object' || x === null) return INVALID_BODY;
-  const o = x as { kind?: unknown; seat?: unknown; cell?: unknown; target?: unknown; pct?: unknown; gold?: unknown; troops?: unknown; type?: unknown; structure?: unknown; slot?: unknown; districtKind?: unknown; factory?: unknown };
+  const o = x as { kind?: unknown; seat?: unknown; cell?: unknown; target?: unknown; pct?: unknown; gold?: unknown; troops?: unknown; type?: unknown; structure?: unknown; slot?: unknown; districtKind?: unknown; factory?: unknown; lzCell?: unknown; altMode?: unknown; heli?: unknown };
   const seat = typeof o.seat === 'number' ? o.seat : -1;
   if (o.kind === 'Noop') return { kind: 'Noop', seat };
   if (o.kind === 'DebugPaint') return { kind: 'DebugPaint', seat, cell: typeof o.cell === 'number' ? o.cell : -1 };
@@ -382,6 +431,8 @@ export function copyBody(x: unknown): IntentBody {
   if (o.kind === 'UpgradeDistrict') return { kind: 'UpgradeDistrict', seat, structure: num(o.structure), slot: num(o.slot) };
   if (o.kind === 'RemoveDistrict') return { kind: 'RemoveDistrict', seat, structure: num(o.structure), slot: num(o.slot) };
   if (o.kind === 'ProduceHeli') return { kind: 'ProduceHeli', seat, factory: num(o.factory) };
+  if (o.kind === 'LaunchHeli') return { kind: 'LaunchHeli', seat, factory: num(o.factory), lzCell: num(o.lzCell), troops: num(o.troops), altMode: num(o.altMode) };
+  if (o.kind === 'RecallHeli') return { kind: 'RecallHeli', seat, heli: num(o.heli) };
   return INVALID_BODY;
 }
 
@@ -412,6 +463,10 @@ export function withId(body: IntentBody, id: number): Intent {
       return { kind: 'RemoveDistrict', seat: body.seat, structure: body.structure, slot: body.slot, id };
     case 'ProduceHeli':
       return { kind: 'ProduceHeli', seat: body.seat, factory: body.factory, id };
+    case 'LaunchHeli':
+      return { kind: 'LaunchHeli', seat: body.seat, factory: body.factory, lzCell: body.lzCell, troops: body.troops, altMode: body.altMode, id };
+    case 'RecallHeli':
+      return { kind: 'RecallHeli', seat: body.seat, heli: body.heli, id };
     default:
       return { kind: 'Noop', seat: body.seat, id };
   }

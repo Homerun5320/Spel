@@ -518,3 +518,22 @@ export const HELI_MAX_TROOPS = 600;
 export const HELI_HP_TENTHS = 1000;
 /** Fuel of a full tank in Q8 sim cells (HELI_FUEL_CELLS * 256): the fuel field of the table counts down from this as the helicopter flies. */
 export const HELI_FUEL_MAX_Q8 = 46080;
+
+// ---------------------------------------------------------------------------------------------------------------
+// M12a-2: the flight (src/sim/heliFlight.ts). Speeds, AGL and fuel are the M11b mode table above; these are the timings and the terrain-following
+// numbers. Every constant has a row in docs/BALANCE.md. Provisional: the M12a-2 block of docs/DECISIONS.md.
+
+/** Ticks a helicopter spends lifting off before it cruises (2 s). */
+export const HELI_TAKEOFF_TICKS = 20;
+/** Ticks it hovers over the landing zone before it unloads (3 s). */
+export const HELI_HOVER_TICKS = 30;
+/** Ticks a downed helicopter stays in the table before it is removed (5 s). */
+export const HELI_DOWNED_TICKS = 50;
+/** Clearance in GAME metres above the occluder height of the cell it flies over: alt = max(EXAG * mean + AGL, occluder + this). Not exaggerated. */
+export const HELI_CLEARANCE_GAME_M = 100;
+/** The most the altitude may change per sim cell flown, in game metres (rises are planned over HELI_LOOKAHEAD_CELLS cells; the floor above wins when the ground is steeper). */
+export const HELI_VERT_GM_PER_CELL = 4000;
+/** A helicopter on the last leg is APPROACHING (a state of its own) when it is this many cells or fewer from the landing zone. */
+export const HELI_APPROACH_CELLS = 5;
+/** Terrain-following look-ahead in cells along the heading (samples at 1..this). */
+export const HELI_LOOKAHEAD_CELLS = 4;

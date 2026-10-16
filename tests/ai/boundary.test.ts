@@ -213,6 +213,8 @@ describe('types: what src/sim/public.ts lets the AI reach', () => {
         'AI_CITY_LEVEL_CAP', 'AI_DISTRICT_LEVEL_CAP', 'AI_STRUCT_LEVEL_CAP', 'STRUCT_LEVEL_HARD_CAP', 'LEVEL_CONQUEST_KEEP_PCT', 'districtMaxLevel', 'levelAfterConquest', 'satPermille', // Sim-Levels2
         // M12a-1
         'HeliView', 'HELI_APPROACH', 'HELI_BUILDING', 'HELI_CRUISE', 'HELI_DOWNED', 'HELI_HOVER', 'HELI_LIFT', 'HELI_PAD', 'HELI_POS_ONE', 'HELI_RETURN', 'HELI_UNLOAD', 'HELI_PRICE_MILLI', 'fleetCapOf', 'fleetCountOf', 'validateProduceHeli', 'ProduceHeliBody', 'produceHeliBody', 'REJECT_HELI_FACTORY_BUILDING', 'REJECT_HELI_FLEET_CAP', 'REJECT_HELI_NO_FACTORY', 'REJECT_HELI_NO_GOLD', 'REJECT_HELI_NOT_OWNER', 'REJECT_HELI_QUEUE_BUSY', 'HELI_BUILD_TICKS', 'HELI_FLEET_BASE', 'HELI_FLEET_MAX', 'HELI_HP_TENTHS', 'HELI_MAX_TROOPS', 'HELI_PRICE_GOLD', 'LZ_REASON_BASE',
+        // M12a-2
+        'validateLaunchHeli', 'validateRecallHeli', 'LaunchHeliBody', 'RecallHeliBody', 'launchHeliBody', 'recallHeliBody', 'REJECT_HELI_BAD_TROOPS', 'REJECT_HELI_NO_PAD', 'REJECT_HELI_NO_ROUTE', 'REJECT_HELI_NOT_FLYING', 'HELI_CLEARANCE_GAME_M', 'HELI_DOWNED_TICKS', 'HELI_HOVER_TICKS', 'HELI_TAKEOFF_TICKS',
       ].sort(),
     );
   });
