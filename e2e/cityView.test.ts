@@ -14,7 +14,7 @@ import { REJECT_BUILD_GOLD } from '../src/sim/intents';
 import { BARRACKS_REGEN_PCT_BY_LEVEL, CITY_GOLD_MILLI_PER_SEC_PER_LEVEL, DISTRICT_BUILD_TICKS, MARKET_GOLD_MILLI_BY_LEVEL } from '../src/sim/rules';
 import { STRUCT_CITY, maxLevelOf, upgradeTicksOf } from '../src/sim/structureRules';
 import { districtSlotsOf } from '../src/sim/districtRules';
-import { formatFixed } from '../src/ui/i18n';
+import { formatGoldRate } from '../src/ui/i18n';
 
 let browser: Browser;
 const baseUrl = inject('baseUrl');
@@ -202,7 +202,7 @@ describe('the city view', () => {
       await t.advance(0.1, total + 6);
       await t.settle();
       expect([await tile0.getAttribute('data-state'), await tile0.getAttribute('data-level')]).toEqual(['ready', '2']);
-      const fx = await t.text('sel.district.fxMarket', { gold: formatFixed((MARKET_GOLD_MILLI_BY_LEVEL[2] as number) / 1000, 1) }); // Sim-Growth: the lowered Market table, level 2 = 0,7
+      const fx = await t.text('sel.district.fxMarket', { gold: formatGoldRate(MARKET_GOLD_MILLI_BY_LEVEL[2] as number) }); // Sim-Growth: the lowered Market table, level 2 = 0,7 x 10 shown as 7
       expect(await tid(page, 'city-fx-0').textContent()).toBe(await t.text('sel.district.now', { fx }));
 
       // the second tile: a Barracks

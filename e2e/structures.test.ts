@@ -14,6 +14,7 @@ import { STRUCT_CITY } from '../src/sim/structureRules';
 import { CLASS_PEAK } from '../src/sim/terrain';
 import { worldLoader } from '../tests/helpers/dataFiles';
 import { cellToLatLon } from '../src/render/transforms';
+import { formatGold } from '../src/ui/i18n';
 
 let browser: Browser;
 const baseUrl = inject('baseUrl');
@@ -221,7 +222,7 @@ describe('the City on the terrain', () => {
       expect(await btn.getAttribute('data-price')).toBe('600');
       expect(await btn.getAttribute('data-state')).toBe('poor');
       const tip = await btn.getAttribute('title');
-      expect(tip).toBe(await page.evaluate(() => (window as any).__test.text('hud.build.tooPoor', { price: 600 })));
+      expect(tip).toBe(await page.evaluate((p) => (window as any).__test.text('hud.build.tooPoor', { price: p }), formatGold(600)));
       expect(messages).toEqual([]);
     } finally {
       await page.close();
