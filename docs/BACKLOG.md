@@ -280,7 +280,7 @@ Everything here would shorten `verify` further; each needs a per-test reset cont
 ## Audit 1 leftovers (Fix-Sim)
 
 - AI price check at emission versus execution 2 ticks later: REJECT_BUILD_GOLD about twice in 10 000 intents. A one-structure margin in `buildMove` pushed the AI below the economy band (`tests/sim/economyScript.test.ts`, `tests/ai/driver.test.ts`); to do it, re-tune `AI_BUILD_RICH_PCT` / the band together and apply AI intents at T+2 in `tools/sim/scenario.ts`.
-- The placement ghost (`validateBuild` / `checkBuild`) knows no match phase: it can be green in the spawn phase where the sim now answers REJECT_PHASE. Give `BuildSource` a phase or let Fix-UI grey the build bar in the spawn phase.
+- The placement ghost (`validateBuild` / `checkBuild`) knows no match phase: it can be green in the spawn phase where the sim now answers REJECT_PHASE. Give `BuildSource` a phase or let Fix-UI grey the build bar in the spawn phase. (DONE in Polish-1: red ghost with the phase reason, dimmed buttons. Annotated by Fix-3C.)
 - `deserialize`: check that a structure's owner equals `owner[cell]` and that the embargo matrix is symmetric (Z05 / Z07 of the audit were dead code or unforgeable through `serialize`).
 - AI mutants left (all documented minor or equivalent): A11 (tie between a City upgrade and the next City: the rich path upgrades anyway), A12 (cheaperUpgrade border test), A18 / A19 (gold exactly equal to the price), A33 (the `build:false` option of `AiDriver`), A34 (an AI blob with trailing words is accepted), R04 / R05 (perf report fallbacks 'unknown').
 - A landlocked nation wants a Port for ever, so it never builds a Defense Post (sequence City, City, Factory, City, City, Factory, ...). Decide whether a Post may pre-empt a Port that has no place.
@@ -293,9 +293,9 @@ Not done in the Fix-UI slice (the sim, host and AI findings belong to Fix-Sim):
 - The structure layer's drop policy prefers nobody: past the triangle budget the highest ids vanish, also the player's own. Prefer the local owner and structures near the camera; a one-time warning when `dropped > 0`.
 - Structure layer cost scales with the whole table (`rebuild` places every structure on each table change, `seawardYaw` samples 24 points per Port): cache `place` / `seawardYaw` per (id, cell, type); skip the placement re-pick when pointer and camera are still.
 - Icon size and the model / icon cross-fade are in drawing-buffer pixels, not CSS pixels (the adaptive scale changes them).
-- Night side readability of structures (owner glow 0.05 only); the selection ring cut by steep slopes (draw it without depth test or lift it by the slope).
+- (DONE in Polish-1: night floor and owner rim, ring lifts. Annotated by Fix-3C.) Night side readability of structures (owner glow 0.05 only); the selection ring cut by steep slopes (draw it without depth test or lift it by the slope).
 - The adaptive step before the draw has no automated test (the loop does not run in test mode); the interval fallback on a 30 Hz display settles at scale 0.5; `AdaptiveConfig.statistic` and `densityStep` are mutant switches in production code.
-- GPU tip below the fold at 1366x640, hardware-acceleration advice for the software class, a help line for building on the start card, the F3 overlay width.
+- (GPU tip below the fold and the resize crop below: DONE in Polish-1, annotated by Fix-3C.) GPU tip below the fold at 1366x640, hardware-acceleration advice for the software class, a help line for building on the start card, the F3 overlay width.
 - The window resize from landscape to portrait while zoomed out leaves the globe cropped (camera `setViewport`); a long press in the placement mode does nothing (`longPress` returns false, the comment says it leaves the mode).
 - `buildBar` / `selectionPanel` DOM states have no unit tests (no DOM setup in the unit project); the pure functions behind them are tested. `hudLogic` / `structureInfo` mutants of boundary kind (exact equality) are left. Mutants U07-style of the host mirror and `cloneStructures` aliasing (V10, V11), L01 / L04 / L05 / L11 / L12 of the placement mode, `tiltCapAt` smoothstep flatness (F10), GPU class rows WARP / lavapipe / Mesa offscreen are left.
 - The docs lag of PROGRESS Done rows and stale BACKLOG lines (the audit's docs finding) is left to the orchestrator.
@@ -346,7 +346,7 @@ Not done in the Fix-UI slice (the sim, host and AI findings belong to Fix-Sim):
 
 
 ## M11a leftovers
-- The owner's decision on the stop rule (A, B or C, see Known issues in `docs/PROGRESS.md`), then re-pin `tests/sim/losReal.test.ts` and turn the two `it.fails` into plain tests.
+- (DECIDED: the owner accepted the measured numbers, DECISIONS M11b point 10; the two `it.fails` stay. Annotated by Fix-3C.) Old text: the owner's decision on the stop rule (A, B or C), then re-pin `tests/sim/losReal.test.ts` and turn the two `it.fails` into plain tests.
 - The Node-versus-Chromium equality of the result hashes (an e2e that builds the masks of the three fixtures in the page and compares the three hashes with the pinned ones). The page needs the SIM pack's mean and max layers; `tools/sim/losWorld.ts` is the Node loader, the browser loader belongs to M11b.
 - M11b: the nav grid, the flight-mode table, the debug page, the service ceiling that reads `ALT_HIGH_AGL_M`, and a `Los` built by the host (worker or page) from `simGridView(...)` with `createLosTerrain`.
 - Fire control of a Silo or of a radar structure type: `Los.sync` knows only SAM sites (type 5) and Posts; a radar type needs one line in `sync`.
@@ -354,7 +354,7 @@ Not done in the Fix-UI slice (the sim, host and AI findings belong to Fix-Sim):
 - A mask per OWNER-wide union exists (composite); a "who sees this cell" listing for several enemy seats is a loop over seats, not a structure.
 
 ## M18-2 leftovers
-- The standard "Play" match (`MatchSession.create`) has no win block, so it never ends; give it `defaultWinConfig('world')` when the golden hashes of the e2e tests that use it may move (D M18-2 point 7).
+- (DONE in 2dd505a: the plain Play match gets `defaultWinConfig('world')` outside test mode; Fix-3C moved the choice to `winForPlay` in `src/app/match.ts` and tested it. Annotated by Fix-3C.) Old text: the standard "Play" match had no win block, so it never ended.
 - In-place restart and "to menu" without a page reload (needs a teardown of the structure layers, input modes and panels of a session).
 - The in-game win-progress bar (leader, share, hold seconds) from `MatchView.leaderSeat / holdSeat / holdTicksLeft / requiredPct` belongs to M20a; the panels here do not show it.
 - The result table has no flags (the HUD has); sorting by a column; a "copy result" button.
@@ -398,3 +398,11 @@ Not done in the Fix-UI slice (the sim, host and AI findings belong to Fix-Sim):
 - (Done in the integration) The effect lines of Factory and Port read the generated tables of `src/sim/levelCurves.ts` (the same functions, levels 1 to 999); `tests/ui/structureInfo.test.ts` pins them against the curve functions.
 - District upgrade time is not shown (the district upgrade has no separate time in the tile model).
 - A latency check of `sel.fxNext` text length on a phone-width panel.
+
+## Fix-3C
+- Districts drop policy (Districts-2b): when the district layer is over its instance budget the highest structure ids drop first, also the player's own. Prefer the local owner and districts near the camera, and warn once when `dropped > 0` (same idea as the structure layer's drop policy under "Audit 1 leftovers (Fix-UI)").
+- Bundle size: lazy-load the city view panel (`src/ui/cityViewPanel.ts`, `cityViewModel.ts`) and the match panels (`src/ui/matchPanels.ts`, `matchFlow.ts`) with dynamic `import()` so the main chunk shrinks (it was 265.6 kB gz at audit 2); test hooks such as `forceEliminated` could move to a test-only chunk. The size guard in `tests/portable.test.ts` then gets a lower cap.
+- `cityTotals` sums the Barracks percent per City; the sim caps the owner-wide sum at `BARRACKS_REGEN_PCT_MAX` (see DECISIONS Fix-3C for what the panel does now).
+- `STRUCT_LEVEL_SCALE` in `src/render/config.ts` is unused; remove it together with its pin in `tests/render/structureModels.test.ts` (a test edit, left for a pass that may touch tests).
+- `docs/PREVIEW.md` has no text for the match flow (Vinstvillkor, pause menu, result screen, elimination) and says "2, 3 eller 4" district slots (now 2 to 5 over ten levels); Swedish file, not done in Fix-3C.
+

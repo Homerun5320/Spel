@@ -27,8 +27,280 @@ Resume: Läs CLAUDE.md och docs/PROGRESS.md, kör git log -10 och npm run verify
 | M09b | (set after the squash merge) | Buildings in the sim, part b: effects of City / Factory / Port / Defense Post, trade income, conquest transfers or destroys structures, embargo flag (FORMAT_VERSION 7), AI build move, scenario economy report. Version 13. |
 | M09c | (set after the squash merge) | Level effects for Factory and Port (10x income cap kept), AI economy lever (solo band factor 1.02), AI upgrades. Version 16. NOTE: ENGINE_VERSION was not bumped (audit finding, fixed in the audit-fix slice). |
 | M10-1 to M10-4 | (set after the squash merge) | Buildings on the globe: snapshot structure table, one instanced layer with six procedural models (City, Factory, Port, Silo, SAM site with a turning dish, Defense Post), placement mode with ghost (keys 1 to 6), build bar, toasts, selection panel with Upgrade / Delete, range rings, night lights, far icons. Versions 14 to 16. |
+| Fix-Sim | (set after the squash merge) | Audit-1 fixes in the sim, host and AI (Build refused in the spawn phase; leftovers in `docs/BACKLOG.md`). Previous merge SHA (origin/main at start): f29121a8d1607ca169e6675b5f22a52d76c42ef7 (nothing is merged; pull request #1 is a draft) |
+| Fix-UI | (set after the squash merge) | Audit-1 fixes the player sees: build UI reasons, ghost, panels, toasts. Previous merge SHA: f29121a8d1607ca169e6675b5f22a52d76c42ef7 |
+| Polish-1 | (set after the squash merge) | Spawn phase in the build UI, night readability, selection ring on slopes, compact GPU tip, resize while zoomed out. Previous merge SHA: f29121a8d1607ca169e6675b5f22a52d76c42ef7 |
+| Districts-1 / 2a / 2b | (set after the squash merge) | City districts (Housing, Market, Barracks, Walls) in the sim, the city view (DOM) and the districts drawn on the city. Branch merge commits bf8fb13 and 3b912a3. Previous merge SHA: f29121a8d1607ca169e6675b5f22a52d76c42ef7 |
+| M18-1 | (set after the squash merge) | Match end in the sim: win rules, anti-snowball discount, elimination, statistics (ENGINE_VERSION 11, FORMAT_VERSION 9). Branch merge commit e4671cf |
+| M11a | (set after the squash merge) | Mountain-aware radar LOS masks, composite coverage, exposure queries. Stop rule fired and was ACCEPTED by the owner (DECISIONS M11b point 10). Branch merge commit 73fbeee |
+| M18-2 | (set after the squash merge) | Match flow UI: win conditions in the setup, pause menu on Escape, result screen, elimination and spectating. Branch merge commit aaf0b17 |
+| M11b | (set after the squash merge) | Air navigation grid, `planRoute`, `scoreLz`, `debug/viewshed.html`. Branch merge commit 453905d |
+| Sim-Growth | (set after the squash merge) | Denser placement per type, City levels 1 to 10, five district slots (ENGINE_VERSION 12, FORMAT_VERSION 10). Branch merge commit 916c2fb |
+| Look-1 | (set after the squash merge) | Fast city view, City size close up, style Gammal / Modern, level display. Branch merge commit 7cfad4b |
+| Sim-Levels2 | (set after the squash merge) | Unlimited levels (hard cap 999), one price rule (base x level), gentle level curves (`src/sim/levelCurves.ts`), ENGINE_VERSION 13, FORMAT_VERSION 11. Branch merge commit 5f49f67 |
+| Look-2 | (set after the squash merge) | Saturating level bands, capped footprint, unlimited level display, visual gold inflation (`GOLD_DISPLAY_FACTOR`). Branch merge commit e544a40 |
+| Integrations | (set after the squash merge) | Integration Sim-Growth + Look-1 and Integration Sim-Levels2 + Look-2: the UI and render follow the sim numbers, goldens re-pinned once after looking. HEAD 04eaba8 |
 
 ## Now
+
+### Fix-3C: docs that lied, test holes in app and UI, hygiene (audit 2, lens fit and mutation; headless, no Chromium; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+- [ ] 1. PROGRESS.md: Done rows, finished slices moved to the Archive section, Known issues M11a, Next
+- [ ] 2. ARCHITECTURE.md: stale rows corrected, "Aktuella versioner" line
+- [ ] 3. BACKLOG.md and DECISIONS.md stale lines annotated, districts drop policy logged
+- [ ] 4. Win path: `winForPlay` helper in `src/app/match.ts` (one-line change in `globeApp.ts`), tests for MatchSession, checkDraft, storedOf / draftFromStored
+- [ ] 5. winSetup: asymmetric win flags through `winInfoOfView`
+- [ ] 6. citySignature fields, resultRows, MatchWatcher, winDraftOf, presetOf, spawnPhaseBlocks, cityTotals Barracks cap (mutants in DECISIONS Fix-3C)
+- [ ] 7. Hygiene: `UI_COLORS.field` in the district icons, `PLAYER_FACING` extended
+- [ ] 8. Bundle size guard in `tests/portable.test.ts`
+- [ ] 9. `npm run verify:fast` green
+- Not run here: the full `npm run verify`, Chromium, the pack (the orchestrator).
+
+## Next
+
+- Next slices: M12a (helicopters in the sim, headless) and M20a-lite (the HUD; the keydown rule of the M20a note in `docs/ARCHITECTURE.md` counts `src/ui/matchPanels.ts` and `src/app/debugViewshed.ts` too).
+- Audit 3 runs after five more pushes (audit 2 covered the pushes v17 to v21; its findings are worked through by Fix-3A to Fix-3C, leftovers in `docs/BACKLOG.md`).
+- Before the first CI run that matters: wire the three verify shards into `.github/workflows/ci.yml` (D156 (8)): a GitHub runner has 2 cores and `npm run verify` takes 12 minutes on 4.
+- The USER GATEs of the camera (M08, CamFix) and the real-GPU tuning are the user's, see Known issues and `docs/PREVIEW.md`.
+
+## Known issues
+
+- M01: the Joerd/Mapzen attribution page (the exact list of elevation sources behind Terrarium) could not be reached; `CREDITS.md` and `docs/ASSETS.md` carry a general line (Mapzen terrain tiles, USGS SRTM, NOAA ETOPO1 and others). Replace it when the page is reachable.
+- M01: the polar caps beyond 85.05 degrees are synthetic (smoothed copy of the nearest real row); streaks are visible in the height map. Antarctica is Ice anyway.
+- M01: 15 countries use a "most central cell" as capital because Natural Earth has no `Admin-0 capital` place in their polygon (Greenland, Israel, Western Sahara and small islands); 58 countries have no land cell at all (see `public/data/overrides.json`).
+- M01: the Forest/Plains rule is by latitude and a hash only, so the Sahara shows a few forest cells; cosmetic (backlog).
+- `docs/CHARTER.md` is verbatim from the prompt; in section 7 the "User lines" and "User's own files" bullets sit on one line (a newline is missing in the source text). Not changed because the charter must stay word for word.
+- No real-GPU measurement exists; everything is SwiftShader.
+- M02 A: the whole-Earth view shows dark green Forest patches in the Sahara and Arabia (baked biome rule, see `docs/BACKLOG.md`); the north pole shows the synthetic polar streaks.
+- M02 B: everything was judged in SwiftShader screenshots only (no GPU): the colours of the atmosphere (`ATMOSPHERE_*`), the glint strength (`OCEAN_SPEC_*`), the night light gain (`LIGHTS_GAIN`) and the wave size are the first things to tune on a real GPU (all in `src/render/config.ts`). The border line is stair-stepped at 10 km when zoomed to the limit (backlog).
+- M02 (fixed in the fix pass): the south pole tore into several radii (dark streak along the 180 degree meridian at lat -90, distKm 2500) and the north pole showed radial spokes; see D48. What remains: the cap geometry beyond 85.05 degrees still has the radial ridges of the synthetic polar rows (backlog).
+- M02: the night lights read as large saturated blobs and their brightness varies with the zoom (`LIGHTS_GAIN` in `src/render/config.ts`, footprint in `src/render/nightLights.ts`); tune on a real GPU (backlog).
+- M02: dark axis-aligned Forest squares in the Sahara and Arabia and a straight Sahel latitude edge come from the M01 latitude-and-hash biome rule in `tools/bake/classify.ts` (backlog: aridity mask or sub-cell noise in the bake, or a low-frequency detail mask in the biome shader).
+- M02: at `DIST_MIN_KM` 220 with `TILT_MAX_DEG` 72 the camera is below the exaggerated peaks over Everest and the picture is featureless (backlog; M08 replaces the camera).
+- M02: the test-tier mesh shows a coarse diagonal facet at 500 km zoom (M07 LOD replaces it).
+- M02: the coast band of one render pixel (10 km) has a surface height above 0 but is drawn partly as sea; the tooltip calls it land there (consistent with the height, D49), so the elevation printed at such a point is the mean of the land pixels around it and can be higher than the surface under the cursor (Rio: 166 m against 18 m).
+- M02 B: the Dev button is hidden in `?test=1` (so goldens stay clean); `#devbtn` shows it there.
+- M03: the Float64 canary is equal in Node and Chromium, but both are V8; Firefox / Safari were not available (BACKLOG).
+- M03: the state hash is 32 bits (BACKLOG: second lane for lockstep desync checks in M26).
+- M03: `step()` draws once from the generator every tick although M03 has no rule that needs it (it keeps the stream position in the hash from tick 1); M04 keeps the call.
+- M03: the first two turns of every match are empty by construction (T + 2 input delay).
+- M00b: the data manifest format of M01 is assumed (name to file relative to the data folder, enc defaults to raw), see D17 in `docs/DECISIONS.md`. M01 must keep it or change the pack script.
+- M00b: confirmed in practice: the user opened the Artifact (M02, version 3) and saw the globe at 30-50 fps.
+
+- M05 A: the territory look (`OWNER_*` in `src/render/config.ts`) was judged in SwiftShader screenshots at the test tier only; tint, inner glow, line width and warp are the first things to tune on a real GPU. The weak M02 country border lines still run through the middle of a territory.
+- M05 A: only seat 0 acts until part C: the five AI nations and the 20 tribes do not spawn yet, so the match is empty apart from you (the leaderboard shows only you until then; a test paints the other seats to prove the ranking).
+- M05 A: in the live page under software GL the frame rate is about 5 fps (the loop is unchanged); the sim cost per frame is small (see Result of Part A), the real-GPU frame rate is the user's gate.
+
+- M05 B: judged in SwiftShader screenshots only: the HUD font and panel sizes, the colours, the start screen. The perf overlay (top left) can cover the banner during the first seconds when `#perf` is on from the start (BACKLOG). The Dev panel opens at the right and covers the leaderboard while it is open.
+- M05 B: the F3 text overlay is now hidden until F3 is pressed (it used to show in the live page).
+- M06 B: the leaderboard ranks by the cos-weighted land share, so a nation far from the equator starts below the others although every seat holds the same 197 cells (D124, backlog).
+- M06 B: everything of the menu was judged in SwiftShader screenshots (960x540, 1920x1080, 390x844) and with a simulated phone viewport only; the feel of the flight, the font sizes of the panel and the touch behaviour need a real screen (the gate is the user's play session).
+- M06 B: `npm run verify` takes about 8.5 minutes in this sandbox (unit 45 s, perf 5 s, e2e 448 s, 123 s of it `e2e/setup.test.ts`; total 8 min 33 s measured); the budget in CLAUDE.md is 8 minutes. It is at the edge, not sharded; if the e2e project grows further it must be sharded (note in D126).
+
+- M07a part A: the golden test of `e2e/looks.test.ts` (six globe views) fails against the committed PNGs (0.4 % of the pixels on europe50, limit 0.2 %) because the default terrain is the chunk quadtree now; Part C regenerates the goldens ONCE with `UPDATE_GOLDENS=1` (D134). Everything else of `npm run verify` is green.
+- M07a part A: the whole e2e project takes about 716 s in this sandbox (480 s before); the plan to shard it over CI jobs is in `docs/BACKLOG.md`.
+- M07a part A: from 300 m above a coast the surface under the sea pixels next to the land is raised (a wedge of water), D133 (7) and `docs/BACKLOG.md`.
+- TestSpeed (D144): `LOCAL_GPU=1` and `docs/LOCAL.md` are untested on a real GPU and on Windows (the plumbing is unit-tested). The 8-minute budget of `verify` is met with a margin of about 10 s on the 4-core sandbox at 100 % CPU; the next milestone that adds browser frames can push it over (D144 (8), BACKLOG "TestSpeed ideas not built"). One sleep stays on purpose (`e2e/globe.test.ts`: nothing renders by itself during 400 ms of wall clock).
+
+- M11a stop rule (ACCEPTED by the owner, `docs/DECISIONS.md` M11b point 10): the measured shares stay (Himalaya 25.2 % against the 20 % cap, Plains median 21.8 % against 28.4 %); the two `it.fails` tests in `tests/sim/losReal.test.ts` stay as documentation; the finer 2048x1024 LOS grid (option C) is a BACKLOG idea. Nothing to decide.
+
+## Skipped
+
+(none)
+
+## Environment
+
+Preflight in the cloud sandbox:
+
+| item | value |
+|------|-------|
+| Node | v22.22.0 (needs >= 22.13) |
+| npm | 10.9.4 |
+| Chromium | 141.0.7390.37 at /opt/pw-browsers/chromium-1194/chrome-linux/chrome (`/opt/pw-browsers/chromium` symlink; also chromium_headless_shell-1194, ffmpeg-1011) |
+| PLAYWRIGHT_BROWSERS_PATH | /opt/pw-browsers |
+| GL renderer (headless) | ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver), WebGL 2.0 (OpenGL ES 3.0 Chromium) |
+| elevation-tiles-prod.s3.amazonaws.com (terrarium/4/8/5.png) | reachable (200) |
+| raw.githubusercontent.com (natural-earth-vector pinned SHA, ne_50m_admin_0_countries.geojson) | reachable (200) |
+| registry.npmjs.org/three | reachable (200) |
+| `git ls-remote https://github.com/nvkelso/natural-earth-vector.git HEAD` | reachable (ca96624a56bd078437bca8184e78163e5039ad19) |
+| github.com / api.github.com over plain HTTP | 301 through the proxy (info only, not needed) |
+| GitHub tooling | `gh` installed but GH_TOKEN reported invalid; GitHub MCP tools work (`get_me` returned the repo owner) |
+| Blocked mandatory hosts | none |
+
+## Measurements (logged, not asserted)
+
+Cloud sandbox, SwiftShader, 960x540, DPR 1:
+
+| measure | value |
+|---------|-------|
+| first frame (page start to end of first render) | about 270-330 ms warm (768 ms on the very first cold Vite start) |
+| page load | about 250-310 ms |
+| render call | about 24 ms |
+| page screenshot | about 120-180 ms |
+| draw calls / triangles / textures | 1 / 9024 / 1 |
+| silhouette coverage, luma std, left/right ratio | 44.1 %, 57.6, 1.52 |
+| leak-test (60 renders at 320x180) heap delta | 0.015 MB |
+| `npm run verify:fast` | about 6 s |
+| `npm run verify` | about 15 s |
+| perfguard factor | about 0.9 (reference 5.5 ms for 5 M imul writes) |
+
+M02 Checkpoint A (same sandbox, test tier 256x128 mesh, 960x540, SwiftShader):
+
+| measure | value |
+|---------|-------|
+| first frame (page start to end of first render, incl. loading and inflating the packs) | about 510 ms warm (1.1 s on a cold Vite start) |
+| render call / page screenshot | about 40-65 ms / 120-250 ms |
+| draw calls / triangles / textures / texture memory | 1 / 65 536 / 3 (4 once the country texture is read back) / 18.5 MB |
+| medium tier (512x256) / high tier (1024x512) at 960x540 in the live loop | 262 144 / 1 048 576 triangles, about 9 fps / 0.5 fps in software (not asserted) |
+| JS bundle main chunk | 556 kB raw, about 140 kB gzip (limit 300 kB) |
+| leak test (60 renders at 320x180) | 0.03 MB |
+| `npm run verify:fast` / full e2e project | about 15 s / about 60 s |
+
+M02 Checkpoint B and last step (same sandbox, test tier 256x128 mesh, 960x540, SwiftShader):
+
+| measure | value |
+|---------|-------|
+| first frame (page start to end of first render, incl. packs) | 611-644 ms (logged by smoke and globe e2e, not asserted) |
+| render call / page screenshot | about 91 ms / 420 ms for the first frame in a fresh page (smoke); later renders 3-100 ms |
+| draw calls / triangles / textures / texture memory | 3 (stars, globe, atmosphere shell) / 74 560 (65 536 + 9 024) / 6 / 20.5 MB |
+| live loop at 960x540, tier low | about 6 fps in software (the perf report of the e2e run: mean 5.9, p95 3.0), not asserted |
+| JS bundle | main chunk 582.6 kB raw, 151.4 kB gzip (limit 300 kB); all JS about 159 kB gzip |
+| goldens | six `e2e/goldens/globe-*.png`, 264-422 kB each, 0 px differ on re-run |
+| night lights (Tokyo / New York / Stockholm) city pixel against sea neighbour | 214 / 234 / 152 against 24 / 24 / 25 |
+| night view mean luma against the same view in daylight | 26.3 against 105.5 (ratio 4.0), 8068 pixels above luma 150 |
+| limb pixel against space / glitter pixel against the sea mean | 124 against 0 / 254.8 against 55.9 |
+| borders | 1.09 % of the pixels change with the border switch on, all at land-land borders |
+| `npm run verify` | about 2.7 min (unit 10 s, perf 2 s, e2e 137 s) |
+| final scene (smoke e2e, fix pass verify) | first frame 594 ms, load 498 ms, render 100 ms, screenshot 376 ms (logged, not asserted); the globe e2e logs first frame 797 ms |
+| `npm run verify` after the fix pass | 155 s (unit 11.8 s with 376 tests, perf 1.9 s with 9, e2e 132 s with 52) |
+
+M03 (same sandbox, Node 22.22):
+
+| measure | value |
+|---------|-------|
+| empty-world step at 1024x512 (median of 101) | 0.6-0.8 microseconds (budget `budgetMs(1)` about 1.0-1.1 ms) |
+| step with 64 DebugPaints at 1024x512 | 49-59 microseconds |
+| `hashState` / `serialize` at 1024x512 | 1.9-2.3 ms / 5.7-6.2 ms |
+| golden run, 6000 ticks of 128x64 | about 7 ms |
+| `npm run verify` | unit 16 s (589 tests), perf 2 s (12), e2e 140 s (58) |
+| `debug/sim.html` chunk | 12.5 kB raw, 5.1 kB gzip (main chunk 584 kB raw, 152 kB gzip, +1.6 kB for the Dev panel entry) |
+
+M04 part A (same sandbox, Node 22.22, real world, 32 seats):
+
+| measure | value |
+|---------|-------|
+| load pack + `createSimWorld` / `createWorldState` | 120-130 ms / 17-31 ms |
+| Spawn (197 cells) | 0.3-0.5 ms |
+| `economyTick` with 32 owners / empty step with 32 owners | 8-16 us / about 8 us |
+| `serialize` / `deserialize` / `hashState` | 15 ms (4.72 MB) / 23 ms / 5 ms |
+| `npm run verify:fast` | about 24 s (751 unit tests) |
+
+M01 (same sandbox):
+
+| measure | value |
+|---------|-------|
+| `npm run bake` (warm cache) | about 5 s; cold cache adds about 3 s for the 256 tiles (18.3 MB) and the three Natural Earth files |
+| pack sizes | `render.bin.gz` 2 604 661 B (18 874 368 B raw), `sim.bin.gz` 1 924 350 B (4 816 896 B raw), all of `public/data` 4 776 492 B |
+| Node load + parse (all packs + JSON, fnv1a checked) | median 216 ms (perf project), 192-261 ms (unit logs) |
+| Chromium load + parse | first load about 170-190 ms, median of 5 more 303-340 ms |
+| `npm run verify` | about 45 s |
+
+PerfGate (same sandbox, node, 1024x512, 100 000 cells in one tick; D132):
+
+| measure | before (HEAD 55960a3) | after |
+|---------|-----------------------|-------|
+| burst kernel, median of the per-process medians | 43.6 ms (20 runs: min 40.9, max 50.5; M04 commit 69798de: 43.5) | 34.3 ms (30 runs: min 32.2, max 39.5) |
+| burst median as a share of `budgetMs(50)` (budget 55 to 150 ms) | about 80 % when the factor is 1.1 | median 58.8 %, worst 66.9 % of 30 runs; worst 65.4 % of 15 project runs |
+| samples per test | 7 after 2 warm-ups | 21 after 3 warm-ups, worlds built and gc'd outside the clock |
+| perf project (6 files, 18 tests) | about 8 s | about 8 s |
+
+## Measurements CamFix (logged; the camera numbers are pinned by tests/render/mountainCalm.test.ts, the fit numbers by tests/render/fit.test.ts)
+
+Window and distances (`src/render/fit.ts`, FOV 30 degrees vertical, `FIT_FILL_SAFE` 0.92): aspect 16:9, 21:9, 4:3 (and everything at least as wide as high): maximum distance 32 000 km (the disc fills 62.8 % of the half-height), the eased tilt is 0 from 20 247 km; 9:16: 61 198 km and 40 014 km (62.8 % of the half-width); 0.4: 88 439 km and 58 553 km; 0.25: 145 117 km (the ceiling 150 000 km does not bind above 0.25). The old 42 000 km filled 50 % of a 16:9 half-height, 88 % of a 9:16 half-width and did not fit 0.4. Before the fix at 42 000 km and 72 degrees (16:9): the centre of the disc 7.85 degrees from the middle (not 8.6), the far edge at 1.08 half-heights (cut), and the globe low in the picture; after: the lit-pixel bounding box of the real screenshots (`e2e/zoomOut.test.ts`, with the atmosphere's glow) has at least 3 % free on every side and its centre within 3 % of the middle in all 12 pictures (4 windows, tilts 0, 40, 72, headings 0, 200, 90); the disc of the maths itself (projected outline of the sphere): margin >= 5 % in 80 random windows and in all 54 combinations of window, tilt and heading at the maximum distance; the wheel runs (6 windows x 4 tilts x 3 headings = 72, from 3 000 km) end centred to 1e-15 of the half-extent with a heading change of at most 0.005 degrees and a latitude change of at most 0.004 degrees.
+
+Per-frame change of a wheel zoom through the eased tilt (60 fps, fx steps of 1/60 s, real height field, tilt 60 to 72, from 3 000 to 26 000 km): one notch moves the camera at most 2.9 % of its distance and turns the look direction at most 2.2 degrees per frame (worst at 14 000 km); three notches at once 9.9 % and 7.6 degrees; five notches at once 16.6 % and 12.8 degrees (the zoom itself is moving the camera a sixth of its distance in its fastest frame). Zoom out to the maximum and the same number of notches back: the user's tilt within 1 degree in six window shapes.
+
+Camera over mountains (the same script in the M08 head and in a git worktree of `ec44223` = version 9; 60 fps in fx steps; six pans of 500 px each; `hfShare` = the camera's radius slower than 1 s over the ground's, `shake` = faster than 1/6 s over the ground's, dip = the deepest the camera went under the height it holds as a share of it):
+
+| hold | M08 fast pan (625 px/s): hfShare, shake, dip, lowest height, end | M08 steady pan (312 px/s): hfShare, shake, dip, lowest, end | v9 fast pan: lowest height, end height |
+|------|------|------|------|
+| Alps 0.3 km, tilt 60 | 0.90, 1.01, 0, 300 m, 300 m | 0.92, 0.84, 0, 300 m, 300 m | -2 170 m, 30 700 m |
+| Alps 3 km, tilt 55 | 0.53, 0.34, 0.08, 2 760 m, 3 000 m | 0.46, 0.32, 0.06, 2 830 m, 3 000 m | -564 m, 31 600 m |
+| Alps 20 km, tilt 55 | 0.62, 0.27, 0.26, 14 800 m, 20 000 m | 0.62, 0.29, 0.22, 15 700 m, 20 000 m | 17 200 m, 45 500 m |
+| Himalaya 0.3 km, tilt 60 | 0.57, 0.47, 0, 300 m, 300 m | 0.63, 0.38, 0, 300 m, 300 m | 1 000 m, 75 100 m |
+| Himalaya 3 km, tilt 55 | 0.57, 0.33, 0.79, 632 m, 3 000 m | 0.59, 0.28, 0.70, 888 m, 3 000 m | 1 000 m, 67 100 m |
+| Himalaya 20 km, tilt 55 | 0.64, 0.29, 0.29, 14 100 m, 20 000 m | 0.56, 0.26, 0.22, 15 600 m, 20 000 m | 11 700 m, 77 700 m |
+
+(v9 has no held height: its camera keeps its distance to the sea-level point, so the height over the ground wanders; its 1 km rows: lowest 71 m (Alps) and 368 m (Himalaya), ends 30 300 m and 66 400 m; M08 1 km: lowest 887 m and 926 m, ends 1 000 m.) The wheel (eight notches, in, in, out, out, in a lot, out a lot, out, in, with 1.5 s between): 0 extra direction reversals of the camera's radius at 1, 3 and 20 km over both places in M08 and in v9; the largest change of the height over the ground in one frame 4 to 9 % in M08 (v9 4 to 11 %); M08 ends within 0.5 % of where it started (v9 at 1 km ends at 1 380 m: its old floor of 1 000 m). The follower copies the ground fully when it is made instant (`RTS_FOLLOW_TAU_S` 1e-9): hfShare and shake 1.0, which is what the named tests kill. Look-ahead (aim at the higher of the ground here and the ground 0.25 s ahead along the camera's own motion; REJECTED, not in the code): dip Alps 3 km 0.08 to 0.015 and Himalaya 3 km 0.79 to 0.32, but shake 0.34 to 0.64 and 0.33 to 0.70, direction reversals 7 to 53 and 1 to 23, and the largest acceleration tenfold.
+
+Costs: `e2e/zoomOut.test.ts` 33 s (7 tests, 2 to 3 s a window shape, 14 s a wheel run: the camera is at 3 000 km, where the terrain is dear in SwiftShader); `tests/render/fit.test.ts` 0.5 s, `tests/render/fitCamera.test.ts` 14 s (dominated by the real height field in the wheel runs), `tests/render/mountainCalm.test.ts` 1.4 s. The camera's per-frame cost: see the perf test of the verify run below.
+
+## Measurements M07a part A (logged, not asserted)
+
+Cloud sandbox, SwiftShader, test tier 960x540 unless said:
+
+| measure | value |
+|---------|-------|
+| quadtree update (medium tier, 48 cameras over the six altitudes), median of 15 sweeps | 0.19 ms (p95 0.26 ms); budget `budgetMs(1)` |
+| chunk terrain update (selection, comparison, refill when the selection changed) | 0.22 ms median, 0.23 ms with the refill forced every call; an unchanged camera 0.3 us |
+| default orbit view, renderer.info triangles (scene incl. the 9 024 of the shell) | test: chunks 37 184 vs fixed 74 560; medium: 110 400 vs 271 168 (M05) |
+| chunk frame in SwiftShader (render + readback of one pixel) | orbit 0.30 s, 900 km 0.65 s, 220 km 0.65 s; the fixed mesh 0.26, 0.40, 0.39 s |
+| float32 vs float64 chunk positions, vertices within 50 km of a camera 300 m up | worst 3.7 mm over 5 964 vertices |
+| skirt depth against the worst LOD mismatch (2 435 seam edges, six mountain regions) | worst 44 % of the depth |
+| chunk cap, 300 random poses per tier (unit) | test 150 of 150 (capped in 33), low 100 of 100 (78), medium 300 of 300 (9), high 400 of 400 (24) |
+| LOD hysteresis, 300 frames wobbling +-6 % around a ring boundary | 1 level change with, 66 without (six boundaries) |
+| leak test, 60 renders at 320x180 | 0.07 MB |
+| whole e2e project | 716 s (480 s before M07a): `docs/BACKLOG.md` holds the plan to shard it |
+| `npm run verify:fast` | 57 s (126 files, 1414 tests), perf project 22 tests green |
+
+## Measurements M07a part B (logged, not asserted)
+
+Cloud sandbox, SwiftShader, test tier 960x540 unless said:
+
+| measure | value |
+|---------|-------|
+| `CameraRig.update` at rest at the zoom floor over the Himalaya (the per-frame ground check), median of 15 | 0.6 us; budget `budgetMs(0.02)` (`tests/groundCamera.perf.test.ts`) |
+| one wheel notch (the search for the distance of the wanted height, about 130 height reads) plus one frame of the zoom, median of 15 | 135 us; budget `budgetMs(0.6)` |
+| mouse zoom floor | 1000 m above the displaced ground over the open sea, the Alps, the Himalaya and Everest at tilt 0, 40 and 72 |
+| territory border at 1.5 km, worst distance from a straight line over nine rows | 0.62 px with the two-part cell position; 1.47 px with one float32 cell coordinate (limit 1.0) |
+| cell position of a vertex, worst over 400 random vertices of level 9 to 17 chunks | 1.4 mm (two parts) against 1.2 m (one float32) |
+| smallest Jacobian determinant of the border warp, 60 000 positions, all fine octaves on | 0.13 (M05 warp alone 0.48; the first, rougher version -3.5 = folded; limit 0.1) |
+| LOD levels in the two ground views | 9 to 11, chunk count 148 to 150 of 150 (test tier) |
+| contact sheets | 6 files, 1.6 MB, 0 px differ against themselves, byte-identical in one launch |
+| whole e2e project (17 files, 149 tests) | 776 s in `npm run verify`; 796 s before the goldens were regenerated |
+
+## Measurements TestSpeed (logged, not asserted)
+Wall times of `npm run verify` on the 4-core, no-GPU sandbox (the stage table is printed by `scripts/verify.mjs`; logs in test-results/verify-*.log, gitignored). `slow` = lines `[guard] slow call` (a browser call over half of the 20 s hang guard): zero in every run.
+| run | e2e workers | typecheck / lint / unit (side by side) | perf | e2e | e2e-serial | total |
+|-----|-------------|-----------------------------------------|------|-----|------------|-------|
+| HEAD, sequential | 1 | 8 s / 9 s / 64 s (one after the other) | 11 s | 802 s (778 s profiled) | (inside e2e) | about 14:50 |
+| 2 workers, final suite, runs 1 to 5 | 2 | 20 s / 20 s / 61 s; 19 / 17 / 1:10; 20 / 18 / 59; 18 / 19 / 59; 18 / 17 / 57 | 10 to 11 s | 6:59, 7:01, 6:55, 6:57, 6:48 | 13, 13, 14, 13, 12 s | 8:23, 8:34, 8:18, 8:19, 8:07 |
+| 3 workers, runs 1 to 3 | 3 | about 18 s / 18 s / 58 to 60 s | 10 s | 6:31, 6:25, 6:18 | 13, 13, 12 s | 7:53, 7:48, 7:39 |
+| 3 workers, the three final runs (default; the last one on the committed final tree, nothing else running) | 3 | 17 / 17 / 59 s; 20 / 19 / 59 s; 17 / 17 / 56 s | 10 s | 6:29, 6:30, 6:08 | 13, 12, 12 s | 7:52, 7:51, 7:26 |
+Counts of the final run: unit 136 files / 1 536 tests, perf 8 / 24, e2e 16 / 143, e2e-serial 4 / 7 (150 browser tests; HEAD had 149 in the e2e project).
+
+## Measurements AutoTier-2 (logged, not asserted; SwiftShader, so only the SPLIT between the two costs says anything about a GPU)
+
+One throw-away script (not committed) rendered the same view with the chunk density of each tier at 320x180, 640x360 and 960x540 (median of 7 draws, each ended by a one-pixel readback) and fitted `time = fixed + per_pixel * pixels` through the 320x180 and 960x540 points. The machine was shared with two other builders and a unit run, so the milliseconds are rough (the 640x360 points scatter by up to 30 %); the structure is clear. Static proxy (`tests/helpers/shaderCost.ts`, executed operators): chunk VERTEX shader 12 077 operators, 41 fetches, 9 transcendentals per vertex; chunk FRAGMENT shader (orbit view) 3 796 operators, 172 fetches, 176 transcendentals per pixel.
+
+| tier chunks, view | triangles | 320x180 | 640x360 | 960x540 | fixed (per frame, vertex) | per Mpixel | fixed share at 960x540 |
+|---|---|---|---|---|---|---|---|
+| low, orbit | 44 864 | 213 ms | 688 | 739 | 147 ms | 1 142 ms | 20 % |
+| low, Alps 35 deg | 66 624 | 362 | 829 | 1 421 | 230 | 2 296 | 16 % |
+| medium, orbit | 138 048 | 341 | 624 | 1 345 | 216 | 2 177 | 16 % |
+| medium, Alps | 257 856 | 697 | 1 795 | 2 986 | 411 | 4 967 | 14 % |
+| high, orbit | 361 536 | 700 | 878 | 1 564 | 592 | 1 875 | 38 % |
+| high, Alps | 437 568 | 908 | 1 867 | 2 966 | 650 | 4 466 | 22 % |
+
+Reading: (1) the fixed part grows with the triangle count (about 3 ms per 1000 triangles here), the pixel part with the buffer size, and a terrain view at 35 degrees costs about twice per pixel what the orbit view does (the near view takes the whole fragment shader, the sea of the orbit view skips the class fetches). (2) On `low` (at most 66 000 triangles) the frame is PIXEL-bound at any ordinary window size: at 960x540 about 80 % of the time is per pixel, so the scale ladder removes up to 75 % of it (0.5 squared = 0.25) and the time halves or better; only below about 400x225 does the vertex part dominate. (3) On `high` the vertex part is large (22 to 38 % at 960x540, and the user's `high` run had up to 921 408 triangles in a 904x742 window at DPR 1.25, where the vertex work, about 460 000 vertices times 12 077 operators, is of the same size as the pixel work of 1.05 million pixels times 3 796): there the ladder alone is not enough and the chunk-density step (fewer chunks, fewer octaves) is the part that cuts the vertex cost. That is why the step exists and why AutoTier-1 starts such a card on `low`. (4) The ladder steps 1 -> 0.85 -> 0.72 -> 0.6 -> 0.5 cut the pixel count to 72 %, 52 %, 36 % and 25 %: ratios between neighbours of 1.38 to 1.44, which the 18 / 30 ms hysteresis gap (ratio 1.67) absorbs. A cheap change in `low` that cuts the vertex cost (`Globe.setDetailBias(-1)`, one octave fewer) would also change the picture of `low` and was left to `docs/BACKLOG.md` (it needs a look on real hardware).
+
+## Usage
+
+| date | after milestone | 5h % | week % | note |
+|------|-----------------|------|--------|------|
+
+## Archive
+
+Finished passes moved out of Now by Fix-3C, text kept word for word (two ticks annotated).
 
 ### Integration Sim-Growth + Look-1: the UI and render read the ten City levels and five district slots (one session on HEAD 7cfad4b; the orchestrator owns merging, pushing and the Artifact)
 - [x] 1. `structureInfo`, `cityViewModel`, `cityViewPanel`, `selectionPanel`, `src/render/structures.ts`, `src/render/rings.ts`, `src/render/cityTiers.ts` read `cityGoldMilli`, `cityTroopCap`, `maxLevelOf`, `upgradePriceGold`, `upgradeTicksOf`; five fixed district slots on a pentagon (`DISTRICT_SLOT_ANGLES`); the five failing unit tests follow the sim numbers (details in `docs/DECISIONS.md`, Integration Sim-Growth + Look-1)
@@ -891,7 +1163,7 @@ Base: 9c7ce89 (branch worktree-wf_359cefa4-9ed-1). Nothing is merged to main; no
 - [x] 3. Elimination flag and events, capital-lost flag (the automatic start position is not needed, see D M18-1 point 12).
 - [x] 4. Statistics (peak land, built, conquered, districts) in hashed, serialised state; `SimView.match` (`MatchView`) through `StateView`, the host snapshot and `ViewMirror`.
 - [x] 5. ENGINE_VERSION 11, FORMAT_VERSION 9, both golden hash files re-pinned once; tests `tests/sim/win.test.ts`, `tests/host/matchEnd.test.ts` (mutants checked by hand: 14 of 14 killed after one added test).
-- [ ] Not in this slice: pause menu, result screen, setup controls, spectate choice, selfplay CLI (M18-2).
+- [x] Not in this slice: pause menu, result screen, setup controls, spectate choice, selfplay CLI (M18-2). (Done later by M18-2, ticked by Fix-3C.)
 
 
 ### Sim-Levels2: unlimited levels, one price rule, gentle curves (sim and AI only, headless; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
@@ -912,251 +1184,6 @@ Base: aa9b996. ENGINE_VERSION 13, FORMAT_VERSION 11. The render/UI track (Look-2
 - [x] 3. Looked at the result: City, Factory, Silo at real levels 1, 5, 20, 50 and drawn levels 100 and 999 in both City styles at about 3 km and 800 m (nothing wider than the Look-2 cap); `e2e/goldFit.test.ts` keeps every gold surface inside the window at 960x540, 1366x640, 540x960 in both languages
 - [x] 4. Final run: tsc, eslint on the changed files, `npm run verify:fast`; the full `npm run verify` is the orchestrator's
 
-## Next
-
-- Audit 1 (the batch audit of versions 12 to 16, range 7018b4c..cf01c79) found no blocker and a list of majors; the fix slices 'Fix-Sim' and 'Fix-UI' work through them (see their sections under Now and docs/BACKLOG.md 'Audit 1 leftovers'). After that: the building roadmap continues (more kinds of buildings, the city detail map of M18e), then M11a radar and the air milestones M11b to M13b.
-- CamFix is built (D158); the user looks at it in the Artifact (PREVIEW 17aa) in their own window shape. Then the M08 gate items below stand as before.
-- M08 is built; the USER GATE is the user's: they play the camera in the Artifact (Part B's PREVIEW text 17x to 17z says what to feel for) and run `#scene-perf` on their PC and send the copied report. If the report says `likely-capped`, the next step is not in the renderer (D156 (4), BACKLOG). Then M09 (Structures sim, headless: `src/sim`, no visible change) starts from `docs/CHARTER.md` section 8; it can use `groundHeightAt` / `createGroundHeight` only in render-side layers (M10), never in `src/sim`.
-- Before the first CI run that matters: wire the three verify shards into `.github/workflows/ci.yml` (D156 (8)): a GitHub runner has 2 cores and `npm run verify` takes 12 minutes on 4.
-
-- M07a Part B (items 4 and 7): see "Now". Read D133 and D134 of `docs/DECISIONS.md`, the chunk rows of `docs/ARCHITECTURE.md` and the "Chunk-terräng mot det fasta nätet" table first. Then Part C (goldens, finish). The goldens of `e2e/looks.test.ts` and the M05 / M06 golden tests that render the globe fail until Part C regenerates them (D134).
-
-## Known issues
-
-- M01: the Joerd/Mapzen attribution page (the exact list of elevation sources behind Terrarium) could not be reached; `CREDITS.md` and `docs/ASSETS.md` carry a general line (Mapzen terrain tiles, USGS SRTM, NOAA ETOPO1 and others). Replace it when the page is reachable.
-- M01: the polar caps beyond 85.05 degrees are synthetic (smoothed copy of the nearest real row); streaks are visible in the height map. Antarctica is Ice anyway.
-- M01: 15 countries use a "most central cell" as capital because Natural Earth has no `Admin-0 capital` place in their polygon (Greenland, Israel, Western Sahara and small islands); 58 countries have no land cell at all (see `public/data/overrides.json`).
-- M01: the Forest/Plains rule is by latitude and a hash only, so the Sahara shows a few forest cells; cosmetic (backlog).
-- `docs/CHARTER.md` is verbatim from the prompt; in section 7 the "User lines" and "User's own files" bullets sit on one line (a newline is missing in the source text). Not changed because the charter must stay word for word.
-- No real-GPU measurement exists; everything is SwiftShader.
-- M02 A: the whole-Earth view shows dark green Forest patches in the Sahara and Arabia (baked biome rule, see `docs/BACKLOG.md`); the north pole shows the synthetic polar streaks.
-- M02 B: everything was judged in SwiftShader screenshots only (no GPU): the colours of the atmosphere (`ATMOSPHERE_*`), the glint strength (`OCEAN_SPEC_*`), the night light gain (`LIGHTS_GAIN`) and the wave size are the first things to tune on a real GPU (all in `src/render/config.ts`). The border line is stair-stepped at 10 km when zoomed to the limit (backlog).
-- M02 (fixed in the fix pass): the south pole tore into several radii (dark streak along the 180 degree meridian at lat -90, distKm 2500) and the north pole showed radial spokes; see D48. What remains: the cap geometry beyond 85.05 degrees still has the radial ridges of the synthetic polar rows (backlog).
-- M02: the night lights read as large saturated blobs and their brightness varies with the zoom (`LIGHTS_GAIN` in `src/render/config.ts`, footprint in `src/render/nightLights.ts`); tune on a real GPU (backlog).
-- M02: dark axis-aligned Forest squares in the Sahara and Arabia and a straight Sahel latitude edge come from the M01 latitude-and-hash biome rule in `tools/bake/classify.ts` (backlog: aridity mask or sub-cell noise in the bake, or a low-frequency detail mask in the biome shader).
-- M02: at `DIST_MIN_KM` 220 with `TILT_MAX_DEG` 72 the camera is below the exaggerated peaks over Everest and the picture is featureless (backlog; M08 replaces the camera).
-- M02: the test-tier mesh shows a coarse diagonal facet at 500 km zoom (M07 LOD replaces it).
-- M02: the coast band of one render pixel (10 km) has a surface height above 0 but is drawn partly as sea; the tooltip calls it land there (consistent with the height, D49), so the elevation printed at such a point is the mean of the land pixels around it and can be higher than the surface under the cursor (Rio: 166 m against 18 m).
-- M02 B: the Dev button is hidden in `?test=1` (so goldens stay clean); `#devbtn` shows it there.
-- M03: the Float64 canary is equal in Node and Chromium, but both are V8; Firefox / Safari were not available (BACKLOG).
-- M03: the state hash is 32 bits (BACKLOG: second lane for lockstep desync checks in M26).
-- M03: `step()` draws once from the generator every tick although M03 has no rule that needs it (it keeps the stream position in the hash from tick 1); M04 keeps the call.
-- M03: the first two turns of every match are empty by construction (T + 2 input delay).
-- M00b: the data manifest format of M01 is assumed (name to file relative to the data folder, enc defaults to raw), see D17 in `docs/DECISIONS.md`. M01 must keep it or change the pack script.
-- M00b: confirmed in practice: the user opened the Artifact (M02, version 3) and saw the globe at 30-50 fps.
-
-- M05 A: the territory look (`OWNER_*` in `src/render/config.ts`) was judged in SwiftShader screenshots at the test tier only; tint, inner glow, line width and warp are the first things to tune on a real GPU. The weak M02 country border lines still run through the middle of a territory.
-- M05 A: only seat 0 acts until part C: the five AI nations and the 20 tribes do not spawn yet, so the match is empty apart from you (the leaderboard shows only you until then; a test paints the other seats to prove the ranking).
-- M05 A: in the live page under software GL the frame rate is about 5 fps (the loop is unchanged); the sim cost per frame is small (see Result of Part A), the real-GPU frame rate is the user's gate.
-
-- M05 B: judged in SwiftShader screenshots only: the HUD font and panel sizes, the colours, the start screen. The perf overlay (top left) can cover the banner during the first seconds when `#perf` is on from the start (BACKLOG). The Dev panel opens at the right and covers the leaderboard while it is open.
-- M05 B: the F3 text overlay is now hidden until F3 is pressed (it used to show in the live page).
-- M06 B: the leaderboard ranks by the cos-weighted land share, so a nation far from the equator starts below the others although every seat holds the same 197 cells (D124, backlog).
-- M06 B: everything of the menu was judged in SwiftShader screenshots (960x540, 1920x1080, 390x844) and with a simulated phone viewport only; the feel of the flight, the font sizes of the panel and the touch behaviour need a real screen (the gate is the user's play session).
-- M06 B: `npm run verify` takes about 8.5 minutes in this sandbox (unit 45 s, perf 5 s, e2e 448 s, 123 s of it `e2e/setup.test.ts`; total 8 min 33 s measured); the budget in CLAUDE.md is 8 minutes. It is at the edge, not sharded; if the e2e project grows further it must be sharded (note in D126).
-
-- M07a part A: the golden test of `e2e/looks.test.ts` (six globe views) fails against the committed PNGs (0.4 % of the pixels on europe50, limit 0.2 %) because the default terrain is the chunk quadtree now; Part C regenerates the goldens ONCE with `UPDATE_GOLDENS=1` (D134). Everything else of `npm run verify` is green.
-- M07a part A: the whole e2e project takes about 716 s in this sandbox (480 s before); the plan to shard it over CI jobs is in `docs/BACKLOG.md`.
-- M07a part A: from 300 m above a coast the surface under the sea pixels next to the land is raised (a wedge of water), D133 (7) and `docs/BACKLOG.md`.
-- TestSpeed (D144): `LOCAL_GPU=1` and `docs/LOCAL.md` are untested on a real GPU and on Windows (the plumbing is unit-tested). The 8-minute budget of `verify` is met with a margin of about 10 s on the 4-core sandbox at 100 % CPU; the next milestone that adds browser frames can push it over (D144 (8), BACKLOG "TestSpeed ideas not built"). One sleep stays on purpose (`e2e/globe.test.ts`: nothing renders by itself during 400 ms of wall clock).
-
-- M11a STOP RULE FIRED (Himalaya cap and Plains ratio, `docs/DECISIONS.md` "M11a"). Measured, Low, R = 24, EXAG 8, weight 60 %: Alps 14.2 %, Himalaya 25.2 % (required <= 20), Plains median 21.8 % over Kansas, Iowa, Ukraine, Pampas, Australia (required >= 2 x Alps = 28.4 and >= 15); agreement 87.7 to 92.1 %, zero one-sided errors, mask hides 87 to 89 % of what the exact line hides. Four rounds in the allowed ranges (8/60, 10/60, 6/60, 7/50) never got the Himalaya site under 24.8 %. Options for the owner: A: keep the zero-error rule but lower the agreement 85 % to 78 % and the Plains requirement to 12 % (does NOT fix the Himalaya cap: it stays 25 %); B: raise `OCCLUDER_MAX_WEIGHT_PCT` above 60 up to 80 (measured: weight 70 gives Alps 1.2, Himalaya 22.6, Plains median 17.6; weight 80 gives 0.8, 21.3, 14.4: the Himalaya cap is still missed and at 80 the Plains median drops under 15 %); C: build the mask on the 2048x1024 grid only for LOS (needs a new grid decision; a finer grid separates a valley floor from its ridge, which is what keeps the Himalaya site open at 39 km cells). Recommendation: C, because A and B do not reach the Himalaya cap and the cause is the 39 km cell (the site cell's own mean is in a valley that the max-weighted neighbours rim). Start a new session with the template, the whole M11a prompt and a last line "Beslut: A|B|C".
-
-## Skipped
-
-(none)
-
-## Environment
-
-Preflight in the cloud sandbox:
-
-| item | value |
-|------|-------|
-| Node | v22.22.0 (needs >= 22.13) |
-| npm | 10.9.4 |
-| Chromium | 141.0.7390.37 at /opt/pw-browsers/chromium-1194/chrome-linux/chrome (`/opt/pw-browsers/chromium` symlink; also chromium_headless_shell-1194, ffmpeg-1011) |
-| PLAYWRIGHT_BROWSERS_PATH | /opt/pw-browsers |
-| GL renderer (headless) | ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver), WebGL 2.0 (OpenGL ES 3.0 Chromium) |
-| elevation-tiles-prod.s3.amazonaws.com (terrarium/4/8/5.png) | reachable (200) |
-| raw.githubusercontent.com (natural-earth-vector pinned SHA, ne_50m_admin_0_countries.geojson) | reachable (200) |
-| registry.npmjs.org/three | reachable (200) |
-| `git ls-remote https://github.com/nvkelso/natural-earth-vector.git HEAD` | reachable (ca96624a56bd078437bca8184e78163e5039ad19) |
-| github.com / api.github.com over plain HTTP | 301 through the proxy (info only, not needed) |
-| GitHub tooling | `gh` installed but GH_TOKEN reported invalid; GitHub MCP tools work (`get_me` returned the repo owner) |
-| Blocked mandatory hosts | none |
-
-## Measurements (logged, not asserted)
-
-Cloud sandbox, SwiftShader, 960x540, DPR 1:
-
-| measure | value |
-|---------|-------|
-| first frame (page start to end of first render) | about 270-330 ms warm (768 ms on the very first cold Vite start) |
-| page load | about 250-310 ms |
-| render call | about 24 ms |
-| page screenshot | about 120-180 ms |
-| draw calls / triangles / textures | 1 / 9024 / 1 |
-| silhouette coverage, luma std, left/right ratio | 44.1 %, 57.6, 1.52 |
-| leak-test (60 renders at 320x180) heap delta | 0.015 MB |
-| `npm run verify:fast` | about 6 s |
-| `npm run verify` | about 15 s |
-| perfguard factor | about 0.9 (reference 5.5 ms for 5 M imul writes) |
-
-M02 Checkpoint A (same sandbox, test tier 256x128 mesh, 960x540, SwiftShader):
-
-| measure | value |
-|---------|-------|
-| first frame (page start to end of first render, incl. loading and inflating the packs) | about 510 ms warm (1.1 s on a cold Vite start) |
-| render call / page screenshot | about 40-65 ms / 120-250 ms |
-| draw calls / triangles / textures / texture memory | 1 / 65 536 / 3 (4 once the country texture is read back) / 18.5 MB |
-| medium tier (512x256) / high tier (1024x512) at 960x540 in the live loop | 262 144 / 1 048 576 triangles, about 9 fps / 0.5 fps in software (not asserted) |
-| JS bundle main chunk | 556 kB raw, about 140 kB gzip (limit 300 kB) |
-| leak test (60 renders at 320x180) | 0.03 MB |
-| `npm run verify:fast` / full e2e project | about 15 s / about 60 s |
-
-M02 Checkpoint B and last step (same sandbox, test tier 256x128 mesh, 960x540, SwiftShader):
-
-| measure | value |
-|---------|-------|
-| first frame (page start to end of first render, incl. packs) | 611-644 ms (logged by smoke and globe e2e, not asserted) |
-| render call / page screenshot | about 91 ms / 420 ms for the first frame in a fresh page (smoke); later renders 3-100 ms |
-| draw calls / triangles / textures / texture memory | 3 (stars, globe, atmosphere shell) / 74 560 (65 536 + 9 024) / 6 / 20.5 MB |
-| live loop at 960x540, tier low | about 6 fps in software (the perf report of the e2e run: mean 5.9, p95 3.0), not asserted |
-| JS bundle | main chunk 582.6 kB raw, 151.4 kB gzip (limit 300 kB); all JS about 159 kB gzip |
-| goldens | six `e2e/goldens/globe-*.png`, 264-422 kB each, 0 px differ on re-run |
-| night lights (Tokyo / New York / Stockholm) city pixel against sea neighbour | 214 / 234 / 152 against 24 / 24 / 25 |
-| night view mean luma against the same view in daylight | 26.3 against 105.5 (ratio 4.0), 8068 pixels above luma 150 |
-| limb pixel against space / glitter pixel against the sea mean | 124 against 0 / 254.8 against 55.9 |
-| borders | 1.09 % of the pixels change with the border switch on, all at land-land borders |
-| `npm run verify` | about 2.7 min (unit 10 s, perf 2 s, e2e 137 s) |
-| final scene (smoke e2e, fix pass verify) | first frame 594 ms, load 498 ms, render 100 ms, screenshot 376 ms (logged, not asserted); the globe e2e logs first frame 797 ms |
-| `npm run verify` after the fix pass | 155 s (unit 11.8 s with 376 tests, perf 1.9 s with 9, e2e 132 s with 52) |
-
-M03 (same sandbox, Node 22.22):
-
-| measure | value |
-|---------|-------|
-| empty-world step at 1024x512 (median of 101) | 0.6-0.8 microseconds (budget `budgetMs(1)` about 1.0-1.1 ms) |
-| step with 64 DebugPaints at 1024x512 | 49-59 microseconds |
-| `hashState` / `serialize` at 1024x512 | 1.9-2.3 ms / 5.7-6.2 ms |
-| golden run, 6000 ticks of 128x64 | about 7 ms |
-| `npm run verify` | unit 16 s (589 tests), perf 2 s (12), e2e 140 s (58) |
-| `debug/sim.html` chunk | 12.5 kB raw, 5.1 kB gzip (main chunk 584 kB raw, 152 kB gzip, +1.6 kB for the Dev panel entry) |
-
-M04 part A (same sandbox, Node 22.22, real world, 32 seats):
-
-| measure | value |
-|---------|-------|
-| load pack + `createSimWorld` / `createWorldState` | 120-130 ms / 17-31 ms |
-| Spawn (197 cells) | 0.3-0.5 ms |
-| `economyTick` with 32 owners / empty step with 32 owners | 8-16 us / about 8 us |
-| `serialize` / `deserialize` / `hashState` | 15 ms (4.72 MB) / 23 ms / 5 ms |
-| `npm run verify:fast` | about 24 s (751 unit tests) |
-
-M01 (same sandbox):
-
-| measure | value |
-|---------|-------|
-| `npm run bake` (warm cache) | about 5 s; cold cache adds about 3 s for the 256 tiles (18.3 MB) and the three Natural Earth files |
-| pack sizes | `render.bin.gz` 2 604 661 B (18 874 368 B raw), `sim.bin.gz` 1 924 350 B (4 816 896 B raw), all of `public/data` 4 776 492 B |
-| Node load + parse (all packs + JSON, fnv1a checked) | median 216 ms (perf project), 192-261 ms (unit logs) |
-| Chromium load + parse | first load about 170-190 ms, median of 5 more 303-340 ms |
-| `npm run verify` | about 45 s |
-
-PerfGate (same sandbox, node, 1024x512, 100 000 cells in one tick; D132):
-
-| measure | before (HEAD 55960a3) | after |
-|---------|-----------------------|-------|
-| burst kernel, median of the per-process medians | 43.6 ms (20 runs: min 40.9, max 50.5; M04 commit 69798de: 43.5) | 34.3 ms (30 runs: min 32.2, max 39.5) |
-| burst median as a share of `budgetMs(50)` (budget 55 to 150 ms) | about 80 % when the factor is 1.1 | median 58.8 %, worst 66.9 % of 30 runs; worst 65.4 % of 15 project runs |
-| samples per test | 7 after 2 warm-ups | 21 after 3 warm-ups, worlds built and gc'd outside the clock |
-| perf project (6 files, 18 tests) | about 8 s | about 8 s |
-
-## Measurements CamFix (logged; the camera numbers are pinned by tests/render/mountainCalm.test.ts, the fit numbers by tests/render/fit.test.ts)
-
-Window and distances (`src/render/fit.ts`, FOV 30 degrees vertical, `FIT_FILL_SAFE` 0.92): aspect 16:9, 21:9, 4:3 (and everything at least as wide as high): maximum distance 32 000 km (the disc fills 62.8 % of the half-height), the eased tilt is 0 from 20 247 km; 9:16: 61 198 km and 40 014 km (62.8 % of the half-width); 0.4: 88 439 km and 58 553 km; 0.25: 145 117 km (the ceiling 150 000 km does not bind above 0.25). The old 42 000 km filled 50 % of a 16:9 half-height, 88 % of a 9:16 half-width and did not fit 0.4. Before the fix at 42 000 km and 72 degrees (16:9): the centre of the disc 7.85 degrees from the middle (not 8.6), the far edge at 1.08 half-heights (cut), and the globe low in the picture; after: the lit-pixel bounding box of the real screenshots (`e2e/zoomOut.test.ts`, with the atmosphere's glow) has at least 3 % free on every side and its centre within 3 % of the middle in all 12 pictures (4 windows, tilts 0, 40, 72, headings 0, 200, 90); the disc of the maths itself (projected outline of the sphere): margin >= 5 % in 80 random windows and in all 54 combinations of window, tilt and heading at the maximum distance; the wheel runs (6 windows x 4 tilts x 3 headings = 72, from 3 000 km) end centred to 1e-15 of the half-extent with a heading change of at most 0.005 degrees and a latitude change of at most 0.004 degrees.
-
-Per-frame change of a wheel zoom through the eased tilt (60 fps, fx steps of 1/60 s, real height field, tilt 60 to 72, from 3 000 to 26 000 km): one notch moves the camera at most 2.9 % of its distance and turns the look direction at most 2.2 degrees per frame (worst at 14 000 km); three notches at once 9.9 % and 7.6 degrees; five notches at once 16.6 % and 12.8 degrees (the zoom itself is moving the camera a sixth of its distance in its fastest frame). Zoom out to the maximum and the same number of notches back: the user's tilt within 1 degree in six window shapes.
-
-Camera over mountains (the same script in the M08 head and in a git worktree of `ec44223` = version 9; 60 fps in fx steps; six pans of 500 px each; `hfShare` = the camera's radius slower than 1 s over the ground's, `shake` = faster than 1/6 s over the ground's, dip = the deepest the camera went under the height it holds as a share of it):
-
-| hold | M08 fast pan (625 px/s): hfShare, shake, dip, lowest height, end | M08 steady pan (312 px/s): hfShare, shake, dip, lowest, end | v9 fast pan: lowest height, end height |
-|------|------|------|------|
-| Alps 0.3 km, tilt 60 | 0.90, 1.01, 0, 300 m, 300 m | 0.92, 0.84, 0, 300 m, 300 m | -2 170 m, 30 700 m |
-| Alps 3 km, tilt 55 | 0.53, 0.34, 0.08, 2 760 m, 3 000 m | 0.46, 0.32, 0.06, 2 830 m, 3 000 m | -564 m, 31 600 m |
-| Alps 20 km, tilt 55 | 0.62, 0.27, 0.26, 14 800 m, 20 000 m | 0.62, 0.29, 0.22, 15 700 m, 20 000 m | 17 200 m, 45 500 m |
-| Himalaya 0.3 km, tilt 60 | 0.57, 0.47, 0, 300 m, 300 m | 0.63, 0.38, 0, 300 m, 300 m | 1 000 m, 75 100 m |
-| Himalaya 3 km, tilt 55 | 0.57, 0.33, 0.79, 632 m, 3 000 m | 0.59, 0.28, 0.70, 888 m, 3 000 m | 1 000 m, 67 100 m |
-| Himalaya 20 km, tilt 55 | 0.64, 0.29, 0.29, 14 100 m, 20 000 m | 0.56, 0.26, 0.22, 15 600 m, 20 000 m | 11 700 m, 77 700 m |
-
-(v9 has no held height: its camera keeps its distance to the sea-level point, so the height over the ground wanders; its 1 km rows: lowest 71 m (Alps) and 368 m (Himalaya), ends 30 300 m and 66 400 m; M08 1 km: lowest 887 m and 926 m, ends 1 000 m.) The wheel (eight notches, in, in, out, out, in a lot, out a lot, out, in, with 1.5 s between): 0 extra direction reversals of the camera's radius at 1, 3 and 20 km over both places in M08 and in v9; the largest change of the height over the ground in one frame 4 to 9 % in M08 (v9 4 to 11 %); M08 ends within 0.5 % of where it started (v9 at 1 km ends at 1 380 m: its old floor of 1 000 m). The follower copies the ground fully when it is made instant (`RTS_FOLLOW_TAU_S` 1e-9): hfShare and shake 1.0, which is what the named tests kill. Look-ahead (aim at the higher of the ground here and the ground 0.25 s ahead along the camera's own motion; REJECTED, not in the code): dip Alps 3 km 0.08 to 0.015 and Himalaya 3 km 0.79 to 0.32, but shake 0.34 to 0.64 and 0.33 to 0.70, direction reversals 7 to 53 and 1 to 23, and the largest acceleration tenfold.
-
-Costs: `e2e/zoomOut.test.ts` 33 s (7 tests, 2 to 3 s a window shape, 14 s a wheel run: the camera is at 3 000 km, where the terrain is dear in SwiftShader); `tests/render/fit.test.ts` 0.5 s, `tests/render/fitCamera.test.ts` 14 s (dominated by the real height field in the wheel runs), `tests/render/mountainCalm.test.ts` 1.4 s. The camera's per-frame cost: see the perf test of the verify run below.
-
-## Measurements M07a part A (logged, not asserted)
-
-Cloud sandbox, SwiftShader, test tier 960x540 unless said:
-
-| measure | value |
-|---------|-------|
-| quadtree update (medium tier, 48 cameras over the six altitudes), median of 15 sweeps | 0.19 ms (p95 0.26 ms); budget `budgetMs(1)` |
-| chunk terrain update (selection, comparison, refill when the selection changed) | 0.22 ms median, 0.23 ms with the refill forced every call; an unchanged camera 0.3 us |
-| default orbit view, renderer.info triangles (scene incl. the 9 024 of the shell) | test: chunks 37 184 vs fixed 74 560; medium: 110 400 vs 271 168 (M05) |
-| chunk frame in SwiftShader (render + readback of one pixel) | orbit 0.30 s, 900 km 0.65 s, 220 km 0.65 s; the fixed mesh 0.26, 0.40, 0.39 s |
-| float32 vs float64 chunk positions, vertices within 50 km of a camera 300 m up | worst 3.7 mm over 5 964 vertices |
-| skirt depth against the worst LOD mismatch (2 435 seam edges, six mountain regions) | worst 44 % of the depth |
-| chunk cap, 300 random poses per tier (unit) | test 150 of 150 (capped in 33), low 100 of 100 (78), medium 300 of 300 (9), high 400 of 400 (24) |
-| LOD hysteresis, 300 frames wobbling +-6 % around a ring boundary | 1 level change with, 66 without (six boundaries) |
-| leak test, 60 renders at 320x180 | 0.07 MB |
-| whole e2e project | 716 s (480 s before M07a): `docs/BACKLOG.md` holds the plan to shard it |
-| `npm run verify:fast` | 57 s (126 files, 1414 tests), perf project 22 tests green |
-
-## Measurements M07a part B (logged, not asserted)
-
-Cloud sandbox, SwiftShader, test tier 960x540 unless said:
-
-| measure | value |
-|---------|-------|
-| `CameraRig.update` at rest at the zoom floor over the Himalaya (the per-frame ground check), median of 15 | 0.6 us; budget `budgetMs(0.02)` (`tests/groundCamera.perf.test.ts`) |
-| one wheel notch (the search for the distance of the wanted height, about 130 height reads) plus one frame of the zoom, median of 15 | 135 us; budget `budgetMs(0.6)` |
-| mouse zoom floor | 1000 m above the displaced ground over the open sea, the Alps, the Himalaya and Everest at tilt 0, 40 and 72 |
-| territory border at 1.5 km, worst distance from a straight line over nine rows | 0.62 px with the two-part cell position; 1.47 px with one float32 cell coordinate (limit 1.0) |
-| cell position of a vertex, worst over 400 random vertices of level 9 to 17 chunks | 1.4 mm (two parts) against 1.2 m (one float32) |
-| smallest Jacobian determinant of the border warp, 60 000 positions, all fine octaves on | 0.13 (M05 warp alone 0.48; the first, rougher version -3.5 = folded; limit 0.1) |
-| LOD levels in the two ground views | 9 to 11, chunk count 148 to 150 of 150 (test tier) |
-| contact sheets | 6 files, 1.6 MB, 0 px differ against themselves, byte-identical in one launch |
-| whole e2e project (17 files, 149 tests) | 776 s in `npm run verify`; 796 s before the goldens were regenerated |
-
-## Measurements TestSpeed (logged, not asserted)
-Wall times of `npm run verify` on the 4-core, no-GPU sandbox (the stage table is printed by `scripts/verify.mjs`; logs in test-results/verify-*.log, gitignored). `slow` = lines `[guard] slow call` (a browser call over half of the 20 s hang guard): zero in every run.
-| run | e2e workers | typecheck / lint / unit (side by side) | perf | e2e | e2e-serial | total |
-|-----|-------------|-----------------------------------------|------|-----|------------|-------|
-| HEAD, sequential | 1 | 8 s / 9 s / 64 s (one after the other) | 11 s | 802 s (778 s profiled) | (inside e2e) | about 14:50 |
-| 2 workers, final suite, runs 1 to 5 | 2 | 20 s / 20 s / 61 s; 19 / 17 / 1:10; 20 / 18 / 59; 18 / 19 / 59; 18 / 17 / 57 | 10 to 11 s | 6:59, 7:01, 6:55, 6:57, 6:48 | 13, 13, 14, 13, 12 s | 8:23, 8:34, 8:18, 8:19, 8:07 |
-| 3 workers, runs 1 to 3 | 3 | about 18 s / 18 s / 58 to 60 s | 10 s | 6:31, 6:25, 6:18 | 13, 13, 12 s | 7:53, 7:48, 7:39 |
-| 3 workers, the three final runs (default; the last one on the committed final tree, nothing else running) | 3 | 17 / 17 / 59 s; 20 / 19 / 59 s; 17 / 17 / 56 s | 10 s | 6:29, 6:30, 6:08 | 13, 12, 12 s | 7:52, 7:51, 7:26 |
-Counts of the final run: unit 136 files / 1 536 tests, perf 8 / 24, e2e 16 / 143, e2e-serial 4 / 7 (150 browser tests; HEAD had 149 in the e2e project).
-
-## Measurements AutoTier-2 (logged, not asserted; SwiftShader, so only the SPLIT between the two costs says anything about a GPU)
-
-One throw-away script (not committed) rendered the same view with the chunk density of each tier at 320x180, 640x360 and 960x540 (median of 7 draws, each ended by a one-pixel readback) and fitted `time = fixed + per_pixel * pixels` through the 320x180 and 960x540 points. The machine was shared with two other builders and a unit run, so the milliseconds are rough (the 640x360 points scatter by up to 30 %); the structure is clear. Static proxy (`tests/helpers/shaderCost.ts`, executed operators): chunk VERTEX shader 12 077 operators, 41 fetches, 9 transcendentals per vertex; chunk FRAGMENT shader (orbit view) 3 796 operators, 172 fetches, 176 transcendentals per pixel.
-
-| tier chunks, view | triangles | 320x180 | 640x360 | 960x540 | fixed (per frame, vertex) | per Mpixel | fixed share at 960x540 |
-|---|---|---|---|---|---|---|---|
-| low, orbit | 44 864 | 213 ms | 688 | 739 | 147 ms | 1 142 ms | 20 % |
-| low, Alps 35 deg | 66 624 | 362 | 829 | 1 421 | 230 | 2 296 | 16 % |
-| medium, orbit | 138 048 | 341 | 624 | 1 345 | 216 | 2 177 | 16 % |
-| medium, Alps | 257 856 | 697 | 1 795 | 2 986 | 411 | 4 967 | 14 % |
-| high, orbit | 361 536 | 700 | 878 | 1 564 | 592 | 1 875 | 38 % |
-| high, Alps | 437 568 | 908 | 1 867 | 2 966 | 650 | 4 466 | 22 % |
-
-Reading: (1) the fixed part grows with the triangle count (about 3 ms per 1000 triangles here), the pixel part with the buffer size, and a terrain view at 35 degrees costs about twice per pixel what the orbit view does (the near view takes the whole fragment shader, the sea of the orbit view skips the class fetches). (2) On `low` (at most 66 000 triangles) the frame is PIXEL-bound at any ordinary window size: at 960x540 about 80 % of the time is per pixel, so the scale ladder removes up to 75 % of it (0.5 squared = 0.25) and the time halves or better; only below about 400x225 does the vertex part dominate. (3) On `high` the vertex part is large (22 to 38 % at 960x540, and the user's `high` run had up to 921 408 triangles in a 904x742 window at DPR 1.25, where the vertex work, about 460 000 vertices times 12 077 operators, is of the same size as the pixel work of 1.05 million pixels times 3 796): there the ladder alone is not enough and the chunk-density step (fewer chunks, fewer octaves) is the part that cuts the vertex cost. That is why the step exists and why AutoTier-1 starts such a card on `low`. (4) The ladder steps 1 -> 0.85 -> 0.72 -> 0.6 -> 0.5 cut the pixel count to 72 %, 52 %, 36 % and 25 %: ratios between neighbours of 1.38 to 1.44, which the 18 / 30 ms hysteresis gap (ratio 1.67) absorbs. A cheap change in `low` that cuts the vertex cost (`Globe.setDetailBias(-1)`, one octave fewer) would also change the picture of `low` and was left to `docs/BACKLOG.md` (it needs a look on real hardware).
-
-## Usage
-
-| date | after milestone | 5h % | week % | note |
-|------|-----------------|------|--------|------|
-
 ### M10-2: Factory and Port on the terrain (slice 2 of M10; one builder in its own worktree; the orchestrator owns merging, pushing, the pull request and the Artifact)
 
 Base: 3d1a2bd (branch worktree-wf_18008882-291-1). Slice: ONLY the Factory (key 2) and the Port (key 3) on top of M10a.
@@ -1176,10 +1203,10 @@ GÖR and ACCEPTANS:
 - [x] 4. Defense Post: finished Post radius always exposes, both modes
 - [x] 5. Constants in `src/sim/rules.ts` with `docs/BALANCE.md` rows (ten)
 - [x] ACCEPTANS mask against the exact line: >= 85 % (87.7 to 92.1 %), ZERO mask-hidden-but-line-visible cells (eight sites), the mask hides >= 60 % of what the line hides (87 to 89 %): `tests/sim/losReal.test.ts`
-- [ ] ACCEPTANS shares: Alps <= 20 % met (14.2), High >= Low met; Himalaya <= 20 % NOT met (25.2), Plains >= 2x Alps NOT met (median 21.8 against 28.4); both kept as `it.fails` tests
+- [x] (accepted by the owner, DECISIONS M11b point 10; ticked by Fix-3C) ACCEPTANS shares: Alps <= 20 % met (14.2), High >= Low met; Himalaya <= 20 % NOT met (25.2), Plains >= 2x Alps NOT met (median 21.8 against 28.4); both kept as `it.fails` tests
 - [x] ACCEPTANS wall, Post, SAM outside the radius, wrap, lazy rebuild counters, <= 4 tiles at R=24, fire control: `tests/sim/los.test.ts`
 - [x] ACCEPTANS performance: `tests/los.perf.test.ts` (mask R=24 <= budgetMs(0.5), R=64 <= budgetMs(2), 200 sites R=24 <= budgetMs(150), 1000 synced queries)
-- [ ] ACCEPTANS hashes equal in Node and Chromium: pinned in Node, the Chromium run was not done (no Chromium in this slice)
+- [x] (covered by the Chromium fingerprint test of M11b, ticked by Fix-3C) ACCEPTANS hashes equal in Node and Chromium: pinned in Node, the Chromium run was not done (no Chromium in this slice)
 - Not run here: the full `npm run verify` (the orchestrator runs it once after the merge). `npm run verify:fast` result below.
 
 ## Measurements M11a (logged by `tests/sim/losReal.test.ts`, `tests/sim/losRounds.test.ts`, `tests/los.perf.test.ts`; EXAG 8, weight 60 %, R = 24, Low = 300 m above ground)
