@@ -5,7 +5,7 @@
 //
 // "Established" = the search reaches BEACHHEAD_ESTABLISH_CELLS cells or meets a City. Only cut-off clusters (fewer cells, no City) are left out of
 // the troop cap, the regeneration and the gold land.
-import { BEACHHEAD_ESTABLISH_CELLS } from './rules';
+import { BEACHHEAD_CAPACITY, BEACHHEAD_ESTABLISH_CELLS } from './rules';
 import { BEACH_CUT_OFF } from './heliTable';
 import type { GameState } from './state';
 import { STRUCT_CITY } from './structureRules';
@@ -115,8 +115,8 @@ function refreshCutOff(state: GameState): void {
   b.dirty = false;
 }
 
-/** Cells that stay marked during one refresh (at most 64 clusters of fewer than BEACHHEAD_ESTABLISH_CELLS + 1 cells). */
-const REFRESH_KEEP = new Int32Array(64 * BEACHHEAD_ESTABLISH_CELLS);
+/** Cells that stay marked during one refresh (at most BEACHHEAD_CAPACITY clusters of fewer than BEACHHEAD_ESTABLISH_CELLS + 1 cells). */
+const REFRESH_KEEP = new Int32Array(BEACHHEAD_CAPACITY * BEACHHEAD_ESTABLISH_CELLS);
 
 /**
  * Does the enclave fill that is marked `fillMark` in `state.scratch.mark` hold the seed of a cut-off beachhead of `ownerId`, or one of the eight cells

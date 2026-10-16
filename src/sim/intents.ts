@@ -374,6 +374,10 @@ export const REJECT_HELI_BAD_TROOPS = 52;
 export const REJECT_HELI_NO_ROUTE = 53;
 /** RecallHeli of a helicopter that is not in the air on a mission (no such helicopter, parked, in production, already returning or down). */
 export const REJECT_HELI_NOT_FLYING = 54;
+/** ProduceHeli while the global helicopter table (HELI_CAPACITY slots, all seats) is full (Fix-4A1; the seat's own fleet cap is REJECT_HELI_FLEET_CAP). */
+export const REJECT_HELI_TABLE_FULL = 57;
+/** LaunchHeli while the global beachhead table (BEACHHEAD_CAPACITY rows) is full: a landing would hold its land for ever, so no helicopter leaves (Fix-4A1). */
+export const REJECT_HELI_BEACHHEAD_FULL = 58;
 
 // M18c-1: the diplomacy refusals. Codes 55 to 63 and 73 to 79 are left to the helicopter milestone (landing-zone codes are 65..72), these start at 80.
 /** Diplomacy intent whose target seat is not a player (a tribe). Also: a tribe as the sender. */

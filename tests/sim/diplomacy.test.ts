@@ -10,6 +10,7 @@ import { compareIntents, copyBody, withId, validateIntent, type Intent, type Int
 import * as intents from '../../src/sim/intents';
 import {
   PORT_GOLD_MILLI_PER_SEC,
+  TRADE_ALLIANCE_PCT,
   PROPOSAL_CAPACITY,
   PROPOSAL_TTL_TICKS,
   TREATY_BREAK_COOLDOWN_TICKS,
@@ -359,7 +360,7 @@ describe('embargo and alliance trade', () => {
   }
   const own = PORT_GOLD_MILLI_BY_LEVEL[1] as number;
   const full = tradeMilliPerSec(100, false, false);
-  const allied = tradeMilliPerSec(100, true, false);
+  const allied = tradeMilliPerSec(100, false, false, true);
 
   it('the Port income of both seats follows the embargo: zero trade while it stands, back when its owner lifts it', () => {
     const s = ports();
@@ -382,9 +383,10 @@ describe('embargo and alliance trade', () => {
     expect(structGoldMilliPerSec(s, 1)).toBe(own + full);
   });
 
-  it('allied Ports trade at the same-owner rate, a truce changes nothing, an embargo beats the alliance, breaking it restores the full rate', () => {
+  it('allied Ports trade at TRADE_ALLIANCE_PCT of the open rate (Fix-4A1), a truce changes nothing, an embargo beats the alliance, breaking it restores the full rate', () => {
     const s = ports();
-    expect(allied).toBeLessThan(full);
+    expect(allied).toBeGreaterThan(full); // Fix-4A1: an alliance must not pay less than a war (it was the same-owner half)
+    expect(allied).toBe(Math.floor((full * TRADE_ALLIANCE_PCT) / 100));
     expect(structGoldMilliPerSec(s, 1)).toBe(own + full); // read once: the cache is warm, the flip must dirty it
     truce(s, 0, 1);
     expect(structGoldMilliPerSec(s, 1)).toBe(own + full);

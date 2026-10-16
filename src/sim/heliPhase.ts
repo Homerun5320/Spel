@@ -4,7 +4,7 @@ import { flyHelis } from './heliFlight';
 import { beachheadPhase } from './heliLanding';
 import { checkProduceHeli, HELI_PRICE_MILLI } from './heliRules';
 import { HELI_BUILDING, HELI_PAD, cellCentreQ8 } from './heliTable';
-import { REJECT_NONE } from './intents';
+import { REJECT_HELI_TABLE_FULL, REJECT_NONE } from './intents';
 import { OUTBOX_HELI_PRODUCED, OUTBOX_HELI_QUEUED, OUTBOX_HELI_SCRAPPED } from './outbox';
 import { HELI_BUILD_TICKS, HELI_FUEL_MAX_Q8, HELI_HP_TENTHS } from './rules';
 import { seatToOwner, type GameState } from './state';
@@ -16,7 +16,7 @@ export function applyProduceHeli(state: GameState, seat: number, factory: number
   const why = checkProduceHeli(state, state.gold[ownerId] as number, spawnPhaseRefuses(state), seat, factory);
   if (why !== REJECT_NONE) return why;
   const id = state.helis.addBuilding(ownerId, factory, state.tick, state.tick + HELI_BUILD_TICKS);
-  if (id < 0) return why; // unreachable: the fleet cap (at most 12) is far below the table
+  if (id < 0) return REJECT_HELI_TABLE_FULL; // unreachable after checkProduceHeli (it tests the table), kept as a guard
   state.gold[ownerId] = (state.gold[ownerId] as number) - HELI_PRICE_MILLI;
   state.outbox.push(OUTBOX_HELI_QUEUED, state.tick, id, factory);
   return REJECT_NONE;
@@ -35,6 +35,17 @@ export function scrapFactoryHelis(state: GameState, factory: number): void {
     const s = t.state[id] as number;
     if (s !== HELI_BUILDING && s !== HELI_PAD) continue;
     state.outbox.push(OUTBOX_HELI_SCRAPPED, state.tick, id, s);
+    t.remove(id);
+  }
+}
+
+/** Scraps EVERY helicopter of an eliminated owner (Fix-4A1): queued, parked or airborne; the load is lost (the owner has no land to give it back to). Called by `winPhase` in the tick of the elimination. */
+export function scrapOwnerHelis(state: GameState, ownerId: number): void {
+  const t = state.helis;
+  if (t.liveCount === 0) return;
+  for (let id = 0; id < t.highWater; id++) {
+    if (t.owner[id] !== ownerId) continue;
+    state.outbox.push(OUTBOX_HELI_SCRAPPED, state.tick, id, t.state[id] as number);
     t.remove(id);
   }
 }

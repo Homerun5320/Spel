@@ -49,7 +49,7 @@ const addDone = (s: GameState, type: number, owner: number, cell: number, level 
 
 describe('Fix-Sim: engine version', () => {
   it('is 17 after M18c-1 (16 after M12a-3, 15 after M12a-2, 14 after M12a-1, 13 after Sim-Levels2), and a snapshot with another engine version is refused', () => {
-    expect(ENGINE_VERSION).toBe(18);
+    expect(ENGINE_VERSION).toBe(19);
     const s = strip(2);
     const bytes = serialize(s);
     expect(deserialize(bytes).ok).toBe(true);

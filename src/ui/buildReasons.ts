@@ -32,7 +32,9 @@ import {
   LZ_TOO_HIGH,
   LZ_WATER,
   REJECT_HELI_FACTORY_BUILDING,
+  REJECT_HELI_BEACHHEAD_FULL,
   REJECT_HELI_FLEET_CAP,
+  REJECT_HELI_TABLE_FULL,
   REJECT_HELI_NO_FACTORY,
   REJECT_HELI_NO_GOLD,
   REJECT_HELI_BAD_TROOPS,
@@ -134,6 +136,10 @@ export function airRefusalKey(reason: number): TextKey {
       return 'toast.heli.queueBusy';
     case REJECT_HELI_FLEET_CAP:
       return 'toast.heli.fleetCap';
+    case REJECT_HELI_TABLE_FULL:
+      return 'toast.heli.tableFull';
+    case REJECT_HELI_BEACHHEAD_FULL:
+      return 'toast.heli.beachheadFull';
     case REJECT_HELI_NO_GOLD:
       return 'toast.heli.noGold';
     case REJECT_HELI_NO_PAD:

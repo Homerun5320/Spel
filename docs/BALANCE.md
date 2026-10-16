@@ -227,6 +227,7 @@ Gold effects are in milli-gold per second (the economy turns them into milli-gol
 | `TRADE_BASE_MILLI` | 1500 | milli-gold/s | plan | Trade value per Port of a pair = 1.5 * (1 + min(d, 120) / 100) gold/s. |
 | `TRADE_DIST_CAP_CELLS` | 120 | sim cells | plan | The distance stops counting here (500 cells pay the same as 120); at most 3.3 gold/s per Port of a pair. |
 | `TRADE_SAME_OWNER_PCT` | 50 | percent | plan | A pair with the same owner trades at half; under embargo at 0. |
+| `TRADE_ALLIANCE_PCT` | 125 | percent | plan | Fix-4A1: a pair of ALLIED owners trades at 125 % of the open rate (an alliance must not pay less than a war); the cap of 13 gold/s per Port (`PORT_INCOME_MAX_MILLI_PER_SEC`) still holds. |
 | `POST_RADIUS_CELLS` | 12 | sim cells | plan | A finished Defense Post makes the attacker's cell price x2.5 for cells of its owner within this distance. |
 | `POST_COST_NUM` | 5 | ratio | plan | The Post multiplier 5 / 2 = 2.5 (numerator); the price is floored once. |
 | `POST_COST_DEN` | 2 | ratio | plan | The denominator of the Post multiplier. |

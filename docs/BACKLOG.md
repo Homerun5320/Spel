@@ -499,3 +499,8 @@ Not done in the Fix-UI slice (the sim, host and AI findings belong to Fix-Sim):
 - The diplomacy panel sorts by seat; sorting by land share or by relation would be easy (`buildDiploRows` returns plain rows).
 - An AI that is asked for a truce by the human replies after 3 to 6 s; a visible "thinking" state in the row is the `waiting` text only.
 - The cards sit top left under the top bar (wide) or top right (narrow); with three cards and a selected structure on a 540 px high window they can reach the selection panel (the e2e checks one card).
+
+## Fix-4A1
+- Mutants of audit 3 not killed in this slice (the rest of [1.2] and [1.3]): N08 home trait in `landingCostMilli`, N13 neighbour treaty (killed now), N17 (the unpaid fraction when `rem` is 0: equivalent in effect, the last troop is simply not charged), N28 and N29 (merge ignores the owner / the equal-tick tie-break), B02 to B05 and B10, B11 (cluster across the date line, unbounded cluster, any structure as City, unplayable seed, `holdsBeachhead` seed and owner), G10, G12, G15, G16, G17, G19, G24, G28, G34 (flight: altitude step per cell, look-ahead, ceil climb, seam flights, return mode). Each needs a hill or seam world; start from `tests/sim/heliFlight.test.ts`.
+- The page-side `validateLaunchHeli` cannot see the beachhead table (no `BeachheadView` yet, Fix-4B adds one): it answers "not full" and the sim refuses with 58. Wire `LaunchProbe.beachheadFull` to the view when it exists.
+- `activeCountOf` (T05, T06) of `MatchView.relations` is still untested.

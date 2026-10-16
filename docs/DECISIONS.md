@@ -1483,3 +1483,43 @@ Both sim tracks raised ENGINE_VERSION on their own branch (16). The merge sets t
 9. **Mutants shown** (each makes a named test fail, then the source was put back): the truce button ignoring `validateProposeTreaty` (4 tests of `tests/ui/diploModel.test.ts` fail), the watcher never saying "expired" (the watcher test fails), `attackOrExplain` sending the attack anyway (`e2e/diplomacy.test.ts` "attack click": no `reject.diplo.treatyBound` toast), `BreakConfirm.click` always confirming (`e2e/diplomacy.test.ts` "break": the first click already broke the treaty, `data-armed` stays 0).
    Also: `e2e/goldens/result-screen.png` re-pinned once (two more columns, "Ingångna avtal" and "Brutna avtal": the only golden this change moves; the top bar, structures, city and districts e2e goldens with `hud=1` stay green).
 10. **Not done** (see BACKLOG "M18c-3"): the AI's embargo, shared victory, chat, tributes, a declaration of war with notice, a history of answers.
+
+## Fix-4A1: audit 3, helicopter, beachhead and treaty rules (ENGINE 19)
+Source: audit 3 findings [0.0], [0.1], [0.2], [0.6], [1.10], [1.1] to [1.4] against HEAD c672abe. All were still open at HEAD (checked by reading the code and by the new tests, each of which fails on the old code or on its mutant).
+
+1. **[0.0] Zombie nation.** `winPhase` calls `scrapOwnerHelis` (heliPhase.ts) in the tick of the elimination: every helicopter of the seat (queued, parked, airborne) is removed and its load is lost (the seat has no land to return it to). `performLanding` also does nothing for an eliminated owner (HELI_LANDED b = -1), which guards a state restored from before the rule.
+2. **[0.1] Cut-off cluster.** Chosen: no new per-cell state (a landing mark would change FORMAT, and the other builder owns the deserialize guards). A landing whose taken cells touch (8 neighbours) land the owner already held is ordinary land at once and creates NO beachhead row, unless that land is itself the cluster of a live cut-off row (then the row check merges them as before: the existing merge test still passes). Second guard: a cut-off cluster that contains the owner's capital cell is established at its check. Known remainder: a bridging landing between a probation cluster and a small main body can still revert the main body if neither holds a City or the capital; unreachable for a nation that has a capital, noted here.
+3. **[0.2] Treaty ban.** Only tests (the guards existed): neighbour skip for truce and alliance, partner cells keep their owner, 6 cells taken, `conquered` = 6; page-side `validateLaunchHeli` refuses a partner's zone with `REJECT_DIPLO_TREATY_BOUND` and agrees with the sim.
+4. **[0.6] Tables.** New codes (the range 55 to 63 was reserved for the helicopter milestone; 55 is left alone because `tests/ui/heliReasons.test.ts` pins it as "other"): `REJECT_HELI_TABLE_FULL` 57 (ProduceHeli with all 64 helicopter slots used; the per-seat cap stays `REJECT_HELI_FLEET_CAP` 49) and `REJECT_HELI_BEACHHEAD_FULL` 58 (LaunchHeli when rows in use + helicopters already on a mission >= `BEACHHEAD_CAPACITY`; refused before the departure, no troops drawn). Texts `toast.heli.tableFull` / `toast.heli.beachheadFull` (sv, en, last in the tables). The page-side `validateLaunchHeli` has no beachhead table (`LaunchProbe.beachheadFull` answers false there; BACKLOG). Table sizes and FORMAT unchanged. Comments fixed; `64 * BEACHHEAD_ESTABLISH_CELLS` is now `BEACHHEAD_CAPACITY * ...`. `applyProduceHeli`'s `id < 0` branch returns `REJECT_HELI_TABLE_FULL` instead of REJECT_NONE.
+5. **[1.10] Alliance trade.** The M18c-1 decision (item 8, allied Ports at the same-owner half) is REVERSED: an alliance cost income. `TRADE_ALLIANCE_PCT = 125` (BALANCE row); `tradeMilliPerSec(dist, sameOwner, embargo, allied)`. The cap `PORT_INCOME_MAX_MILLI_PER_SEC` (13 gold/s per Port, so 15 gold/s for ten level-1 Cities still holds with the +10 % trait) applies after the sum, so no Port exceeds it. Test `allied Ports trade ...` in `tests/sim/diplomacy.test.ts` changed on purpose (`allied < full` became `allied > full` and the exact 125 %).
+6. **Engine.** ENGINE_VERSION 18 to 19 once. Tests that pinned 18 (`tests/sim/fixSim.test.ts`, `tests/sim/districtsState.test.ts`) follow. `e2e/goldens/sim-hashes.json` and `e2e/goldens/match-hashes.json` recomputed once with `UPDATE_GOLDENS=1` through `tests/sim/golden.test.ts` and `tests/app/matchGolden.test.ts` (the header hash carries the engine version; no scripted run reaches a changed rule path except through it). Node == worker is covered by the unchanged worker tests of verify:fast.
+7. **Mutants (each made the named test fail, then the source was restored; script not committed).**
+
+| Mutant | Killed by |
+|---|---|
+| no `scrapOwnerHelis` in winPhase | fix4a1 `[0.0] the elimination scraps...` |
+| eliminated guard in performLanding | fix4a1 `[0.0] performLanding does nothing...` |
+| `joined` ignored (always a row) | fix4a1 `[0.1] a 25-cell nation...` |
+| no capital rule | fix4a1 `[0.1] ... holds the capital cell` |
+| neighbour treaty guard removed (audit mutant a) | fix4a1 `[0.2] truce` and `alliance` |
+| `zoneBound` returns false (audit mutant b) | fix4a1 `[0.2] validateLaunchHeli ...` |
+| `beachheadFull` ignored / pending helicopters not counted | fix4a1 `[0.6]` first two tests |
+| table-full check removed from `checkProduceHeli` (H10) | fix4a1 `[0.6]` (through `validateProduceHeli`) |
+| H03 fleet cap sums other seats | fix4a1 `[1.1] H03` |
+| H16 `troops >= probe.troops` | fix4a1 `[1.1] H16` |
+| H23 / H24 recall in HOVER / LIFT | fix4a1 `[1.1] H23 / H24` |
+| G11 unfinished Factory as home | fix4a1 `[1.1] G11` |
+| G01 floor instead of round in `STEP_Q8` | fix4a1 `[1.1] G01` |
+| N10 Post ignored, N11 max(Walls, Post) | fix4a1 `[1.2] N10 / N09 / N11` |
+| N15 carry dropped, N16 fraction not paid | fix4a1 `[1.2] N15 / N16` |
+| N19 `conquered` not counted | fix4a1 `[0.2]` (conquered = 6) |
+| D25 no `dirtyTrade` in BreakTreaty | fix4a1Diplo D25 |
+| T18 `rebuildPairs` drops alliances | fix4a1Diplo T18 |
+| T13 `propExpire` not shifted | fix4a1Diplo T13 |
+| D32 forward loop over `pairs` | fix4a1Diplo D32 |
+| T11 embargo imposer not hashed | fix4a1Diplo T11 |
+| `TRADE_ALLIANCE_PCT` 125 to 50 | diplomacy.test.ts allied trade test |
+
+Equivalent or not done (BACKLOG Fix-4A1): N17 (the fraction when `rem` is 0 is only a missing charge of one troop in an unreachable state: equivalent), N08, N28/N29, B02 to B05, B10/B11, G10, G12, G15, G16, G17, G19, G24, G28, G34, T05/T06. Not done for time, not disproved.
+
+`npm run verify:fast` once at the end: typecheck and lint green, unit 2693 passed; the 3 failures were docs-only (BALANCE source column, backticked file names) and were fixed and re-run as single files (tests/docs.test.ts, tests/balance.test.ts, tests/sim/rules.test.ts: 40 passed). verify:fast was not repeated whole (shared cores).
