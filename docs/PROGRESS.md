@@ -151,21 +151,22 @@ ACCEPTANS
 
 - Result: `npm run verify:fast` green (typecheck, lint, 233 unit files, 2545+ tests; 2 min 58 s); perf alone: heliFlight.perf, heli.perf, sim.perf green (flight phase of 12 airborne 25.8 us on a quiet run); the full `npm run verify`, Chromium, the pack and the pull request are the orchestrator's. Details, mutant table, measured flight times and the hooks for part 3 and M13 in `docs/DECISIONS.md` "M12a-2".
 ### M12a-3: helicopters in the sim, part 3 of 3 (the landing, the beachhead, the cut-off cluster; headless sim; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
-Previous merge SHA: nothing of this branch is merged (pull request #1 is a draft); base commit a81d4b0.
+Previous merge SHA (origin/main; nothing of this branch is merged, pull request #1 is a draft): f29121a8d1607ca169e6675b5f22a52d76c42ef7; base commit a81d4b0.
 GÖR
-- [ ] 1. GÖR and ACCEPTANS written here first
-- [ ] 2. Landing (replaces the placeholder): HELI_UNLOAD 10 ticks, LZ cell then N,E,S,W,NE,SE,SW,NW at the Attack cell price (x2 enemy), 1 to 9 cells, a failed landing loses the load, the rest of the load is an Attack from the beachhead, beachhead table row, `landingBlockedBy` hook
-- [ ] 3. Cut-off cluster: every 10 ticks a bounded BFS (80 cells), established at 80 cells or a City (post freed), else neutral exactly 450 ticks after the landing; the cluster counts for no troop cap, regeneration or gold land while cut off (cached); two beachheads that grow together merge; the enclave rule does not flip a cut-off cluster
-- [ ] 4. Outbox: BEACHHEAD_FORMED, BEACHHEAD_REVERTED, HELI_LANDED (cells or failed); elimination with only a beachhead left
-- [ ] 5. Tests (reasons, 1 to 9 cells, failed landing, order, tick-exact revert, no revert at 80 cells or a City, no economy from the cluster, date line, round trip, snapshot == straight run, property test over many landings, Node == worker golden), perf
-- [ ] 6. Docs and `npm run verify:fast`
+- [x] 1. GÖR and ACCEPTANS written here first
+- [x] 2. Landing (replaces the placeholder): HELI_UNLOAD 10 ticks, LZ cell then N,E,S,W,NE,SE,SW,NW at the Attack cell price (x2 enemy), 1 to 9 cells, a failed landing loses the load, the rest of the load is an Attack from the beachhead, beachhead table row, `landingBlockedBy` hook
+- [x] 3. Cut-off cluster: every 10 ticks a bounded BFS (80 cells), established at 80 cells or a City (post freed), else neutral exactly 450 ticks after the landing; the cluster counts for no troop cap, regeneration or gold land while cut off (cached); two beachheads that grow together merge; the enclave rule does not flip a cut-off cluster
+- [x] 4. Outbox: BEACHHEAD_FORMED, BEACHHEAD_REVERTED, HELI_LANDED (cells or failed); elimination with only a beachhead left
+- [x] 5. Tests (reasons, 1 to 9 cells, failed landing, order, tick-exact revert, no revert at 80 cells or a City, no economy from the cluster, date line, round trip, snapshot == straight run, property test over many landings, Node == worker golden), perf
+- [x] 6. Docs and `npm run verify:fast`
 ACCEPTANS
-- [ ] Landing, beachhead 1 to 9 cells, failed landing, order, troop audit (no troops from nothing)
-- [ ] Cut-off cluster tick-exact 45 s; an established cluster does not revert; no economy from the cluster meanwhile
-- [ ] Elimination with only a beachhead left tested
-- [ ] Round trip, snapshot == straight run, golden Node == worker
-- [ ] Perf within budgetMs(0.5)
-- [ ] `npm run verify:fast` green
+- [x] Landing, beachhead 1 to 9 cells, failed landing, order, troop audit (no troops from nothing)
+- [x] Cut-off cluster tick-exact 45 s; an established cluster does not revert; no economy from the cluster meanwhile
+- [x] Elimination with only a beachhead left tested
+- [x] Round trip, snapshot == straight run, golden Node == worker
+- [x] Perf within budgetMs(0.5)
+- [x] `npm run verify:fast` green
+- Result: `npm run verify:fast` green (typecheck, lint, unit tests 2 min 35 s); perf alone: heliLanding.perf (tick with 12 airborne and 4 beachheads 34 us, four searches 11 us), heliFlight.perf, heli.perf green. The full `npm run verify`, Chromium, the pack and the pull request are the orchestrator's. Details, mutant table and the Alps text replay in `docs/DECISIONS.md` "M12a-3".
 
 ## Next
 

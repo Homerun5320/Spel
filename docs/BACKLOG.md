@@ -462,3 +462,13 @@ Not done in the Fix-UI slice (the sim, host and AI findings belong to Fix-Sim):
 - A leak test (320x180, 60 renders, heapDelta) was not added: the layer creates one geometry, one material and four instanced buffers once and nothing per frame or per table change; `Globe.dispose` frees them.
 - `HeliLayer` takes the altitude above ground as `alt - GAMEPLAY_HEIGHT_EXAG * meanElev(cell)`; if M12a-2 defines `alt` differently for flight, change that one line (`aglM` in `rebuild`).
 
+## M12a-3 leftovers (landing, beachhead, cut-off cluster)
+
+- `SimView` and the page do not see the beachhead table (owner, seed, landTick, status) or `stateTick` of a helicopter. M13b needs both for a countdown on a cut-off cluster ("returns to neutral in n s") and for the unload animation: add a read-only `BeachheadView` to `SimView` and `stateTick` to `HeliView` with the host snapshot (a changed-signature scheme as for `helis`).
+- Relations (M18c-1): `landingBlockedBy(owner, targetOwner)` in `src/sim/heliLanding.ts` always returns false; when `relation` exists in `src/sim/public.ts`, return true for a truce or an alliance, and add the same refusal to `checkLaunchHeli` so that the UI refuses before the flight.
+- The landing sets no exposure depth (`state.exposure`) for the cells it takes (depth 0 as a plain capture without an attack): the Attack that carries the rest of the load starts every frontier cell at depth 0. A bounded search to `D_MAX_CELLS` would make a relaunch dearer in deep cells (D91); not needed at 9 cells.
+- A cut-off cluster counts for the land share and the score (only the economy leaves it out). A win by land share with a landing is possible only with 60 percent of the map, so this is harmless; revisit in M19.
+- A Port, a Factory or any structure on a cut-off cell still gives its gold (`structGoldMilliPerTick` is per structure, not per cell); only the land-based income and the cap are left out. A City makes the cluster established at the next check.
+- An established cluster of fewer than `ENCLAVE_MAX_CELLS` 64 cells that one other owner surrounds completely flips to that owner (the enclave rule applies from the check that frees the row); the exemption lasts only while the row is cut off. M19: decide whether a City should keep a small established cluster.
+- A helicopter that unloads keeps its hover altitude (a renderer may draw the descent from `stateTick`); M12b's visibility questions read that altitude.
+- AI use of the landing (M17), anti-air (M12b), balance of the landing price and of the 45 s (M19).

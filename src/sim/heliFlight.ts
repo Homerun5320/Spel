@@ -344,10 +344,9 @@ export function flyHelis(state: GameState): void {
         startReturn(state, id, 0);
         continue;
       }
-      // Settling: the altitude goes to the ground of the zone in the ticks that are left (exact: it is there at the last one).
-      const g = losOf(state).terrain.groundGm[(t.target[id] as number) - 1] as number;
-      const a = t.alt[id] as number;
-      if (k > 0 && a > g) t.alt[id] = a - Math.floor((a - g) / (HELI_UNLOAD_TICKS - k));
+      // The altitude stays at the hover figure (the floor rule of the flight holds until the cells are taken); a renderer may draw the descent from
+      // `stateTick`. M12b's visibility questions read this `alt`, so a helicopter that unloads is as visible as a hovering one.
+      setAltitude(state, id, 0, 0, 0, 0);
       continue;
     }
     // CRUISE, APPROACH or RETURN: fly the route.

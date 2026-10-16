@@ -35,7 +35,9 @@ import { changeOwner } from './territory';
  * HOOK for the diplomacy track (M18c-1): may `owner` set troops down on a cell that belongs to `targetOwner`? No relation query exists yet, so it is
  * always false. When relations land, a truce or an alliance returns true here; a blocked landing keeps its load aboard and the helicopter turns home.
  */
-export function landingBlockedBy(_owner: number, _targetOwner: number): boolean {
+export function landingBlockedBy(owner: number, targetOwner: number): boolean {
+  void owner;
+  void targetOwner;
   return false;
 }
 
@@ -94,7 +96,6 @@ export function performLanding(state: GameState, id: number): void {
   t.load[id] = 0;
   let frac = 0;
   let taken = 0;
-  let costQt = 0;
   for (let k = 0; k < BEACHHEAD_LANDING_CELLS; k++) {
     const c = landingCell(w, h, lz, k);
     if (c < 0 || grid.playable[c] === 0) {
@@ -111,7 +112,6 @@ export function performLanding(state: GameState, id: number): void {
     const whole = Math.floor(owed / MILLI_QT_PER_QT);
     if (rem < whole) break;
     rem -= whole;
-    costQt += whole;
     frac = owed - whole * MILLI_QT_PER_QT;
     changeOwner(state, c, ownerId, 0, -1, 0);
     taken++;

@@ -18,6 +18,8 @@ import {
   type OutboxEvent,
 } from '../../src/sim/outbox';
 import {
+  BEACHHEAD_CHECK_TICKS,
+  BEACHHEAD_ESTABLISH_CELLS,
   BEACHHEAD_REVERT_TICKS,
   BUILD_TICKS,
   BEACHHEAD_LANDING_CELLS,
@@ -26,6 +28,7 @@ import {
   MILLI_GOLD_PER_GOLD,
   MILLI_QT_PER_QT,
   QT_PER_TROOP,
+  TICK_HZ,
 } from '../../src/sim/rules';
 import { deserialize, hashState, serialize } from '../../src/sim/serialize';
 import { step } from '../../src/sim/step';
@@ -164,6 +167,10 @@ describe('the landing zone is judged by scoreLz at LaunchHeli (the refusal is th
     expect(applyLaunchHeli(s, 0, f, ENEMY_LZ, 100, 0)).toBe(REJECT_NONE); // a good zone passes
   });
 
+  it('the plan\'s numbers: unload 10 ticks, nine cells, search every 10 ticks, established at 80 cells, back to neutral after 450 ticks (45 s)', () => {
+    expect([HELI_UNLOAD_TICKS, BEACHHEAD_LANDING_CELLS, BEACHHEAD_CHECK_TICKS, BEACHHEAD_ESTABLISH_CELLS, BEACHHEAD_REVERT_TICKS, TICK_HZ]).toEqual([10, 9, 10, 80, 450, 10]);
+  });
+
   it('the diplomacy hook exists and blocks nothing yet', () => {
     expect(landingBlockedBy(1, 2)).toBe(false);
     expect(landingBlockedBy(1, 0)).toBe(false);
@@ -246,7 +253,7 @@ describe('the landing takes the zone, then N, E, S, W, NE, SE, SW, NW at the Att
     expect(s.beachheads.liveCount).toBe(0);
   });
 
-  it('HELI_UNLOAD lasts HELI_UNLOAD_TICKS and the cells are taken in its last step, not before; the helicopter settles to the ground meanwhile', () => {
+  it('HELI_UNLOAD lasts HELI_UNLOAD_TICKS and the cells are taken in its last step, not before; the altitude holds the clearance floor meanwhile', () => {
     const s = world();
     const f = factoryWithHeli(s);
     expect(applyLaunchHeli(s, 0, f, ENEMY_LZ, 600, 0)).toBe(REJECT_NONE);
@@ -264,7 +271,7 @@ describe('the landing takes the zone, then N, E, S, W, NE, SE, SW, NW at the Att
       expect(s.helis.state[0]).toBe(HELI_UNLOAD);
       expect(s.owner[ENEMY_LZ], `before the last unload step (k = ${k})`).toBe(2);
     }
-    expect(s.helis.alt[0]).toBe(40); // the ground of the zone (EXAG * 5 m)
+    expect(s.helis.alt[0]).toBe(altStart); // the hover altitude holds (the clearance floor of the flight is never broken, M12b reads it)
     expect(applyRecallHeli(s, 0, 0)).toBe(REJECT_HELI_NOT_FLYING); // a helicopter that is unloading cannot be recalled
     fly(s); // the step at tick start + HELI_UNLOAD_TICKS
     expect(s.owner[ENEMY_LZ]).toBe(1);

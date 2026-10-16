@@ -88,7 +88,7 @@ export function cutOffWeightOf(state: GameState, owner: number): number {
 /** Recomputes the cache from the cells (a pure function of the state). */
 function refreshCutOff(state: GameState): void {
   const b = state.beachheads;
-  const slots = state.header.seats + 1;
+  const slots = state.agg.area.length; // one slot per ownerId (0 = nobody)
   if (b.cutWeight === null || b.cutWeight.length !== slots) b.cutWeight = new Uint32Array(slots);
   const out = b.cutWeight;
   out.fill(0);
