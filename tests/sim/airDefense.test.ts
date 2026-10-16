@@ -439,4 +439,4 @@ describe('state: serialisation and the straight run', () => {
 });
 
 /** Pinned (M12b): the state hash after the replay of `heli-raid --fixture plains-sam --seed 3`. */
-const PLAINS_SAM_SEED3_HASH = 59485615; // 3699119408 before ENGINE 20 / FORMAT 14 (M12b), 2860833196 / 447384241 on the M18d-1 / M18b-2 branches; set once for the merged ENGINE 22 / FORMAT 16 (the engine version and the match block are part of the hash; the raid itself is unchanged)
+const PLAINS_SAM_SEED3_HASH = 3353160779; // 59485615 on ENGINE 22 / FORMAT 16; set again for ENGINE 23 (M18b-3: the engine version is part of the hash; the raid itself is unchanged)

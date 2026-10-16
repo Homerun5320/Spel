@@ -43,8 +43,8 @@ function refused(tamper: (s: GameState) => void, error = 'structure-range'): voi
 }
 
 describe('versions', () => {
-  it('ENGINE_VERSION is 22 (M18b-2: federations; 21 after M18d-1: technology; 20 after M12b: air defence; 19 after Fix-4A1; 18 after M18c-2: the AI temperament; 17 after M18c-1: diplomacy; 16 after M12a-3, 15 after M12a-2, 14 after M12a-1) and FORMAT_VERSION is 16 (M18b-2: bound alliance pairs; 15 after M18d-1: the technology arrays in the match block; 14 after M12b: the salvo clock of the structure rows; 13 after M18c-1: the diplomacy block; 12 after M12a-1: the air block; was 13 and 11 after Sim-Levels2, 12 and 10 after Sim-Growth)', () => {
-    expect(ENGINE_VERSION).toBe(22);
+  it('ENGINE_VERSION is 23 (M18b-3: federation groups in the win rules; 22 after M18b-2: federations; 21 after M18d-1: technology; 20 after M12b: air defence; 19 after Fix-4A1; 18 after M18c-2: the AI temperament; 17 after M18c-1: diplomacy; 16 after M12a-3, 15 after M12a-2, 14 after M12a-1) and FORMAT_VERSION is 16 (M18b-2: bound alliance pairs; 15 after M18d-1: the technology arrays in the match block; 14 after M12b: the salvo clock of the structure rows; 13 after M18c-1: the diplomacy block; 12 after M12a-1: the air block; was 13 and 11 after Sim-Levels2, 12 and 10 after Sim-Growth)', () => {
+    expect(ENGINE_VERSION).toBe(23);
     expect(FORMAT_VERSION).toBe(16);
   });
 });

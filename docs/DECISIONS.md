@@ -1861,3 +1861,9 @@ Base commit 752be0f; nothing merged to main yet (draft pull request #1).
 8. **Not done (BACKLOG "M18d-3").** The tree as a graph with lines, techs that unlock buildings or missiles, shared research between allies, AI research in the UI, the University (M18e).
 
 9. **Size cap.** The main chunk reached 311 035 B gzip with the research panel (cap was 311 000): `JS_GZ_MAIN_MAX` in `tests/portable.test.ts` 311 000 -> 321 000 (ratchet, as in the Round 19 merge note). The panel is a dynamic-import candidate (BACKLOG bundle diet). Final verify:fast: unit green after this change.
+
+## Round 20 integration (orchestrator)
+
+1. **The container restart.** A container restart cut off both builders of round 20 (M18d-2 and M18b-3) after most of their work; their commits were safe in the worktrees. Fresh agents continued in the same worktrees (no reset) and finished both slices; this merge takes their branches.
+2. **ENGINE_VERSION 23.** M18b-3 changes the win rules (federations count as one group) without a state layout change, and M18d-2 changes no rule. The engine version is bumped once for the win rules (a rule changed), both golden hash files were recomputed once on the merged tree with `UPDATE_GOLDENS=1`, and the pins in `tests/sim/districtsState.test.ts`, `tests/sim/fixSim.test.ts`, the replay hash in `tests/sim/airDefense.test.ts` and the version line in `docs/ARCHITECTURE.md` follow. FORMAT_VERSION stays 16. A match without federations plays exactly as before; only the header's engine number differs in the hash.
+3. **Size guards.** The main-chunk cap was raised to 321 000 B by M18d-2 (measured 311 035 B with the research panel); the total cap (391 000 B) is checked in the merged build below.
