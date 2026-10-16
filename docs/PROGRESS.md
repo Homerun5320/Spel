@@ -171,7 +171,7 @@ ACCEPTANS
 - [x] Sim hash unchanged by the effects; goldens unchanged (fx flag).
 - [x] Leak test green; both languages; verify:fast green; affected e2e green.
 
-Result (details and numbers in `docs/DECISIONS.md` "M13a-2"): effects, chase camera, far icon and the glide between tables are in; `e2e/heliFx.test.ts` (4 tests: pictures, enemy SAM crash, chase, sim hash with and without the layer) and `e2e/heliFx.serial.test.ts` (leak and allocation) pass; unit tests `tests/render/heliFx.test.ts` and `tests/app/chaseMode.test.ts`. Not done: ETA per list row, the cause colour of a downing, H in the help overlay (BACKLOG "M13a-2"). The full `npm run verify` was NOT run here (the orchestrator runs it after the merge).
+Result (details and numbers in `docs/DECISIONS.md` "M13a-2"): effects, chase camera, far icon and the glide between tables are in; `e2e/heliFxPictures.serial.test.ts` (4 tests: pictures, enemy SAM crash, chase, sim hash with and without the layer) and `e2e/heliFx.serial.test.ts` (leak and allocation) pass; unit tests `tests/render/heliFx.test.ts` and `tests/app/chaseMode.test.ts`. Not done: ETA per list row, the cause colour of a downing, H in the help overlay (BACKLOG "M13a-2"). The full `npm run verify` was NOT run here (the orchestrator runs it after the merge).
 
 ### M18b-3: federations part 3 of 3, shared victory, grouping in the leaderboard and result, federation flags (sim win rules plus UI; one slice in its own worktree; the orchestrator owns merging, pushing and the Artifact)
 

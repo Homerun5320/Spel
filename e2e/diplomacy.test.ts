@@ -390,10 +390,10 @@ describe('the result screen', () => {
         Array.from(document.querySelectorAll('[data-testid="result-row"]')).map((e) => ({ seat: Number((e as HTMLElement).dataset.seat), cells: Array.from(e.querySelectorAll('td')).map((td) => td.textContent ?? '') })),
       );
       const head = await page.evaluate(() => Array.from(document.querySelectorAll('[data-testid="result-table"] th')).map((th) => th.textContent ?? ''));
-      expect(head.slice(-2)).toEqual([t('result.col.treaties'), t('result.col.betrayals')]);
+      expect(head.slice(-3, -1)).toEqual([t('result.col.treaties'), t('result.col.betrayals')]); // M18d-2 appended the Teknik column after them
       const me = rows.find((r) => r.seat === 0)!;
       const other = rows.find((r) => r.seat === 1)!;
-      const last = (r: { cells: string[] }): string[] => r.cells.slice(-2);
+      const last = (r: { cells: string[] }): string[] => r.cells.slice(-3, -1); // the two treaty columns; M18d-2 appended the Teknik column after them
       expect(last(me), 'you made one treaty and broke it').toEqual(['1', '1']);
       expect(last(other), 'the other party made one and broke none').toEqual(['1', '0']);
       await shot(page, 'result-960x540-sv');
