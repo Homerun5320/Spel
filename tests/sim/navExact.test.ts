@@ -254,6 +254,23 @@ describe('planRoute against an exhaustive search (Dijkstra)', () => {
   });
 });
 
+describe('the heuristic is a bound on a world without terrain', () => {
+  it('open world, every pair of rows and three east-west spans: cost ratio at most AIR_ROUTE_WEIGHT_PCT / 100 (the old row-width heuristic reached 1.55)', () => {
+    // kills: heur-old (the east-west part measured with the expanded row's width), heur-noexcursion
+    const f = build(() => open());
+    f.nav.los.sync(f.view);
+    let worst = 1;
+    for (let ay = 0; ay < 16; ay++)
+      for (let by = 0; by < 16; by++)
+        for (const dx of [6, 10, 15]) {
+          const res = check(f, 0, ALT_MODE_LOW, 0, ay * 32 + 3, by * 32 + 3 + dx);
+          worst = Math.max(worst, res.ratio);
+          expect(res.ratio, `rows ${ay} -> ${by}, ${dx} columns`).toBeLessThanOrEqual(BOUND + 1e-9);
+        }
+    console.log(`[navExact] open world: worst cost ratio ${worst.toFixed(3)}`);
+  });
+});
+
 describe('route behaviours locked by a fixture each', () => {
   it('no corner cutting: two open cells that touch only diagonally are not joined by one step', () => {
     // kills: nav-r-corner (delete the corner-cut check in planRoute)
@@ -296,11 +313,11 @@ describe('route behaviours locked by a fixture each', () => {
 
   it('the ceiling term: a plateau just under the service ceiling is flown around, not across', () => {
     // kills: nav-r-ceil (delete the ceilK line)
-    const near = SERVICE_CEILING_M - AIR_CEILING_MARGIN_M - (AIR_MODE_AGL_M[0] as number) + 200;
+    const near = SERVICE_CEILING_M - AIR_CEILING_MARGIN_M - (AIR_MODE_AGL_M[0] as number) + 10;
     // a plateau 7 columns wide and 9 rows tall in the middle of a flat world; the goal lies behind it
-    const f = build((nx, ny) => (nx >= 12 && nx <= 18 && ny >= 3 && ny <= 11 ? open(near) : open(near - 1500)));
+    const f = build((nx, ny) => (nx >= 12 && nx <= 18 && ny >= 3 && ny <= 11 ? open(near) : open(near - 50)));
     const a = nc(f, 8, 7);
-    const b = nc(f, 24, 7);
+    const b = nc(f, 22, 7);
     const r = planRoute(f.nav, f.view, 0, center(f, a), center(f, b), ALT_MODE_LOW, 0);
     if (!r.ok) throw new Error('no route');
     const onPlateau = r.navCells.filter((n) => {
@@ -308,6 +325,7 @@ describe('route behaviours locked by a fixture each', () => {
       const y = (n - x) / f.nav.width;
       return x >= 12 && x <= 18 && y >= 3 && y <= 11;
     });
+
     expect(onPlateau.length).toBe(0);
     const opt = dijkstra(f.nav, 0, ALT_MODE_LOW, 0, a, b);
     expect(pathCost(f.nav, 0, ALT_MODE_LOW, 0, r.navCells, a, b)).toBeLessThanOrEqual(opt * BOUND + 1e-9);
