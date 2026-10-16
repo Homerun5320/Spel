@@ -46,7 +46,7 @@ import { StateView } from '../sim/view';
 import { createWorldState } from '../sim/world';
 import { makeFlagSpec, type FlagSpec } from '../ui/flag';
 import type { TextKey } from '../ui/i18n';
-import { createSeatLabels, type SeatIdentity, type SeatLabels } from '../ui/seatLabels';
+import { createSeatLabels, type FederationLabel, type SeatIdentity, type SeatLabels } from '../ui/seatLabels';
 import { CUSTOM_NAME_MAX_CHARS } from '../ui/uiConfig';
 import { countryWithName } from './countrySearch';
 import { countryEligibility, startCellEligibility } from './eligibility';
@@ -551,6 +551,12 @@ function build(world: PreparedWorld, config: MatchSetupConfig, lenient: boolean)
   const federationGroups = groups.filter((g) => g.length >= 2);
   for (const g of federationGroups) for (let i = 0; i < g.length; i++) for (let j = i + 1; j < g.length; j++) bindFederation(state, g[i] as number, g[j] as number);
 
+  // M18b-3: ONE flag per federation (a pure function of the seed and the country), named like the country; the sub-nations keep their own names and flags.
+  const federationLabels: FederationLabel[] = federationGroups.map((g) => {
+    const c = placed.find((p) => p.seat === g[0])?.country ?? null;
+    return { seats: g, nameEn: c?.nameEn ?? '', nameSv: c?.nameSv ?? '', flag: makeFlagSpec(mix(config.seed, FLAG_SALT + 5000 + (c?.id ?? 0))) };
+  });
+
   const match: BuiltMatch = {
     state,
     config,
@@ -565,6 +571,7 @@ function build(world: PreparedWorld, config: MatchSetupConfig, lenient: boolean)
       seats.map((s) => ({ identity: s.identity, flag: s.flag })),
       players,
       config.humanSeat,
+      federationLabels,
     ),
     federationGroups,
   };

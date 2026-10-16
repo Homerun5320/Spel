@@ -47,11 +47,12 @@ describe('Dela upp stormakter', () => {
       await page.evaluate(() => (window as any).__test.run(25)); // past the 20 s spawn phase, where every diplomacy intent is refused
       await page.evaluate(() => (window as any).__test.settle(0.25, 2));
       const rows = await page.locator(tid('leader-row')).evaluateAll((els) =>
-        els.filter((e) => !(e as HTMLElement).hidden).map((e) => ({ name: e.querySelector('.hud-name')?.textContent ?? '', ally: (e.querySelector('[data-testid="rel-alliance"]') as HTMLElement | null)?.hidden === false })),
+        els.filter((e) => !(e as HTMLElement).hidden).map((e) => ({ name: e.querySelector('.hud-name')?.textContent ?? '', group: (e as HTMLElement).dataset.group === '1', ally: (e.querySelector('[data-testid="rel-alliance"]') as HTMLElement | null)?.hidden === false })),
       );
       // the leaderboard shows the top of 25 equal nations: an allied row there carries the badge, and only sub-nations are allied
-      for (const r of rows.filter((x) => x.ally)) expect(r.name).toContain('(United States of America)');
-      expect(rows.some((r) => r.name.includes('(United States of America)'))).toBe(true);
+      // M18b-3: the federation is ONE row ("United States of America (n/m kvar)") that stands for its allied sub-nations
+      for (const r of rows.filter((x) => x.ally && !x.group)) expect(r.name).toContain('(United States of America)');
+      expect(rows.some((r) => r.group && /USA|United States of America/.test(r.name))).toBe(true);
       await shot(page, 'leaderboard');
       // the diplomacy panel: the alliance is there and the break button is the sim's verdict
       await page.keyboard.press('d');

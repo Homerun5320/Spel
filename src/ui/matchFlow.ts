@@ -16,6 +16,13 @@ export function humanStatus(m: MatchView, localSeat: number): HumanStatus {
   return (m.eliminated[localSeat] ?? 0) === 1 ? 'eliminated' : 'playing';
 }
 
+/** M18b-3: which side a seat is on (its federation, else itself) and whether that side is a federation; `NO_SIDES` is the match without federations. */
+export interface SideInfo {
+  of(seat: number): number;
+  shared(seat: number): boolean;
+}
+const NO_SIDES: SideInfo = { of: (seat) => seat, shared: () => false };
+
 /** The headline and the reason of a finished match: i18n keys with their numbers. */
 export interface ReasonLine {
   readonly titleKey: TextKey;
@@ -32,10 +39,11 @@ const minutesOf = (ticks: number): number => Math.round((ticks * TICK_MS) / 6000
  * "Sist kvar", "Högst poäng efter 12 minuter". `nameOf(seat)` is the nation's name in the UI language. The land share and hold time shown are
  * the rule the match was played under (`landSharePct`, `holdTicks`), not the overtime figure of the end tick.
  */
-export function reasonLine(m: MatchView, localSeat: number, nameOf: (seat: number) => string): ReasonLine {
-  const won = m.winnerSeat === localSeat;
+export function reasonLine(m: MatchView, localSeat: number, nameOf: (seat: number) => string, side: SideInfo = NO_SIDES): ReasonLine {
+  const shared = m.winnerSeat >= 0 && side.shared(m.winnerSeat);
+  const won = m.winnerSeat >= 0 && side.of(m.winnerSeat) === side.of(localSeat);
   const name = m.winnerSeat >= 0 ? nameOf(m.winnerSeat) : '';
-  const titleKey: TextKey = m.winnerSeat < 0 ? 'result.title.none' : won ? 'result.title.you' : 'result.title.other';
+  const titleKey: TextKey = m.winnerSeat < 0 ? 'result.title.none' : shared ? (won ? 'result.title.fedYou' : 'result.title.fedOther') : won ? 'result.title.you' : 'result.title.other';
   const base = { titleKey, titleParams: { name } };
   if (m.reason === WIN_REASON_LAND) {
     const params = { name, pct: m.landSharePct, secs: secondsOf(m.holdTicks) };

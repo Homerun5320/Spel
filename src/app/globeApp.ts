@@ -78,6 +78,8 @@ import { SETUP_PREF_KEY, checkDraft, defaultDraft, draftFromStored, isStoredSetu
 import { hashBuiltMatch } from './match';
 import { createMatchPanels, type MatchPanels, type ResultView } from '../ui/matchPanels';
 import { MatchWatcher, RESTART_PREF, humanStatus, reasonLine, resultRows } from '../ui/matchFlow';
+import { resultGroups, sideInfoOf } from '../ui/groupModel';
+import { sideName } from '../ui/seatLabels';
 import { createSeatLabels, type SeatLabels } from '../ui/seatLabels';
 import { winInfoOfView, winSummaryText } from './winSetup';
 import { nextFlagSeed } from './setupScreen';
@@ -693,14 +695,19 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     return forcedView;
   };
   const nameOfSeat = (seat: number): string => flowLabels?.name(seat) ?? '';
+  /** M18b-3: the name of a seat's side (a federation member is named by its federation) for the headline of the result. */
+  const sideNameOfSeat = (seat: number): string => (flowLabels === null ? '' : sideName(flowLabels, seat));
   const resultView = (): ResultView | null => {
     const s = session;
     if (s === null) return null;
     const m = flowMatch();
     const landShare = s.view.stats.landShareQ15;
+    const landPct = (seat: number): number => ((landShare[seat] as number) / 32768) * 100;
+    const fed = flowLabels !== null && flowLabels.federations.length > 0 ? flowLabels : null;
     return {
-      reason: reasonLine(m, s.localSeat, nameOfSeat),
-      rows: resultRows(m, s.view.players, s.localSeat, nameOfSeat, seatColor, (seat) => ((landShare[seat] as number) / 32768) * 100),
+      reason: fed === null ? reasonLine(m, s.localSeat, nameOfSeat) : reasonLine(m, s.localSeat, sideNameOfSeat, sideInfoOf(fed)),
+      rows: resultRows(m, s.view.players, s.localSeat, nameOfSeat, seatColor, landPct),
+      ...(fed === null ? {} : { groups: resultGroups(m, s.view.players, s.localSeat, fed, landPct) }),
     };
   };
   const reloadPage = (): void => {

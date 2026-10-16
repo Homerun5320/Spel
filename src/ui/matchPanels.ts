@@ -3,11 +3,103 @@
 // Every text goes through t(), every colour and size is in uiConfig / hudStyle. Each dialog traps Tab and gives the focus back where it came from.
 import { mountHudStyle } from './hudStyle';
 import { formatFixed, t } from './i18n';
+import { drawFlag } from './flag';
+import { FED_BOARD, FLAG_ROW_H, FLAG_ROW_W } from './uiConfig';
+import type { ResultGroup } from './groupModel';
 import type { ReasonLine, ResultRow } from './matchFlow';
 
 export interface ResultView {
   readonly reason: ReasonLine;
   readonly rows: readonly ResultRow[];
+  /** M18b-3: the groups (federations and single nations), present only in a match with federations. */
+  readonly groups?: readonly ResultGroup[];
+}
+
+/**
+ * M18b-3: the group table of the result screen: a row per group (rank, flag, name, summed land and score; the winner first), a federation's living and fallen
+ * members under it. Separate from the per-nation table below, which stays as it is.
+ */
+function appendGroupTable(card: HTMLElement, v: ResultView): void {
+  const groups = v.groups;
+  if (groups === undefined || !groups.some((g) => g.fed >= 0)) return;
+  addText(card, 'h3', 'mp-subtitle', t('result.groups.title'), 'result-groups-title');
+  const wrap = el('div', 'mp-table-wrap mp-groups-wrap');
+  const table = el('table', 'mp-table', 'result-groups');
+  const head = el('tr', '');
+  for (const k of ['result.col.rank', 'result.col.group', 'result.col.land', 'result.col.score'] as const) {
+    const th = el('th', k === 'result.col.group' ? 'mp-left' : '');
+    th.scope = 'col';
+    th.textContent = t(k);
+    head.append(th);
+  }
+  table.createTHead().append(head);
+  const body = table.createTBody();
+  const byseat = new Map<number, ResultRow>();
+  for (const r of v.rows) byseat.set(r.seat, r);
+  const nameCell = (parent: HTMLElement, color: string, text: string, g: ResultGroup | null): void => {
+    const td = el('td', 'mp-left mp-name');
+    if (g !== null && g.flag !== null) {
+      const c = document.createElement('canvas');
+      c.className = 'mp-flag';
+      c.width = FLAG_ROW_W * 2;
+      c.height = FLAG_ROW_H * 2;
+      c.style.width = `${FLAG_ROW_W}px`;
+      c.style.height = `${FLAG_ROW_H}px`;
+      c.setAttribute('aria-hidden', 'true');
+      const ctx = c.getContext('2d');
+      if (ctx !== null) drawFlag(ctx, g.flag, c.width, c.height);
+      td.append(c);
+    } else {
+      const sw = el('span', 'mp-swatch');
+      sw.style.background = color;
+      td.append(sw);
+    }
+    const name = el('span', 'mp-name-text');
+    name.textContent = text;
+    td.append(name);
+    parent.append(td);
+  };
+  for (const g of groups) {
+    const first = byseat.get(g.members[0] as number);
+    const tr = el('tr', '', 'result-group');
+    tr.dataset.fed = String(g.fed);
+    tr.dataset.rank = String(g.rank);
+    tr.dataset.winner = g.winner ? '1' : '0';
+    tr.dataset.you = g.you ? '1' : '0';
+    tr.dataset.group = g.fed >= 0 ? '1' : '0';
+    tr.dataset.members = g.members.join(',');
+    const rank = el('td', '');
+    rank.textContent = String(g.rank);
+    tr.append(rank);
+    const alive = g.members.filter((s) => byseat.get(s)?.eliminated !== true).length;
+    nameCell(tr, first?.color ?? FED_BOARD.accent, g.fed >= 0 ? `${g.name} (${t('result.groups.alive', { alive, total: g.members.length })})` : g.name, g);
+    const land = el('td', '');
+    land.textContent = `${formatFixed(g.landPct, 1)} %`;
+    const score = el('td', '');
+    score.textContent = String(g.score);
+    tr.append(land, score);
+    body.append(tr);
+    if (g.fed < 0) continue;
+    for (const s of g.members) {
+      const r = byseat.get(s);
+      if (r === undefined) continue;
+      const sub = el('tr', '', 'result-group-member');
+      sub.dataset.sub = '1';
+      sub.dataset.seat = String(s);
+      sub.dataset.eliminated = r.eliminated ? '1' : '0';
+      sub.dataset.you = r.you ? '1' : '0';
+      sub.append(el('td', ''));
+      nameCell(sub, r.color, r.name, null);
+      const l = el('td', '');
+      l.textContent = `${formatFixed(r.landPct, 1)} %`;
+      const sc = el('td', '');
+      sc.textContent = String(r.score);
+      sub.append(l, sc);
+      body.append(sub);
+    }
+  }
+  wrap.append(table);
+  card.append(wrap);
 }
 
 export interface PanelActions {
@@ -177,6 +269,7 @@ export function createMatchPanels(parent: HTMLElement, actions: PanelActions, da
     const reason = el('p', 'mp-reason', 'result-reason');
     reason.textContent = t(v.reason.reasonKey, v.reason.reasonParams);
     card.append(title, reason);
+    appendGroupTable(card, v);
     const wrap = el('div', 'mp-table-wrap');
     const table = el('table', 'mp-table', 'result-table');
     const head = el('tr', '');

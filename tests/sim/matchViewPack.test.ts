@@ -138,7 +138,7 @@ describe('the per-seat blocks', () => {
     expect(v.landStd[1]).toBeGreaterThan(v.landStd[0] as number); // 60 cells against 30
     expect(v.landStd[0]).toBeGreaterThan(v.landStd[2] as number);
     expect(v.score[1]).toBeGreaterThan(v.score[2] as number);
-    expect(matchPackedLength(3)).toBe(MATCH_HEADER_WORDS + 15 * 3); // M18c-1: + treaties, betrayals, relations; M18d-1: + techMask, techCurrent1, techDone, techCount
+    expect(matchPackedLength(3)).toBe(MATCH_HEADER_WORDS + 16 * 3); // M18c-1: + treaties, betrayals, relations; M18d-1: + techMask, techCurrent1, techDone, techCount; M18b-3: + group
   });
 });
 

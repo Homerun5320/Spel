@@ -3,6 +3,7 @@
 // host's frames update. The header words are the whole state of the match (is it over, who won, why) and the win progress for the HUD (the leader,
 // the hold timer, the land requirement now, the time left); the per-seat blocks are the statistics.
 import { fillScores, landStdOf, playStartTick, requiredLandPct } from './win';
+import { federationRoots, groupSumScratch } from './groups';
 import { winFlagsOf } from './matchState';
 import type { GameState } from './state';
 import { techCountOfMask, techFxOfMask } from './techTable';
@@ -26,7 +27,7 @@ export const MATCH_HEADER_FIELDS = [
 ] as const;
 export const MATCH_HEADER_WORDS = MATCH_HEADER_FIELDS.length;
 /** The per-seat blocks that follow the header words, `seats` values each, in order. */
-export const MATCH_SEAT_FIELDS = ['eliminated', 'capitalLost', 'landStd', 'score', 'peakLand', 'built', 'conquered', 'districts', 'treaties', 'betrayals', 'relations', 'techMask', 'techCurrent1', 'techDone', 'techCount'] as const;
+export const MATCH_SEAT_FIELDS = ['eliminated', 'capitalLost', 'landStd', 'score', 'peakLand', 'built', 'conquered', 'districts', 'treaties', 'betrayals', 'relations', 'techMask', 'techCurrent1', 'techDone', 'techCount', 'group'] as const;
 export type MatchSeatField = (typeof MATCH_SEAT_FIELDS)[number];
 
 /** Length of the packed array of a match with `seats` seats. */
@@ -44,6 +45,8 @@ export function matchPackedLength(seats: number): number {
  *  timeLeftTicks   ticks of play left until the score condition decides (0 when the match has no win rules, or it has ended)
  * Per seat: eliminated, capitalLost (0 / 1), landStd (weighted std-cells), score, and the statistics peakLand, built (structures), conquered (cells), districts,
  * and (M18c-1) treaties (entered), betrayals (treaties the seat broke) and relations (truces and alliances the seat has right now).
+ * M18b-3: `group` is the seat of the lowest member of the seat's federation (the seat itself without one); leaderSeat, holdSeat and winnerSeat are group
+ * representatives (a root seat) when federations exist, and `groupMembers(view, seat)` lists the seats of a group.
  */
 export interface MatchView {
   readonly seats: number;
@@ -76,6 +79,8 @@ export interface MatchView {
   readonly techCurrent1: ReadonlyNumbers;
   readonly techDone: ReadonlyNumbers;
   readonly techCount: ReadonlyNumbers;
+  /** M18b-3, per seat: the root seat (lowest seat) of the seat's federation; the seat itself when it has none. Eliminated members have left their group. */
+  readonly group: ReadonlyNumbers;
   /** The researched mask of a seat (the shape the helicopter rules read, `TechMaskSource`). */
   techMaskOfSeat(seat: number): number;
   /** The tech a seat is researching, -1 = none. */
@@ -94,9 +99,21 @@ export function fillMatchView(state: GameState, out: Uint32Array, scores: Uint32
   const elapsed = state.tick > start ? state.tick - start : 0;
   fillScores(state, scores);
   let leader = 0;
-  for (let o = 1; o <= players; o++) {
-    if (m.eliminated[o] === 1 || (state.agg.area[o] as number) === 0) continue;
-    if (leader === 0 || (state.agg.warea[o] as number) > (state.agg.warea[leader] as number)) leader = o;
+  const roots = federationRoots(state);
+  if (roots === null) {
+    for (let o = 1; o <= players; o++) {
+      if (m.eliminated[o] === 1 || (state.agg.area[o] as number) === 0) continue;
+      if (leader === 0 || (state.agg.warea[o] as number) > (state.agg.warea[leader] as number)) leader = o;
+    }
+  } else {
+    // The leader is the group with the most land (its root seat); a group needs one living member that owns land.
+    const sums = groupSumScratch(roots.length);
+    for (let o = 1; o <= players; o++) sums[roots[o] as number] = (sums[roots[o] as number] as number) + (state.agg.warea[o] as number);
+    for (let o = 1; o <= players; o++) {
+      if (m.eliminated[o] === 1 || (state.agg.area[o] as number) === 0) continue;
+      const r = roots[o] as number;
+      if (leader === 0 || (sums[r] as number) > (sums[leader] as number)) leader = r;
+    }
   }
   const holdOwner = m.ended === 1 ? 0 : m.holdOwner;
   out[0] = m.ended;
@@ -142,6 +159,17 @@ export function fillMatchView(state: GameState, out: Uint32Array, scores: Uint32
   for (let s = 0; s < seats; s++) out[at + s] = m.techDone[s + 1] as number;
   at += seats;
   for (let s = 0; s < seats; s++) out[at + s] = techCountOfMask(m.techMask[s + 1] as number);
+  at += seats;
+  for (let s = 0; s < seats; s++) out[at + s] = roots === null ? s : (roots[s + 1] as number) - 1;
+}
+
+/** The seats of the group `seat` belongs to (just `[seat]` without a federation), in ascending order. The result of a read; allocates. */
+export function groupMembers(m: { readonly seats: number; readonly group: ReadonlyNumbers }, seat: number): number[] {
+  if (seat < 0 || seat >= m.seats) return [];
+  const root = m.group[seat] as number;
+  const out: number[] = [];
+  for (let s = 0; s < m.seats; s++) if (m.group[s] === root) out.push(s);
+  return out;
 }
 
 /** A read-only view over a packed array (shared memory: the owner of the array rewrites it, the view reads it live). */
@@ -204,6 +232,7 @@ export function matchViewOf(seats: number, p: Uint32Array): MatchView {
     techCurrent1: block(12),
     techDone: block(13),
     techCount: block(14),
+    group: block(15),
     techMaskOfSeat: (seat) => p[MATCH_HEADER_WORDS + 11 * seats + seat] as number,
     techCurrentOfSeat: (seat) => (p[MATCH_HEADER_WORDS + 12 * seats + seat] as number) - 1,
     techFxOfSeat: (seat, channel) => techFxOfMask(p[MATCH_HEADER_WORDS + 11 * seats + seat] as number, channel),

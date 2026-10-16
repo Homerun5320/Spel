@@ -501,6 +501,14 @@ const sv = {
   'heli.chaseTip': 'Kameran följer helikoptern. Esc, H, ett drag eller hjulet avslutar.',
   'toast.heli.noneAirborne': 'Ingen helikopter i luften.',
   'toast.heli.chaseEnded': 'Helikoptern är borta, kameran är fri igen.',
+  // M18b-3: federations in the leaderboard, the win meter and the result
+  'hud.fed.row': '{name} ({alive}/{total} kvar)',
+  'hud.fed.tip': 'Federation: klicka för att visa eller dölja delnationerna. De vinner och förlorar tillsammans.',
+  'result.title.fedYou': 'Seger tillsammans!',
+  'result.title.fedOther': '{name} vann tillsammans',
+  'result.groups.title': 'Federationer och nationer',
+  'result.col.group': 'Grupp',
+  'result.groups.alive': '{alive} av {total} kvar',
 } as const;
 
 export type TextKey = keyof typeof sv;
@@ -991,6 +999,14 @@ const en: Record<TextKey, string> = {
   'heli.chaseTip': 'The camera follows the helicopter. Esc, H, a drag or the wheel ends it.',
   'toast.heli.noneAirborne': 'No helicopter in the air.',
   'toast.heli.chaseEnded': 'The helicopter is gone, the camera is free again.',
+  // M18b-3: federations in the leaderboard, the win meter and the result
+  'hud.fed.row': '{name} ({alive}/{total} left)',
+  'hud.fed.tip': 'Federation: click to show or hide its sub-nations. They win and lose together.',
+  'result.title.fedYou': 'Shared victory!',
+  'result.title.fedOther': '{name} won together',
+  'result.groups.title': 'Federations and nations',
+  'result.col.group': 'Group',
+  'result.groups.alive': '{alive} of {total} left',
 };
 
 /** The two tables, for the parity test and for tools. Treat as read-only. */
