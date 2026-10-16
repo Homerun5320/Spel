@@ -203,7 +203,7 @@ describe('the city view', () => {
       await t.advance(0.1, total + 6);
       await t.settle();
       expect([await tile0.getAttribute('data-state'), await tile0.getAttribute('data-level')]).toEqual(['ready', '2']);
-      const fx = await t.text('sel.district.fxMarket', { gold: formatFixed(marketGoldMilliAt(2) / 1000, 1) }); // Sim-Growth: the lowered Market table, level 2 = 0,7
+      const fx = await t.text('sel.district.fxMarket', { gold: formatGoldRate(marketGoldMilliAt(2)) }); // Sim-Levels2: the concave Market curve, level 2 = 0,375 gold/s; Look-2 shows it x 10
       expect(await tid(page, 'city-fx-0').textContent()).toBe(await t.text('sel.district.now', { fx }));
 
       // the second tile: a Barracks

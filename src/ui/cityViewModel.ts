@@ -7,7 +7,6 @@ import {
   DISTRICT_BUILD_TICKS,
   DISTRICT_HOUSING,
   DISTRICT_MARKET,
-  DISTRICT_MAX_LEVEL,
   DISTRICT_MAX_SLOTS,
   DISTRICT_NONE,
   DISTRICT_WALLS,
@@ -31,6 +30,7 @@ import {
   districtBuildPriceGold,
   districtEffect,
   districtIndex,
+  districtMaxLevel,
   districtSlotsOf,
   districtUpgradePriceGold,
   maxLevelOf,
@@ -218,7 +218,7 @@ export function tileInfo(view: SimView, seat: number, id: number, slot: number):
   const building = view.tick < ready;
   const upgrading = !building && upReady !== 0;
   const state: TileState = building ? 'building' : upgrading ? 'upgrading' : 'ready';
-  const top = level >= DISTRICT_MAX_LEVEL;
+  const top = level >= districtMaxLevel(); // Sim-Levels2: the hard cap, not the visual reference scale DISTRICT_MAX_LEVEL
   return {
     slot,
     state,

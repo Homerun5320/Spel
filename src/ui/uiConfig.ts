@@ -186,7 +186,10 @@ export const CITY_VIEW = {
 } as const;
 
 /**
- * Look-2: the VISUAL inflation of gold. Every gold amount, price and gold per second the player sees is the sim's number times this factor (the first City
- * reads 4 000 gold instead of 400); the sim, the prices and the pace are unchanged. Only `formatGold` / `formatGoldRate` in i18n.ts use it.
+ * Look-2: the VISUAL inflation of gold, ONE constant (change this line to tune it). Every gold amount, price and gold per second the player sees is the
+ * sim's number times this factor: the first City costs 400 in the sim and reads 40 000, the 1,5 gold/s of a City reads 150/s, the start purse of 501
+ * reads 50 100 ("världsnationer har ju idag flera miljarder": 50 times or more, the user left the exact figure to us). The sim, the prices and the pace
+ * are unchanged. Only `formatGold` / `formatGoldRate` in i18n.ts use it. Amounts from a million up are written compact there (Swedish "1,2 mn" /
+ * "3,4 mdr", English "1.2M" / "3.4B"), so the late upgrade prices stay short.
  */
-export const GOLD_DISPLAY_FACTOR = 10;
+export const GOLD_DISPLAY_FACTOR = 100;

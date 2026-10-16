@@ -3,6 +3,7 @@
 // under construction, not-owner and gone states, the delete seconds, one distinct text key per refusal code.
 import { describe, expect, it } from 'vitest';
 import { withId } from '../../src/sim/intents';
+import { cityGoldMilliAt, cityTroopCapAt, factoryCityBonusPctAt, factoryGoldMilliAt, factoryRadiusCellsAt, portGoldMilliAt, portTradePctAt } from '../../src/sim/levelCurves';
 import {
   CAP_CITY_LEVEL_TROOPS,
   DELETE_COOLDOWN_TICKS,
@@ -22,6 +23,7 @@ import {
   SAM_MOUNTAIN_PCT,
   STRUCT_CITY,
   STRUCT_FACTORY,
+  STRUCT_LEVEL_HARD_CAP,
   STRUCT_PORT,
   STRUCT_POST,
   STRUCT_SAM,
@@ -42,6 +44,7 @@ import { StateView } from '../../src/sim/view';
 import { buildRejectKey, structureRefusalKey } from '../../src/ui/buildReasons';
 import { rejectKey } from '../../src/ui/hudLogic';
 import { formatGoldRate, formatInt, t } from '../../src/ui/i18n';
+import { GOLD_DISPLAY_FACTOR } from '../../src/ui/uiConfig';
 import {
   DELETE_ARM_MS,
   deleteArmed,
@@ -54,6 +57,9 @@ import {
   upgradeWhyKey,
 } from '../../src/ui/structureInfo';
 
+/** Gold per second as the panel shows it: the sim number times GOLD_DISPLAY_FACTOR, at most two decimals, the Swedish decimal comma (derived from the constant, not from the formatter under test). */
+const shown = (goldPerSec: number): string => String(Math.round(goldPerSec * GOLD_DISPLAY_FACTOR * 100) / 100).replace('.', ',');
+
 describe('effectLines: the numbers of the structure\'s own level, from the sim tables', () => {
   it('Factory: gold, City bonus and reach per level', () => {
     for (const level of [1, 2, 3]) {
@@ -61,7 +67,8 @@ describe('effectLines: the numbers of the structure\'s own level, from the sim t
       expect(l?.key).toBe('sel.fx.factory');
       expect(l?.params.pct).toBe(FACTORY_CITY_BONUS_PCT_BY_LEVEL[level]);
       expect(l?.params.radius).toBe(FACTORY_RADIUS_CELLS_BY_LEVEL[level]);
-      expect(l?.params.gold).toBe(['', '2', '2,5', '2,8'][level]); // Sim-Levels2: the concave curve
+      expect(l?.params.gold).toBe(shown([0, 2, 2.5, 2.8][level] as number)); // Sim-Levels2: the concave curve 2 / 2,5 / 2,8 gold/s, shown x GOLD_DISPLAY_FACTOR (Look-2)
+      expect(l?.params.gold).toBe(formatGoldRate(factoryGoldMilliAt(level)));
       expect(FACTORY_GOLD_MILLI_BY_LEVEL[level]).toBe([0, 2000, 2500, 2800][level]);
     }
     expect(new Set([1, 2, 3].map((l) => JSON.stringify(effectLines(STRUCT_FACTORY, l)))).size).toBe(3);
@@ -73,22 +80,36 @@ describe('effectLines: the numbers of the structure\'s own level, from the sim t
       expect(l?.key).toBe('sel.fx.port');
       expect(l?.params.pct).toBe(PORT_TRADE_PCT_BY_LEVEL[level]);
     }
-    expect(effectLines(STRUCT_PORT, 1)[0]?.params.gold).toBe('2');
-    expect(effectLines(STRUCT_PORT, 2)[0]?.params.gold).toBe('2,5');
-    expect(effectLines(STRUCT_PORT, 3)[0]?.params.gold).toBe('2,8');
+    // Sim-Levels2: 2 / 2,5 / 2,8 gold/s, shown x GOLD_DISPLAY_FACTOR (Look-2)
+    expect(effectLines(STRUCT_PORT, 1)[0]?.params.gold).toBe(shown(2));
+    expect(effectLines(STRUCT_PORT, 2)[0]?.params.gold).toBe(shown(2.5));
+    expect(effectLines(STRUCT_PORT, 3)[0]?.params.gold).toBe(shown(2.8));
     expect(PORT_GOLD_MILLI_BY_LEVEL[2]).toBe(2500);
   });
 
+  it('Factory, Port and the City follow the Sim-Levels2 curve functions of the structure\'s own level far beyond level 10 (up to the hard cap)', () => {
+    for (const level of [1, 2, 3, 10, 11, 50, 100, 500, STRUCT_LEVEL_HARD_CAP]) {
+      expect(effectLines(STRUCT_FACTORY, level)[0]?.params).toEqual({ gold: formatGoldRate(factoryGoldMilliAt(level)), pct: factoryCityBonusPctAt(level), radius: factoryRadiusCellsAt(level) });
+      expect(effectLines(STRUCT_PORT, level)[0]?.params).toEqual({ gold: formatGoldRate(portGoldMilliAt(level)), pct: portTradePctAt(level) });
+      expect(effectLines(STRUCT_CITY, level)[0]?.params).toEqual({ gold: formatGoldRate(cityGoldMilliAt(level)), troops: formatInt(cityTroopCapAt(level)) });
+    }
+    // concave: the step from level 10 to 999 is smaller than the step from level 1 to 10, and a level 999 City stays under its asymptote 3 gold/s (30 shown)
+    expect(factoryGoldMilliAt(999) - factoryGoldMilliAt(10)).toBeLessThan(factoryGoldMilliAt(10) - factoryGoldMilliAt(1));
+    expect(cityGoldMilliAt(STRUCT_LEVEL_HARD_CAP)).toBeLessThan(3000);
+    expect(effectLines(STRUCT_CITY, STRUCT_LEVEL_HARD_CAP)[0]?.params.gold).toBe(formatGoldRate(cityGoldMilliAt(STRUCT_LEVEL_HARD_CAP)));
+  });
+
   it('City: gold and troop cap follow the sim per level, levels 1 to 10 (thousands grouped)', () => {
-    expect(effectLines(STRUCT_CITY, 1)[0]?.params).toEqual({ gold: '15', troops: formatInt(CAP_CITY_LEVEL_TROOPS) });
-    for (const level of [2, 3, 5, maxLevelOf(STRUCT_CITY)]) {
-      const tenths = Math.round(cityGoldMilli(level) / 100); // the panel shows at most one decimal
-      expect(effectLines(STRUCT_CITY, level)[0]?.params.gold).toBe(String(tenths / 10).replace('.', ','));
+    expect(effectLines(STRUCT_CITY, 1)[0]?.params).toEqual({ gold: shown(1.5), troops: formatInt(CAP_CITY_LEVEL_TROOPS) });
+    for (const level of [2, 3, 5, 10, maxLevelOf(STRUCT_CITY)]) {
+      // Look-2: gold per second is shown x GOLD_DISPLAY_FACTOR with up to two decimals (formatGoldRate)
+      expect(effectLines(STRUCT_CITY, level)[0]?.params.gold).toBe(formatGoldRate(cityGoldMilli(level)));
       expect(effectLines(STRUCT_CITY, level)[0]?.params.troops).toBe(formatInt(cityTroopCap(level)));
     }
-    // Sim-Levels2 pins: the concave curve (level 3: 2,1 and 1 440; level 10: 2,6 and 2 000)
-    expect(effectLines(STRUCT_CITY, 3)[0]?.params).toEqual({ gold: '2,1', troops: formatInt(1440) });
-    expect(effectLines(STRUCT_CITY, 10)[0]?.params).toEqual({ gold: '2,6', troops: formatInt(2000) });
+    // Sim-Levels2 pins: the concave curve (level 2: 1,875 gold/s; level 3: 2,1 gold/s and 1 440 troops; level 10: 2,625 and 2 000), the gold shown x GOLD_DISPLAY_FACTOR with up to two decimals
+    expect(effectLines(STRUCT_CITY, 2)[0]?.params.gold).toBe(shown(1.875));
+    expect(effectLines(STRUCT_CITY, 3)[0]?.params).toEqual({ gold: shown(2.1), troops: formatInt(1440) });
+    expect(effectLines(STRUCT_CITY, 10)[0]?.params).toEqual({ gold: shown(2.625), troops: formatInt(2000) });
   });
 
   it('the Silo has no function yet (no radius, not the SAM text); the SAM takes its mountain percent from the sim; the Post says 2,5 times', () => {

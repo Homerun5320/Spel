@@ -24,7 +24,9 @@ import {
   districtBuildPriceGold,
   districtEffect,
   districtIndex,
+  districtMaxLevel,
   districtSlotsOf,
+  districtUpgradePriceGold,
   maxLevelOf,
   upgradePriceGold,
 } from '../../src/sim/public';
@@ -167,6 +169,25 @@ describe('cityInfo: the tiles of a City', () => {
     s.structures.districtLevel[districtIndex(id, 0)] = STRUCT_LEVEL_HARD_CAP; // Sim-Levels2: the top level of a district is the hard cap
     tile = tileInfo(viewOf(s), 0, id, 0);
     expect([tile.level, tile.fxNext, tile.upgradePrice, tile.upgradeReason]).toEqual([STRUCT_LEVEL_HARD_CAP, null, 0, REJECT_STRUCT_MAX_LEVEL]);
+  });
+
+  it('Integration Sim-Levels2 + Look-2: a district still offers its upgrade at levels 10, 11 and 998 (price base x next level, next numbers shown); only the hard cap is the top', () => {
+    const s = world();
+    const id = city(s, 1, 100, 3);
+    purse(s, 2000000000);
+    expect(applyBuildDistrict(s, 0, id, 0, DISTRICT_MARKET)).toBe(REJECT_NONE);
+    s.tick += (DISTRICT_BUILD_TICKS[DISTRICT_MARKET] as number) * 2;
+    expect(districtMaxLevel()).toBe(STRUCT_LEVEL_HARD_CAP);
+    for (const level of [10, 11, 100, STRUCT_LEVEL_HARD_CAP - 1]) {
+      s.structures.districtLevel[districtIndex(id, 0)] = level;
+      const tile = tileInfo(viewOf(s), 0, id, 0);
+      expect(tile.level).toBe(level);
+      expect(tile.upgradePrice).toBe(districtUpgradePriceGold(DISTRICT_MARKET, level + 1));
+      expect(tile.upgradePrice).toBeGreaterThan(0);
+      expect(tile.fxNext).toEqual({ key: 'sel.district.fxMarket', params: { gold: formatGoldRate(districtEffect(DISTRICT_MARKET, level + 1).goldMilliPerSec) } });
+      expect(tile.upgradeReason).toBe(REJECT_NONE);
+    }
+    expect(districtUpgradePriceGold(DISTRICT_MARKET, 11)).toBe(11 * districtUpgradePriceGold(DISTRICT_MARKET, 1)); // one price rule: base x level
   });
 
   it('the totals of the City equal the sim\'s own income, troop cap and the other effects of its FINISHED districts only', () => {

@@ -3,7 +3,7 @@
 // intents. Every frame `update` computes the cheap numeric signature of `cityViewModel.ts` and rebuilds texts and attributes ONLY when it changed
 // (no innerHTML, no allocation while nothing changes). Icons are inline SVG built in code.
 import { fxNow } from '../render/clock';
-import { DISTRICT_MAX_LEVEL, DISTRICT_MAX_SLOTS, STRUCT_CITY, maxLevelOf, type SimView } from '../sim/public';
+import { DISTRICT_MAX_SLOTS, STRUCT_CITY, districtMaxLevel, maxLevelOf, type SimView } from '../sim/public';
 import {
   CITY_SIG_MAX,
   DISTRICT_KINDS,
@@ -255,7 +255,7 @@ export function createCityViewPanel(parent: HTMLElement, actions: CityViewAction
       d.iconBox.replaceChildren(districtIcon(ti.kind));
     }
     d.name.textContent = t(districtNameKey(ti.kind));
-    d.level.textContent = t(ti.level >= DISTRICT_MAX_LEVEL ? 'sel.district.levelTop' : 'sel.district.level', { level: ti.level });
+    d.level.textContent = t(ti.level >= districtMaxLevel() ? 'sel.district.levelTop' : 'sel.district.level', { level: ti.level });
     const running = ti.state === 'building' || ti.state === 'upgrading';
     d.state.hidden = !running;
     d.state.textContent = ti.state === 'building' ? t('sel.district.building') : ti.state === 'upgrading' ? t('sel.district.upgrading') : '';

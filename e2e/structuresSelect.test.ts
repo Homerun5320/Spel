@@ -9,8 +9,8 @@ import { timeForSubsolarLon } from '../src/render/geo';
 import { cellToLatLon } from '../src/render/transforms';
 import { formatGoldRate, formatInt } from '../src/ui/i18n';
 import { REJECT_DELETE_COOLDOWN, REJECT_NONE, REJECT_STRUCT_BUSY } from '../src/sim/intents';
-import { CAP_CITY_LEVEL_TROOPS, CITY_GOLD_MILLI_PER_SEC_PER_LEVEL, POST_RADIUS_CELLS, SAM_RADIUS_BASE_CELLS } from '../src/sim/rules';
-import { STRUCT_CITY, STRUCT_POST, STRUCT_SAM, upgradePriceGold } from '../src/sim/structureRules';
+import { POST_RADIUS_CELLS, SAM_RADIUS_BASE_CELLS } from '../src/sim/rules';
+import { STRUCT_CITY, STRUCT_POST, STRUCT_SAM, cityGoldMilli, cityTroopCap, upgradePriceGold } from '../src/sim/structureRules';
 
 let browser: Browser;
 const baseUrl = inject('baseUrl');

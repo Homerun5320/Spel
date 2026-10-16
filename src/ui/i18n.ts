@@ -772,23 +772,60 @@ export function formatFixed(value: number, decimals: number): string {
   return `${sign}${formatInt(whole)}${DECIMAL_SEPARATOR[language]}${String(frac).padStart(decimals, '0')}`;
 }
 
-/** Seconds as "m:ss" (language neutral). */
+/** The compact suffixes of a displayed gold amount from 1 000 000 up: million, billion (10^9, "miljard" in Swedish), trillion (10^12). */
+const COMPACT_SUFFIX: Record<Lang, readonly [string, string, string]> = {
+  sv: ['\u00a0mn', '\u00a0mdr', '\u00a0bn'],
+  en: ['M', 'B', 'T'],
+};
+/** From this displayed amount upward a gold amount is written in the compact form; below it the whole number with thousands separators. */
+export const GOLD_COMPACT_FROM = 1_000_000;
+
 /**
- * Look-2: the ONE way a gold amount (a purse, a price, a cost) is shown: the sim amount times GOLD_DISPLAY_FACTOR, a whole number with the language's
- * thousands separator. Every surface that names gold goes through this and `formatGoldRate`; tests/ui/goldDisplay.test.ts scans the UI sources for the rest.
+ * Integration (Sim-Levels2 + Look-2): the ONE writer of a DISPLAYED gold amount (a whole number already multiplied by GOLD_DISPLAY_FACTOR). Below
+ * GOLD_COMPACT_FROM it is the whole number with the language's thousands separator ("25 050"). From a million up it is compact with at most 3
+ * significant digits, cut (never rounded up, so 999 999 999 never reads "1000 mn"): Swedish "1,23 mn", "49,9 mdr", English "1.23M", "49.9B".
  */
-export function formatGold(simGold: number): string {
-  return formatInt(simGold * GOLD_DISPLAY_FACTOR);
+export function formatShownGold(shown: number): string {
+  const r = Math.round(shown);
+  if (r < 0) return `-${formatShownGold(-r)}`;
+  if (r < GOLD_COMPACT_FROM) return formatInt(r);
+  let ix = 0;
+  let unit = GOLD_COMPACT_FROM;
+  while (ix < 2 && r >= unit * 1000) {
+    unit *= 1000;
+    ix++;
+  }
+  const whole = Math.floor(r / unit);
+  const decimals = whole >= 100 ? 0 : whole >= 10 ? 1 : 2;
+  const scale = 10 ** decimals;
+  const step = unit / scale; // an integer: unit is 10^6 or more and decimals is at most 2
+  const q = (r - (r % step)) / step;
+  const intPart = Math.floor(q / scale);
+  const frac = String(q - intPart * scale)
+    .padStart(decimals, '0')
+    .replace(/0+$/, '');
+  return `${formatInt(intPart)}${frac === '' ? '' : DECIMAL_SEPARATOR[language] + frac}${COMPACT_SUFFIX[language][ix]}`;
 }
 
-/** The same for gold per second, given in sim milli-gold per second: up to two decimals, trailing zeros dropped ("5", "0,5", "0,25"), so a gentle per-level step stays readable. */
+/**
+ * Look-2: the ONE way a gold amount (a purse, a price, a cost) is shown: the sim amount times GOLD_DISPLAY_FACTOR, a whole number with the language's
+ * thousands separator, compact from a million (`formatShownGold`). Every surface that names gold goes through this and `formatGoldRate`;
+ * tests/ui/goldDisplay.test.ts scans the UI sources for the rest.
+ */
+export function formatGold(simGold: number): string {
+  return formatShownGold(simGold * GOLD_DISPLAY_FACTOR);
+}
+
+/** The same for gold per second, given in sim milli-gold per second: up to two decimals, trailing zeros dropped ("5", "0,5", "0,25"), so a gentle per-level step stays readable; a million or more per second is compact like a purse. */
 export function formatGoldRate(milliPerSec: number): string {
   const hundredths = Math.round((milliPerSec * GOLD_DISPLAY_FACTOR) / 10);
+  if (hundredths >= GOLD_COMPACT_FROM * 100) return formatShownGold(Math.floor(hundredths / 100));
   if (hundredths % 100 === 0) return formatInt(hundredths / 100);
   if (hundredths % 10 === 0) return formatFixed(hundredths / 100, 1);
   return formatFixed(hundredths / 100, 2);
 }
 
+/** Seconds as "m:ss" (language neutral). */
 export function formatClock(totalSeconds: number): string {
   const s = Math.max(0, Math.floor(totalSeconds));
   const m = Math.floor(s / 60);
