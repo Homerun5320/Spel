@@ -14,7 +14,9 @@ import { TICK_HZ } from './hudCodes';
 import { bannerState, phaseName, rankOf, rankTop, rejectKey, seatName, shareHundredths, troopBar } from './hudLogic';
 import { formatClock, formatFixed, formatGold, formatGoldRate, formatInt, languageVersion, t, type TextKey } from './i18n';
 import { mountHudStyle } from './hudStyle';
-import { COMMIT_MAX_PCT, COMMIT_MIN_PCT, COMMIT_STEP_PCT, FLAG_ROW_H, FLAG_ROW_W, LEADERBOARD_INCLUDES_TRIBES, LEADERBOARD_ROWS, PLAY_HINT_SECONDS, TOAST_SECONDS, TROOP_WARNING_FRACTION } from './uiConfig';
+import { HudGate } from './hudGate';
+import { newWinMeterState, winMeterInto } from './winMeter';
+import { HUD_MIN_INTERVAL_S, COMMIT_MAX_PCT, COMMIT_MIN_PCT, COMMIT_STEP_PCT, FLAG_ROW_H, FLAG_ROW_W, LEADERBOARD_INCLUDES_TRIBES, LEADERBOARD_ROWS, PLAY_HINT_SECONDS, TOAST_SECONDS, TROOP_WARNING_FRACTION } from './uiConfig';
 
 export interface MatchHudActions {
   setCommit(pct: number): void;
@@ -27,6 +29,8 @@ export interface MatchHudOptions {
   seatColor?: (seat: number) => string;
   /** Names and flags of the seats (a match built by the setup screen, M06); without it the HUD names the seats Nation n / Tribe n and draws no flags. */
   labels?: SeatLabels | null;
+  /** Write at most 10 times a second (default); test mode turns the gate off so that the numbers follow every `advance`. */
+  throttle?: boolean;
 }
 
 export interface MatchHudModel {
@@ -215,16 +219,18 @@ export function createMatchHud(parent: HTMLElement, actions: MatchHudActions, op
   nationBox.append(nationName);
   nationBox.hidden = labels === null;
   let nationLang = -1;
+  // The top bar (M20a-lite): nation, gold with income, troops with the cap bar, land share, time, and the win meter in a second row.
+  const goldGrp = el('span', 'hud-grp');
   const goldLabel = cell(label('hud-label', 'hud.gold'));
-  const goldRow = el('span', 'hud-right');
   const goldNum = dyn(new TextCell(el('span', 'hud-num hud-gold', 'gold'), (a) => formatGold(a), true));
   const goldRate = dyn(new TextCell(el('span', 'hud-dim', 'gold-rate'), (a) => t('hud.goldRate', { rate: formatGoldRate(a) }), true));
-  goldRow.append(goldNum.el, document.createTextNode(' '), goldRate.el);
+  goldGrp.append(goldLabel.el, goldNum.el, goldRate.el);
+  const troopsGrp = el('span', 'hud-grp hud-grp-troops');
   const troopsLabel = cell(label('hud-label', 'hud.troops'));
-  const troopsRow = el('span', 'hud-right');
   const troopsNum = dyn(new TextCell(el('span', 'hud-num hud-troops', 'troops'), (a) => formatInt(a), true));
   const capText = dyn(new TextCell(el('span', 'hud-dim', 'troops-cap'), (a) => t('hud.cap', { cap: formatInt(a) }), true));
-  troopsRow.append(troopsNum.el, document.createTextNode(' '), capText.el);
+  const troopsLine = el('span', 'hud-line');
+  troopsLine.append(troopsLabel.el, troopsNum.el, capText.el);
   const bar = el('div', 'hud-bar', 'troops-bar');
   bar.setAttribute('role', 'progressbar');
   bar.setAttribute('aria-valuemin', '0');
@@ -232,22 +238,34 @@ export function createMatchHud(parent: HTMLElement, actions: MatchHudActions, op
   const barMark = el('div', 'hud-bar-mark');
   barMark.style.left = `${Math.round(TROOP_WARNING_FRACTION * 100)}%`;
   bar.append(barFill, barMark);
-  const warn = cell(new TextCell(el('div', 'hud-warn', 'troops-warning'), () => t('hud.nearCap')));
+  const warn = cell(new TextCell(el('span', 'hud-warn', 'troops-warning'), () => t('hud.nearCap')));
   warn.el.hidden = true;
-  const meta = el('div', 'hud-meta');
-  const shareBox = el('span', '');
+  const barRow = el('span', 'hud-bar-row');
+  barRow.append(bar, warn.el);
+  troopsGrp.append(troopsLine, barRow);
+  const shareBox = el('span', 'hud-grp');
   const shareLabel = cell(label('hud-label', 'hud.landShare'));
   const shareText = dyn(new TextCell(el('span', 'hud-num', 'land-share'), (q) => percentText(shareHundredths(q)), true));
-  shareText.el.style.marginLeft = '0.4em';
   shareBox.append(shareLabel.el, shareText.el);
-  const timerBox = el('span', '');
+  const timerBox = el('span', 'hud-grp');
   const timerLabel = cell(label('hud-label', 'hud.timer'));
   const timerText = dyn(new TextCell(el('span', 'hud-num', 'timer'), (s) => formatClock(s), true));
-  timerText.el.style.marginLeft = '0.4em';
   timerBox.append(timerLabel.el, timerText.el);
-  meta.append(shareBox, timerBox);
-  status.append(nationBox, goldLabel.el, goldRow, troopsLabel.el, troopsRow, bar, warn.el, meta);
-  warn.el.style.gridColumn = '1 / -1';
+  // The win meter: the leader's share against the land condition now (MatchView), and the hold count-down. Hidden when the match has no land condition.
+  const winRow = el('div', 'hud-win', 'win');
+  winRow.hidden = true;
+  const winLabel = cell(label('hud-label', 'hud.win.label'));
+  const winBar = el('div', 'hud-bar hud-win-bar', 'win-bar');
+  winBar.setAttribute('role', 'progressbar');
+  winBar.setAttribute('aria-valuemin', '0');
+  winBar.setAttribute('aria-valuemax', '100');
+  const winFill = el('div', 'hud-bar-fill');
+  winBar.append(winFill);
+  const winLeader = el('span', 'hud-win-text', 'win-leader');
+  const winHold = el('span', 'hud-win-hold', 'win-hold');
+  winHold.hidden = true;
+  winRow.append(winLabel.el, winBar, winLeader, winHold);
+  status.append(nationBox, goldGrp, troopsGrp, shareBox, timerBox, winRow);
 
   // --- Leaderboard ---
   const board = el('div', 'hud-panel hud-board', 'leaderboard');
@@ -306,11 +324,11 @@ export function createMatchHud(parent: HTMLElement, actions: MatchHudActions, op
   controls.append(speedGroup, commitLine, slider);
 
   const dock = el('div', 'hud-dock');
-  dock.append(status, controls);
+  dock.append(controls);
   const toastBox = el('div', 'hud-panel hud-toast', 'toast');
   toastBox.setAttribute('role', 'status');
   toastBox.hidden = true;
-  root.append(banner, badge, board, dock, toastBox);
+  root.append(banner, badge, board, status, dock, toastBox);
   // Clicks and wheel turns on the HUD stop here; the globe's listeners sit on the canvas, a sibling, and would not see them anyway.
   for (const type of ['pointerdown', 'pointerup', 'wheel', 'contextmenu']) root.addEventListener(type, (e) => e.stopPropagation());
   parent.appendChild(root);
@@ -326,11 +344,29 @@ export function createMatchHud(parent: HTMLElement, actions: MatchHudActions, op
   let lastWarning = -1;
   let lastSpeed = -1;
   let lastSpeedLang = -1;
+  // the 10 Hz gate and the win meter's last written values
+  const gate = options.throttle === false ? null : new HudGate(HUD_MIN_INTERVAL_S);
+  const winState = newWinMeterState();
+  let lastWinQ = -1;
+  let lastWinSeat = -2;
+  let lastWinHund = -1;
+  let lastWinNeed = -1;
+  let lastWinLang = -1;
+  let lastHoldSeat = -2;
+  let lastHoldSecs = -1;
+  let lastHoldLang = -1;
+  const nameOf = (seat: number, players: number, localSeat: number): string => {
+    if (labels !== null) return labels.name(seat);
+    const nm = seatName(seat, players, localSeat);
+    return t(nm.key, { n: nm.n });
+  };
 
   return {
     update(m: MatchHudModel, fxNow: number): void {
       if (root.hidden) return;
       const v = m.view;
+      // At most 10 writes a second on the fx clock (M20a-lite); a click on a button (speed, commitment) or a language change goes through at once. Test mode has no gate.
+      if (gate !== null && !gate.pass(m.speed, m.commitPct, languageVersion(), fxNow)) return;
       const st = v.stats;
       const L = m.localSeat;
       const spawned = (st.capital[L] as number) !== 0;
@@ -390,6 +426,40 @@ export function createMatchHud(parent: HTMLElement, actions: MatchHudActions, op
         bar.dataset.warning = String(w);
         warn.el.hidden = w === 0;
         status.dataset.warning = String(w);
+      }
+      // Win meter
+      const wm = v.match;
+      winMeterInto(winState, wm, wm.leaderSeat >= 0 ? (st.landShareQ15[wm.leaderSeat] as number) : 0);
+      if (winRow.hidden === winState.active) winRow.hidden = !winState.active;
+      if (winState.active) {
+        if (winState.fillQ !== lastWinQ) {
+          lastWinQ = winState.fillQ;
+          winFill.style.transform = `scaleX(${winState.fillQ / 400})`;
+          winBar.dataset.value = String(winState.fillQ);
+          winBar.setAttribute('aria-valuenow', String(Math.round(winState.fillQ / 4)));
+        }
+        const lv0 = languageVersion();
+        if (winState.leaderSeat !== lastWinSeat || winState.leaderHundredths !== lastWinHund || winState.requiredHundredths !== lastWinNeed || lv0 !== lastWinLang) {
+          lastWinSeat = winState.leaderSeat;
+          lastWinHund = winState.leaderHundredths;
+          lastWinNeed = winState.requiredHundredths;
+          lastWinLang = lv0;
+          winLeader.textContent =
+            winState.leaderSeat < 0 ? t('hud.win.noLeader') : t('hud.win.leader', { name: nameOf(winState.leaderSeat, v.players, L), pct: percentText(winState.leaderHundredths), need: percentText(winState.requiredHundredths) });
+          winLeader.dataset.seat = String(winState.leaderSeat);
+          winLeader.dataset.you = winState.leaderSeat === L ? '1' : '0';
+          winBar.setAttribute('aria-label', t('hud.win.aria'));
+        }
+        const holding = winState.holdSeat >= 0;
+        if (winHold.hidden === holding) winHold.hidden = !holding;
+        if (holding && (winState.holdSeat !== lastHoldSeat || winState.holdSeconds !== lastHoldSecs || lv0 !== lastHoldLang)) {
+          lastHoldSeat = winState.holdSeat;
+          lastHoldSecs = winState.holdSeconds;
+          lastHoldLang = lv0;
+          winHold.textContent = t('hud.win.hold', { name: nameOf(winState.holdSeat, v.players, L), secs: winState.holdSeconds });
+          winHold.dataset.seat = String(winState.holdSeat);
+          winHold.dataset.value = String(winState.holdSeconds);
+        }
       }
       for (const c of statics) c.set(0);
 

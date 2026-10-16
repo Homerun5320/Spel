@@ -1,7 +1,7 @@
 // The style sheet of the match HUD and the start screen, built from the tokens in uiConfig.ts. One <style> element per root; the
 // classes are prefixed `hud-` / `start-`. No transitions or animations (CSS time is not the fx clock; tests/fxClock.test.ts
 // forbids them): every visible change is a state change driven from JS.
-import { CITY_VIEW, GPU_TIP, HELP_OVERLAY, MATCH_PANELS, NARROW_MAX_PX, HUD_FONT_BIAS_PX, HUD_FONT_MAX_PX, HUD_FONT_MIN_PX, HUD_FONT_VW, SETUP_PANEL_EM, SETUP_SHEET_VH, TARGET_MIN_PX, UI_COLORS as C, Z_HUD, Z_SETUP, Z_START_SCREEN } from './uiConfig';
+import { CITY_VIEW, GPU_TIP, HELP_OVERLAY, MATCH_PANELS, NARROW_MAX_PX, TOPBAR, HUD_FONT_BIAS_PX, HUD_FONT_MAX_PX, HUD_FONT_MIN_PX, HUD_FONT_VW, SETUP_PANEL_EM, SETUP_SHEET_VH, TARGET_MIN_PX, UI_COLORS as C, Z_HUD, Z_SETUP, Z_START_SCREEN } from './uiConfig';
 
 export function hudCss(): string {
   const fontSize = `clamp(${HUD_FONT_MIN_PX}px, calc(${HUD_FONT_VW}vw + ${HUD_FONT_BIAS_PX}px), ${HUD_FONT_MAX_PX}px)`;
@@ -16,14 +16,14 @@ export function hudCss(): string {
 .hud-num { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 1.25em; }
 .hud-dim { color: ${C.textDim}; font-variant-numeric: tabular-nums; }
 
-.hud-banner { position: absolute; left: 50%; top: 0.7em; transform: translateX(-50%); width: max-content; max-width: min(34em, calc(100vw - 33em)); text-align: center; padding: 0.55em 1.1em; }
+.hud-banner { position: absolute; left: 50%; top: ${TOPBAR.wideEm + 0.4}em; transform: translateX(-50%); width: max-content; max-width: min(34em, calc(100vw - 33em)); text-align: center; padding: 0.55em 1.1em; }
 .hud-banner[data-tone="prompt"] { border-color: ${C.accent}; }
 .hud-banner[data-tone="missed"] { border-color: ${C.danger}; }
 .hud-banner-text { font-weight: 600; font-size: 1.1em; }
 .hud-banner-seconds { font-variant-numeric: tabular-nums; font-weight: 800; font-size: 2em; line-height: 1.1; color: ${C.accent}; }
-.hud-badge { position: absolute; left: 50%; top: 5.6em; transform: translateX(-50%); padding: 0.2em 0.9em; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: ${C.barWarning}; pointer-events: none; }
+.hud-badge { position: absolute; left: 50%; top: ${TOPBAR.wideEm + 5.3}em; transform: translateX(-50%); padding: 0.2em 0.9em; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: ${C.barWarning}; pointer-events: none; }
 
-.hud-board { position: absolute; right: 0.6em; top: 64px; width: 14.5em; padding: 0.45em 0.6em 0.5em; }
+.hud-board { position: absolute; right: 0.6em; top: ${TOPBAR.wideEm + 0.4}em; width: 14.5em; padding: 0.45em 0.6em 0.5em; }
 .hud-board[data-labels="1"] { width: 17.5em; }
 .hud-board-title { color: ${C.textDim}; font-size: 0.8em; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.2em; }
 .hud-row { display: grid; grid-template-columns: 1.6em 0.9em 1fr auto; align-items: center; column-gap: 0.4em; min-height: 1.7em; padding: 0 0.3em; border-radius: 0.3em; }
@@ -33,7 +33,7 @@ export function hudCss(): string {
 .hud-row[data-flag="1"] { grid-template-columns: 1.6em 0.9em auto 1fr auto; }
 .hud-flag { border-radius: 2px; border: 1px solid rgba(255, 255, 255, 0.55); display: block; }
 .hud-flag[hidden] { display: none !important; }
-.hud-nation { grid-column: 1 / -1; display: flex; align-items: center; gap: 0.5em; margin-bottom: 0.15em; font-weight: 700; }
+.hud-nation { display: flex; align-items: center; gap: 0.5em; font-weight: 700; max-width: 12em; }
 .hud-nation[hidden] { display: none !important; }
 .hud-nation-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hud-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -41,18 +41,25 @@ export function hudCss(): string {
 .hud-empty { color: ${C.textDim}; font-size: 0.9em; padding: 0.2em 0.3em; }
 
 .hud-dock { position: absolute; left: 0.6em; right: 0.6em; bottom: 0.6em; display: flex; align-items: flex-end; justify-content: space-between; flex-wrap: wrap; gap: 0.6em; pointer-events: none; }
-.hud-status { width: 17.5em; display: grid; grid-template-columns: auto 1fr; column-gap: 0.7em; row-gap: 0.15em; align-items: baseline; }
-.hud-status .hud-right { justify-self: end; text-align: right; }
+.hud-status { position: absolute; left: 0.6em; top: 0.6em; max-width: calc(100% - 1.2em - 56px); display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 1.2em; row-gap: 0.1em; padding: 0.3em 0.8em 0.35em; pointer-events: auto; }
+.hud-grp { display: inline-flex; align-items: baseline; gap: 0.4em; white-space: nowrap; }
+.hud-grp-troops { flex-direction: column; align-items: stretch; gap: 0.05em; min-width: 11em; }
+.hud-line { display: flex; align-items: baseline; gap: 0.4em; white-space: nowrap; }
+.hud-bar-row { display: flex; align-items: center; gap: 0.5em; min-height: 1.15em; }
+.hud-bar-row .hud-bar { flex: 1 1 auto; margin: 0; }
+.hud-win { flex: 1 1 100%; display: flex; align-items: center; gap: 0.6em; min-height: 1.4em; min-width: 0; }
+.hud-win .hud-bar { flex: 1 1 8em; min-width: 6em; margin: 0; }
+.hud-win-text, .hud-win-hold { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.hud-win-hold { color: ${C.barWarning}; font-weight: 700; }
 .hud-gold { color: ${C.gold}; }
 .hud-troops { color: ${C.troops}; }
-.hud-bar { grid-column: 1 / -1; position: relative; height: 0.75em; margin: 0.25em 0 0.2em; border-radius: 0.4em; background: ${C.barTrack}; overflow: hidden; border: 1px solid ${C.panelBorder}; }
+.hud-bar { position: relative; height: 0.75em; margin: 0.25em 0 0.2em; border-radius: 0.4em; background: ${C.barTrack}; overflow: hidden; border: 1px solid ${C.panelBorder}; }
 .hud-bar-fill { position: absolute; inset: 0; transform-origin: left center; background: ${C.bar}; }
 .hud-bar[data-warning="1"] .hud-bar-fill { background: ${C.barWarning}; }
 .hud-bar-mark { position: absolute; top: 0; bottom: 0; width: 2px; background: rgba(255, 255, 255, 0.85); }
-.hud-warn { color: ${C.barWarning}; font-weight: 700; font-size: 0.85em; }
-.hud-meta { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: baseline; margin-top: 0.15em; }
+.hud-warn { color: ${C.barWarning}; font-weight: 700; font-size: 0.8em; white-space: nowrap; }
 
-.hud-controls { display: flex; flex-direction: column; gap: 0.45em; width: 19.5em; max-width: calc(100vw - 1.2em); }
+.hud-controls { margin-left: auto; display: flex; flex-direction: column; gap: 0.45em; width: 19.5em; max-width: calc(100vw - 1.2em); }
 .hud-group { display: flex; align-items: center; justify-content: space-between; gap: 0.5em; }
 .hud-btns { display: flex; gap: 0.3em; }
 .hud-btn { min-width: ${target}; min-height: ${target}; padding: 0 0.7em; border-radius: 0.5em; border: 1px solid ${C.buttonBorder}; background: ${C.button}; color: ${C.text}; font: inherit; font-weight: 700; cursor: pointer; touch-action: manipulation; }
@@ -84,7 +91,7 @@ export function hudCss(): string {
 .toast[data-kind="error"] { border-color: ${C.danger}; }
 .toast[data-kind="warn"] { border-color: ${C.barWarning}; }
 /* M10-4: the selection panel sits bottom left above the status panel and wraps on a narrow window. */
-.sel-panel { position: absolute; left: 0.6em; bottom: 9.6em; width: 17.5em; max-width: calc(100vw - 1.2em); padding: 0.45em 0.6em 0.5em; display: flex; flex-direction: column; gap: 0.25em; pointer-events: auto; }
+.sel-panel { position: absolute; left: 0.6em; bottom: 0.6em; width: 17.5em; max-width: calc(100vw - 1.2em); padding: 0.45em 0.6em 0.5em; display: flex; flex-direction: column; gap: 0.25em; pointer-events: auto; }
 .sel-panel[hidden] { display: none !important; }
 .sel-name { font-weight: 800; font-size: 1.05em; }
 .sel-level, .sel-note { color: ${C.textDim}; font-size: 0.85em; }
@@ -99,11 +106,11 @@ export function hudCss(): string {
 /* Narrow screens (a phone held upright, D107): the banner takes the whole top row left of the Dev button, with the countdown beside the
    text; the leaderboard sits below it, so nothing overlaps the banner, the board or the Dev button (48 px + 8 px margins). */
 @media (max-width: ${NARROW_MAX_PX}px), (max-aspect-ratio: 1/1) {
-  .hud-banner { left: 8px; right: 64px; top: 8px; transform: none; width: auto; max-width: none; display: flex; align-items: center; justify-content: space-between; gap: 0.6em; text-align: left; padding: 0.35em 0.7em; }
+  .hud-banner { left: 8px; right: 8px; top: ${TOPBAR.narrowEm + 0.4}em; transform: none; width: auto; max-width: none; display: flex; align-items: center; justify-content: space-between; gap: 0.6em; text-align: left; padding: 0.35em 0.7em; }
   .hud-banner-text { font-size: 1em; }
   .hud-banner-seconds { font-size: 1.6em; flex: none; }
-  .hud-badge { left: 8px; transform: none; top: 5.4em; }
-  .hud-board { top: 6.4em; right: 8px; width: 13em; padding: 0.35em 0.5em 0.4em; }
+  .hud-badge { left: 8px; transform: none; top: ${TOPBAR.narrowEm + 3.8}em; }
+  .hud-board { top: ${TOPBAR.narrowBoardEm}em; right: 8px; width: 13em; padding: 0.35em 0.5em 0.4em; }
   .hud-board[data-labels="1"] { width: 15.5em; }
   .hud-row { min-height: 1.5em; }
   .hud-toast { bottom: 17em; }
@@ -114,7 +121,7 @@ export function hudCss(): string {
   .build-btn { min-width: 0; padding: 0.1em 0.4em; column-gap: 0.3em; }
   .build-name { font-size: 0.8em; }
   .toast-stack { bottom: 28em; }
-  .sel-panel { left: 8px; bottom: 21em; width: auto; max-width: min(17.5em, calc(100vw - 16px)); }
+  .sel-panel { left: 8px; bottom: 11em; width: auto; max-width: min(17.5em, calc(100vw - 16px)); }
 }
 
 .start-root { position: absolute; inset: 0; z-index: ${Z_START_SCREEN}; display: flex; align-items: safe center; justify-content: center; padding: 1em; background: radial-gradient(ellipse at center, ${C.scrim} 0%, ${C.scrimEdge} 100%); overflow: auto; }
@@ -295,7 +302,7 @@ export function hudCss(): string {
 .mp-table tr[data-you="1"] td { background: ${C.youRow}; font-weight: 700; }
 .mp-table tr[data-winner="1"] td { color: ${MATCH_PANELS.winnerBorder}; }
 .mp-table tr[data-eliminated="1"] td { color: ${C.textDim}; }
-.mp-spectator { position: absolute; left: 50%; top: 6em; transform: translateX(-50%); width: max-content; max-width: calc(100% - 1.2em); justify-content: center; pointer-events: auto; display: flex; align-items: center; gap: 0.35em; flex-wrap: wrap; background: ${C.panel}; border: 1px solid ${C.panelBorder}; border-radius: 0.6em; padding: 0.3em 0.5em; }
+.mp-spectator { position: absolute; left: 50%; top: ${TOPBAR.wideEm + 0.4}em; transform: translateX(-50%); width: max-content; max-width: calc(100% - 1.2em); justify-content: center; pointer-events: auto; display: flex; align-items: center; gap: 0.35em; flex-wrap: wrap; background: ${C.panel}; border: 1px solid ${C.panelBorder}; border-radius: 0.6em; padding: 0.3em 0.5em; }
 .mp-badge { font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: ${C.barWarning}; padding: 0 0.4em; }
 /* M20a-lite: the help overlay (generated from the hotkey registry) */
 .help-overlay { position: absolute; inset: 0; z-index: ${HELP_OVERLAY.z}; pointer-events: none; display: flex; align-items: center; justify-content: center; font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; font-size: ${fontSize}; line-height: 1.3; color: ${C.text}; box-sizing: border-box; padding: 0.6em; }

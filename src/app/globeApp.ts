@@ -685,7 +685,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       if (d.fullOwner !== null) globe.ownership.setFromOwners(m.owner);
       else globe.ownership.applyCells(d.cells, d.owners);
     });
-    hud = createMatchHud(wrapper, { setCommit: (p) => s.setCommit(p), setSpeed: (sp) => s.setSpeed(sp), togglePause: () => s.togglePause() }, { seatColor, labels: s.labels });
+    hud = createMatchHud(wrapper, { setCommit: (p) => s.setCommit(p), setSpeed: (sp) => s.setSpeed(sp), togglePause: () => s.togglePause() }, { seatColor, labels: s.labels, throttle: !params.test });
     hud.setVisible(!params.test || ctx.state.raw.hud === '1'); // test mode hides it (the globe goldens), `#hud` / `?hud=1` shows it
     help = createHelpOverlay(wrapper, () => hotkeys.listed()); // generated from the registry (M20a-lite)
     // The build bar (M10): its own layer over the canvas, shown with the HUD and once you have spawned.

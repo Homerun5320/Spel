@@ -39,6 +39,15 @@ export const Z_HUD = 20;
 export const Z_START_SCREEN = 30;
 export const Z_SETUP = 30;
 
+/** M20a-lite: the HUD writes the DOM at most this many fx seconds apart (10 Hz). */
+export const HUD_MIN_INTERVAL_S = 0.1;
+
+/**
+ * M20a-lite: the top bar (gold, troops, land, time, win meter) sits at the top left; the banner, the paused badge and the leaderboard sit below it. These are its heights in `em`
+ * (wide: one row of figures plus the win row; narrow or portrait: the figures wrap to two rows), measured in `e2e/topBar.test.ts`, which fails when the bar grows past them.
+ */
+export const TOPBAR = { wideEm: 5.4, narrowEm: 8.6, narrowBoardEm: 8.6 + 4.2 } as const;
+
 /** M20a-lite: the help overlay (above the HUD, below the match panels, which are at MATCH_PANELS.z 36). */
 export const HELP_OVERLAY = { z: 34, widthEm: 24, keyColEm: 5.5 } as const;
 
@@ -151,7 +160,7 @@ export const MATCH_PANELS = {
   /** The pause menu sits this far from the top, so the spawn countdown banner stays uncovered. */
   pauseTopEm: 6.5,
   /** Fix-3B: on a narrow or portrait window the spectator bar sits below the leaderboard: its top (6.4em) plus the title (1.4em), the rows (LEADERBOARD_ROWS and the player's own, 1.5em each) and the padding (0.9em). */
-  spectatorTopNarrowEm: 6.4 + 1.4 + (LEADERBOARD_ROWS + 1) * 1.5 + 0.9,
+  spectatorTopNarrowEm: TOPBAR.narrowBoardEm + 1.4 + (LEADERBOARD_ROWS + 1) * 1.5 + 0.9,
   winnerBorder: '#ffd666',
 } as const;
 

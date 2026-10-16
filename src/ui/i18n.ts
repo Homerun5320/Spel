@@ -352,6 +352,11 @@ const sv = {
   'hotkey.overlay': 'Prestandaruta',
   'hotkey.devpanel': 'Utvecklarpanelen',
   'toast.cmd.notOwnGround': 'Du kan bara bygga på din egen mark.',
+  'hud.win.label': 'Vinst',
+  'hud.win.leader': '{name} {pct} av {need}',
+  'hud.win.noLeader': 'Ingen ledare än',
+  'hud.win.hold': '{name} håller: {secs} s kvar',
+  'hud.win.aria': 'Ledarens andel av vinstgränsen',
 } as const;
 
 export type TextKey = keyof typeof sv;
@@ -693,6 +698,11 @@ const en: Record<TextKey, string> = {
   'hotkey.overlay': 'Performance box',
   'hotkey.devpanel': 'Developer panel',
   'toast.cmd.notOwnGround': 'You can only build on your own land.',
+  'hud.win.label': 'Win',
+  'hud.win.leader': '{name} {pct} of {need}',
+  'hud.win.noLeader': 'No leader yet',
+  'hud.win.hold': '{name} holding: {secs} s left',
+  'hud.win.aria': "The leader's share of the win limit",
 };
 
 /** The two tables, for the parity test and for tools. Treat as read-only. */
