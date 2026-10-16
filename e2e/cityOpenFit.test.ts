@@ -20,6 +20,8 @@ afterAll(async () => {
 });
 
 const ev = <R>(page: Page, fn: string, ...args: unknown[]): Promise<R> => page.evaluate(([f, a]) => (window as any).__test[f as string](...(a as unknown[])), [fn, args] as const) as Promise<R>;
+/** Fix-Audit2 (mutation 13): the total draw-call cap is 100 (the M21 target) but the whole city scene measures far less; this ceiling is the measured value plus a small margin, so a regression from 13 to 99 fails. */
+const DRAW_CALL_CEILING = 10; // measured 7 (terrain, shell, stars, City model, ring, icons, districts)
 const tid = (id: string): string => `[data-testid="${id}"]`;
 
 /** A level-9 City at the capital with all five district slots built; the camera high above, the City selected. Returns the City's place. */
@@ -56,6 +58,9 @@ async function openAndMeasure(page: Page, at: { lat: number; lon: number }, name
   expect(await ev<boolean>(page, 'flightActive')).toBe(false);
   await ev(page, 'render');
   fs.writeFileSync(path.join(SHOT_DIR, `cityfit-${name}.png`), await page.screenshot({ type: 'png' }));
+  const calls = (await ev<{ drawCalls: number }>(page, 'info')).drawCalls;
+  console.log(`[cityfit] ${name}: ${calls} draw calls`);
+  expect(calls, 'draw calls of the city view (terrain, shell, stars, structures, ring, icons, districts)').toBeLessThanOrEqual(DRAW_CALL_CEILING);
   const vp = page.viewportSize() as { width: number; height: number };
   const panel = (await page.locator(tid('city-view')).boundingBox()) as { x: number; y: number; width: number; height: number };
   // the free part of the window: left of a side panel, above a bottom sheet

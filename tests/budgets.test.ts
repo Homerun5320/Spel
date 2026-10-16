@@ -14,3 +14,12 @@ describe('docs/ARCHITECTURE.md "Budgetar"', () => {
     expect(layers.reduce((s, l) => s + l.drawCalls, 0)).toBeLessThanOrEqual((total as { drawCalls: number }).drawCalls);
   });
 });
+
+describe('Fix-Audit2: per-layer draw-call rows pin the real total, not only the 100 ceiling', () => {
+  it('the per-layer draw-call allowances (terrain, shell, stars, structures, districts) add up to at most 16, so the global 100 stays a ceiling and not a licence', () => {
+    const [, ...layers] = readBudgets();
+    const sum = layers.reduce((s, l) => s + l.drawCalls, 0);
+    expect(sum).toBeLessThanOrEqual(16);
+    expect(layers.every((l) => l.drawCalls <= 10)).toBe(true);
+  });
+});
