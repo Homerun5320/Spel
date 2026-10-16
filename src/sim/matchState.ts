@@ -1,6 +1,8 @@
 // The match-end state (M18-1): the win configuration of a match, the result once it is over, the hold timer and the per-seat statistics.
 // Game state: serialised and hashed (src/sim/serialize.ts). The rules that write it are in src/sim/win.ts and the few counters in
 // conquest.ts, structures.ts and districts.ts. Plain integers and typed arrays only.
+import { TECH_FX_CHANNELS } from './rules';
+import { techFxOfMask } from './techTable';
 
 /** The win conditions a match runs (`MatchConfig.win`). A match without one, or with all three off, never ends. */
 export interface WinConfig {
@@ -84,6 +86,14 @@ export class MatchState {
   readonly treatiesMade: Uint32Array;
   /** Treaties the seat has broken with BreakTreaty (the betrayals). Serialised in the diplomacy block. */
   readonly treatiesBroken: Uint32Array;
+  /** Technology (M18d-1), per ownerId. The researched techs as a bitmask (bit = tech index, see techTable.ts). Serialised and hashed in the match block. */
+  readonly techMask: Uint16Array;
+  /** The tech under research + 1, 0 = none. */
+  readonly techCurrent: Uint8Array;
+  /** The tick at which the current research is finished (0 without one). */
+  readonly techDone: Uint32Array;
+  /** DERIVED, never serialised or hashed: the capped effect of the researched techs, TECH_FX_CHANNELS values per ownerId. Rebuilt by `setTechMask` / `rebuildTechFx`. */
+  readonly techFx: Uint8Array;
 
   constructor(slots: number) {
     this.eliminated = new Uint8Array(slots);
@@ -94,5 +104,36 @@ export class MatchState {
     this.districts = new Uint32Array(slots);
     this.treatiesMade = new Uint32Array(slots);
     this.treatiesBroken = new Uint32Array(slots);
+    this.techMask = new Uint16Array(slots);
+    this.techCurrent = new Uint8Array(slots);
+    this.techDone = new Uint32Array(slots);
+    this.techFx = new Uint8Array(slots * TECH_FX_CHANNELS);
+  }
+
+  /** Sets the researched techs of an owner and refreshes its cached effects. */
+  setTechMask(owner: number, mask: number): void {
+    this.techMask[owner] = mask;
+    this.refreshTechFx(owner);
+  }
+
+  refreshTechFx(owner: number): void {
+    const mask = this.techMask[owner] as number;
+    const base = owner * TECH_FX_CHANNELS;
+    for (let c = 0; c < TECH_FX_CHANNELS; c++) this.techFx[base + c] = techFxOfMask(mask, c);
+  }
+
+  /** Recomputes every owner's cached effects (after a deserialize). */
+  rebuildTechFx(): void {
+    for (let o = 0; o < this.techMask.length; o++) this.refreshTechFx(o);
+  }
+
+  /** The cached effect of an owner on one channel (0 when nothing is researched). */
+  fx(owner: number, channel: number): number {
+    return this.techFx[owner * TECH_FX_CHANNELS + channel] as number;
+  }
+
+  /** By SEAT (0-based): the researched mask. The shape a MatchView has too (see matchView.ts), so rules that read both take a `TechMaskSource`. */
+  techMaskOfSeat(seat: number): number {
+    return (this.techMask[seat + 1] as number) | 0;
   }
 }

@@ -603,3 +603,30 @@ export const POST_AA_TENTHS_PER_TICK = (POST_AA_DPS * 10) / TICK_HZ;
 export const SAM_SALVO_PERIOD_TICKS = 90;
 /** Chance in percent that one salvo brings a helicopter down (a hit is a kill). Drawn from the splitmix32 mixer on (match seed, tick, SAM id). */
 export const SAM_HIT_PCT = 55;
+
+// ---------------------------------------------------------------------------------------------------------------
+// Technology (M18d-1): 16 techs in four branches of four steps. Tech index = branch * TECH_STEPS + (step - 1); branches ECONOMY 0, LAND 1, AIR 2, DEFENCE 3.
+// Step n needs step n - 1 of the same branch. One research per seat at a time; the price is taken when it STARTS, it is finished TECH_TICKS later.
+
+/** Techs in the tree (TECH_BRANCHES x TECH_STEPS). */
+export const TECH_COUNT = 16;
+/** Branches: 0 ECONOMY, 1 LAND, 2 AIR, 3 DEFENCE. */
+export const TECH_BRANCHES = 4;
+/** Steps per branch. */
+export const TECH_STEPS = 4;
+/** Price in gold per tech (index = tech). Roughly 3 to 5 minutes of the income of an average mid-game City per step. */
+export const TECH_PRICE_GOLD = [350, 550, 800, 1100, 350, 550, 800, 1100, 350, 550, 800, 1100, 350, 550, 800, 1100];
+/** Research time in ticks per tech (index = tech): 1.0, 1.5, 2.0 and 2.5 minutes. */
+export const TECH_TICKS = [600, 900, 1200, 1500, 600, 900, 1200, 1500, 600, 900, 1200, 1500, 600, 900, 1200, 1500];
+/** Effect channels of TECH_FX: 0 gold %, 1 upgrade price discount %, 2 attacker cell price discount %, 3 troop regeneration %, 4 troop cap %, 5 helicopter load %, 6 helicopter speed %, 7 helicopter fuel %, 8 extra helicopters in the fleet cap, 9 SAM hit chance in percentage points, 10 Walls and Defense Post strength %, 11 SAM salvo period reduction %. */
+export const TECH_FX_CHANNELS = 12;
+/** What each tech gives, TECH_FX_CHANNELS values per tech, row = tech (flat). A branch's steps add up per channel, then the channel cap applies. */
+export const TECH_FX = [5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, 1, 0, 0, 0, 0, 0, 0, 0, 0, 15, 5, 15, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 1, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, 17];
+/** Cap of each channel after the branch sums (the sum over ALL researched techs is clamped to this). */
+export const TECH_FX_CAP = [20, 15, 15, 15, 15, 25, 15, 25, 2, 10, 25, 25];
+/** AI: a nation starts a research only with this much gold left after the price (gold). */
+export const AI_TECH_GOLD_RESERVE = 300;
+/** AI: a nation looks at research once per this many ticks (its back-off). */
+export const AI_TECH_PERIOD_TICKS = 100;
+/** AI: no research before this tick (expansion first). */
+export const AI_TECH_START_TICKS = 1500;

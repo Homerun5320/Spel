@@ -42,6 +42,7 @@ import {
   wallsCostPctAt,
 } from './levelCurves';
 import { DISTRICT_BARRACKS, DISTRICT_HOUSING, DISTRICT_MARKET, DISTRICT_WALLS } from './districtRules';
+import { TECH_FX_GOLD, TECH_FX_WALLS_POST } from './techTable';
 import type { GameState } from './state';
 import { STRUCT_CITY, STRUCT_FACTORY, STRUCT_PORT, STRUCT_POST, cityGoldMilli } from './structureRules';
 import type { StructureTable } from './structures';
@@ -87,7 +88,7 @@ export function samRadiusCells(level: number, onMountain: boolean): number {
 }
 
 /** Adds the FINISHED districts of City `id` (owner `o`) to the owner's cache; returns the earliest future tick at which one of them finishes. */
-function districtEffects(t: StructureTable, id: number, o: number, tick: number, nextIn: number): number {
+function districtEffects(t: StructureTable, id: number, o: number, tick: number, nextIn: number, goldPct: number): number {
   let next = nextIn;
   for (let slot = 0; slot < DISTRICT_MAX_SLOTS; slot++) {
     const at = id * DISTRICT_MAX_SLOTS + slot;
@@ -101,7 +102,10 @@ function districtEffects(t: StructureTable, id: number, o: number, tick: number,
       continue;
     }
     const level = t.districtLevel[at] as number;
-    if (kind === DISTRICT_MARKET) t.effFixedMilli[o] = (t.effFixedMilli[o] as number) + marketGoldMilliAt(level);
+    if (kind === DISTRICT_MARKET) {
+      const market = marketGoldMilliAt(level);
+      t.effFixedMilli[o] = (t.effFixedMilli[o] as number) + (goldPct === 0 ? market : market + Math.floor((market * goldPct) / 100));
+    }
     else if (kind === DISTRICT_HOUSING) t.effHousingQt[o] = (t.effHousingQt[o] as number) + housingTroopsAt(level) * QT_PER_TROOP;
     else if (kind === DISTRICT_BARRACKS) {
       const sum = (t.effBarracksPct[o] as number) + barracksRegenPctAt(level);
@@ -137,6 +141,7 @@ function recompute(state: GameState): void {
       continue;
     }
     const type = t.type[id] as number;
+    const goldPct = state.match.fx(o, TECH_FX_GOLD);
     if (type === STRUCT_CITY) {
       const level = t.level[id] as number;
       t.effCityLevels[o] = (t.effCityLevels[o] as number) + level;
@@ -161,8 +166,10 @@ function recompute(state: GameState): void {
         boosted[bestF] = (boosted[bestF] as number) + 1;
         income += Math.floor((income * factoryCityBonusPctAt(bestFLevel)) / 100);
       }
+      // Economy techs (M18d-1): + goldPct percent on a City's income (cached here, so the tick pays one addition for it).
+      if (goldPct !== 0) income += Math.floor((income * goldPct) / 100);
       t.effFixedMilli[o] = (t.effFixedMilli[o] as number) + income;
-      if (t.districtCount > 0) next = districtEffects(t, id, o, tick, next);
+      if (t.districtCount > 0) next = districtEffects(t, id, o, tick, next, goldPct);
     } else if (type === STRUCT_FACTORY) {
       t.effFixedMilli[o] = (t.effFixedMilli[o] as number) + factoryGoldMilliAt(t.level[id] as number);
     } else if (type === STRUCT_PORT) {
@@ -193,7 +200,9 @@ function recompute(state: GameState): void {
         // Allied Ports trade at TRADE_ALLIANCE_PCT of the open rate (Fix-4A1; M18c-1 had them at the same-owner half); an embargo beats everything.
         trade += tradeMilliPerSec(isqrt(bestD2[k] as number), partnerOwner === o, t.embargoed(o, partnerOwner), partnerOwner !== o && state.diplo.relationOf(o, partnerOwner) === RELATION_ALLIANCE);
       }
-      income += Math.floor((trade * portTradePctAt(portLevel)) / 100);
+      let tradeMilli = Math.floor((trade * portTradePctAt(portLevel)) / 100);
+      if (goldPct !== 0) tradeMilli += Math.floor((tradeMilli * goldPct) / 100);
+      income += tradeMilli;
       if (income > PORT_INCOME_MAX_MILLI_PER_SEC) income = PORT_INCOME_MAX_MILLI_PER_SEC;
       t.effPortMilli[o] = (t.effPortMilli[o] as number) + income;
     }
@@ -269,6 +278,7 @@ export function structGoldMilliPerTick(state: GameState, owner: number): number 
 export function collectPosts(state: GameState, target: number): number {
   const t: StructureTable = state.structures;
   t.postCount = 0;
+  t.postBoostPct = state.match.fx(target, TECH_FX_WALLS_POST);
   if (t.liveCount === 0 || t.ownedCount(target, STRUCT_POST) === 0) return 0;
   const tick = state.tick;
   let n = 0;
@@ -286,6 +296,7 @@ export function collectPosts(state: GameState, target: number): number {
 export function collectWalls(state: GameState, target: number): number {
   const t: StructureTable = state.structures;
   t.wallCount = 0;
+  const boost = state.match.fx(target, TECH_FX_WALLS_POST);
   if (t.districtCount === 0 || t.districtsOwned(target, DISTRICT_WALLS) === 0) return 0;
   const tick = state.tick;
   let n = 0;
@@ -295,7 +306,8 @@ export function collectWalls(state: GameState, target: number): number {
       const at = id * DISTRICT_MAX_SLOTS + slot;
       if (t.districtKind[at] !== DISTRICT_WALLS || tick < (t.districtReadyTick[at] as number)) continue;
       t.wallCells[n] = t.cell[id] as number;
-      t.wallPcts[n] = wallsCostPctAt(t.districtLevel[at] as number);
+      const wallPct = wallsCostPctAt(t.districtLevel[at] as number);
+      t.wallPcts[n] = boost === 0 ? wallPct : Math.floor((wallPct * (100 + boost)) / 100);
       n++;
     }
   }
@@ -325,7 +337,7 @@ const POST_R2 = POST_RADIUS_CELLS * POST_RADIUS_CELLS;
 export function postAdjustedCost(t: StructureTable, width: number, cell: number, cost: number): number {
   const n = t.postCount;
   for (let i = 0; i < n; i++) {
-    if (dist2Cells(width, cell, t.postCells[i] as number) <= POST_R2) return Math.floor((cost * POST_COST_NUM) / POST_COST_DEN);
+    if (dist2Cells(width, cell, t.postCells[i] as number) <= POST_R2) return t.postBoostPct === 0 ? Math.floor((cost * POST_COST_NUM) / POST_COST_DEN) : Math.floor((cost * POST_COST_NUM * (100 + t.postBoostPct)) / (POST_COST_DEN * 100));
   }
   return cost;
 }

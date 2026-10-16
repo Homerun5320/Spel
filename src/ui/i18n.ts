@@ -480,6 +480,15 @@ const sv = {
   'hotkey.labels': 'Nationsetiketter och frontpilar av eller på',
   'toast.labels.on': 'Nationsetiketter och frontpilar på.',
   'toast.labels.off': 'Nationsetiketter och frontpilar av.',
+  // M18d-1: technology refusals (the research panel comes with M18d-2)
+  'reject.tech.id': 'Den tekniken finns inte.',
+  'reject.tech.prereq': 'Du måste forska fram föregående steg i grenen först.',
+  'reject.tech.done': 'Den tekniken är redan färdigforskad.',
+  'reject.tech.busy': 'Du forskar redan på något. Vänta tills det är klart eller avbryt.',
+  'reject.tech.gold': 'Du har inte råd med den forskningen.',
+  'reject.tech.matchEnded': 'Matchen är slut.',
+  'reject.tech.eliminated': 'Du är utslagen och kan inte forska.',
+  'reject.tech.notActive': 'Du forskar inte på något just nu.',
 } as const;
 
 export type TextKey = keyof typeof sv;
@@ -949,6 +958,15 @@ const en: Record<TextKey, string> = {
   'hotkey.labels': 'Nation labels and front arrows on or off',
   'toast.labels.on': 'Nation labels and front arrows on.',
   'toast.labels.off': 'Nation labels and front arrows off.',
+  // M18d-1: technology refusals (the research panel comes with M18d-2)
+  'reject.tech.id': 'That technology does not exist.',
+  'reject.tech.prereq': 'Research the previous step of the branch first.',
+  'reject.tech.done': 'That technology is already researched.',
+  'reject.tech.busy': 'You are already researching something. Wait for it to finish or cancel it.',
+  'reject.tech.gold': 'You cannot afford that research.',
+  'reject.tech.matchEnded': 'The match is over.',
+  'reject.tech.eliminated': 'You have been eliminated and cannot research.',
+  'reject.tech.notActive': 'You are not researching anything right now.',
 };
 
 /** The two tables, for the parity test and for tools. Treat as read-only. */

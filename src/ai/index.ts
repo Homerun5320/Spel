@@ -5,3 +5,4 @@ export { buildMove } from './build';
 export { think } from './think';
 export { memoryWords, loadMemoryWords, MEMORY_FIXED_WORDS, diplomacyWords, loadDiplomacyWords, diplomacyWordCount } from './memory';
 export { diplomacyMove } from './diplomacy';
+export { researchMove } from './research';

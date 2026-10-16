@@ -5,6 +5,7 @@
 import { fillScores, landStdOf, playStartTick, requiredLandPct } from './win';
 import { winFlagsOf } from './matchState';
 import type { GameState } from './state';
+import { techCountOfMask, techFxOfMask } from './techTable';
 import type { ReadonlyNumbers } from './view';
 
 /** The scalar words at the start of the packed array, in order. */
@@ -25,7 +26,7 @@ export const MATCH_HEADER_FIELDS = [
 ] as const;
 export const MATCH_HEADER_WORDS = MATCH_HEADER_FIELDS.length;
 /** The per-seat blocks that follow the header words, `seats` values each, in order. */
-export const MATCH_SEAT_FIELDS = ['eliminated', 'capitalLost', 'landStd', 'score', 'peakLand', 'built', 'conquered', 'districts', 'treaties', 'betrayals', 'relations'] as const;
+export const MATCH_SEAT_FIELDS = ['eliminated', 'capitalLost', 'landStd', 'score', 'peakLand', 'built', 'conquered', 'districts', 'treaties', 'betrayals', 'relations', 'techMask', 'techCurrent1', 'techDone', 'techCount'] as const;
 export type MatchSeatField = (typeof MATCH_SEAT_FIELDS)[number];
 
 /** Length of the packed array of a match with `seats` seats. */
@@ -70,6 +71,17 @@ export interface MatchView {
   readonly treaties: ReadonlyNumbers;
   readonly betrayals: ReadonlyNumbers;
   readonly relations: ReadonlyNumbers;
+  /** Technology (M18d-1), per seat: the researched techs as a bitmask (bit = tech index), the tech under research + 1 (0 = none), the tick it is finished (0 = none), the number researched. */
+  readonly techMask: ReadonlyNumbers;
+  readonly techCurrent1: ReadonlyNumbers;
+  readonly techDone: ReadonlyNumbers;
+  readonly techCount: ReadonlyNumbers;
+  /** The researched mask of a seat (the shape the helicopter rules read, `TechMaskSource`). */
+  techMaskOfSeat(seat: number): number;
+  /** The tech a seat is researching, -1 = none. */
+  techCurrentOfSeat(seat: number): number;
+  /** What the seat's researched techs give on an effect channel (TECH_FX_*, capped). */
+  techFxOfSeat(seat: number, channel: number): number;
 }
 
 /** Writes the packed match view of a state into `out` (`matchPackedLength(seats)` long) using `scores` (seats + 1 long) as scratch. No other allocation. */
@@ -122,6 +134,14 @@ export function fillMatchView(state: GameState, out: Uint32Array, scores: Uint32
   for (let s = 0; s < seats; s++) out[at + s] = m.treatiesBroken[s + 1] as number;
   at += seats;
   for (let s = 0; s < seats; s++) out[at + s] = state.diplo.activeCountOf(s + 1, state.tick, players);
+  at += seats;
+  for (let s = 0; s < seats; s++) out[at + s] = m.techMask[s + 1] as number;
+  at += seats;
+  for (let s = 0; s < seats; s++) out[at + s] = m.techCurrent[s + 1] as number;
+  at += seats;
+  for (let s = 0; s < seats; s++) out[at + s] = m.techDone[s + 1] as number;
+  at += seats;
+  for (let s = 0; s < seats; s++) out[at + s] = techCountOfMask(m.techMask[s + 1] as number);
 }
 
 /** A read-only view over a packed array (shared memory: the owner of the array rewrites it, the view reads it live). */
@@ -180,5 +200,12 @@ export function matchViewOf(seats: number, p: Uint32Array): MatchView {
     treaties: block(8),
     betrayals: block(9),
     relations: block(10),
+    techMask: block(11),
+    techCurrent1: block(12),
+    techDone: block(13),
+    techCount: block(14),
+    techMaskOfSeat: (seat) => p[MATCH_HEADER_WORDS + 11 * seats + seat] as number,
+    techCurrentOfSeat: (seat) => (p[MATCH_HEADER_WORDS + 12 * seats + seat] as number) - 1,
+    techFxOfSeat: (seat, channel) => techFxOfMask(p[MATCH_HEADER_WORDS + 11 * seats + seat] as number, channel),
   };
 }

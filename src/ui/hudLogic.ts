@@ -1,6 +1,6 @@
 // The pure decisions of the HUD (no DOM, no clock): the troop bar and its warning, which prompt the banner shows, the ranking of
 // the leaderboard, seat names and the text keys of the refusals. Unit-tested in tests/ui/hudLogic.test.ts.
-import { diplomacyRefusalKey } from './diploReasons';
+import { techRefusalKey } from './techReasons';
 import type { TextKey } from './i18n';
 import {
   PHASE_IMMUNITY,
@@ -144,6 +144,6 @@ export function rejectKey(reason: number): TextKey {
     case REJECT_PCT:
       return 'reject.pct';
     default:
-      return diplomacyRefusalKey(reason); // diplomacy refusals (80 to 93), then Build / Upgrade / Delete and helicopter refusals; anything else is 'reject.other'
+      return techRefusalKey(reason); // technology refusals (110 to 117), then the diplomacy refusals (80 to 93), then Build / Upgrade / Delete and helicopter refusals; anything else is 'reject.other'
   }
 }

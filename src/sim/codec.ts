@@ -2,7 +2,7 @@
 // the same number is an error), so every accepted byte string has exactly one meaning and re-encodes to itself.
 //
 //   intent  = kind:u8  seat:u8  id:varint  [payload]
-//     payload: DebugPaint and Spawn: cell:varint;  Attack: target:varint pct:varint;  CancelAttack: target:varint;  DebugGive: gold:varint troops:varint;  Build: type:varint cell:varint;  Upgrade and Delete: structure:varint;  BuildDistrict: structure:varint slot:varint districtKind:varint;  UpgradeDistrict and RemoveDistrict: structure:varint slot:varint;  ProduceHeli: factory:varint;  LaunchHeli: factory:varint lzCell:varint troops:varint altMode:varint;  RecallHeli: heli:varint;  ProposeTreaty: to:varint treaty:varint;  AcceptTreaty and DeclineTreaty: from:varint;  BreakTreaty: with:varint;  ImposeEmbargo and LiftEmbargo: target:varint;  Noop: none
+//     payload: DebugPaint and Spawn: cell:varint;  Attack: target:varint pct:varint;  CancelAttack: target:varint;  DebugGive: gold:varint troops:varint;  Build: type:varint cell:varint;  Upgrade and Delete: structure:varint;  BuildDistrict: structure:varint slot:varint districtKind:varint;  UpgradeDistrict and RemoveDistrict: structure:varint slot:varint;  ProduceHeli: factory:varint;  LaunchHeli: factory:varint lzCell:varint troops:varint altMode:varint;  RecallHeli: heli:varint;  ProposeTreaty: to:varint treaty:varint;  AcceptTreaty and DeclineTreaty: from:varint;  BreakTreaty: with:varint;  ImposeEmbargo and LiftEmbargo: target:varint;  Research: tech:varint;  CancelResearch and Noop: none
 //   turn    = turn:varint  count:varint  intent*count
 //
 // Decoding is total: any bytes give either a value or an error result; nothing throws. The decoder checks only what the
@@ -76,6 +76,8 @@ function intentSize(i: Intent): number {
     case 'ImposeEmbargo':
     case 'LiftEmbargo':
       return head + varintSize(i.target);
+    case 'Research':
+      return head + varintSize(i.tech);
     case 'BuildDistrict':
       return head + varintSize(i.structure) + varintSize(i.slot) + varintSize(i.districtKind);
     case 'UpgradeDistrict':
@@ -115,6 +117,7 @@ function putIntent(out: Uint8Array, at: number, i: Intent): number {
   } else if (i.kind === 'AcceptTreaty' || i.kind === 'DeclineTreaty') p = putVarint(out, p, i.from);
   else if (i.kind === 'BreakTreaty') p = putVarint(out, p, i.with);
   else if (i.kind === 'ImposeEmbargo' || i.kind === 'LiftEmbargo') p = putVarint(out, p, i.target);
+  else if (i.kind === 'Research') p = putVarint(out, p, i.tech);
   else if (i.kind === 'BuildDistrict') {
     p = putVarint(out, p, i.structure);
     p = putVarint(out, p, i.slot);
@@ -158,6 +161,8 @@ function payloadEncodable(i: Intent): boolean {
     case 'ImposeEmbargo':
     case 'LiftEmbargo':
       return isU32(i.target);
+    case 'Research':
+      return isU32(i.tech);
     case 'BuildDistrict':
       return isU32(i.structure) && isU32(i.slot) && isU32(i.districtKind);
     case 'UpgradeDistrict':
@@ -303,6 +308,10 @@ class Reader {
     if (kind === 'ImposeEmbargo' || kind === 'LiftEmbargo') {
       const target = this.varint();
       return this.error === null ? { kind, seat, id, target } : null;
+    }
+    if (kind === 'Research') {
+      const tech = this.varint();
+      return this.error === null ? { kind, seat, id, tech } : null;
     }
     if (kind === 'BuildDistrict') {
       const structure = this.varint();

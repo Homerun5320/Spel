@@ -4,13 +4,13 @@
 // Every intent has a seat (0-based) and an id (unsigned 32 bit, unique per seat, handed out by an IdAllocator).
 // Inside one turn intents run in the canonical order (seat, id, kind, payload); the id is the tie-break between the
 // intents of one seat, so the result never depends on the order in which they arrived.
-import { DISTRICT_MAX_SLOTS, HELI_CAPACITY, STRUCT_CAPACITY } from './rules';
+import { DISTRICT_MAX_SLOTS, HELI_CAPACITY, STRUCT_CAPACITY, TECH_COUNT } from './rules';
 import { MAX_SEATS } from './state';
 
-export type IntentKind = 'Noop' | 'DebugPaint' | 'Spawn' | 'Attack' | 'CancelAttack' | 'DebugGive' | 'Build' | 'Upgrade' | 'Delete' | 'BuildDistrict' | 'UpgradeDistrict' | 'RemoveDistrict' | 'ProduceHeli' | 'LaunchHeli' | 'RecallHeli' | 'ProposeTreaty' | 'AcceptTreaty' | 'DeclineTreaty' | 'BreakTreaty' | 'ImposeEmbargo' | 'LiftEmbargo';
+export type IntentKind = 'Noop' | 'DebugPaint' | 'Spawn' | 'Attack' | 'CancelAttack' | 'DebugGive' | 'Build' | 'Upgrade' | 'Delete' | 'BuildDistrict' | 'UpgradeDistrict' | 'RemoveDistrict' | 'ProduceHeli' | 'LaunchHeli' | 'RecallHeli' | 'ProposeTreaty' | 'AcceptTreaty' | 'DeclineTreaty' | 'BreakTreaty' | 'ImposeEmbargo' | 'LiftEmbargo' | 'Research' | 'CancelResearch';
 
 /** The intent kinds in wire order (the index is the kind byte of the codec). Append only: a published code never changes meaning. */
-export const INTENT_KINDS: readonly IntentKind[] = ['Noop', 'DebugPaint', 'Spawn', 'Attack', 'CancelAttack', 'DebugGive', 'Build', 'Upgrade', 'Delete', 'BuildDistrict', 'UpgradeDistrict', 'RemoveDistrict', 'ProduceHeli', 'LaunchHeli', 'RecallHeli', 'ProposeTreaty', 'AcceptTreaty', 'DeclineTreaty', 'BreakTreaty', 'ImposeEmbargo', 'LiftEmbargo'];
+export const INTENT_KINDS: readonly IntentKind[] = ['Noop', 'DebugPaint', 'Spawn', 'Attack', 'CancelAttack', 'DebugGive', 'Build', 'Upgrade', 'Delete', 'BuildDistrict', 'UpgradeDistrict', 'RemoveDistrict', 'ProduceHeli', 'LaunchHeli', 'RecallHeli', 'ProposeTreaty', 'AcceptTreaty', 'DeclineTreaty', 'BreakTreaty', 'ImposeEmbargo', 'LiftEmbargo', 'Research', 'CancelResearch'];
 
 /** Does nothing; valid for any seat. Exists to prove the pipeline (and as the heartbeat of a lockstep client). */
 export interface NoopBody {
@@ -200,8 +200,21 @@ export interface LiftEmbargoBody {
   readonly target: number;
 }
 
+/** M18d-1 (wire kind 21): a seat starts researching tech `tech` (0..15, src/sim/techTable.ts). The price is taken at once; the tech is researched TECH_TICKS[tech] ticks later. The refusals are the REJECT_TECH_* codes (and REJECT_PHASE in the spawn phase). */
+export interface ResearchBody {
+  readonly kind: 'Research';
+  readonly seat: number;
+  readonly tech: number;
+}
+
+/** M18d-1 (wire kind 22): a seat calls off its running research; nothing is refunded. */
+export interface CancelResearchBody {
+  readonly kind: 'CancelResearch';
+  readonly seat: number;
+}
+
 /** An intent before it has an id (what the UI submits to a host). */
-export type IntentBody = NoopBody | DebugPaintBody | SpawnBody | AttackBody | CancelAttackBody | DebugGiveBody | BuildBody | UpgradeBody | DeleteBody | BuildDistrictBody | UpgradeDistrictBody | RemoveDistrictBody | ProduceHeliBody | LaunchHeliBody | RecallHeliBody | ProposeTreatyBody | AcceptTreatyBody | DeclineTreatyBody | BreakTreatyBody | ImposeEmbargoBody | LiftEmbargoBody;
+export type IntentBody = NoopBody | DebugPaintBody | SpawnBody | AttackBody | CancelAttackBody | DebugGiveBody | BuildBody | UpgradeBody | DeleteBody | BuildDistrictBody | UpgradeDistrictBody | RemoveDistrictBody | ProduceHeliBody | LaunchHeliBody | RecallHeliBody | ProposeTreatyBody | AcceptTreatyBody | DeclineTreatyBody | BreakTreatyBody | ImposeEmbargoBody | LiftEmbargoBody | ResearchBody | CancelResearchBody;
 
 export type Intent = IntentBody & { readonly id: number };
 
@@ -262,6 +275,13 @@ export function imposeEmbargoBody(seat: number, target: number): ImposeEmbargoBo
 }
 export function liftEmbargoBody(seat: number, target: number): LiftEmbargoBody {
   return { kind: 'LiftEmbargo', seat, target };
+}
+
+export function researchBody(seat: number, tech: number): ResearchBody {
+  return { kind: 'Research', seat, tech };
+}
+export function cancelResearchBody(seat: number): CancelResearchBody {
+  return { kind: 'CancelResearch', seat };
 }
 
 /** The intents of one turn: all intents that run in the step that starts at tick `turn`. */
@@ -409,6 +429,24 @@ export const REJECT_DIPLO_EMBARGO_NONE = 92;
 /** ProposeTreaty while the proposal table is full. */
 export const REJECT_DIPLO_FULL = 93;
 
+// M18d-1: the technology refusals (codes 110 to 117; the diplomacy block ends at 93).
+/** Research of a tech number that is not 0..15. */
+export const REJECT_TECH_ID = 110;
+/** Research of a tech whose previous step of the branch is not researched. */
+export const REJECT_TECH_PREREQ = 111;
+/** Research of a tech the seat has already researched. */
+export const REJECT_TECH_DONE = 112;
+/** Research while another research is running. */
+export const REJECT_TECH_BUSY = 113;
+/** Research the purse cannot pay. */
+export const REJECT_TECH_GOLD = 114;
+/** A technology intent after the match has ended. */
+export const REJECT_TECH_MATCH_ENDED = 115;
+/** A technology intent by a seat that has been eliminated. */
+export const REJECT_TECH_ELIMINATED = 116;
+/** CancelResearch without a running research. */
+export const REJECT_TECH_NOT_ACTIVE = 117;
+
 export interface ValidateContext {
   readonly seats: number;
   readonly cells: number;
@@ -428,7 +466,7 @@ function isIntegerIn(v: unknown, lo: number, hi: number): boolean {
 /** Why an intent is not valid in this match (REJECT_*), or REJECT_NONE. Total: any value whatsoever may be passed in. */
 export function validateIntent(x: unknown, ctx: ValidateContext): number {
   if (typeof x !== 'object' || x === null) return REJECT_SHAPE;
-  const o = x as { kind?: unknown; seat?: unknown; id?: unknown; cell?: unknown; target?: unknown; pct?: unknown; gold?: unknown; troops?: unknown; type?: unknown; structure?: unknown; slot?: unknown; districtKind?: unknown; factory?: unknown; lzCell?: unknown; altMode?: unknown; heli?: unknown; to?: unknown; treaty?: unknown; from?: unknown; with?: unknown };
+  const o = x as { kind?: unknown; seat?: unknown; id?: unknown; cell?: unknown; target?: unknown; pct?: unknown; gold?: unknown; troops?: unknown; type?: unknown; structure?: unknown; slot?: unknown; districtKind?: unknown; factory?: unknown; lzCell?: unknown; altMode?: unknown; heli?: unknown; to?: unknown; treaty?: unknown; from?: unknown; with?: unknown; tech?: unknown };
   const code = kindCode(o.kind);
   if (code < 0) return REJECT_KIND;
   if (!isIntegerIn(o.seat, 0, MAX_SEATS - 1) || (o.seat as number) >= ctx.seats) return REJECT_SEAT;
@@ -469,6 +507,8 @@ export function validateIntent(x: unknown, ctx: ValidateContext): number {
     if (!isIntegerIn(o.with, 0, ctx.seats - 1)) return REJECT_TARGET;
   } else if (o.kind === 'ImposeEmbargo' || o.kind === 'LiftEmbargo') {
     if (!isIntegerIn(o.target, 0, ctx.seats - 1)) return REJECT_TARGET;
+  } else if (o.kind === 'Research') {
+    if (!isIntegerIn(o.tech, 0, TECH_COUNT - 1)) return REJECT_TECH_ID;
   } else if (o.kind === 'BuildDistrict' || o.kind === 'UpgradeDistrict' || o.kind === 'RemoveDistrict') {
     if (!isIntegerIn(o.structure, 0, STRUCT_CAPACITY - 1)) return REJECT_STRUCT_ID;
     if (!isIntegerIn(o.slot, 0, DISTRICT_MAX_SLOTS - 1)) return REJECT_DISTRICT_SLOT;
@@ -501,6 +541,7 @@ function comparePayload(a: Intent, b: Intent): number {
   if ((a.kind === 'AcceptTreaty' && b.kind === 'AcceptTreaty') || (a.kind === 'DeclineTreaty' && b.kind === 'DeclineTreaty')) return a.from - b.from;
   if (a.kind === 'BreakTreaty' && b.kind === 'BreakTreaty') return a.with - b.with;
   if ((a.kind === 'ImposeEmbargo' && b.kind === 'ImposeEmbargo') || (a.kind === 'LiftEmbargo' && b.kind === 'LiftEmbargo')) return a.target - b.target;
+  if (a.kind === 'Research' && b.kind === 'Research') return a.tech - b.tech;
   if ((a.kind === 'UpgradeDistrict' && b.kind === 'UpgradeDistrict') || (a.kind === 'RemoveDistrict' && b.kind === 'RemoveDistrict')) {
     return a.structure !== b.structure ? a.structure - b.structure : a.slot - b.slot;
   }
@@ -527,7 +568,7 @@ export const INVALID_BODY: IntentBody = Object.freeze({ kind: 'Noop', seat: -1 }
  */
 export function copyBody(x: unknown): IntentBody {
   if (typeof x !== 'object' || x === null) return INVALID_BODY;
-  const o = x as { kind?: unknown; seat?: unknown; cell?: unknown; target?: unknown; pct?: unknown; gold?: unknown; troops?: unknown; type?: unknown; structure?: unknown; slot?: unknown; districtKind?: unknown; factory?: unknown; lzCell?: unknown; altMode?: unknown; heli?: unknown; to?: unknown; treaty?: unknown; from?: unknown; with?: unknown };
+  const o = x as { kind?: unknown; seat?: unknown; cell?: unknown; target?: unknown; pct?: unknown; gold?: unknown; troops?: unknown; type?: unknown; structure?: unknown; slot?: unknown; districtKind?: unknown; factory?: unknown; lzCell?: unknown; altMode?: unknown; heli?: unknown; to?: unknown; treaty?: unknown; from?: unknown; with?: unknown; tech?: unknown };
   const seat = typeof o.seat === 'number' ? o.seat : -1;
   if (o.kind === 'Noop') return { kind: 'Noop', seat };
   if (o.kind === 'DebugPaint') return { kind: 'DebugPaint', seat, cell: typeof o.cell === 'number' ? o.cell : -1 };
@@ -551,6 +592,8 @@ export function copyBody(x: unknown): IntentBody {
   if (o.kind === 'BreakTreaty') return { kind: 'BreakTreaty', seat, with: num(o.with) };
   if (o.kind === 'ImposeEmbargo') return { kind: 'ImposeEmbargo', seat, target: num(o.target) };
   if (o.kind === 'LiftEmbargo') return { kind: 'LiftEmbargo', seat, target: num(o.target) };
+  if (o.kind === 'Research') return { kind: 'Research', seat, tech: num(o.tech) };
+  if (o.kind === 'CancelResearch') return { kind: 'CancelResearch', seat };
   return INVALID_BODY;
 }
 
@@ -597,6 +640,10 @@ export function withId(body: IntentBody, id: number): Intent {
       return { kind: 'ImposeEmbargo', seat: body.seat, target: body.target, id };
     case 'LiftEmbargo':
       return { kind: 'LiftEmbargo', seat: body.seat, target: body.target, id };
+    case 'Research':
+      return { kind: 'Research', seat: body.seat, tech: body.tech, id };
+    case 'CancelResearch':
+      return { kind: 'CancelResearch', seat: body.seat, id };
     default:
       return { kind: 'Noop', seat: body.seat, id };
   }
