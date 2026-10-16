@@ -1,4 +1,4 @@
-// Fix-4B: the deploy mode and the Factory panel allocate (next to nothing) per frame. The JS heap is read after every frame (`performance.memory`, precise mode); the growth
+// Fix-4B: the deploy mode and the Factory panel allocate (next to nothing) per frame. The JS heap is read after every frame (V8's own figure over CDP, exact: this measures ALLOCATION per frame, not retained memory, so it is not a heapDelta); the growth
 // from one frame to the next is the memory the frame allocated (a frame in which the GC freed more than it allocated reads as a drop and is left out, and counted). The
 // test measures three states of one match at 320x180 over FRAMES frames each: nothing selected (the baseline: the render itself), a Factory selected (the panel's helicopter list
 // and signatures) and the deploy mode on with a resting cursor and a ready preview (the pick, the request key, the marker key); the extra of the two over the baseline is held
@@ -35,7 +35,7 @@ interface Alloc {
   perFrame: number;
   drops: number;
 }
-/** Bytes allocated per frame over `frames` frames of the page (one draw each, the fx clock steps 0.05 s); the heap figure is V8's own (`Runtime.getHeapUsage`, exact, unlike `performance.memory`). */
+/** Bytes allocated per frame over `frames` frames of the page (one draw each, the fx clock steps 0.05 s); the heap figure is V8's own (`Runtime.getHeapUsage`, exact; the page's own memory figure is bucketed and reads a constant per frame). */
 async function allocatedPerFrame(page: Page, frames: number): Promise<Alloc> {
   const cdp = await page.context().newCDPSession(page);
   const used = async (): Promise<number> => ((await cdp.send('Runtime.getHeapUsage')) as { usedSize: number }).usedSize;

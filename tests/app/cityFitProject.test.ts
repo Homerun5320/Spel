@@ -45,7 +45,7 @@ function project(width: number, height: number, fovDeg: number, tiltDeg: number,
 }
 
 /** The bounding box of the fitted ring (a disc of `RING_FITTED_M`, 64 points) and the City's own pixel. */
-function picture(width: number, height: number, panel: { x: number; y: number }, tiltDeg = TILT): { box: Rect; city: { x: number; y: number }; free: Rect; alt: number } {
+function picture(width: number, height: number, panel: { x: number; y: number }, tiltDeg: number = TILT): { box: Rect; city: { x: number; y: number }; free: Rect; alt: number } {
   const f = cityFitFlight(width, height, panel, CAMERA_FOV_DEG, tiltDeg);
   const at = (e: number, n: number) => project(width, height, CAMERA_FOV_DEG, tiltDeg, f.altAglM, f.offEastM, f.offNorthM, e, n);
   const box: Rect = { x0: Infinity, x1: -Infinity, y0: Infinity, y1: -Infinity };
