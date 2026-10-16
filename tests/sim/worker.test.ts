@@ -6,7 +6,7 @@ import { RemoteHost } from '../../src/host/remote';
 import type { ClientMessage, HostMessage, Port } from '../../src/host/protocol';
 import { hex32 } from '../../src/sim/hash';
 import type { Intent } from '../../src/sim/intents';
-import { GOLDEN_PARAMS, GOLDEN_TICKS, scenarioHashes } from '../../src/sim/scenario';
+import { createScenarioState, GOLDEN_PARAMS, GOLDEN_TICKS, scenarioHashes } from '../../src/sim/scenario';
 import { deserialize, hashState } from '../../src/sim/serialize';
 import { createEmptyState } from '../../src/sim/state';
 import { step } from '../../src/sim/step';
@@ -107,6 +107,7 @@ describe('worker_threads against the main thread', () => {
     await call({ cmd: 'host', seed: golden.seed });
     const remote = new RemoteHost(workerPort());
     const cells = GOLDEN_PARAMS.width * GOLDEN_PARAMS.height;
+    const elev = createScenarioState({ seed: golden.seed }).env.maxElev as Int16Array;
     const tickSet = new Set<number>(GOLDEN_TICKS);
     const got: Record<string, string> = {};
     let lastDiffTick = 0;
@@ -120,7 +121,7 @@ describe('worker_threads against the main thread', () => {
         const snap = await remote.requestSnapshot();
         expect(snap.tick).toBe(tick + 1);
         got[String(tick + 1)] = hex32(snap.hash);
-        const r = deserialize(snap.bytes);
+        const r = deserialize(snap.bytes, { maxElev: elev }); // Fix-4A2: the golden scenario has helicopters in the air at the end
         expect(r.ok && hashState(r.state)).toBe(snap.hash);
       }
     }

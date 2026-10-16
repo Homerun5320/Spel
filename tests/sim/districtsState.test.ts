@@ -12,6 +12,7 @@ import { setOwner } from '../../src/sim/territory';
 import { CLASS_PLAINS } from '../../src/sim/terrain';
 import { withId, type Intent, type IntentBody } from '../../src/sim/intents';
 import { FORMAT_VERSION } from '../../src/sim/serialize';
+import { saveLayout } from '../helpers/saveLayout';
 
 const W = 128;
 const H = 64;
@@ -139,7 +140,7 @@ describe('deserialize refuses a forged district block', () => {
   it('D08 a district count beyond 5 per live structure, and a count that does not match the bytes', () => {
     const st = base();
     const bytes = serialize(st);
-    const countAt = bytes.length - 4 - (16 + 12 * (st.header.seats + 1)) - (40 + 24 * (st.header.seats + 1)) - 4 * 24 - 4; // M18c-1: the diplomacy block sits between the match block and the checksum; M18-1: the match block sits between the districts and the checksum
+    const countAt = saveLayout(bytes, st.header.seats).districtCountAt(4); // Fix-4A2: offsets from tests/helpers/saveLayout.ts
     const view = (b: Uint8Array): DataView => new DataView(b.buffer);
     expect(view(bytes).getUint32(countAt, true)).toBe(4);
     const huge = bytes.slice();
@@ -156,7 +157,7 @@ describe('deserialize refuses a forged district block', () => {
   it('D09 districts out of order or twice (the records must ascend by id and slot)', () => {
     const st = base();
     const bytes = serialize(st);
-    const first = bytes.length - 4 - (16 + 12 * (st.header.seats + 1)) - (40 + 24 * (st.header.seats + 1)) - 4 * 24; // M18c-1: the diplomacy block sits before the checksum
+    const first = saveLayout(bytes, st.header.seats).districtsAt(4);
     const view = (b: Uint8Array): DataView => new DataView(b.buffer);
     const swapped = bytes.slice();
     swapped.set(bytes.subarray(first, first + 24), first + 24);

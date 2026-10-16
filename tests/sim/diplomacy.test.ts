@@ -27,6 +27,7 @@ import { PORT_GOLD_MILLI_BY_LEVEL } from '../../src/sim/levelCurves';
 import { CLASS_PLAINS } from '../../src/sim/terrain';
 import { StateView } from '../../src/sim/view';
 import { landState } from './helpers/worlds';
+import { saveLayout } from '../helpers/saveLayout';
 
 let ids = 1;
 const ctxOf = (s: GameState) => ({ seats: s.header.seats, cells: s.width * s.height, debugIntents: false });
@@ -520,7 +521,7 @@ describe('serialisation, the hash and the straight run', () => {
     s.tick = 50; // a truce that ends before the tick, or one that is longer than the rules allow, cannot be a state
     const bytes = serialize(s);
     const slots = 5;
-    const tail = bytes.length - 4 - (16 + 12 * slots + 16 * 1 + 16 * 1); // start of the diplomacy block: 1 pair and 1 proposal
+    const tail = saveLayout(bytes, slots - 1).diploAt; // start of the diplomacy block
     const v = (b: Uint8Array): DataView => new DataView(b.buffer);
     expect(v(bytes).getUint32(tail, true), 'one pair').toBe(1);
     const patched = (offset: number, value: number): string => {

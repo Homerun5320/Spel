@@ -293,6 +293,7 @@ describe('conquest of structures', () => {
     addDone(a, STRUCT_PORT, 2, at(300));
     addDone(a, STRUCT_CITY, 3, at(500), 2);
     a.structures.setEmbargo(1, 2, true);
+    a.diplo.embargoBy[1 * a.diplo.slots + 2] = 1; // Fix-4A2: a saved embargo flag needs its imposer (deserialize refuses a flag nobody could lift)
     for (let i = 0; i < 40; i++) step(a, { turn: a.tick, intents: [] });
     const r = deserialize(serialize(a));
     expect(r.ok).toBe(true);

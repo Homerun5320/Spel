@@ -128,6 +128,20 @@ describe('City levels (Sim-Levels2): a concave curve, unlimited in practice', ()
     console.log(`[payback city levels] ${rows.join(' ')}`);
   });
 
+  it('Fix-4A2: an upper bound next to the strict growth (DECISIONS Fix-4A2 item 6): the City paybacks stay within about 10 percent of today\'s deliberately long values', () => {
+    // Today: L2 2133 s, L3 5333 s, L4 10667 s, L6 29630 s, L10 114286 s, L30 2400000 s.
+    const LIMIT = new Map<number, number>([[2, 2350], [3, 5870], [4, 11800], [6, 32600], [10, 125700], [30, 2640000]]);
+    for (const [l, max] of LIMIT) {
+      const a = strip();
+      addCity(a, 1, 100, l - 1);
+      const b = strip();
+      addCity(b, 1, 100, l);
+      const sec = (upgradePriceGold(STRUCT_CITY, l) * GOLD) / (income(b) - income(a));
+      expect(sec, `City -> L${l}`).toBeLessThanOrEqual(max);
+      expect(sec, `City -> L${l} is not free money either`).toBeGreaterThan(90);
+    }
+  });
+
   it('applyUpgrade walks a City from level 1 to 10 with the real price and time and refuses at the hard cap', () => {
     const s = strip();
     const id = addCity(s, 1, 100, 1);

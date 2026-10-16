@@ -606,6 +606,21 @@ describe('payback of a Market upgrade (logged, the window of M09c: 90 s to 6 min
     expect(first).toBeGreaterThanOrEqual(90);
     expect(first).toBeLessThanOrEqual(360);
   });
+
+  it('Fix-4A2: an upper bound next to the strict growth (DECISIONS Fix-4A2 item 6): the Market upgrades stay within about 10 percent of today\'s values (L2 1067 s, L3 2667 s)', () => {
+    const scene = (level: number): GameState => {
+      const s = strip();
+      s.structures.add(STRUCT_FACTORY, 1, at(110), 0);
+      const city = addCity(s, 1, 100, 2);
+      district(s, city, 0, DISTRICT_MARKET, level);
+      return s;
+    };
+    for (const [level, max] of [[2, 1180], [3, 2940]] as const) {
+      const sec = (districtUpgradePriceGold(DISTRICT_MARKET, level) * 1000) / (income(scene(level)) - income(scene(level - 1)));
+      expect(sec, `Market -> L${level}`).toBeLessThanOrEqual(max);
+      expect(sec, `Market -> L${level} is not free money either`).toBeGreaterThan(90);
+    }
+  });
 });
 
 describe('conquest of Cities with districts', () => {

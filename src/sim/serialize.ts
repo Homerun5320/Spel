@@ -33,7 +33,7 @@ import { EnclaveQueues, enclaveBucket } from './enclaveQueue';
 import { TRAIT_MAX_MILLI, TRAIT_MIN_MILLI, type HomeRules } from './homeRules';
 import { foldStructures } from './structures';
 import { DiplomacyTable, RELATION_TRUCE, diplomacyCounts, foldDiplomacy } from './diplomacyTable';
-import { BEACH_STATUS_MAX, BeachheadTable, HELI_BUILDING, HELI_PAD, HELI_STATE_MAX, HeliTable, foldHelis } from './heliTable';
+import { BEACH_STATUS_MAX, BeachheadTable, HELI_BUILDING, HELI_LIFT, HELI_PAD, HELI_RETURN, HELI_STATE_MAX, HeliTable, foldHelis } from './heliTable';
 import { SimEnv } from './env';
 import { MatchState, normalWin, winFlagsOf, type WinConfig, WIN_FLAG_LAND, WIN_FLAG_LAST, WIN_FLAG_SCORE } from './matchState';
 import { FNV_OFFSET, finishHash, foldBytes, foldU16, foldU32, foldWord } from './hash';
@@ -135,6 +135,7 @@ export type DeserializeError =
   | 'home-range'
   | 'structure-range'
   | 'air-range'
+  | 'no-occluders'
   | 'match-range'
   | 'diplomacy-range'
   | 'checksum';
@@ -621,6 +622,38 @@ function readMatch(v: DataView, p: number, slots: number, seats: number, m: Matc
   return win;
 }
 
+/** Fix-4A2: the trade flag of the structure table is exactly the embargoes of the diplomacy table, either way round (an embargo without an imposer could never be lifted). */
+function embargoAgrees(structures: StructureTable, d: DiplomacyTable): boolean {
+  const s = d.slots;
+  for (let a = 0; a < s; a++) {
+    for (let b = 0; b < s; b++) {
+      if ((structures.embargo[a * s + b] === 1) !== (d.embargoBy[a * s + b] === 1 || d.embargoBy[b * s + a] === 1)) return false;
+    }
+  }
+  return true;
+}
+
+/** Fix-4A2: an eliminated seat owns no land and no helicopter and is in no treaty, embargo or proposal (the elimination clears them). */
+function eliminatedAgrees(m: MatchState, d: DiplomacyTable, owner: Uint16Array, helis: HeliTable, seats: number): boolean {
+  const s = d.slots;
+  let any = false;
+  for (let o = 1; o <= seats; o++) {
+    if (m.eliminated[o] !== 1) continue;
+    any = true;
+    for (let q = 0; q < s; q++) {
+      if (d.relation[o * s + q] !== 0 || d.embargoBy[o * s + q] !== 0 || d.embargoBy[q * s + o] !== 0) return false;
+    }
+    for (let i = 0; i < d.propCount; i++) if (d.propFrom[i] === o || d.propTo[i] === o) return false;
+    for (let id = 0; id < helis.highWater; id++) if (helis.owner[id] === o) return false;
+  }
+  if (!any) return true;
+  for (let i = 0; i < owner.length; i++) {
+    const o = owner[i] as number;
+    if (o !== 0 && m.eliminated[o] === 1) return false;
+  }
+  return true;
+}
+
 function isBytes(x: unknown): x is Uint8Array {
   return Object.prototype.toString.call(x) === '[object Uint8Array]';
 }
@@ -799,6 +832,8 @@ export function deserialize(bytes: Uint8Array, options?: DeserializeOptions): De
   p += 4;
   if (heliLive + helis.recycledCount !== helis.highWater) return fail('air-range');
   let lastHeli = -1;
+  let airborne = false;
+  const nowTick = v.getUint32(36, true);
   const worldCells = n;
   for (let k = 0; k < heliLive; k++) {
     if (p + BYTES_PER_HELI + 4 > end) return fail('air-range');
@@ -824,6 +859,9 @@ export function deserialize(bytes: Uint8Array, options?: DeserializeOptions): De
     if (hp > HELI_HP_TENTHS || load > HELI_MAX_TROOPS || fuel > HELI_FUEL_MAX_Q8 || mode > 1 || target > worldCells || routeLen > HELI_ROUTE_CAPACITY || routeIdx > routeLen) return fail('air-range');
     // A queued helicopter has the production time the rules set (its Factory is checked below, once the structure table is read).
     if (hs === HELI_BUILDING && readyTick !== stateTick + HELI_BUILD_TICKS) return fail('air-range');
+    // Fix-4A2: a state cannot have been entered in the future, and a ready tick is at most one production time ahead (a forged future stateTick would overflow the altitude, or keep a DOWNED helicopter for ever).
+    if (stateTick > nowTick || readyTick > nowTick + HELI_BUILD_TICKS) return fail('air-range');
+    if (hs >= HELI_LIFT && hs <= HELI_RETURN) airborne = true;
     if (p + routeLen * 4 + 4 > end) return fail('air-range');
     lastHeli = id;
     helis.owner[id] = ownerId;
@@ -859,6 +897,8 @@ export function deserialize(bytes: Uint8Array, options?: DeserializeOptions): De
     if (helis.owner[id] === 0) return fail('air-range');
     helis.owner[id] = 0;
   }
+  // Fix-4A2: step() never throws, so a blob with helicopters in the air needs the occluder layer the flight reads (MissingOccluderError otherwise).
+  if (airborne && options?.maxElev === undefined) return fail('no-occluders');
   const beachCount = v.getUint32(p, true);
   p += 4;
   if (beachCount > BEACHHEAD_CAPACITY || p + beachCount * BYTES_PER_BEACHHEAD > end) return fail('air-range');
@@ -871,6 +911,7 @@ export function deserialize(bytes: Uint8Array, options?: DeserializeOptions): De
     const status = v.getUint32(p + 16, true);
     p += BYTES_PER_BEACHHEAD;
     if (i <= lastBeach || i >= BEACHHEAD_CAPACITY || ownerId < 1 || ownerId > seats || seed >= n || status < 1 || status > BEACH_STATUS_MAX) return fail('air-range');
+    if (landTick > nowTick) return fail('air-range'); // Fix-4A2: a landing in the future would never revert
     lastBeach = i;
     beachheads.owner[i] = ownerId;
     beachheads.seed[i] = seed;
@@ -975,6 +1016,8 @@ export function deserialize(bytes: Uint8Array, options?: DeserializeOptions): De
   const diplo = new DiplomacyTable(slots);
   p = readDiplomacy(v, p, end, players, v.getUint32(36, true), diplo, m);
   if (p < 0) return fail('diplomacy-range');
+  if (!embargoAgrees(structures, diplo)) return fail('diplomacy-range');
+  if (!eliminatedAgrees(m, diplo, owner, helis, seats)) return fail('match-range');
   if (p !== end) return fail('size');
 
   const finalConfig = Object.freeze(normalConfigOf(config, win));
