@@ -154,7 +154,7 @@ GÖR och ACCEPTANS:
 - [x] ENGINE 21 and FORMAT 15 raised once, both golden hash files recomputed once (the option OFF gives the same match: shown with ENGINE 20 first).
 - [x] Home-land discount: sub-nations get no home land (DECISIONS M18b-2).
 - [x] Tests: `tests/app/federationMatch.test.ts`, `tests/app/federationSetup.test.ts`, `tests/ai/federation.test.ts`, `e2e/federation.test.ts`; mutants in DECISIONS.
-- [ ] `npm run verify:fast` green and the e2e file green (result in the M18b-2 block of `docs/DECISIONS.md`).
+- [x] `npm run verify:fast` green and `e2e/federation.test.ts`, `e2e/setup.test.ts`, `e2e/diplomacy.test.ts` green (result in the M18b-2 block of `docs/DECISIONS.md`).
 - Not done (BACKLOG "M18b-3"): shared victory, grouping in the leaderboard and result, flags and Swedish names, labels of federations on the map.
 
 ## Next

@@ -484,7 +484,7 @@ const sv = {
   'reject.diplo.federation': 'Delnationer i samma federation är bundna av en allians som inte kan brytas.',
   'setup.federation': 'Dela upp stormakter',
   'setup.federation.hint': 'Ryssland, Kanada, USA, Kina, Brasilien, Australien och Indien delas upp i allierade delnationer. Du spelar en av dem.',
-  'setup.federation.sub': 'Du spelar {name}. Federationen har upp till {members} delnationer (de som är för små för en rättvis start hoppas över); AI-nationer totalt högst {ai} (tak {max}).',
+  'setup.federation.sub': '{country} delas upp. Du spelar en delnation (den du klickar på på kartan, annars den med huvudstaden eller den största). Federationen har upp till {members} delnationer (de som är för små för en rättvis start hoppas över); AI-nationer totalt högst {ai} (tak {max}).',
   'setup.federation.none': 'Inget uppdelningsbart land valt: valet ändrar ingenting.',
 } as const;
 
@@ -959,7 +959,7 @@ const en: Record<TextKey, string> = {
   'reject.diplo.federation': 'Sub-nations of one federation are bound by an alliance that cannot be broken.',
   'setup.federation': 'Split the great powers',
   'setup.federation.hint': 'Russia, Canada, the USA, China, Brazil, Australia and India are split into allied sub-nations. You play one of them.',
-  'setup.federation.sub': 'You play {name}. The federation has up to {members} sub-nations (those too small for a fair start are skipped); AI nations in total at most {ai} (cap {max}).',
+  'setup.federation.sub': '{country} is split. You play one sub-nation (the one you click on the map, else the one with the capital or the largest). The federation has up to {members} sub-nations (those too small for a fair start are skipped); AI nations in total at most {ai} (cap {max}).',
   'setup.federation.none': 'No splittable country chosen: the option changes nothing.',
 };
 

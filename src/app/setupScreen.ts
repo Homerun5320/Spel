@@ -16,7 +16,7 @@ import { resolveClickCell } from './clickTarget';
 import { countryName, searchCountries } from './countrySearch';
 import { countryViews, flyDistanceKm } from './countryGeo';
 import { countryEligibility, startCellEligibility } from './eligibility';
-import { membersOf, subNationName } from './federationSetup';
+import { membersOf } from './federationSetup';
 import { CUSTOM_COLORS, DIFFICULTIES, maxAiNations, type Difficulty, type MatchSetupConfig, type SetupError } from './matchSetup';
 import type { CountryInfo, PreparedWorld } from './matchWorld';
 import type { CityStyle } from '../render/cityTiers';
@@ -599,12 +599,10 @@ export function mountSetupScreen(parent: HTMLElement, world: PreparedWorld, init
       fedInfo.dataset.sub = '0';
       return;
     }
-    const own =
-      members.find((m) => m.id === draft.subNation) ?? members.find((m) => m.id === f.federationRaster[c.capitalCell]) ?? members.reduce((a, b) => (b.cells > a.cells ? b : a));
     const partners = members.length - 1;
-    fedInfo.dataset.sub = String(own.id);
+    fedInfo.dataset.sub = String(draft.subNation);
     fedInfo.textContent = t('setup.federation.sub', {
-      name: subNationName(own, c),
+      country: countryName(c, getLanguage()),
       members: members.length,
       ai: partners + Math.min(draft.aiNations, SETUP_AI_NATIONS_MAX - partners),
       max: SETUP_AI_NATIONS_MAX,
