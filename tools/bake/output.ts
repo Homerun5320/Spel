@@ -104,3 +104,21 @@ export function writeOutput(out: OutputFiles, dir: string): void {
   }
   for (const [t, target] of tmp) fs.renameSync(t, target);
 }
+
+export const FEDERATIONS_FILE = 'federations.bin.gz';
+
+/**
+ * Adds the federations pack (M18b-1) to a prepared output: the file, a manifest entry and a NEW row in checksums.json under
+ * packs.federations. Every existing row is carried over untouched, so no old hash changes. `manifest` and `checksums` are
+ * the current JSON documents (from prepareOutput or from the committed files).
+ */
+export function addFederationsOutput(files: Map<string, Uint8Array>, manifest: Manifest, checksums: Checksums, payload: Uint8Array): void {
+  const gz = gzipDeterministic(payload);
+  files.set(FEDERATIONS_FILE, gz);
+  const m: Manifest = { ...manifest, federations: { file: FEDERATIONS_FILE, enc: 'raw' } };
+  const c: Checksums = { ...checksums, packs: { ...checksums.packs, federations: { file: FEDERATIONS_FILE, ...record(payload), gzBytes: gz.length, gzSha256: sha256(gz) } } };
+  files.delete('manifest.json');
+  files.delete('checksums.json');
+  files.set('manifest.json', stableJson(m, 1));
+  files.set('checksums.json', stableJson(c, 1));
+}

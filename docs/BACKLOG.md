@@ -523,3 +523,10 @@ Not done in the Fix-UI slice (the sim, host and AI findings belong to Fix-Sim):
 - Proposed CHARTER change, for the user (a builder does not edit `docs/CHARTER.md`): invariant 6 and the M15b step 1 text still describe `SimHost.query`, which M13b replaced by plain functions plus an injected async query in `LaunchPreviewer`. Suggested wording: "the page asks questions through functions that read the ViewMirror and through an injected async query; it never reaches into the sim". See "Audit 3 downstream decisions" in `docs/DECISIONS.md`.
 - Add a size guard for the other big docs: `docs/DECISIONS.md` (about 590 kB) and `docs/PROGRESS.md` (about 240 kB) are also far too large to read in one call; split them like ARCHITECTURE (an index file plus per-period files in a folder) in a docs-hygiene pass.
 - A generator that checks every file under `src` has a row in `docs/ARCHITECTURE.md` or `docs/arch/` (the rows are by module, several files per row, so it needs a path scan of the backticks); not built, the existing path-exists check only goes the other way.
+
+## M18b-1
+
+- The 10 m admin-1 file (12 MB) would give provinces for more countries (Kazakhstan, Argentina, Mexico, ...); not baked, the 50 m file covers the great powers and is 5 times smaller.
+- Better names for merged sub-nations (the province nearest the group centre, or a hand-written region table) and Swedish names.
+- Sub-nations are unbalanced (Sakha 4978 cells against Yamalo-Nenets 1158); a balancing pass is out of scope.
+- A synthetic test for the minimum-size merge that also runs without the bake cache (today only the real-data rebuild catches it).

@@ -16,6 +16,8 @@ export const NE_FILES = {
   countries: 'ne_50m_admin_0_countries.geojson',
   places: 'ne_10m_populated_places_simple.geojson',
   ports: 'ne_10m_ports.geojson',
+  /** M18b-1: states and provinces for the federations pack (the 50 m file is 2.3 MB and covers RUS USA IND IDN CHN BRA CAN AUS ZAF). */
+  admin1: 'ne_50m_admin_1_states_provinces.geojson',
 } as const;
 
 export const TERRARIUM_ZOOM = 4;

@@ -105,6 +105,18 @@ ACCEPTANS
 - [x] `PLAYER_FACING` finds files by itself
 - [x] `npm run verify:fast` green; the touched e2e green (`beachhead`, `deploy`, `helis`, `cityOpenFit`, `deployAlloc.serial`)
 
+### M18b-1: federations part 1 of 3, the baked provinces and sub-nations (headless tools and data; no sim, ai, render, ui or app change; previous merge SHA f29121a8d1607ca169e6675b5f22a52d76c42ef7)
+
+- [x] Source: Natural Earth admin-1 50 m (same repo and commit as the rest of the bake), fetched through the allowed host raw.githubusercontent.com, file in `NE_FILES.admin1`.
+- [x] Province raster (u16, sim grid) and province table, gaps flood-filled per country in a fixed order; tiny provinces flagged.
+- [x] Candidates (`FEDERATION_MIN_AREA_CELLS`) and sub-nations (`FEDERATION_MIN_PROVINCE_CELLS`, `FEDERATION_MAX_SUBNATIONS`) with a u8 raster.
+- [x] New pack `public/data/federations.bin.gz`; manifest and checksums get NEW rows, every old hash unchanged, `e2e/goldens` untouched.
+- [x] `src/data/federations.ts` (pure parser, writer, `loadFederations`, `federationOfCell`, `membersOfCountry`, `isFederationCandidate`); not wired into the game.
+- [x] `npm run bake` (also `-- --only=federations`), `npm run bake:check`, `npm run bake:federations` (report and `--png=`).
+- [x] Tests `tests/bake/federations.test.ts` (round trip, corrupt packs, raster invariants, candidates, min size, determinism, old hashes pinned), mutants shown in DECISIONS.
+- [x] Picture looked at (RUS, USA, CHN, IND, BRA); report in DECISIONS block M18b-1.
+- [x] `npm run verify:fast` green (see DECISIONS M18b-1).
+
 ## Next
 
 - Next slices: M12b (anti-air against helicopters and raid statistics; must follow "Audit 3 downstream decisions" in `docs/DECISIONS.md`), M13a-2 (effects, the H camera), M20a-2 (nation labels and front arrows), M18b (federations), M18d (technology), M18e (more building types and a city map), M13c (travel over land, sea and air), M14 and onwards.

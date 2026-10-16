@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import { fnv1a32, hasGzipMagic, hex8 } from '../../src/data/bytes';
+import { parseFederations } from '../../src/data/federations';
 import { layoutOf, PACK_NAMES } from '../../src/data/format';
 import type { Checksums, Manifest } from '../../src/data/loader';
 import { JSON_FILES, sha256 } from './output';
@@ -81,6 +82,22 @@ export function checkData(dir: string): CheckReport {
       }
     }
     if (want.gzSha256 && want.gzSha256 !== sha256(gz)) notes.push(`${entry.file}: the .gz bytes differ from the baked ones (informational: gzip output can vary between Node versions)`);
+  }
+  // M18b-1: the federations pack has a variable size, so it is checked by hash and by a full parse.
+  if (manifest.federations || checksums.packs.federations) {
+    const entry = manifest.federations;
+    const want = checksums.packs.federations;
+    const gz = entry ? read(entry.file) : null;
+    if (!entry || !want || !gz) problems.push('the federations pack is missing from manifest.json, checksums.json or the folder');
+    else {
+      try {
+        const payload = new Uint8Array(zlib.gunzipSync(gz));
+        if (payload.length !== want.bytes || sha256(payload) !== want.sha256 || hex8(fnv1a32(payload)) !== want.fnv1a) problems.push('federations: the payload differs from checksums.json');
+        else parseFederations(payload, (JSON.parse(new TextDecoder().decode(read('meta.json') ?? new Uint8Array())) as { countries: unknown[] }).countries.length);
+      } catch (err) {
+        problems.push(`federations: ${String(err)}`);
+      }
+    }
   }
   for (const f of JSON_FILES) {
     const bytes = read(f);
