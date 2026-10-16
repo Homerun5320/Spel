@@ -12,6 +12,7 @@ import { MAX_SEATS, ownerSlots, type GameState } from '../sim/state';
 import { snapshotStructures, structureSignature } from './structureSnapshot';
 import { heliSignature, snapshotHelis } from './heliSnapshot';
 import { beachheadSignature, snapshotBeachheads } from './beachheadSnapshot';
+import { frontSignature, snapshotFronts } from './frontSnapshot';
 import { snapshotDiplomacy } from './diplomacySnapshot';
 import { StateView, attackPairs, fillSeatStats, statsLength, type SimView } from '../sim/view';
 import { fillMatchView, matchPackedLength } from '../sim/matchView';
@@ -28,6 +29,7 @@ import {
   type Speed,
   type StateDiff,
   type Unsubscribe,
+  type AttackFrontSnapshot,
   type BeachheadSnapshot,
   type HeliSnapshot,
   type DiplomacySnapshot,
@@ -78,6 +80,8 @@ export class MainThreadHost implements SimHost {
   private lastHeliSig = -1;
   /** The same for the beachhead rows (Fix-4B). */
   private lastBeachSig = -1;
+  /** The same for the attack fronts (M20a-2). */
+  private lastFrontSig = -1;
   /** The version of the diplomacy table in the last diff that carried it (-1 = none yet). */
   private lastDiploVersion = -1;
   /** Reused for the statistics of every view (the snapshot gets a copy). */
@@ -233,7 +237,16 @@ export class MainThreadHost implements SimHost {
       helis: full ? snapshotHelis(s.helis, ownerSlots(s.header.seats)) : this.changedHelis(),
       diplomacy: full ? snapshotDiplomacy(s.diplo) : this.changedDiplomacy(),
       beachheads: full ? snapshotBeachheads(s) : this.changedBeachheads(),
+      fronts: full ? snapshotFronts(s) : this.changedFronts(),
     };
+  }
+
+  /** The attack fronts when they differ from the ones the last diff carried, else null (the signature costs nothing without attacks). */
+  private changedFronts(): AttackFrontSnapshot | null {
+    const sig = frontSignature(this.state);
+    if (sig === this.lastFrontSig) return null;
+    this.lastFrontSig = sig;
+    return snapshotFronts(this.state);
   }
 
   /** The diplomacy table when it moved since the last diff that carried it, else null. */

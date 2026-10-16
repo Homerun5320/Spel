@@ -523,3 +523,12 @@ Not done in the Fix-UI slice (the sim, host and AI findings belong to Fix-Sim):
 - Proposed CHARTER change, for the user (a builder does not edit `docs/CHARTER.md`): invariant 6 and the M15b step 1 text still describe `SimHost.query`, which M13b replaced by plain functions plus an injected async query in `LaunchPreviewer`. Suggested wording: "the page asks questions through functions that read the ViewMirror and through an injected async query; it never reaches into the sim". See "Audit 3 downstream decisions" in `docs/DECISIONS.md`.
 - Add a size guard for the other big docs: `docs/DECISIONS.md` (about 590 kB) and `docs/PROGRESS.md` (about 240 kB) are also far too large to read in one call; split them like ARCHITECTURE (an index file plus per-period files in a folder) in a docs-hygiene pass.
 - A generator that checks every file under `src` has a row in `docs/ARCHITECTURE.md` or `docs/arch/` (the rows are by module, several files per row, so it needs a path scan of the backticks); not built, the existing path-exists check only goes the other way.
+
+## M20a-2
+
+- Flags on the nation labels (procedural flag rendering in the UI comes with federations); a legend for the colour of an arrow; an own-nation outline or glow for the arrows of the attacks the local player is part of.
+- A wide front gets one arrow today (the cell nearest the mean of 24 sampled front cells); one arrow per front segment (cluster the sample) would show a pincer.
+- The arrows hop once a second with the host's snapshot; moving them with the front between snapshots (or sending every 5 ticks) is cheap if it looks jerky on a real GPU.
+- The labels use plain AABB overlap against the placed boxes; a label that is dropped because of a HUD panel does not try another spot beside its nation. A leader line or a nudge would keep more nations labelled on a small window.
+- A test with 40 real nations (the e2e uses the 13 of the default match); `createMatch` with a larger AI count in a test page would do.
+- The label text of a custom nation is not translated (as everywhere); tribes get no label (a "Stam" label at close range would be easy).

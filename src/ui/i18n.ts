@@ -476,6 +476,10 @@ const sv = {
   'hud.beachTip': 'Din landade mark är isolerad. Skicka fler trupper till kanten eller bygg en stad så att den växer till {need} celler, annars blir den neutral igen.',
   'toast.beach.reverted': 'Brohuvudet isolerades och återgick till neutralt.',
   'toast.beach.established': 'Brohuvudet är etablerat, marken är din.',
+  // M20a-2: nation labels and front arrows
+  'hotkey.labels': 'Nationsetiketter och frontpilar av eller på',
+  'toast.labels.on': 'Nationsetiketter och frontpilar på.',
+  'toast.labels.off': 'Nationsetiketter och frontpilar av.',
 } as const;
 
 export type TextKey = keyof typeof sv;
@@ -941,6 +945,10 @@ const en: Record<TextKey, string> = {
   'hud.beachTip': 'Your landed ground is cut off. Send more troops to its edge or build a city so that it grows to {need} cells, or it turns neutral again.',
   'toast.beach.reverted': 'The beachhead was cut off and went back to neutral.',
   'toast.beach.established': 'The beachhead is established, the ground is yours.',
+  // M20a-2: nation labels and front arrows
+  'hotkey.labels': 'Nation labels and front arrows on or off',
+  'toast.labels.on': 'Nation labels and front arrows on.',
+  'toast.labels.off': 'Nation labels and front arrows off.',
 };
 
 /** The two tables, for the parity test and for tools. Treat as read-only. */

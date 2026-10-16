@@ -258,3 +258,38 @@ export const DIPLO = {
   cardBg: 'rgba(8, 13, 24, 0.97)',
   badge: { truce: '#7fd1ff', alliance: '#8ee6b0', embargo: '#ffb02e', traitor: '#ff8a80' },
 } as const;
+
+/**
+ * M20a-2: the nation labels (src/ui/nationLabels.ts) over the globe. Sizes are fixed CSS pixels (the layout needs the box of a label without measuring the DOM); the zoom
+ * thresholds are camera altitudes in Earth radii above the sea-level sphere. A label is hidden above `hideAltR` (the whole globe in view), fades in down to `fadeFullAltR`
+ * and is drawn at `smallScale` from `scaleFromAltR` and at full size from `scaleFullAltR` and below; a nation whose land spans fewer than `minNationPx` pixels gets none.
+ */
+export const LABELS = {
+  /** Most labels at once (the DOM pool). */
+  max: 32,
+  hideAltR: 1.5,
+  fadeFullAltR: 1.0,
+  scaleFromAltR: 0.9,
+  scaleFullAltR: 0.3,
+  smallScale: 0.78,
+  minNationPx: 18,
+  /** Font size, box height, the width a character takes (generous: the text is cut with an ellipsis at the box), padding and the smallest and largest box width. */
+  fontPx: 12,
+  heightPx: 32,
+  charPx: 7.4,
+  padPx: 8,
+  minWidthPx: 56,
+  maxWidthPx: 170,
+  /** Free space kept between two boxes and between a box and the window edge. */
+  gapPx: 4,
+  edgePx: 4,
+  /** The data behind the labels (centroids, names, troops, badges) is refreshed at most every this many fx seconds; the placement follows the camera every frame. */
+  dataIntervalS: 0.5,
+  z: 15,
+  bg: 'rgba(8, 13, 24, 0.72)',
+  text: '#f2f6ff',
+  dim: '#b9c6e0',
+  badge: '#7fd1ff',
+  /** The preference that remembers the switch (key N). */
+  prefKey: 'nationlabels',
+} as const;

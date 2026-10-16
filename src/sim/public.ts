@@ -266,3 +266,7 @@ export {
 // Fix-4B (append-only): the read-only beachhead table and the three numbers the page needs to explain it (landing size, the size that makes it ordinary land, the time it lasts).
 export type { BeachheadView } from './view';
 export { BEACHHEAD_ESTABLISH_CELLS, BEACHHEAD_LANDING_CELLS, BEACHHEAD_REVERT_TICKS } from './rules';
+
+// M20a-2 (append-only): the read-only description of the attacks running (a front cell and a direction per attack, at most ATTACK_VIEW_CAP).
+export type { AttackView } from './view';
+export { ATTACK_VIEW_CAP } from './view';

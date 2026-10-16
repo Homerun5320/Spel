@@ -92,6 +92,19 @@ export interface ViewSnapshot {
   readonly diplomacy: DiplomacySnapshot | null;
   /** The beachhead rows (Fix-4B): always present in the answer to `requestView`; in a frame's diff only when they changed since the last frame that carried them, else null. */
   readonly beachheads: BeachheadSnapshot | null;
+  /** The fronts of the attacks running (M20a-2): always present in the answer to `requestView`; in a frame's diff only when they changed (the attacks, or every FRONT_REFRESH_TICKS ticks while one runs), else null. */
+  readonly fronts: AttackFrontSnapshot | null;
+}
+
+/** The attack fronts as the page sees them (M20a-2): `count` rows, each array `count` long (see `AttackView` in src/sim/view.ts). */
+export interface AttackFrontSnapshot {
+  readonly count: number;
+  readonly id: Uint32Array;
+  readonly attacker: Uint16Array;
+  readonly target: Uint16Array;
+  readonly cell: Int32Array;
+  readonly dirX: Int8Array;
+  readonly dirY: Int8Array;
 }
 
 /** The live beachhead rows as the page sees them (Fix-4B), in slot order: `count` rows, `slot[k]` the table slot of row k, `cells[k]` the cells its cluster holds now. */
@@ -196,7 +209,13 @@ export function cloneView(v: ViewSnapshot): ViewSnapshot {
     helis: v.helis === null ? null : cloneHelis(v.helis),
     diplomacy: v.diplomacy === null ? null : cloneDiplomacy(v.diplomacy),
     beachheads: v.beachheads === null ? null : cloneBeachheads(v.beachheads),
+    fronts: v.fronts === null ? null : cloneFronts(v.fronts),
   };
+}
+
+/** A deep copy of an attack-front snapshot. */
+export function cloneFronts(s: AttackFrontSnapshot): AttackFrontSnapshot {
+  return { count: s.count, id: s.id.slice(), attacker: s.attacker.slice(), target: s.target.slice(), cell: s.cell.slice(), dirX: s.dirX.slice(), dirY: s.dirY.slice() };
 }
 
 /** A deep copy of a beachhead snapshot. */
