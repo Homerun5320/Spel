@@ -17,12 +17,15 @@ import { formatClock, formatFixed, formatGold, formatGoldRate, formatInt, langua
 import { mountHudStyle } from './hudStyle';
 import { HudGate } from './hudGate';
 import { newWinMeterState, winMeterInto } from './winMeter';
-import { HUD_MIN_INTERVAL_S, COMMIT_MAX_PCT, COMMIT_MIN_PCT, COMMIT_STEP_PCT, FLAG_ROW_H, FLAG_ROW_W, LEADERBOARD_INCLUDES_TRIBES, LEADERBOARD_ROWS, PLAY_HINT_SECONDS, TOAST_SECONDS, TROOP_WARNING_FRACTION } from './uiConfig';
+import { BADGE_ALLIANCE, BADGE_EMBARGO, BADGE_TRUCE, incomingCount, relationBadges } from './diploModel';
+import { DIPLO, HUD_MIN_INTERVAL_S, COMMIT_MAX_PCT, COMMIT_MIN_PCT, COMMIT_STEP_PCT, FLAG_ROW_H, FLAG_ROW_W, LEADERBOARD_INCLUDES_TRIBES, LEADERBOARD_ROWS, PLAY_HINT_SECONDS, TOAST_SECONDS, TROOP_WARNING_FRACTION } from './uiConfig';
 
 export interface MatchHudActions {
   setCommit(pct: number): void;
   setSpeed(speed: 1 | 2 | 4): void;
   togglePause(): void;
+  /** M18c-2: the top-bar button "Diplomati" (key D does the same through the hotkey registry). */
+  openDiplomacy?(): void;
 }
 
 export interface MatchHudOptions {
@@ -138,21 +141,32 @@ class BoardRow {
   private readonly flag: HTMLCanvasElement | null;
   private readonly name = el('span', 'hud-name');
   private readonly share = el('span', 'hud-share');
+  /** M18c-2: the relation badges (truce, alliance, embargo) between you and this nation; the span is always there so the grid keeps its columns. */
+  private readonly rels = el('span', 'hud-rels', 'rel-badges');
+  private readonly relTruce = el('span', 'hud-rel', 'rel-truce');
+  private readonly relAlliance = el('span', 'hud-rel', 'rel-alliance');
+  private readonly relEmbargo = el('span', 'hud-rel', 'rel-embargo');
+  private badges = -1;
   private seat = -2;
   private rankNo = -2;
   private shareQ15 = -2;
   private lang = -1;
   constructor(withFlag: boolean) {
     this.flag = withFlag ? flagCanvas('hud-flag') : null;
-    if (this.flag !== null) this.root.append(this.rank, this.swatch, this.flag, this.name, this.share);
-    else this.root.append(this.rank, this.swatch, this.name, this.share);
+    this.relTruce.style.color = DIPLO.badge.truce;
+    this.relAlliance.style.color = DIPLO.badge.alliance;
+    this.relEmbargo.style.color = DIPLO.badge.embargo;
+    this.relTruce.hidden = this.relAlliance.hidden = this.relEmbargo.hidden = true;
+    this.rels.append(this.relTruce, this.relAlliance, this.relEmbargo);
+    if (this.flag !== null) this.root.append(this.rank, this.swatch, this.flag, this.name, this.rels, this.share);
+    else this.root.append(this.rank, this.swatch, this.name, this.rels, this.share);
     this.root.hidden = true;
   }
   hide(): void {
     if (!this.root.hidden) this.root.hidden = true;
     this.seat = -2;
   }
-  set(seat: number, rankNo: number, shareQ15: number, players: number, localSeat: number, color: string, labels: SeatLabels | null): void {
+  set(seat: number, rankNo: number, shareQ15: number, players: number, localSeat: number, color: string, labels: SeatLabels | null, badges = 0): void {
     const lv = languageVersion();
     if (this.root.hidden) this.root.hidden = false;
     if (seat !== this.seat || lv !== this.lang) {
@@ -180,6 +194,19 @@ class BoardRow {
       this.share.textContent = percentText(shareHundredths(shareQ15));
       this.root.dataset.share = String(shareQ15);
       this.shareQ15 = shareQ15;
+    }
+    if (badges !== this.badges || lv !== this.lang) {
+      this.badges = badges;
+      this.relTruce.hidden = (badges & BADGE_TRUCE) === 0;
+      this.relAlliance.hidden = (badges & BADGE_ALLIANCE) === 0;
+      this.relEmbargo.hidden = (badges & BADGE_EMBARGO) === 0;
+      this.relTruce.textContent = t('diplo.badge.truce');
+      this.relTruce.title = t('diplo.name.truce');
+      this.relAlliance.textContent = t('diplo.badge.alliance');
+      this.relAlliance.title = t('diplo.name.alliance');
+      this.relEmbargo.textContent = t('diplo.badge.embargo');
+      this.relEmbargo.title = t('diplo.name.embargo');
+      this.root.dataset.rel = String(badges);
     }
     this.lang = lv;
   }
@@ -274,7 +301,22 @@ export function createMatchHud(parent: HTMLElement, actions: MatchHudActions, op
   winRow.append(winLabel.el, winBar, winLeader, winHold);
   // the second row holds the win meter (when the match has a land condition) and the fleet gauge, so the gauge adds no row to the bar
   const row2 = el('div', 'hud-row2', 'hud-row2');
-  row2.append(winRow, fleetBox);
+  // M18c-2: the button "Diplomati" with the signal "Förslag: n" (hidden when nothing waits) closes the second row
+  const diploBox = el('span', 'hud-diplo', 'diplo-grp');
+  const diploBtn = el('button', 'hud-btn', 'diplo-button');
+  diploBtn.type = 'button';
+  const diploBtnText = cell(new TextCell(el('span', ''), () => t('diplo.button')));
+  diploBtn.append(diploBtnText.el);
+  diploBtn.addEventListener('click', () => {
+    actions.openDiplomacy?.();
+    diploBtn.blur();
+  });
+  const diploSignal = dyn(new TextCell(el('span', 'hud-diplo-signal', 'diplo-signal'), (n) => t('diplo.signal', { n }), true));
+  diploSignal.el.hidden = true;
+  diploBox.append(diploBtn, diploSignal.el);
+  let diploTick = -1;
+  let diploLang = -1;
+  row2.append(winRow, fleetBox, diploBox);
   status.append(nationBox, goldGrp, troopsGrp, shareBox, timerBox, row2);
 
   // --- Leaderboard ---
@@ -426,6 +468,15 @@ export function createMatchHud(parent: HTMLElement, actions: MatchHudActions, op
         fleetTick = v.tick;
         fleetText.set(fleetCountOf(v, L), fleetCapOf(v, L));
       }
+      if (v.tick !== diploTick || languageVersion() !== diploLang) {
+        diploTick = v.tick;
+        diploLang = languageVersion();
+        const waiting = incomingCount(v, L);
+        diploSignal.set(waiting);
+        if (diploSignal.el.hidden === (waiting > 0)) diploSignal.el.hidden = waiting === 0;
+        const tip = t('diplo.buttonTip');
+        if (diploBtn.title !== tip) diploBtn.title = tip;
+      }
       const tb = troopBar(m.troops, capTroops);
       const q = Math.round(tb.fraction * 400);
       if (q !== lastBarQ) {
@@ -491,7 +542,7 @@ export function createMatchHud(parent: HTMLElement, actions: MatchHudActions, op
         for (let i = 0; i < n; i++) {
           const seat = top[i] as number;
           if (seat === L) youShown = true;
-          (rows[used++] as BoardRow).set(seat, i + 1, st.landShareQ15[seat] as number, v.players, L, seatColor(seat), labels);
+          (rows[used++] as BoardRow).set(seat, i + 1, st.landShareQ15[seat] as number, v.players, L, seatColor(seat), labels, relationBadges(v, L, seat));
         }
         if (!youShown && localCells > 0) {
           (rows[used++] as BoardRow).set(L, rankOf(st, seatCount, L), st.landShareQ15[L] as number, v.players, L, seatColor(L), labels);

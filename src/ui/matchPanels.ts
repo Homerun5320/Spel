@@ -180,7 +180,7 @@ export function createMatchPanels(parent: HTMLElement, actions: PanelActions, da
     const wrap = el('div', 'mp-table-wrap');
     const table = el('table', 'mp-table', 'result-table');
     const head = el('tr', '');
-    for (const k of ['result.col.rank', 'result.col.nation', 'result.col.land', 'result.col.score', 'result.col.peak', 'result.col.built', 'result.col.conquered'] as const) {
+    for (const k of ['result.col.rank', 'result.col.nation', 'result.col.land', 'result.col.score', 'result.col.peak', 'result.col.built', 'result.col.conquered', 'result.col.treaties', 'result.col.betrayals'] as const) {
       const th = el('th', k === 'result.col.nation' ? 'mp-left' : '');
       th.scope = 'col';
       th.textContent = t(k);
@@ -195,7 +195,7 @@ export function createMatchPanels(parent: HTMLElement, actions: PanelActions, da
       tr.dataset.you = r.you ? '1' : '0';
       tr.dataset.winner = r.winner ? '1' : '0';
       tr.dataset.eliminated = r.eliminated ? '1' : '0';
-      const cells: string[] = [String(r.rank), '', `${formatFixed(r.landPct, 1)} %`, String(r.score), String(r.peakLand), String(r.built), String(r.conquered)];
+      const cells: string[] = [String(r.rank), '', `${formatFixed(r.landPct, 1)} %`, String(r.score), String(r.peakLand), String(r.built), String(r.conquered), String(r.treaties), String(r.betrayals)];
       cells.forEach((text, i) => {
         const td = el('td', i === 1 ? 'mp-left mp-name' : '');
         if (i === 1) {
