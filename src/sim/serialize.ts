@@ -21,6 +21,10 @@
 //               then (Districts-1) districtCount u32 and per district by ascending (id, slot): id slot kind level readyTick upgradeReadyTick (u32 each)
 //      match block (M18-1, always present): winFlags timeLimitTicks landSharePct holdTicks ended winner reason endTick holdOwner holdCount (u32 each), then six u32 x (seats+1)
 //               arrays: eliminated capitalLost peakLand built conquered districts
+//      diplomacy block (M18c-1, always present, after the match block): pairCount u32, then per non-war pair by ascending (a, b) with a < b: a b relation until (u32 each);
+//               embargoCount u32, then per embargo by ascending imposer * slots + target: imposer target (u32 each); cooldownUntil u32 x (seats+1);
+//               proposalCount u32, then per open proposal in creation order: from to treaty expire (u32 each); treatiesMade u32 x (seats+1), treatiesBroken u32 x (seats+1), then the byte length of the whole block
+//               including this word (u32: it lets the reader find the block from the end, so a wrong district count is still caught as a size error)
 //   end: checksum u32 = hashState(state)                                      (n = width * height)
 // The outbox and the derived parts (grid, aggregates, scratch) are not part of the format. deserialize() never throws:
 // any byte string gives a state or an error result.
@@ -28,6 +32,7 @@ import { Attack, AttackTable } from './attacks';
 import { EnclaveQueues, enclaveBucket } from './enclaveQueue';
 import { TRAIT_MAX_MILLI, TRAIT_MIN_MILLI, type HomeRules } from './homeRules';
 import { foldStructures } from './structures';
+import { DiplomacyTable, RELATION_TRUCE, diplomacyCounts, foldDiplomacy } from './diplomacyTable';
 import { BEACH_STATUS_MAX, BeachheadTable, HELI_BUILDING, HELI_PAD, HELI_STATE_MAX, HeliTable, foldHelis } from './heliTable';
 import { SimEnv } from './env';
 import { MatchState, normalWin, winFlagsOf, type WinConfig, WIN_FLAG_LAND, WIN_FLAG_LAST, WIN_FLAG_SCORE } from './matchState';
@@ -49,8 +54,12 @@ import {
   MICRO_QT_PER_QT,
   MILLI_QT_PER_QT,
   PROGRESS_DEBT_MAX,
+  PROPOSAL_CAPACITY,
+  PROPOSAL_TTL_TICKS,
   STRUCT_CAPACITY,
   STRUCT_LEVEL_HARD_CAP,
+  TREATY_BREAK_COOLDOWN_TICKS,
+  TRUCE_TICKS,
 } from './rules';
 import { STRUCT_CITY, STRUCT_FACTORY, STRUCT_TYPE_SLOTS, maxLevelOf } from './structureRules';
 import { districtSlotsOf, isDistrictKind } from './districtRules';
@@ -70,8 +79,8 @@ import {
   type MatchHeader,
 } from './state';
 
-/** Bumped when the byte layout above changes. 2: owner u16 (D71). 3: players, rowCos and the per-owner economy arrays (M04). 4: attacks and the enclave queue (M04 conquest). 5: the exposure array (M04 fix pass). 6: the structure table (M09 part A). 7: the embargo flags (M09 part B). 8: the district table (Districts-1). 9: the match block (M18-1). 10: Sim-Growth (City levels up to 10, five district slots per row). 11: Sim-Levels2 (u16 levels up to 999 in the structure and district tables). 12: M12a-1 (the air block: the helicopter and beachhead tables). */
-export const FORMAT_VERSION = 12;
+/** Bumped when the byte layout above changes. 2: owner u16 (D71). 3: players, rowCos and the per-owner economy arrays (M04). 4: attacks and the enclave queue (M04 conquest). 5: the exposure array (M04 fix pass). 6: the structure table (M09 part A). 7: the embargo flags (M09 part B). 8: the district table (Districts-1). 9: the match block (M18-1). 10: Sim-Growth (City levels up to 10, five district slots per row). 11: Sim-Levels2 (u16 levels up to 999 in the structure and district tables). 12: M12a-1 (the air block: the helicopter and beachhead tables). 13: M18c-1 (the diplomacy block after the match block; the M12a-3 landing track may raise the format on its own branch, the orchestrator sets the final value when the tracks are merged). */
+export const FORMAT_VERSION = 13;
 /** 'SPEL' as a little-endian u32. */
 export const MAGIC = 0x4c455053;
 export const HEADER_BYTES = 64;
@@ -105,6 +114,11 @@ function matchBytes(seats: number): number {
   return 40 + 24 * ownerSlots(seats);
 }
 
+/** The diplomacy block of a state without relations: three counts, the cooldowns, the two statistics arrays and the length word. */
+function diploEmptyBytes(seats: number): number {
+  return 16 + 12 * ownerSlots(seats);
+}
+
 export type DeserializeError =
   | 'not-bytes'
   | 'too-short'
@@ -122,6 +136,7 @@ export type DeserializeError =
   | 'structure-range'
   | 'air-range'
   | 'match-range'
+  | 'diplomacy-range'
   | 'checksum';
 
 export type DeserializeResult =
@@ -130,7 +145,7 @@ export type DeserializeResult =
 
 /** Number of bytes serialize() produces for a size when no attack is running and no enclave candidate is queued. */
 export function serializedLength(width: number, height: number, seats: number): number {
-  return HEADER_BYTES + width * height * BYTES_PER_CELL + height * BYTES_PER_ROW + ownerSlots(seats) * BYTES_PER_OWNER + EMPTY_TABLES_BYTES + EMPTY_STRUCTURE_BYTES + ownerSlots(seats) * 4 + ownerSlots(seats) * ownerSlots(seats) + EMPTY_AIR_BYTES + matchBytes(seats) + CHECKSUM_BYTES;
+  return HEADER_BYTES + width * height * BYTES_PER_CELL + height * BYTES_PER_ROW + ownerSlots(seats) * BYTES_PER_OWNER + EMPTY_TABLES_BYTES + EMPTY_STRUCTURE_BYTES + ownerSlots(seats) * 4 + ownerSlots(seats) * ownerSlots(seats) + EMPTY_AIR_BYTES + matchBytes(seats) + diploEmptyBytes(seats) + CHECKSUM_BYTES;
 }
 
 /** Number of non-empty frontier bags of an attack. */
@@ -154,6 +169,8 @@ export function serializedLengthOf(state: GameState): number {
   const hl = state.helis;
   n += hl.liveCount * BYTES_PER_HELI + hl.recycledCount * 4 + state.beachheads.liveCount * BYTES_PER_BEACHHEAD;
   for (let id = 0; id < hl.highWater; id++) if (hl.owner[id] !== 0) n += (hl.routeLen[id] as number) * 4;
+  const dc = diplomacyCounts(state.diplo);
+  n += dc.pairs * 16 + dc.embargoes * 8 + dc.proposals * 16;
   return n + state.enclaves.length * 4;
 }
 
@@ -241,6 +258,7 @@ export function hashState(state: GameState): number {
   x = foldStructures(x, state.structures);
   x = foldHelis(x, state.helis, state.beachheads);
   x = foldMatch(x, state);
+  x = foldDiplomacy(x, state.diplo, state.match.treatiesMade, state.match.treatiesBroken);
   return finishHash(x);
 }
 
@@ -442,8 +460,116 @@ export function serialize(state: GameState): Uint8Array {
   p = putU32s(v, p, m.built);
   p = putU32s(v, p, m.conquered);
   p = putU32s(v, p, m.districts);
+  p = putDiplomacy(v, p, state);
   v.setUint32(p, hashState(state), true);
   return out;
+}
+
+/** Writes the diplomacy block (see the layout at the top of this file). */
+function putDiplomacy(v: DataView, at: number, state: GameState): number {
+  const d = state.diplo;
+  const s = d.slots;
+  const counts = diplomacyCounts(d);
+  let p = at;
+  v.setUint32(p, counts.pairs, true);
+  p += 4;
+  for (let a = 1; a < s; a++) {
+    for (let b = a + 1; b < s; b++) {
+      if (d.relation[a * s + b] === 0 && d.relation[b * s + a] === 0 && d.until[a * s + b] === 0 && d.until[b * s + a] === 0) continue;
+      v.setUint32(p, a, true);
+      v.setUint32(p + 4, b, true);
+      v.setUint32(p + 8, d.relation[a * s + b] as number, true);
+      v.setUint32(p + 12, d.until[a * s + b] as number, true);
+      p += 16;
+    }
+  }
+  v.setUint32(p, counts.embargoes, true);
+  p += 4;
+  for (let i = 0; i < d.embargoBy.length; i++) {
+    if (d.embargoBy[i] === 0) continue;
+    v.setUint32(p, Math.floor(i / s), true);
+    v.setUint32(p + 4, i % s, true);
+    p += 8;
+  }
+  p = putU32s(v, p, d.cooldownUntil);
+  v.setUint32(p, d.propCount, true);
+  p += 4;
+  for (let i = 0; i < d.propCount; i++) {
+    v.setUint32(p, d.propFrom[i] as number, true);
+    v.setUint32(p + 4, d.propTo[i] as number, true);
+    v.setUint32(p + 8, d.propKind[i] as number, true);
+    v.setUint32(p + 12, d.propExpire[i] as number, true);
+    p += 16;
+  }
+  p = putU32s(v, p, state.match.treatiesMade);
+  p = putU32s(v, p, state.match.treatiesBroken);
+  v.setUint32(p, p + 4 - at, true);
+  return p + 4;
+}
+
+/**
+ * Reads and checks the diplomacy block at `at` into `d` and the two statistics arrays of `m`. Returns the position after the block, or -1 when anything is wrong:
+ * a count that does not fit the bytes, a pair that is not two distinct players in strictly ascending order, a relation other than truce or alliance, a truce
+ * that has already ended or lasts longer than the rules allow, an alliance with an end tick, a proposal between non-players, a duplicate or an out-of-range tick.
+ */
+function readDiplomacy(v: DataView, at: number, end: number, players: number, tick: number, d: DiplomacyTable, m: MatchState): number {
+  const s = d.slots;
+  let p = at;
+  if (p + 4 > end) return -1;
+  const pairCount = v.getUint32(p, true);
+  p += 4;
+  if (pairCount > (players * (players - 1)) / 2 || p + pairCount * 16 + 4 > end) return -1;
+  let last = -1;
+  for (let k = 0; k < pairCount; k++) {
+    const a = v.getUint32(p, true);
+    const b = v.getUint32(p + 4, true);
+    const rel = v.getUint32(p + 8, true);
+    const until = v.getUint32(p + 12, true);
+    p += 16;
+    if (a < 1 || b <= a || b > players || rel < 1 || rel > 2 || a * s + b <= last) return -1;
+    last = a * s + b;
+    if (rel === RELATION_TRUCE ? until < tick || until > tick + TRUCE_TICKS : until !== 0) return -1;
+    d.relation[a * s + b] = rel;
+    d.relation[b * s + a] = rel;
+    d.until[a * s + b] = until;
+    d.until[b * s + a] = until;
+  }
+  const embargoCount = v.getUint32(p, true);
+  p += 4;
+  if (embargoCount > players * (players - 1) || p + embargoCount * 8 + s * 4 + 4 > end) return -1;
+  last = -1;
+  for (let k = 0; k < embargoCount; k++) {
+    const a = v.getUint32(p, true);
+    const b = v.getUint32(p + 4, true);
+    p += 8;
+    if (a < 1 || a > players || b < 1 || b > players || a === b || a * s + b <= last) return -1;
+    last = a * s + b;
+    d.embargoBy[a * s + b] = 1;
+  }
+  for (let o = 0; o < s; o++) {
+    const c = v.getUint32(p + o * 4, true);
+    if (c !== 0 && (o === 0 || o > players || c > tick + TREATY_BREAK_COOLDOWN_TICKS)) return -1;
+    d.cooldownUntil[o] = c;
+  }
+  p += s * 4;
+  const propCount = v.getUint32(p, true);
+  p += 4;
+  if (propCount > PROPOSAL_CAPACITY || p + propCount * 16 + s * 8 + 4 > end) return -1;
+  for (let k = 0; k < propCount; k++) {
+    const from = v.getUint32(p, true);
+    const to = v.getUint32(p + 4, true);
+    const kind = v.getUint32(p + 8, true);
+    const expire = v.getUint32(p + 12, true);
+    p += 16;
+    if (from < 1 || from > players || to < 1 || to > players || from === to || kind < 1 || kind > 2 || expire < tick || expire > tick + PROPOSAL_TTL_TICKS) return -1;
+    if (d.findProposal(from, to) >= 0) return -1;
+    d.addProposal(from, to, kind, expire);
+  }
+  p = getU32s(v, p, m.treatiesMade);
+  p = getU32s(v, p, m.treatiesBroken);
+  if (m.treatiesMade[0] !== 0 || m.treatiesBroken[0] !== 0) return -1;
+  if (v.getUint32(p, true) !== p + 4 - at) return -1;
+  return p + 4;
 }
 
 /** The config of the flag word with the win block put back (the normal form, so that a round trip compares equal). */
@@ -800,7 +926,9 @@ export function deserialize(bytes: Uint8Array, options?: DeserializeOptions): De
   }
   const districtCount = v.getUint32(p, true);
   p += 4;
-  if (districtCount > liveCount * DISTRICT_MAX_SLOTS || p + districtCount * BYTES_PER_DISTRICT + matchBytes(seats) !== end) return fail(districtCount > liveCount * DISTRICT_MAX_SLOTS ? 'structure-range' : 'size');
+  // The diplomacy block ends with its own byte length, so the tail is found from the end: the districts, the match block and that block must fill the bytes exactly.
+  const diploBytes = end - p >= 4 ? v.getUint32(end - 4, true) : 0;
+  if (districtCount > liveCount * DISTRICT_MAX_SLOTS || diploBytes < diploEmptyBytes(seats) || p + districtCount * BYTES_PER_DISTRICT + matchBytes(seats) + diploBytes !== end) return fail(districtCount > liveCount * DISTRICT_MAX_SLOTS ? 'structure-range' : 'size');
   let lastDistrict = -1;
   for (let k = 0; k < districtCount; k++) {
     const id = v.getUint32(p, true);
@@ -844,13 +972,16 @@ export function deserialize(bytes: Uint8Array, options?: DeserializeOptions): De
   const win = readMatch(v, p, slots, seats, m);
   if (win === 'bad') return fail('match-range');
   p += matchBytes(seats);
+  const diplo = new DiplomacyTable(slots);
+  p = readDiplomacy(v, p, end, players, v.getUint32(36, true), diplo, m);
+  if (p < 0) return fail('diplomacy-range');
   if (p !== end) return fail('size');
 
   const finalConfig = Object.freeze(normalConfigOf(config, win));
   const header: MatchHeader = Object.freeze({ engineVersion, mapHash, seed, config: finalConfig, seats, players });
   let state: GameState;
   try {
-    state = assembleState({ header, width, height, tick: v.getUint32(36, true), rejects: v.getUint32(40, true), rng, terrain, elevation, owner, stamp, exposure, rowCos, troops, troopFrac, gold, capital, attacks, enclaves, structures, helis, beachheads, match: m, home, env: new SimEnv(options?.maxElev === undefined ? null : Int16Array.from(options.maxElev)) });
+    state = assembleState({ header, width, height, tick: v.getUint32(36, true), rejects: v.getUint32(40, true), rng, terrain, elevation, owner, stamp, exposure, rowCos, troops, troopFrac, gold, capital, attacks, enclaves, structures, helis, beachheads, match: m, diplo, home, env: new SimEnv(options?.maxElev === undefined ? null : Int16Array.from(options.maxElev)) });
   } catch {
     return fail('header');
   }

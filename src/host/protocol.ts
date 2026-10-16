@@ -88,6 +88,21 @@ export interface ViewSnapshot {
   readonly structures: StructureSnapshot | null;
   /** The helicopter table (M12a-1): always present in the answer to `requestView`; in a frame's diff only when it changed since the last frame that carried it, else null. */
   readonly helis: HeliSnapshot | null;
+  /** The diplomacy table (M18c-1): always present in the answer to `requestView`; in a frame's diff only when it changed since the last frame that carried it, else null. */
+  readonly diplomacy: DiplomacySnapshot | null;
+}
+
+/** The diplomacy table as the page sees it (M18c-1): copies of the sim's arrays (indexed by ownerId, `slots` = seats + 1) and the open proposals, `propFrom.length` of them. */
+export interface DiplomacySnapshot {
+  readonly slots: number;
+  readonly relation: Uint8Array;
+  readonly until: Uint32Array;
+  readonly embargoBy: Uint8Array;
+  readonly cooldownUntil: Uint32Array;
+  readonly propFrom: Uint16Array;
+  readonly propTo: Uint16Array;
+  readonly propKind: Uint8Array;
+  readonly propExpire: Uint32Array;
 }
 
 /** The helicopter table as the page sees it (M12a-1): copies of the sim's arrays for the slots 0..highWater-1 (a free slot has owner 0) and the helicopters per ownerId. */
@@ -166,6 +181,22 @@ export function cloneView(v: ViewSnapshot): ViewSnapshot {
     terrain: v.terrain === null ? null : v.terrain.slice(),
     structures: v.structures === null ? null : cloneStructures(v.structures),
     helis: v.helis === null ? null : cloneHelis(v.helis),
+    diplomacy: v.diplomacy === null ? null : cloneDiplomacy(v.diplomacy),
+  };
+}
+
+/** A deep copy of a diplomacy snapshot. */
+export function cloneDiplomacy(s: DiplomacySnapshot): DiplomacySnapshot {
+  return {
+    slots: s.slots,
+    relation: s.relation.slice(),
+    until: s.until.slice(),
+    embargoBy: s.embargoBy.slice(),
+    cooldownUntil: s.cooldownUntil.slice(),
+    propFrom: s.propFrom.slice(),
+    propTo: s.propTo.slice(),
+    propKind: s.propKind.slice(),
+    propExpire: s.propExpire.slice(),
   };
 }
 

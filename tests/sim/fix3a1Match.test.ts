@@ -136,7 +136,7 @@ describe('deserialize refuses a forged match block with a VALID checksum, one gu
     const slots = 4;
     const patched = (flags: number, limit: number, pct: number, hold: number): string => {
       const bytes = serialize(world(WIN));
-      const at0 = bytes.length - 4 - (40 + 2 * slots * 4 + 4 * slots * 4);
+      const at0 = bytes.length - 4 - (16 + 12 * slots) - (40 + 2 * slots * 4 + 4 * slots * 4); // M18c-1: the diplomacy block (16 + 12 per ownerId) sits after the match block
       const v = new DataView(bytes.buffer);
       [flags, limit, pct, hold].forEach((x, i) => v.setUint32(at0 + i * 4, x, true));
       const r = deserialize(bytes);
@@ -157,7 +157,7 @@ describe('deserialize refuses a forged match block with a VALID checksum, one gu
     const bytes = serialize(s);
     // the match block ends with 4 per-owner u8-in-u32 arrays of (seats + 1) words, 4 stat arrays, and the 4 byte checksum
     const slots = 4;
-    const blockStart = bytes.length - 4 - (40 + 2 * slots * 4 + 4 * slots * 4);
+    const blockStart = bytes.length - 4 - (16 + 12 * slots) - (40 + 2 * slots * 4 + 4 * slots * 4);
     expect(new DataView(bytes.buffer).getUint32(blockStart, true)).toBe(7);
     new DataView(bytes.buffer).setUint32(blockStart, 8, true);
     const r = deserialize(bytes);

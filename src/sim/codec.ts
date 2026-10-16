@@ -2,7 +2,7 @@
 // the same number is an error), so every accepted byte string has exactly one meaning and re-encodes to itself.
 //
 //   intent  = kind:u8  seat:u8  id:varint  [payload]
-//     payload: DebugPaint and Spawn: cell:varint;  Attack: target:varint pct:varint;  CancelAttack: target:varint;  DebugGive: gold:varint troops:varint;  Build: type:varint cell:varint;  Upgrade and Delete: structure:varint;  BuildDistrict: structure:varint slot:varint districtKind:varint;  UpgradeDistrict and RemoveDistrict: structure:varint slot:varint;  ProduceHeli: factory:varint;  LaunchHeli: factory:varint lzCell:varint troops:varint altMode:varint;  RecallHeli: heli:varint;  Noop: none
+//     payload: DebugPaint and Spawn: cell:varint;  Attack: target:varint pct:varint;  CancelAttack: target:varint;  DebugGive: gold:varint troops:varint;  Build: type:varint cell:varint;  Upgrade and Delete: structure:varint;  BuildDistrict: structure:varint slot:varint districtKind:varint;  UpgradeDistrict and RemoveDistrict: structure:varint slot:varint;  ProduceHeli: factory:varint;  LaunchHeli: factory:varint lzCell:varint troops:varint altMode:varint;  RecallHeli: heli:varint;  ProposeTreaty: to:varint treaty:varint;  AcceptTreaty and DeclineTreaty: from:varint;  BreakTreaty: with:varint;  ImposeEmbargo and LiftEmbargo: target:varint;  Noop: none
 //   turn    = turn:varint  count:varint  intent*count
 //
 // Decoding is total: any bytes give either a value or an error result; nothing throws. The decoder checks only what the
@@ -66,6 +66,16 @@ function intentSize(i: Intent): number {
       return head + varintSize(i.factory) + varintSize(i.lzCell) + varintSize(i.troops) + varintSize(i.altMode);
     case 'RecallHeli':
       return head + varintSize(i.heli);
+    case 'ProposeTreaty':
+      return head + varintSize(i.to) + varintSize(i.treaty);
+    case 'AcceptTreaty':
+    case 'DeclineTreaty':
+      return head + varintSize(i.from);
+    case 'BreakTreaty':
+      return head + varintSize(i.with);
+    case 'ImposeEmbargo':
+    case 'LiftEmbargo':
+      return head + varintSize(i.target);
     case 'BuildDistrict':
       return head + varintSize(i.structure) + varintSize(i.slot) + varintSize(i.districtKind);
     case 'UpgradeDistrict':
@@ -99,6 +109,12 @@ function putIntent(out: Uint8Array, at: number, i: Intent): number {
     p = putVarint(out, p, i.troops);
     p = putVarint(out, p, i.altMode);
   } else if (i.kind === 'RecallHeli') p = putVarint(out, p, i.heli);
+  else if (i.kind === 'ProposeTreaty') {
+    p = putVarint(out, p, i.to);
+    p = putVarint(out, p, i.treaty);
+  } else if (i.kind === 'AcceptTreaty' || i.kind === 'DeclineTreaty') p = putVarint(out, p, i.from);
+  else if (i.kind === 'BreakTreaty') p = putVarint(out, p, i.with);
+  else if (i.kind === 'ImposeEmbargo' || i.kind === 'LiftEmbargo') p = putVarint(out, p, i.target);
   else if (i.kind === 'BuildDistrict') {
     p = putVarint(out, p, i.structure);
     p = putVarint(out, p, i.slot);
@@ -132,6 +148,16 @@ function payloadEncodable(i: Intent): boolean {
       return isU32(i.factory) && isU32(i.lzCell) && isU32(i.troops) && isU32(i.altMode);
     case 'RecallHeli':
       return isU32(i.heli);
+    case 'ProposeTreaty':
+      return isU32(i.to) && isU32(i.treaty);
+    case 'AcceptTreaty':
+    case 'DeclineTreaty':
+      return isU32(i.from);
+    case 'BreakTreaty':
+      return isU32(i.with);
+    case 'ImposeEmbargo':
+    case 'LiftEmbargo':
+      return isU32(i.target);
     case 'BuildDistrict':
       return isU32(i.structure) && isU32(i.slot) && isU32(i.districtKind);
     case 'UpgradeDistrict':
@@ -260,6 +286,23 @@ class Reader {
     if (kind === 'RecallHeli') {
       const heli = this.varint();
       return this.error === null ? { kind, seat, id, heli } : null;
+    }
+    if (kind === 'ProposeTreaty') {
+      const to = this.varint();
+      const treaty = this.varint();
+      return this.error === null ? { kind, seat, id, to, treaty } : null;
+    }
+    if (kind === 'AcceptTreaty' || kind === 'DeclineTreaty') {
+      const from = this.varint();
+      return this.error === null ? { kind, seat, id, from } : null;
+    }
+    if (kind === 'BreakTreaty') {
+      const withSeat = this.varint();
+      return this.error === null ? { kind, seat, id, with: withSeat } : null;
+    }
+    if (kind === 'ImposeEmbargo' || kind === 'LiftEmbargo') {
+      const target = this.varint();
+      return this.error === null ? { kind, seat, id, target } : null;
     }
     if (kind === 'BuildDistrict') {
       const structure = this.varint();

@@ -333,6 +333,34 @@ export const TRADE_BASE_MILLI = 1500;
 export const TRADE_DIST_CAP_CELLS = 120;
 /** A pair with the same owner trades at this percent; a pair under embargo at 0. */
 export const TRADE_SAME_OWNER_PCT = 50;
+
+// ---------------------------------------------------------------------------------------------------------------
+// M18c-1: diplomacy (src/sim/diplomacy.ts, src/ai/diplomacy.ts). Every constant has a row in docs/BALANCE.md; provisional, see the M18c-1 block of docs/DECISIONS.md.
+
+/** A truce lasts this long from the tick it was accepted, then it expires to war (4 minutes). An alliance has no end. */
+export const TRUCE_TICKS = 2400;
+/** An open proposal can be accepted or declined for this long from the tick it was made (60 s); then it is gone. */
+export const PROPOSAL_TTL_TICKS = 600;
+/** The proposal table holds at most this many open proposals (at most one per directed pair of seats). */
+export const PROPOSAL_CAPACITY = 32;
+/** A seat that broke a treaty may not propose a new one for this long (3 minutes). Letting a truce run out is free. */
+export const TREATY_BREAK_COOLDOWN_TICKS = 1800;
+/** The AI answers a proposal after a delay of DIPLOMACY_REPLY_MIN_TICKS to DIPLOMACY_REPLY_MAX_TICKS (3 to 6 s), drawn from its own stream, so that it feels like a negotiation. */
+export const DIPLOMACY_REPLY_MIN_TICKS = 30;
+export const DIPLOMACY_REPLY_MAX_TICKS = 60;
+/** The AI accepts a truce when it is at war (an attack running either way) with at least this many parties already. */
+export const AI_TRUCE_ACCEPT_WARS = 2;
+/** The AI accepts an alliance only from a proposer holding at most this percent of the land, and only against a leader holding more than AI_ALLY_LEADER_MIN_PCT. */
+export const AI_ALLY_PROPOSER_MAX_PCT = 25;
+export const AI_ALLY_LEADER_MIN_PCT = 30;
+/** The AI makes no treaty with a seat that broke one against it in the last this many ticks (5 minutes). */
+export const AI_GRUDGE_TICKS = 3000;
+/** A weak AI (land share below this percent of the median share of the living players) proposes a truce to the strongest neighbour that attacked it. */
+export const AI_WEAK_MEDIAN_PCT = 50;
+/** At most one proposal per AI per this many ticks (60 s). */
+export const AI_PROPOSE_COOLDOWN_TICKS = 600;
+/** A leader above this percent of the land is the target of the AIs' alliance proposals; an AI that becomes one itself breaks its alliances. */
+export const AI_LEADER_PCT = 40;
 /** A finished Defense Post multiplies the cell price of an attacker that takes a cell of its owner within POST_RADIUS_CELLS by POST_COST_NUM / POST_COST_DEN (2.5). */
 export const POST_RADIUS_CELLS = 12;
 export const POST_COST_NUM = 5;

@@ -11,14 +11,15 @@ import { Grid, rowCosFromLut } from './grid';
 import { foldBytes, foldU16, finishHash, FNV_OFFSET } from './hash';
 import { createHomeRules, type HomeRules } from './homeRules';
 import { MatchState, normalWin, type WinConfig } from './matchState';
+import { DiplomacyTable } from './diplomacyTable';
 import { Outbox } from './outbox';
 import { StructureTable } from './structures';
 import { createRng } from './rng';
 import { WEIGHT_ONE } from './rules';
 import { WorkCounters } from './work';
 
-/** Bumped whenever a rule, a constant in rules.ts or the meaning of a state array changes. Part of the match header. 2: M04 (economy, Spawn, owner arrays). 3: M04 conquest (attacks, enclaves, calibrated constants). 4: M04 fix pass (the exposure array, the enclave candidate rule). 5: the M05 audit (terrain slows the capture, K 123). 6: the tempo pass, D142 (capture K 123 -> 420, troop regeneration 8 + 0.35 sqrt(T) -> 24 + 1.0 sqrt(T)). 7: M09 part A (the structure table is part of the state and the hash). 8: M09 part B (structure effects on troop cap and gold, Defense Post price, conquest of structures, embargo flags). 9: M09 part C (level effects of Factory and Port, the 3-City Factory cap, the Port income cap). 10: Districts-1 (the district table in the state and the hash, three district intents, their effects on gold, troop cap, regeneration and the attacker's cell price). 11: M18-1 (the match end: win block in the config, result, hold timer and statistics in the state and the hash; the anti-snowball discount in the cell price). 12: Sim-Growth (spacing per type, City levels 1 to 10 with small steps and their own price and time, five district slots, lower Market gold). 13: Sim-Levels2 (unlimited levels up to 999, one upgrade price rule base * L for every type and district, concave level curves with asymptotes, conquest keeps 75 percent of a level). 14: M12a-1 (the helicopter and beachhead tables in the state and the hash, the ProduceHeli intent with its price, time and fleet cap, Los / Nav reachable from step). 15: M12a-2 (LaunchHeli and RecallHeli, the helicopter flight with fuel, terrain following and return). */
-export const ENGINE_VERSION = 15;
+/** Bumped whenever a rule, a constant in rules.ts or the meaning of a state array changes. Part of the match header. 2: M04 (economy, Spawn, owner arrays). 3: M04 conquest (attacks, enclaves, calibrated constants). 4: M04 fix pass (the exposure array, the enclave candidate rule). 5: the M05 audit (terrain slows the capture, K 123). 6: the tempo pass, D142 (capture K 123 -> 420, troop regeneration 8 + 0.35 sqrt(T) -> 24 + 1.0 sqrt(T)). 7: M09 part A (the structure table is part of the state and the hash). 8: M09 part B (structure effects on troop cap and gold, Defense Post price, conquest of structures, embargo flags). 9: M09 part C (level effects of Factory and Port, the 3-City Factory cap, the Port income cap). 10: Districts-1 (the district table in the state and the hash, three district intents, their effects on gold, troop cap, regeneration and the attacker's cell price). 11: M18-1 (the match end: win block in the config, result, hold timer and statistics in the state and the hash; the anti-snowball discount in the cell price). 12: Sim-Growth (spacing per type, City levels 1 to 10 with small steps and their own price and time, five district slots, lower Market gold). 13: Sim-Levels2 (unlimited levels up to 999, one upgrade price rule base * L for every type and district, concave level curves with asymptotes, conquest keeps 75 percent of a level). 14: M12a-1 (the helicopter and beachhead tables in the state and the hash, the ProduceHeli intent with its price, time and fleet cap, Los / Nav reachable from step). 15: M12a-2 (LaunchHeli and RecallHeli, the helicopter flight with fuel, terrain following and return). 16: M18c-1 (diplomacy: relations, proposals, betrayal cooldowns and embargo owners in the state and the hash, six intents, the attack ban between treaty parties, alliance trade; the M12a-3 landing track also raises the version on its own branch, the orchestrator sets the final value when the tracks are merged). */
+export const ENGINE_VERSION = 16;
 
 // Structural limits (not tunables): a seat is one byte on the wire (intents), so 255 seats at most; ownerId is a Uint16
 // (room for tribes after the players), a cell index must stay below 2^22.
@@ -172,6 +173,8 @@ export interface GameState {
   readonly helis: HeliTable;
   /** The beachheads of landed troops (M12a-1: game state, serialised and hashed; part 3 fills it). See src/sim/heliTable.ts. */
   readonly beachheads: BeachheadTable;
+  /** The diplomacy (M18c-1): relations, open proposals, betrayal cooldowns, embargo owners. Game state: serialised and hashed. See src/sim/diplomacyTable.ts and diplomacy.ts. */
+  readonly diplo: DiplomacyTable;
   /** The occluder layer and the lazy Los / Nav caches (M12a-1): NOT game state, never hashed or serialised, dropped by deserialize. See src/sim/env.ts and access.ts. */
   readonly env: SimEnv;
   /** Derived (see Grid): neighbours, weights, playable cells. */
@@ -294,6 +297,7 @@ export interface StateParts {
   readonly helis: HeliTable;
   readonly beachheads: BeachheadTable;
   readonly match: MatchState;
+  readonly diplo: DiplomacyTable;
   /** Present exactly when `header.config.homeRules` is on. */
   readonly home?: HomeRules | null;
   /** The occluder layer for the Los / Nav caches (absent = none; M12a-1). */
@@ -326,6 +330,7 @@ export function assembleState(parts: StateParts): GameState {
   parts.structures.rebuildIndex();
   parts.helis.rebuildIndex();
   parts.beachheads.rebuildIndex();
+  parts.diplo.rebuildPairs();
   rebuildAggregates(state);
   return state;
 }
@@ -399,6 +404,7 @@ export function createState(p: CreateStateParams): GameState {
     beachheads: new BeachheadTable(),
     env: new SimEnv(p.maxElev === undefined ? null : Int16Array.from(p.maxElev)),
     match: new MatchState(ownerSlots(p.seats)),
+    diplo: new DiplomacyTable(ownerSlots(p.seats)),
     home: p.countryMap !== undefined ? createHomeRules(p.countryMap, ownerSlots(p.seats)) : null,
   });
 }

@@ -383,6 +383,21 @@ const sv = {
   'sel.heli.queue': 'Bygger helikopter, {s} s kvar',
   'toast.heli.produced': 'En helikopter är klar.',
   'toast.heli.scrapped': 'Helikopterbygget skrotades.',
+  // M18c-1: refusals of the diplomacy intents (codes 80 to 93; the interface comes with M18c-2)
+  'reject.diplo.notPlayer': 'Du kan bara förhandla med andra nationer, inte med stammar.',
+  'reject.diplo.self': 'Du kan inte förhandla med dig själv.',
+  'reject.diplo.atPeace': 'Ni har redan vapenvila eller allians.',
+  'reject.diplo.allied': 'Ni är redan allierade.',
+  'reject.diplo.pending': 'Du har redan ett förslag till den nationen.',
+  'reject.diplo.noProposal': 'Det finns inget förslag att svara på (det kan ha löpt ut).',
+  'reject.diplo.cooldown': 'Du har brutit ett avtal nyligen och kan inte föreslå nya än.',
+  'reject.diplo.noTreaty': 'Ni har inget avtal att bryta.',
+  'reject.diplo.eliminated': 'Den nationen är utslagen.',
+  'reject.diplo.matchEnded': 'Matchen är slut.',
+  'reject.diplo.treatyBound': 'Du kan inte anfalla en nation du har vapenvila eller allians med. Bryt avtalet först.',
+  'reject.diplo.embargoSet': 'Du har redan ett embargo mot den nationen.',
+  'reject.diplo.embargoNone': 'Du har inget embargo mot den nationen att häva.',
+  'reject.diplo.full': 'Det finns för många öppna förslag just nu. Försök igen strax.',
 } as const;
 
 export type TextKey = keyof typeof sv;
@@ -755,6 +770,21 @@ const en: Record<TextKey, string> = {
   'sel.heli.queue': 'Building a helicopter, {s} s left',
   'toast.heli.produced': 'A helicopter is ready.',
   'toast.heli.scrapped': 'The helicopter under construction was scrapped.',
+  // M18c-1: refusals of the diplomacy intents (codes 80 to 93; the interface comes with M18c-2)
+  'reject.diplo.notPlayer': 'You can only negotiate with other nations, not with tribes.',
+  'reject.diplo.self': 'You cannot negotiate with yourself.',
+  'reject.diplo.atPeace': 'You already have a truce or an alliance.',
+  'reject.diplo.allied': 'You are already allied.',
+  'reject.diplo.pending': 'You already have a proposal to that nation.',
+  'reject.diplo.noProposal': 'There is no proposal to answer (it may have run out).',
+  'reject.diplo.cooldown': 'You broke a treaty recently and cannot propose new ones yet.',
+  'reject.diplo.noTreaty': 'You have no treaty to break.',
+  'reject.diplo.eliminated': 'That nation has been eliminated.',
+  'reject.diplo.matchEnded': 'The match is over.',
+  'reject.diplo.treatyBound': 'You cannot attack a nation you have a truce or an alliance with. Break the treaty first.',
+  'reject.diplo.embargoSet': 'You already have an embargo on that nation.',
+  'reject.diplo.embargoNone': 'You have no embargo on that nation to lift.',
+  'reject.diplo.full': 'There are too many open proposals right now. Try again shortly.',
 };
 
 /** The two tables, for the parity test and for tools. Treat as read-only. */

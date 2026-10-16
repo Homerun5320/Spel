@@ -25,7 +25,7 @@ export const MATCH_HEADER_FIELDS = [
 ] as const;
 export const MATCH_HEADER_WORDS = MATCH_HEADER_FIELDS.length;
 /** The per-seat blocks that follow the header words, `seats` values each, in order. */
-export const MATCH_SEAT_FIELDS = ['eliminated', 'capitalLost', 'landStd', 'score', 'peakLand', 'built', 'conquered', 'districts'] as const;
+export const MATCH_SEAT_FIELDS = ['eliminated', 'capitalLost', 'landStd', 'score', 'peakLand', 'built', 'conquered', 'districts', 'treaties', 'betrayals', 'relations'] as const;
 export type MatchSeatField = (typeof MATCH_SEAT_FIELDS)[number];
 
 /** Length of the packed array of a match with `seats` seats. */
@@ -41,7 +41,8 @@ export function matchPackedLength(seats: number): number {
  *  holdSeat        the player that currently meets the land requirement (-1 none); holdTicksLeft the ticks it must still hold (0 without one)
  *  requiredPct     the land share the land condition asks for NOW (the overtime curve applied)
  *  timeLeftTicks   ticks of play left until the score condition decides (0 when the match has no win rules, or it has ended)
- * Per seat: eliminated, capitalLost (0 / 1), landStd (weighted std-cells), score, and the statistics peakLand, built (structures), conquered (cells), districts.
+ * Per seat: eliminated, capitalLost (0 / 1), landStd (weighted std-cells), score, and the statistics peakLand, built (structures), conquered (cells), districts,
+ * and (M18c-1) treaties (entered), betrayals (treaties the seat broke) and relations (truces and alliances the seat has right now).
  */
 export interface MatchView {
   readonly seats: number;
@@ -66,6 +67,9 @@ export interface MatchView {
   readonly built: ReadonlyNumbers;
   readonly conquered: ReadonlyNumbers;
   readonly districts: ReadonlyNumbers;
+  readonly treaties: ReadonlyNumbers;
+  readonly betrayals: ReadonlyNumbers;
+  readonly relations: ReadonlyNumbers;
 }
 
 /** Writes the packed match view of a state into `out` (`matchPackedLength(seats)` long) using `scores` (seats + 1 long) as scratch. No other allocation. */
@@ -112,6 +116,12 @@ export function fillMatchView(state: GameState, out: Uint32Array, scores: Uint32
   for (let s = 0; s < seats; s++) out[at + s] = m.conquered[s + 1] as number;
   at += seats;
   for (let s = 0; s < seats; s++) out[at + s] = m.districts[s + 1] as number;
+  at += seats;
+  for (let s = 0; s < seats; s++) out[at + s] = m.treatiesMade[s + 1] as number;
+  at += seats;
+  for (let s = 0; s < seats; s++) out[at + s] = m.treatiesBroken[s + 1] as number;
+  at += seats;
+  for (let s = 0; s < seats; s++) out[at + s] = state.diplo.activeCountOf(s + 1, state.tick, players);
 }
 
 /** A read-only view over a packed array (shared memory: the owner of the array rewrites it, the view reads it live). */
@@ -167,5 +177,8 @@ export function matchViewOf(seats: number, p: Uint32Array): MatchView {
     built: block(5),
     conquered: block(6),
     districts: block(7),
+    treaties: block(8),
+    betrayals: block(9),
+    relations: block(10),
   };
 }

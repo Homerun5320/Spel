@@ -37,6 +37,7 @@ import {
   NO_OWNER,
   PHASE_PLAY,
   PHASE_SPAWN,
+  RELATION_WAR,
   attackBody,
   cancelAttackBody,
   nextBelow,
@@ -119,7 +120,7 @@ export function think(view: SimView, memory: AiMemory, rng: Uint32Array, inFligh
       // Retaliation: a nation at the war cap starts no war, but it answers the first neighbour that attacks it. The sim sets the
       // two forces against each other (a mutual attack, D85: both lose the smaller one), so the answer holds the aggressor's troops back.
       for (let o = 1; o <= view.seats; o++) {
-        if (o === owner || !view.attackRunning(o, owner) || coolingDown(memory, o, tick, AI_ATTACK_COOLDOWN_TICKS)) continue;
+        if (o === owner || !view.attackRunning(o, owner) || view.diplomacy.relation(seat, o - 1) !== RELATION_WAR || coolingDown(memory, o, tick, AI_ATTACK_COOLDOWN_TICKS)) continue;
         memory.lastAttack[o] = tick;
         return [attackBody(seat, o, jittered(AI_WAR_COMMIT_PCT, rng))];
       }
@@ -131,7 +132,8 @@ export function think(view: SimView, memory: AiMemory, rng: Uint32Array, inFligh
       const mine = stats.troopsQt[seat] as number;
       for (let o = 1; o <= view.seats; o++) {
         // A sliver (a single cell of contact, or a target left with fewer cells than AI_MIN_CONTACT_LENGTH) is gone before the intent runs, 2 ticks later.
-        if (o === owner || view.contactLength(owner, o) < AI_WAR_MIN_CONTACT_LENGTH || (stats.cells[o - 1] as number) < AI_MIN_CONTACT_LENGTH || coolingDown(memory, o, tick, AI_ATTACK_COOLDOWN_TICKS)) continue;
+        // A truce or an alliance (M18c-1) is respected: the sim refuses an Attack on a treaty party, and the AI never sends a refused one.
+        if (o === owner || view.diplomacy.relation(seat, o - 1) !== RELATION_WAR || view.contactLength(owner, o) < AI_WAR_MIN_CONTACT_LENGTH || (stats.cells[o - 1] as number) < AI_MIN_CONTACT_LENGTH || coolingDown(memory, o, tick, AI_ATTACK_COOLDOWN_TICKS)) continue;
         if (tick < AI_WAR_HUMAN_START_TICKS && memory.human[o - 1] === 1 && !view.attackRunning(o, owner)) continue;
         const theirs = stats.troopsQt[o - 1] as number;
         if (best === NO_OWNER || theirs < bestTroops) {

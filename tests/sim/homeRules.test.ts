@@ -175,7 +175,7 @@ describe('the trait cap of +-10 %', () => {
     const s = corridor(true);
     const bytes = serialize(s);
     const slots = 5; // seats + 1
-    const structureBytes = 16 + slots * 4 + slots * slots + 40 + 24 * slots + 16; // M12a-1: + the empty air block (16 bytes, between the home block and the structure block); M18-1: + the match block; M09 parts A and B: the (empty) structure block (with the embargo flags) sits between the home block and the checksum
+    const structureBytes = 16 + slots * 4 + slots * slots + 40 + 24 * slots + 16 + 16 + 12 * slots; // M18c-1: + the empty diplomacy block (16 + 12 per ownerId); M12a-1: + the empty air block (16 bytes, between the home block and the structure block); M18-1: + the match block; M09 parts A and B: the (empty) structure block (with the embargo flags) sits between the home block and the checksum
     const portAt = bytes.length - 4 - structureBytes - slots * 2 * 2; // the two u16 blocks end just before the structure block
     for (const [offset, value] of [[portAt + 2 * 2, 1101], [portAt + 2 * 2, 899], [portAt + slots * 2 + 3 * 2, 1500], [portAt + slots * 2 + 3 * 2, 0]] as const) {
       const bad = bytes.slice();

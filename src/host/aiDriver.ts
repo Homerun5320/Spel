@@ -6,7 +6,7 @@
 // M06: which seats are human is a parameter (default: seat 0 only), the first human seat is the anchor the AI places its capitals
 // around, and each AI seat draws from its own stream, so adding or removing one AI seat does not change what the others do with
 // their random numbers (D118).
-import { MEMORY_FIXED_WORDS, buildMove, createAiMemory, loadMemoryWords, memoryWords, think, type AiMemory } from '../ai';
+import { MEMORY_FIXED_WORDS, buildMove, createAiMemory, diplomacyMove, diplomacyWordCount, diplomacyWords, loadDiplomacyWords, loadMemoryWords, memoryWords, think, type AiMemory } from '../ai';
 import { RNG_WORDS, createRng } from '../sim/public';
 import type { SimView } from '../sim/view';
 import type { IntentBody } from '../sim/intents';
@@ -27,8 +27,8 @@ export interface AiDriverOptions {
   readonly build?: boolean;
 }
 
-/** Magic and version of the AI-state blob ('AIS' + 1). */
-const BLOB_MAGIC = 0x41495331;
+/** Magic and version of the AI-state blob ('AIS' + 2: M18c-1 added the diplomacy words of every memory). */
+const BLOB_MAGIC = 0x41495332;
 
 /** The seed of the random stream of one AI seat: a mix of the match seed and the seat (distinct for every seat of a match). */
 export function aiSeatSeed(seed: number, seat: number): number {
@@ -76,6 +76,7 @@ export class AiDriver implements TickDriver {
       }
       words.push(1);
       for (const w of memoryWords(mem)) words.push(w);
+      for (const w of diplomacyWords(mem)) words.push(w);
       for (const w of this.rngs[seat] as Uint32Array) words.push(w | 0);
     }
     return new Uint8Array(new Int32Array(words).buffer);
@@ -110,7 +111,7 @@ export class AiDriver implements TickDriver {
       const mem = m[seat];
       const present = words[q++] === 1;
       if (present !== (mem !== null && mem !== undefined)) return false;
-      if (mem !== null && mem !== undefined) q += MEMORY_FIXED_WORDS + mem.lastAttack.length + RNG_WORDS;
+      if (mem !== null && mem !== undefined) q += MEMORY_FIXED_WORDS + mem.lastAttack.length + diplomacyWordCount(mem) + RNG_WORDS;
     }
     if (q !== words.length) return false;
     this.sent = words[1] as number;
@@ -125,6 +126,9 @@ export class AiDriver implements TickDriver {
       const n = MEMORY_FIXED_WORDS + mem.lastAttack.length;
       loadMemoryWords(mem, words.subarray(p, p + n));
       p += n;
+      const nd = diplomacyWordCount(mem);
+      loadDiplomacyWords(mem, words.subarray(p, p + nd));
+      p += nd;
       const rng = this.rngs[seat] as Uint32Array;
       for (let k = 0; k < RNG_WORDS; k++) rng[k] = words[p++] as number;
     }
@@ -182,9 +186,10 @@ export class AiDriver implements TickDriver {
       const rng = this.rngs[seat] as Uint32Array;
       const out = think(view, memory, rng, cells);
       const built = this.build ? buildMove(view, memory, rng) : null;
-      const count = out.length + (built === null ? 0 : 1);
+      const talk = diplomacyMove(view, memory, rng);
+      const count = out.length + (built === null ? 0 : 1) + talk.length;
       for (let k = 0; k < count; k++) {
-        const body = k < out.length ? (out[k] as IntentBody) : (built as IntentBody);
+        const body = k < out.length ? (out[k] as IntentBody) : built !== null && k === out.length ? built : (talk[k - out.length - (built === null ? 0 : 1)] as IntentBody);
         if (body.kind === 'Spawn') {
           cells.push(body.cell);
           ticks.push(view.tick);

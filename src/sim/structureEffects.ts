@@ -5,6 +5,7 @@
 // only when the table changed (`effDirty`) or when a structure finishes (`effNextTick`), so the trade pairs are worked out on a change,
 // not every tick. The cache is a pure function of the table, the embargo flags and the tick, so a restored state recomputes the same.
 import { isqrt } from './detmath';
+import { RELATION_ALLIANCE } from './diplomacyTable';
 import {
   BARRACKS_REGEN_PCT_MAX,
   CAP_CITY_LEVEL_TROOPS,
@@ -187,7 +188,8 @@ function recompute(state: GameState): void {
       }
       for (let k = 0; k < n; k++) {
         const partnerOwner = t.owner[bestId[k] as number] as number;
-        trade += tradeMilliPerSec(isqrt(bestD2[k] as number), partnerOwner === o, t.embargoed(o, partnerOwner));
+        // Allied Ports trade as if they had one owner (M18c-1); an embargo beats everything.
+        trade += tradeMilliPerSec(isqrt(bestD2[k] as number), partnerOwner === o || state.diplo.relationOf(o, partnerOwner) === RELATION_ALLIANCE, t.embargoed(o, partnerOwner));
       }
       income += Math.floor((trade * portTradePctAt(portLevel)) / 100);
       if (income > PORT_INCOME_MAX_MILLI_PER_SEC) income = PORT_INCOME_MAX_MILLI_PER_SEC;

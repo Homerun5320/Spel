@@ -42,9 +42,9 @@ function refused(tamper: (s: GameState) => void, error = 'structure-range'): voi
 }
 
 describe('versions', () => {
-  it('ENGINE_VERSION is 15 (M12a-2: the flight; 14 after M12a-1) and FORMAT_VERSION is 12 (M12a-1: the air block; was 13 and 11 after Sim-Levels2, 12 and 10 after Sim-Growth)', () => {
-    expect(ENGINE_VERSION).toBe(15);
-    expect(FORMAT_VERSION).toBe(12);
+  it('ENGINE_VERSION is 16 (M18c-1: diplomacy; 15 after M12a-2) and FORMAT_VERSION is 13 (M18c-1: the diplomacy block; 12 after M12a-1: the air block; was 13 and 11 after Sim-Levels2, 12 and 10 after Sim-Growth)', () => {
+    expect(ENGINE_VERSION).toBe(16);
+    expect(FORMAT_VERSION).toBe(13);
   });
 });
 
@@ -139,7 +139,7 @@ describe('deserialize refuses a forged district block', () => {
   it('D08 a district count beyond 5 per live structure, and a count that does not match the bytes', () => {
     const st = base();
     const bytes = serialize(st);
-    const countAt = bytes.length - 4 - (40 + 24 * (st.header.seats + 1)) - 4 * 24 - 4; // M18-1: the match block sits between the districts and the checksum
+    const countAt = bytes.length - 4 - (16 + 12 * (st.header.seats + 1)) - (40 + 24 * (st.header.seats + 1)) - 4 * 24 - 4; // M18c-1: the diplomacy block sits between the match block and the checksum; M18-1: the match block sits between the districts and the checksum
     const view = (b: Uint8Array): DataView => new DataView(b.buffer);
     expect(view(bytes).getUint32(countAt, true)).toBe(4);
     const huge = bytes.slice();
@@ -156,7 +156,7 @@ describe('deserialize refuses a forged district block', () => {
   it('D09 districts out of order or twice (the records must ascend by id and slot)', () => {
     const st = base();
     const bytes = serialize(st);
-    const first = bytes.length - 4 - (40 + 24 * (st.header.seats + 1)) - 4 * 24;
+    const first = bytes.length - 4 - (16 + 12 * (st.header.seats + 1)) - (40 + 24 * (st.header.seats + 1)) - 4 * 24; // M18c-1: the diplomacy block sits before the checksum
     const view = (b: Uint8Array): DataView => new DataView(b.buffer);
     const swapped = bytes.slice();
     swapped.set(bytes.subarray(first, first + 24), first + 24);

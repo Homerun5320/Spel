@@ -11,6 +11,7 @@ import { step, type StepFn } from '../sim/step';
 import { MAX_SEATS, ownerSlots, type GameState } from '../sim/state';
 import { snapshotStructures, structureSignature } from './structureSnapshot';
 import { heliSignature, snapshotHelis } from './heliSnapshot';
+import { snapshotDiplomacy } from './diplomacySnapshot';
 import { StateView, attackPairs, fillSeatStats, statsLength, type SimView } from '../sim/view';
 import { fillMatchView, matchPackedLength } from '../sim/matchView';
 import { scheduledTurn } from '../sim/time';
@@ -27,6 +28,7 @@ import {
   type StateDiff,
   type Unsubscribe,
   type HeliSnapshot,
+  type DiplomacySnapshot,
   type StructureSnapshot,
   type ViewSnapshot,
 } from './protocol';
@@ -72,6 +74,8 @@ export class MainThreadHost implements SimHost {
   private lastStructSig = -1;
   /** The same for the helicopter table (M12a-1). */
   private lastHeliSig = -1;
+  /** The version of the diplomacy table in the last diff that carried it (-1 = none yet). */
+  private lastDiploVersion = -1;
   /** Reused for the statistics of every view (the snapshot gets a copy). */
   private readonly statsScratch: Uint32Array;
   private readonly driver: TickDriver | null;
@@ -223,7 +227,15 @@ export class MainThreadHost implements SimHost {
       terrain: full ? s.terrain.slice() : null,
       structures: full ? snapshotStructures(s.structures) : this.changedStructures(),
       helis: full ? snapshotHelis(s.helis, ownerSlots(s.header.seats)) : this.changedHelis(),
+      diplomacy: full ? snapshotDiplomacy(s.diplo) : this.changedDiplomacy(),
     };
+  }
+
+  /** The diplomacy table when it moved since the last diff that carried it, else null. */
+  private changedDiplomacy(): DiplomacySnapshot | null {
+    if (this.state.diplo.version === this.lastDiploVersion) return null;
+    this.lastDiploVersion = this.state.diplo.version;
+    return snapshotDiplomacy(this.state.diplo);
   }
 
   /** The helicopter table when it differs from the one the last diff carried, else null. */

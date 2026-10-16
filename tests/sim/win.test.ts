@@ -473,7 +473,7 @@ describe('serialisation of the match block', () => {
     const s = world(2, 2, only('land'));
     const bytes = serialize(s);
     // the first scalar of the block is winFlags: 40 + 24 * 3 bytes before the checksum
-    const blockStart = bytes.length - 4 - (40 + 24 * 3);
+    const blockStart = bytes.length - 4 - (16 + 12 * 3) - (40 + 24 * 3); // M18c-1: the diplomacy block (16 + 12 per ownerId) sits after the match block
     const bad = bytes.slice();
     new DataView(bad.buffer).setUint32(blockStart + 20, 1, true); // a winner before the end
     const res = deserialize(bad);
