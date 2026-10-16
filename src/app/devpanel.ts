@@ -213,10 +213,8 @@ export function mountDevPanel(opts: DevPanelOptions): DevPanel {
   const toggle = (): void => (panel.hidden ? open() : close());
   button.addEventListener('click', toggle);
   const onKey = (e: KeyboardEvent): void => {
-    if (e.key === 'F2') {
-      e.preventDefault();
-      toggle();
-    } else if (e.key === 'Escape' && !panel.hidden) {
+    // F2 is an entry of the hotkey registry (src/app/hotkeys.ts), which asks this panel through DEV_PANEL_REQUEST_EVENT; Escape closing the open panel stays here (documented exception).
+    if (e.key === 'Escape' && !panel.hidden) {
       e.preventDefault(); // this Escape was the panel's: a screen behind it (the setup) must not also react
       close();
     }

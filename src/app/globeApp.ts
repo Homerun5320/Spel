@@ -19,7 +19,7 @@ import { STRUCTURE_MODELS } from '../render/structureModels';
 import type { DrawnStructure } from '../render/structures';
 import type { DrawnDistrict } from '../render/districts';
 import { setBookmarkHandler } from './bookmarks';
-import { InputStack, attachDomInput, attachDomKeys, createBaseMode, setContextHandler, setPauseHandler, type ContextHandler, type InputTarget } from './input';
+import { InputStack, attachDomInput, createBaseMode, setContextHandler, setPauseHandler, type ContextCommand, type ContextHandler, type InputTarget } from './input';
 import { isQualityTier, resolveQualityChoice } from '../render/quality';
 import type { TerrainMode } from '../render/terrainMaterial';
 import { FrameStats } from '../ui/frameStats';
@@ -31,6 +31,8 @@ import { createBuildBar, type BuildBar } from '../ui/buildBar';
 import { buildRejectKey, spawnPhaseBlocks } from '../ui/buildReasons';
 import { REJECT_PHASE } from '../ui/hudCodes';
 import { mountToasts, showToast, tickToasts, visibleToastKeys } from '../ui/toast';
+import { createHelpOverlay, type HelpOverlay } from '../ui/helpOverlay';
+import { attachHotkeys, hotkeys, registerGameHotkeys } from './hotkeys';
 import { createPlacementMode, type PlacementMode, type PlacementState } from './placement';
 import { STRUCT_CITY, buildBody, buildDistrictBody, deleteBody, removeDistrictBody, upgradeBody, upgradeDistrictBody, validateBuild } from '../sim/public';
 import { createCityViewPanel, type CityViewPanel } from '../ui/cityViewPanel';
@@ -67,8 +69,8 @@ import { DEBUG_GIVE_MAX, REJECT_NOT_SPAWNED } from '../sim/intents';
 import { seatToOwner } from '../sim/state';
 import type { IntentBody } from '../sim/intents';
 import { clickMeaning, resolveClickCell } from './clickTarget';
+import { resolveCommand, type CommandSelection, type CommandTarget } from './commandResolver';
 import { MatchSession, winForPlay } from './match';
-import { matchKeyAction } from './matchKeys';
 import { adaptiveEnabled, type AppParams, type AppState, type SceneParams } from './params';
 import { siteUrl } from './paths';
 import { countryNameMap, tooltipText } from './tooltip';
@@ -498,6 +500,8 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   // screen's Start has built a match with `createMatch`. The UI below only sends intents (`session.submit`) and reads `session.view`.
   let session = null as MatchSession | null;
   let hud = null as MatchHud | null;
+  let help = null as HelpOverlay | null;
+  let helpMode = null as InputMode | null;
   let buildBar = null as BuildBar | null;
   let buildRoot = null as HTMLElement | null;
   let buildBarWanted = false;
@@ -683,6 +687,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     });
     hud = createMatchHud(wrapper, { setCommit: (p) => s.setCommit(p), setSpeed: (sp) => s.setSpeed(sp), togglePause: () => s.togglePause() }, { seatColor, labels: s.labels });
     hud.setVisible(!params.test || ctx.state.raw.hud === '1'); // test mode hides it (the globe goldens), `#hud` / `?hud=1` shows it
+    help = createHelpOverlay(wrapper, () => hotkeys.listed()); // generated from the registry (M20a-lite)
     // The build bar (M10): its own layer over the canvas, shown with the HUD and once you have spawned.
     buildRoot = document.createElement('div');
     buildRoot.className = 'hud-root';
@@ -858,29 +863,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       terrainLine(),
     ].join('\n');
   };
-  window.addEventListener(
-    'keydown',
-    (e: KeyboardEvent) => {
-      if (e.key === 'F3') {
-        e.preventDefault();
-        overlay.hidden = !overlay.hidden;
-        if (!overlay.hidden) refreshOverlay();
-        return;
-      }
-      const t = e.target instanceof HTMLElement ? e.target : null;
-      // The reserved keys (1 to 6, E, H, F, Escape) belong to the input stack: `attachDomKeys` below hands them to it, and the match keys never bind them.
-      if (session === null || keysBlockedByModal()) return;
-      const action = matchKeyAction({ key: e.key, code: e.code, ctrlKey: e.ctrlKey, altKey: e.altKey, metaKey: e.metaKey, repeat: e.repeat, targetTag: t?.tagName, targetType: t instanceof HTMLInputElement ? t.type : undefined });
-      if (action === null) return;
-      e.preventDefault();
-      if (action === 'commit-down') session.adjustCommit(-1);
-      else if (action === 'commit-up') session.adjustCommit(1);
-      else if (action === 'pause') session.togglePause();
-      else if (action === 'slower') session.slower();
-      else session.faster();
-    },
-    { signal },
-  );
+  // The keys: see the registry below (`registerGameHotkeys`, src/app/hotkeys.ts); the F3 overlay is one of its entries.
 
   // --- Performance overlay (?perf=1 / #perf) ------------------------------------------------------------------------
   const isPerfScene = ctx.scene.scene === 'perf';
@@ -975,6 +958,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     abort.abort();
     perf?.dispose();
     hud?.dispose();
+    help?.dispose();
     buildBar?.dispose();
     buildRoot?.remove();
     unmountToasts();
@@ -1104,6 +1088,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
         selectPanel?.update(null, false);
       },
       exit: exitSelection,
+      context: (_id, cmd) => runContext(cmd),
       again: (hit) => {
         // a second click on the selected own City inside CITY_VIEW.doubleClickMs opens the city view
         const now = performance.now();
@@ -1127,6 +1112,69 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     if (id < 0) return false;
     selectStructure(id);
     return true;
+  };
+  /**
+   * A right click (or a long press) without a drag: asked of the command resolver (src/app/commandResolver.ts, M20a-lite) with what is marked and what is
+   * under the cursor. The selection mode passes it on while a structure is selected; with an empty stack the base mode calls it through `setContextHandler`.
+   * The placement mode takes its own right click (it leaves the mode, no intent).
+   */
+  const runContext = (cmd: ContextCommand): void => {
+    const sess = session;
+    if (sess === null || setupScreen !== null) return;
+    const pick = globe.pick(cmd.x, cmd.y);
+    if (pick === null) return;
+    const v = sess.view;
+    const cell = resolveClickCell(pick, v.terrainClass, v.width, v.height);
+    const sel: CommandSelection = { structure: selectedId, structureType: selectedId >= 0 ? (v.structures.type[selectedId] as number) : 0, placing };
+    const target: CommandTarget = { cell, terrainClass: v.terrainClass[cell] as number, owner: v.owner[cell] as number, ownStructure: structureAtCell(cell) };
+    const command = resolveCommand('context', sel, target, { localOwner: sess.localOwner, spawned: (v.stats.capital[sess.localSeat] as number) !== 0, spawnPhase: v.phase === PHASE_SPAWN });
+    switch (command.kind) {
+      case 'attack':
+        sess.attack(command.target);
+        break;
+      case 'build':
+        sess.submit(buildBody(sess.localSeat, command.type, command.cell));
+        break;
+      case 'deselect':
+        exitSelection();
+        break;
+      case 'select':
+        selectStructure(command.structure);
+        break;
+      case 'invalid':
+        if (command.reason === 'unplayable') hud?.toast(notConquerableText(), fxNow());
+        else if (command.reason === 'not-spawned') hud?.toast(rejectText(REJECT_NOT_SPAWNED), fxNow());
+        else showToast('toast.cmd.notOwnGround', {}, 'error');
+        break;
+      case 'none':
+        break;
+    }
+  };
+  setContextHandler(runContext);
+  // --- The help overlay (`?`, M20a-lite): an input mode while it is open, so Escape (or a click) closes it and no other mode sees the keys ------------------
+  const closeHelp = (): void => {
+    if (helpMode !== null && inputStack.top === helpMode) inputStack.pop();
+  };
+  const toggleHelp = (): void => {
+    if (session === null || help === null) return;
+    if (helpMode !== null) {
+      closeHelp();
+      return;
+    }
+    const mode: InputMode = {
+      id: 'help',
+      onPop: () => {
+        help?.close();
+        helpMode = null;
+      },
+      key: () => true, // the reserved keys do nothing behind the overlay
+      click: () => (closeHelp(), true),
+      context: () => (closeHelp(), true),
+      longPress: () => (closeHelp(), true),
+    };
+    helpMode = mode;
+    help.open();
+    inputStack.push(mode);
   };
   // --- Placement (M10): key 1 or the build button pushes the placement mode; the ghost is the layer's, the rules are the sim's (validateBuild) --------------
   const exitPlacement = (): void => {
@@ -1161,8 +1209,25 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     placementMode = mode;
     inputStack.push(mode);
   };
-  // The reserved keys go to the stack while a match is on (the setup screen and the menus own the keyboard before it).
-  attachDomKeys(window, inputStack, () => setupScreen === null && session !== null, signal, keysBlockedByModal);
+  // Every game key is an entry of the registry (src/app/hotkeys.ts); the reserved keys are handed to the stack while a match is on (the setup screen and the menus own the keyboard before it).
+  hotkeys.context = { matchOn: () => setupScreen === null && session !== null, modalOpen: keysBlockedByModal };
+  registerGameHotkeys(
+    hotkeys,
+    {
+      stack: inputStack,
+      toggleOverlay: () => {
+        overlay.hidden = !overlay.hidden;
+        if (!overlay.hidden) refreshOverlay();
+      },
+      commit: (dir) => session?.adjustCommit(dir),
+      togglePause: () => session?.togglePause(),
+      slower: () => session?.slower(),
+      faster: () => session?.faster(),
+      toggleHelp: () => toggleHelp(),
+    },
+    signal,
+  );
+  attachHotkeys(window);
   let inputOn = false;
   const attachInput = (): void => {
     if (inputOn) return;

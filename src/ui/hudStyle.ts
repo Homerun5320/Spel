@@ -1,7 +1,7 @@
 // The style sheet of the match HUD and the start screen, built from the tokens in uiConfig.ts. One <style> element per root; the
 // classes are prefixed `hud-` / `start-`. No transitions or animations (CSS time is not the fx clock; tests/fxClock.test.ts
 // forbids them): every visible change is a state change driven from JS.
-import { CITY_VIEW, GPU_TIP, MATCH_PANELS, NARROW_MAX_PX, HUD_FONT_BIAS_PX, HUD_FONT_MAX_PX, HUD_FONT_MIN_PX, HUD_FONT_VW, SETUP_PANEL_EM, SETUP_SHEET_VH, TARGET_MIN_PX, UI_COLORS as C, Z_HUD, Z_SETUP, Z_START_SCREEN } from './uiConfig';
+import { CITY_VIEW, GPU_TIP, HELP_OVERLAY, MATCH_PANELS, NARROW_MAX_PX, HUD_FONT_BIAS_PX, HUD_FONT_MAX_PX, HUD_FONT_MIN_PX, HUD_FONT_VW, SETUP_PANEL_EM, SETUP_SHEET_VH, TARGET_MIN_PX, UI_COLORS as C, Z_HUD, Z_SETUP, Z_START_SCREEN } from './uiConfig';
 
 export function hudCss(): string {
   const fontSize = `clamp(${HUD_FONT_MIN_PX}px, calc(${HUD_FONT_VW}vw + ${HUD_FONT_BIAS_PX}px), ${HUD_FONT_MAX_PX}px)`;
@@ -297,6 +297,15 @@ export function hudCss(): string {
 .mp-table tr[data-eliminated="1"] td { color: ${C.textDim}; }
 .mp-spectator { position: absolute; left: 50%; top: 6em; transform: translateX(-50%); width: max-content; max-width: calc(100% - 1.2em); justify-content: center; pointer-events: auto; display: flex; align-items: center; gap: 0.35em; flex-wrap: wrap; background: ${C.panel}; border: 1px solid ${C.panelBorder}; border-radius: 0.6em; padding: 0.3em 0.5em; }
 .mp-badge { font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: ${C.barWarning}; padding: 0 0.4em; }
+/* M20a-lite: the help overlay (generated from the hotkey registry) */
+.help-overlay { position: absolute; inset: 0; z-index: ${HELP_OVERLAY.z}; pointer-events: none; display: flex; align-items: center; justify-content: center; font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; font-size: ${fontSize}; line-height: 1.3; color: ${C.text}; box-sizing: border-box; padding: 0.6em; }
+.help-overlay *, .help-overlay *::before { box-sizing: border-box; }
+.help-overlay[hidden] { display: none !important; }
+.help-card { pointer-events: auto; width: ${HELP_OVERLAY.widthEm}em; max-width: 100%; max-height: 100%; overflow: auto; background: ${C.panel}; border: 1px solid ${C.panelBorder}; border-radius: 0.8em; box-shadow: 0 0.3em 1.4em rgba(0, 0, 0, 0.6); padding: 0.6em 0.9em 0.7em; }
+.help-title { font-size: 1.15em; font-weight: 800; margin-bottom: 0.3em; }
+.help-row { display: grid; grid-template-columns: ${HELP_OVERLAY.keyColEm}em 1fr; column-gap: 0.7em; align-items: baseline; min-height: 1.6em; }
+.help-keys { font: inherit; font-weight: 700; font-variant-numeric: tabular-nums; color: ${C.accent}; white-space: nowrap; }
+.help-hint { margin-top: 0.4em; color: ${C.textDim}; font-size: 0.85em; }
 @media (max-width: ${NARROW_MAX_PX}px), (max-aspect-ratio: 1/1) {
   .mp-spectator { top: ${MATCH_PANELS.spectatorTopNarrowEm}em; }
   .mp-table th, .mp-table td { padding: 0.3em 0.25em; }

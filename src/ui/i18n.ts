@@ -336,6 +336,22 @@ const sv = {
   'toast.eliminated': '{names} är utslagen',
   'toast.capitalLost': '{names} förlorade huvudstaden',
   'toast.structuresSimplified': 'Många byggnader: de längst bort visas som enkla ikoner',
+  // M20a-lite: the hotkey help (`?`), commands and the top bar
+  'help.title': 'Genvägar',
+  'help.hint': 'Tryck ? eller Esc för att stänga',
+  'hotkey.key.space': 'Mellanslag',
+  'hotkey.focus': 'Flyg till din huvudstad',
+  'hotkey.build': 'Bygg (1 stad, 2 fabrik, 3 hamn ...)',
+  'hotkey.escape': 'Avbryt läge, annars pausmenyn',
+  'hotkey.pause': 'Paus',
+  'hotkey.slower': 'Långsammare',
+  'hotkey.faster': 'Snabbare',
+  'hotkey.commitDown': 'Skicka mindre trupper',
+  'hotkey.commitUp': 'Skicka fler trupper',
+  'hotkey.help': 'Visa eller dölj genvägar',
+  'hotkey.overlay': 'Prestandaruta',
+  'hotkey.devpanel': 'Utvecklarpanelen',
+  'toast.cmd.notOwnGround': 'Du kan bara bygga på din egen mark.',
 } as const;
 
 export type TextKey = keyof typeof sv;
@@ -662,6 +678,21 @@ const en: Record<TextKey, string> = {
   'toast.eliminated': '{names} was eliminated',
   'toast.capitalLost': '{names} lost the capital',
   'toast.structuresSimplified': 'Many buildings: the farthest ones are shown as simple icons',
+  'help.title': 'Shortcuts',
+  'help.hint': 'Press ? or Esc to close',
+  'hotkey.key.space': 'Space',
+  'hotkey.focus': 'Fly to your capital',
+  'hotkey.build': 'Build (1 city, 2 factory, 3 port ...)',
+  'hotkey.escape': 'Cancel a mode, otherwise the pause menu',
+  'hotkey.pause': 'Pause',
+  'hotkey.slower': 'Slower',
+  'hotkey.faster': 'Faster',
+  'hotkey.commitDown': 'Send fewer troops',
+  'hotkey.commitUp': 'Send more troops',
+  'hotkey.help': 'Show or hide the shortcuts',
+  'hotkey.overlay': 'Performance box',
+  'hotkey.devpanel': 'Developer panel',
+  'toast.cmd.notOwnGround': 'You can only build on your own land.',
 };
 
 /** The two tables, for the parity test and for tools. Treat as read-only. */

@@ -39,6 +39,9 @@ export const Z_HUD = 20;
 export const Z_START_SCREEN = 30;
 export const Z_SETUP = 30;
 
+/** M20a-lite: the help overlay (above the HUD, below the match panels, which are at MATCH_PANELS.z 36). */
+export const HELP_OVERLAY = { z: 34, widthEm: 24, keyColEm: 5.5 } as const;
+
 /** Sizes. The HUD is built in `em`; the root font size follows the window width between these limits (960 px -> about 16 px, 1920 px -> 22 px). */
 export const HUD_FONT_MIN_PX = 14;
 export const HUD_FONT_MAX_PX = 22;
