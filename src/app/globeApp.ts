@@ -48,7 +48,7 @@ import { applyStartLanguage } from './langPref';
 import { getPref, setPref } from './prefs';
 import { rememberCityStyle, startCityStyle } from './cityStyle';
 import type { CityStyle } from '../render/cityTiers';
-import { createMatch, defaultWinConfig, type BuiltMatch, type MatchSetupConfig } from './matchSetup';
+import { createMatch, type BuiltMatch, type MatchSetupConfig } from './matchSetup';
 import { countryEligibility } from './eligibility';
 import { regionMask, type RegionId } from '../data/regions';
 import { prepareWorld, type PreparedWorld } from './matchWorld';
@@ -66,7 +66,7 @@ import { REJECT_NOT_SPAWNED } from '../sim/intents';
 import { seatToOwner } from '../sim/state';
 import type { IntentBody } from '../sim/intents';
 import { clickMeaning, resolveClickCell } from './clickTarget';
-import { MatchSession } from './match';
+import { MatchSession, winForPlay } from './match';
 import { matchKeyAction } from './matchKeys';
 import { adaptiveEnabled, type AppParams, type AppState, type SceneParams } from './params';
 import { siteUrl } from './paths';
@@ -697,7 +697,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     if (session !== null) return;
     const s = await MatchSession.create(
       { width: world.sim.width, height: world.sim.height, terrainClass: world.sim.terrainClass, meanElev: world.sim.meanElev, cosQ15: world.meta.sim.cosQ15 },
-      { seed: params.seed, debugIntents: params.test, interpolate: !params.test, ai: ctx.state.raw.ai !== '0', ...(params.test ? {} : { win: defaultWinConfig('world') }) },
+      { seed: params.seed, debugIntents: params.test, interpolate: !params.test, ai: ctx.state.raw.ai !== '0', win: winForPlay(params.test) },
     );
     if (!alive) {
       s.dispose();

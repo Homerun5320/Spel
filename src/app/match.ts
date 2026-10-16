@@ -14,7 +14,7 @@ import { scheduledTurn } from '../sim/time';
 import { createSimWorld, createWorldState, type SimWorldInput } from '../sim/world';
 import type { SeatLabels } from '../ui/seatLabels';
 import type { WinConfig } from '../sim/public';
-import type { BuiltMatch } from './matchSetup';
+import { defaultWinConfig, type BuiltMatch } from './matchSetup';
 import { COMMIT_DEFAULT_PCT, COMMIT_MAX_PCT, COMMIT_MIN_PCT, COMMIT_STEP_PCT, SPEED_STEPS } from '../ui/uiConfig';
 import { StatInterpolator } from '../ui/hudValues';
 
@@ -32,7 +32,12 @@ export interface MatchOptions {
   /** The AI nations and the tribes act (default true). `?ai=0` / `#ai-0` turns them off: the 25 other seats stay empty, as in the first M05 parts' tests. */
   readonly ai?: boolean;
   /** M18-2: the win conditions of the match (the live page passes the defaults; `?test=1` passes none, so the tests' matches never end). */
-  readonly win?: WinConfig;
+  readonly win?: WinConfig | undefined;
+}
+
+/** The win block of the plain Play match: the defaults of the world outside test mode, none in test mode (so the tests' matches never end). */
+export function winForPlay(test: boolean): WinConfig | undefined {
+  return test ? undefined : defaultWinConfig('world');
 }
 
 /** The options of a match built by the setup screen (`createMatch`): the state is already placed, so only the live-page switches remain. */
