@@ -2,7 +2,7 @@
 // the same number is an error), so every accepted byte string has exactly one meaning and re-encodes to itself.
 //
 //   intent  = kind:u8  seat:u8  id:varint  [payload]
-//     payload: DebugPaint and Spawn: cell:varint;  Attack: target:varint pct:varint;  CancelAttack: target:varint;  DebugGive: gold:varint troops:varint;  Build: type:varint cell:varint;  Upgrade and Delete: structure:varint;  BuildDistrict: structure:varint slot:varint districtKind:varint;  UpgradeDistrict and RemoveDistrict: structure:varint slot:varint;  Noop: none
+//     payload: DebugPaint and Spawn: cell:varint;  Attack: target:varint pct:varint;  CancelAttack: target:varint;  DebugGive: gold:varint troops:varint;  Build: type:varint cell:varint;  Upgrade and Delete: structure:varint;  BuildDistrict: structure:varint slot:varint districtKind:varint;  UpgradeDistrict and RemoveDistrict: structure:varint slot:varint;  ProduceHeli: factory:varint;  Noop: none
 //   turn    = turn:varint  count:varint  intent*count
 //
 // Decoding is total: any bytes give either a value or an error result; nothing throws. The decoder checks only what the
@@ -60,6 +60,8 @@ function intentSize(i: Intent): number {
     case 'Upgrade':
     case 'Delete':
       return head + varintSize(i.structure);
+    case 'ProduceHeli':
+      return head + varintSize(i.factory);
     case 'BuildDistrict':
       return head + varintSize(i.structure) + varintSize(i.slot) + varintSize(i.districtKind);
     case 'UpgradeDistrict':
@@ -86,6 +88,7 @@ function putIntent(out: Uint8Array, at: number, i: Intent): number {
     p = putVarint(out, p, i.type);
     p = putVarint(out, p, i.cell);
   } else if (i.kind === 'Upgrade' || i.kind === 'Delete') p = putVarint(out, p, i.structure);
+  else if (i.kind === 'ProduceHeli') p = putVarint(out, p, i.factory);
   else if (i.kind === 'BuildDistrict') {
     p = putVarint(out, p, i.structure);
     p = putVarint(out, p, i.slot);
@@ -113,6 +116,8 @@ function payloadEncodable(i: Intent): boolean {
     case 'Upgrade':
     case 'Delete':
       return isU32(i.structure);
+    case 'ProduceHeli':
+      return isU32(i.factory);
     case 'BuildDistrict':
       return isU32(i.structure) && isU32(i.slot) && isU32(i.districtKind);
     case 'UpgradeDistrict':
@@ -226,6 +231,10 @@ class Reader {
     if (kind === 'Upgrade' || kind === 'Delete') {
       const structure = this.varint();
       return this.error === null ? { kind, seat, id, structure } : null;
+    }
+    if (kind === 'ProduceHeli') {
+      const factory = this.varint();
+      return this.error === null ? { kind, seat, id, factory } : null;
     }
     if (kind === 'BuildDistrict') {
       const structure = this.varint();

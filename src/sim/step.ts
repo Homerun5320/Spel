@@ -16,6 +16,7 @@ import { OUTBOX_REJECT } from './outbox';
 import { nextU32 } from './rng';
 import { applySpawn } from './spawn';
 import { applyBuildDistrict, applyRemoveDistrict, applyUpgradeDistrict } from './districts';
+import { applyProduceHeli, heliPhase } from './heliPhase';
 import { applyBuild, applyDelete, applyUpgrade, structuresPhase } from './structures';
 import { seatToOwner, type GameState } from './state';
 import { setOwner } from './territory';
@@ -61,6 +62,8 @@ export function applyIntent(state: GameState, intent: Intent): number {
       return applyUpgradeDistrict(state, intent.seat, intent.structure, intent.slot);
     case 'RemoveDistrict':
       return applyRemoveDistrict(state, intent.seat, intent.structure, intent.slot);
+    case 'ProduceHeli':
+      return applyProduceHeli(state, intent.seat, intent.factory);
     default:
       return REJECT_NONE;
   }
@@ -112,11 +115,12 @@ export function step(state: GameState, turn: TurnIntents): StepResult {
       applied++;
     }
   }
-  // Phases of a tick: 1 intents (above), 2 conquest, 3 enclaves, 4 economy, 5 structures (finished upgrades), 6 the generator, 7 the tick, 8 the match end (peak land, elimination, win conditions; M18-1).
+  // Phases of a tick: 1 intents (above), 2 conquest, 3 enclaves, 4 economy, 5 structures (finished upgrades), 5b helicopters (finished production; M12a-1), 6 the generator, 7 the tick, 8 the match end (peak land, elimination, win conditions; M18-1).
   conquestPhase(state);
   enclavePhase(state);
   economyTick(state);
   structuresPhase(state);
+  heliPhase(state);
   if (rejected > 0) state.rejects = (state.rejects + rejected) >>> 0;
   nextU32(state.rng);
   state.tick = (state.tick + 1) >>> 0;

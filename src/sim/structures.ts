@@ -24,6 +24,7 @@ import {
 } from './structureRules';
 import { seatToOwner, type GameState } from './state';
 import { STRUCT_CITY, STRUCT_FACTORY, STRUCT_PORT } from './structureRules';
+import { scrapFactoryHelis } from './heliPhase';
 
 export class StructureTable implements StructureView, DistrictView {
   readonly capacity = STRUCT_CAPACITY;
@@ -371,6 +372,7 @@ export function applyDelete(state: GameState, seat: number, id: number): number 
   if (spawnPhaseRefuses(state)) return REJECT_PHASE;
   const why = checkDelete(state.structures, state.tick, seat, id);
   if (why !== REJECT_NONE) return why;
+  if (state.structures.type[id] === STRUCT_FACTORY) scrapFactoryHelis(state, id);
   state.structures.remove(id);
   state.structures.deleteReady[seatToOwner(seat)] = state.tick + DELETE_COOLDOWN_TICKS;
   return REJECT_NONE;
@@ -409,6 +411,8 @@ export function structureCellChanged(state: GameState, cell: number, newOwner: n
   const id = (t.byCell[cell] as number) - 1;
   if (id < 0) return;
   const type = t.type[id] as number;
+  // M12a-1 (provisional): a Factory that changes hands or is destroyed scraps the helicopters queued or parked in it, without a refund.
+  if (type === STRUCT_FACTORY) scrapFactoryHelis(state, id);
   if (newOwner !== 0 && (type === STRUCT_CITY || type === STRUCT_FACTORY || type === STRUCT_PORT)) {
     const level = t.level[id] as number;
     const newLevel = levelAfterConquest(level);

@@ -71,7 +71,7 @@ export function synthWorld(spec: SynthSpec): WorldData {
     };
   });
   return {
-    sim: { width, height, terrainClass: terrain, meanElev: new Int16Array(n), cosQ15: new Array<number>(height).fill(32768) },
+    sim: { width, height, terrainClass: terrain, meanElev: new Int16Array(n), maxElev: new Int16Array(n), cosQ15: new Array<number>(height).fill(32768) },
     country,
     coast: new Uint8Array(n),
     meta: { countries },

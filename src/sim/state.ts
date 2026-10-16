@@ -5,6 +5,8 @@
 import { AttackTable } from './attacks';
 import { BorderIndex } from './borders';
 import { EnclaveQueues } from './enclaveQueue';
+import { SimEnv } from './env';
+import { BeachheadTable, HeliTable } from './heliTable';
 import { Grid, rowCosFromLut } from './grid';
 import { foldBytes, foldU16, finishHash, FNV_OFFSET } from './hash';
 import { createHomeRules, type HomeRules } from './homeRules';
@@ -15,8 +17,8 @@ import { createRng } from './rng';
 import { WEIGHT_ONE } from './rules';
 import { WorkCounters } from './work';
 
-/** Bumped whenever a rule, a constant in rules.ts or the meaning of a state array changes. Part of the match header. 2: M04 (economy, Spawn, owner arrays). 3: M04 conquest (attacks, enclaves, calibrated constants). 4: M04 fix pass (the exposure array, the enclave candidate rule). 5: the M05 audit (terrain slows the capture, K 123). 6: the tempo pass, D142 (capture K 123 -> 420, troop regeneration 8 + 0.35 sqrt(T) -> 24 + 1.0 sqrt(T)). 7: M09 part A (the structure table is part of the state and the hash). 8: M09 part B (structure effects on troop cap and gold, Defense Post price, conquest of structures, embargo flags). 9: M09 part C (level effects of Factory and Port, the 3-City Factory cap, the Port income cap). 10: Districts-1 (the district table in the state and the hash, three district intents, their effects on gold, troop cap, regeneration and the attacker's cell price). 11: M18-1 (the match end: win block in the config, result, hold timer and statistics in the state and the hash; the anti-snowball discount in the cell price). 12: Sim-Growth (spacing per type, City levels 1 to 10 with small steps and their own price and time, five district slots, lower Market gold). 13: Sim-Levels2 (unlimited levels up to 999, one upgrade price rule base * L for every type and district, concave level curves with asymptotes, conquest keeps 75 percent of a level). */
-export const ENGINE_VERSION = 13;
+/** Bumped whenever a rule, a constant in rules.ts or the meaning of a state array changes. Part of the match header. 2: M04 (economy, Spawn, owner arrays). 3: M04 conquest (attacks, enclaves, calibrated constants). 4: M04 fix pass (the exposure array, the enclave candidate rule). 5: the M05 audit (terrain slows the capture, K 123). 6: the tempo pass, D142 (capture K 123 -> 420, troop regeneration 8 + 0.35 sqrt(T) -> 24 + 1.0 sqrt(T)). 7: M09 part A (the structure table is part of the state and the hash). 8: M09 part B (structure effects on troop cap and gold, Defense Post price, conquest of structures, embargo flags). 9: M09 part C (level effects of Factory and Port, the 3-City Factory cap, the Port income cap). 10: Districts-1 (the district table in the state and the hash, three district intents, their effects on gold, troop cap, regeneration and the attacker's cell price). 11: M18-1 (the match end: win block in the config, result, hold timer and statistics in the state and the hash; the anti-snowball discount in the cell price). 12: Sim-Growth (spacing per type, City levels 1 to 10 with small steps and their own price and time, five district slots, lower Market gold). 13: Sim-Levels2 (unlimited levels up to 999, one upgrade price rule base * L for every type and district, concave level curves with asymptotes, conquest keeps 75 percent of a level). 14: M12a-1 (the helicopter and beachhead tables in the state and the hash, the ProduceHeli intent with its price, time and fleet cap, Los / Nav reachable from step). */
+export const ENGINE_VERSION = 14;
 
 // Structural limits (not tunables): a seat is one byte on the wire (intents), so 255 seats at most; ownerId is a Uint16
 // (room for tribes after the players), a cell index must stay below 2^22.
@@ -166,6 +168,12 @@ export interface GameState {
   readonly enclaves: EnclaveQueues;
   /** The structures (M09 part A: game state, serialised and hashed; the per-cell index and the counts are derived). See src/sim/structures.ts. */
   readonly structures: StructureTable;
+  /** The helicopters (M12a-1: game state, serialised and hashed; the per-owner counts are derived). See src/sim/heliTable.ts. */
+  readonly helis: HeliTable;
+  /** The beachheads of landed troops (M12a-1: game state, serialised and hashed; part 3 fills it). See src/sim/heliTable.ts. */
+  readonly beachheads: BeachheadTable;
+  /** The occluder layer and the lazy Los / Nav caches (M12a-1): NOT game state, never hashed or serialised, dropped by deserialize. See src/sim/env.ts and access.ts. */
+  readonly env: SimEnv;
   /** Derived (see Grid): neighbours, weights, playable cells. */
   readonly grid: Grid;
   /** Derived (see Aggregates). */
@@ -237,6 +245,8 @@ export interface CreateStateParams {
   readonly mapHash?: number;
   /** The country id of every cell, `width * height` long (copied). Required exactly when `config.homeRules` is true (then every seat starts without a home land and with neutral traits). */
   readonly countryMap?: ArrayLike<number>;
+  /** The real maximum elevation per cell in metres (the occluder layer of the Los / Nav queries), `width * height` long, copied. Not part of the map hash; absent = Los / Nav questions throw. */
+  readonly maxElev?: ArrayLike<number>;
 }
 
 /** Hash of a world (terrain and elevation). */
@@ -281,9 +291,13 @@ export interface StateParts {
   readonly attacks: AttackTable;
   readonly enclaves: EnclaveQueues;
   readonly structures: StructureTable;
+  readonly helis: HeliTable;
+  readonly beachheads: BeachheadTable;
   readonly match: MatchState;
   /** Present exactly when `header.config.homeRules` is on. */
   readonly home?: HomeRules | null;
+  /** The occluder layer for the Los / Nav caches (absent = none; M12a-1). */
+  readonly env?: SimEnv;
 }
 
 /**
@@ -299,6 +313,7 @@ export function assembleState(parts: StateParts): GameState {
   const state: GameState = {
     ...parts,
     home: parts.home ?? null,
+    env: parts.env ?? new SimEnv(null),
     grid,
     agg: { area: new Uint32Array(slots), warea: new Uint32Array(slots) },
     borders: new BorderIndex(grid.cells, slots),
@@ -309,6 +324,8 @@ export function assembleState(parts: StateParts): GameState {
   parts.attacks.reindex();
   parts.enclaves.reindex();
   parts.structures.rebuildIndex();
+  parts.helis.rebuildIndex();
+  parts.beachheads.rebuildIndex();
   rebuildAggregates(state);
   return state;
 }
@@ -346,6 +363,7 @@ export function createState(p: CreateStateParams): GameState {
   const homeRules = p.config?.homeRules === true;
   if (homeRules !== (p.countryMap !== undefined)) throw new RangeError('countryMap is required exactly when config.homeRules is true');
   if (p.countryMap !== undefined && p.countryMap.length !== n) throw new RangeError('countryMap must be width * height long');
+  if (p.maxElev !== undefined && p.maxElev.length !== n) throw new RangeError('maxElev must be width * height long');
   const terrain = p.terrain.slice();
   const elevation = p.elevation.slice();
   const seed = p.seed >>> 0;
@@ -377,6 +395,9 @@ export function createState(p: CreateStateParams): GameState {
     attacks: new AttackTable(ownerSlots(p.seats)),
     enclaves: new EnclaveQueues(n),
     structures: new StructureTable(n, ownerSlots(p.seats)),
+    helis: new HeliTable(ownerSlots(p.seats)),
+    beachheads: new BeachheadTable(),
+    env: new SimEnv(p.maxElev === undefined ? null : Int16Array.from(p.maxElev)),
     match: new MatchState(ownerSlots(p.seats)),
     home: p.countryMap !== undefined ? createHomeRules(p.countryMap, ownerSlots(p.seats)) : null,
   });

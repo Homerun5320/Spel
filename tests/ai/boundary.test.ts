@@ -211,6 +211,8 @@ describe('types: what src/sim/public.ts lets the AI reach', () => {
         'Nav', 'createNav', 'NavSource', 'ROUTE_NO_ROUTE', 'planRoute', 'NavView', 'RouteFail', 'RouteOk', 'RouteResult', 'LZ_ENEMY_CITY_NEAR', 'LZ_NO_ROUTE', 'LZ_OK', 'LZ_OUT_OF_FUEL', 'LZ_PEAK', 'LZ_REASON_NAMES', 'LZ_STEEP', 'LZ_TERRAIN_CLASS', 'LZ_TOO_HIGH', 'LZ_WATER', 'scoreLz', 'LzReason', 'LzResult', 'AIR_EXPOSURE_LAMBDA', 'AIR_MODE_AGL_M', 'AIR_MODE_SPEED_MILLICELLS_S', 'HELI_FUEL_CELLS', 'LZ_MAX_ELEV_M', 'SERVICE_CEILING_M', 'createLos', 'createLosTerrain', 'LosTerrain', 'navFingerprint',
         'cityGoldMilli', 'cityTroopCap', 'maxLevelOf', 'upgradeTicksOf', 'AI_CITY_UPGRADE_LEVELS_PER_CITY', 'CITY_MAX_LEVEL', 'SPACING_CELLS_BY_TYPE', // Sim-Growth (CITY_GOLD_STEP_MILLI_PER_LEVEL and CITY_TROOP_STEP_TROOPS left in Sim-Levels2)
         'AI_CITY_LEVEL_CAP', 'AI_DISTRICT_LEVEL_CAP', 'AI_STRUCT_LEVEL_CAP', 'STRUCT_LEVEL_HARD_CAP', 'LEVEL_CONQUEST_KEEP_PCT', 'districtMaxLevel', 'levelAfterConquest', 'satPermille', // Sim-Levels2
+        // M12a-1
+        'HeliView', 'HELI_APPROACH', 'HELI_BUILDING', 'HELI_CRUISE', 'HELI_DOWNED', 'HELI_HOVER', 'HELI_LIFT', 'HELI_PAD', 'HELI_POS_ONE', 'HELI_RETURN', 'HELI_UNLOAD', 'HELI_PRICE_MILLI', 'fleetCapOf', 'fleetCountOf', 'validateProduceHeli', 'ProduceHeliBody', 'produceHeliBody', 'REJECT_HELI_FACTORY_BUILDING', 'REJECT_HELI_FLEET_CAP', 'REJECT_HELI_NO_FACTORY', 'REJECT_HELI_NO_GOLD', 'REJECT_HELI_NOT_OWNER', 'REJECT_HELI_QUEUE_BUSY', 'HELI_BUILD_TICKS', 'HELI_FLEET_BASE', 'HELI_FLEET_MAX', 'HELI_HP_TENTHS', 'HELI_MAX_TROOPS', 'HELI_PRICE_GOLD', 'LZ_REASON_BASE',
       ].sort(),
     );
   });

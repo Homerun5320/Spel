@@ -10,6 +10,7 @@ import { deserialize, hashState, serialize } from '../sim/serialize';
 import { step, type StepFn } from '../sim/step';
 import { MAX_SEATS, ownerSlots, type GameState } from '../sim/state';
 import { snapshotStructures, structureSignature } from './structureSnapshot';
+import { heliSignature, snapshotHelis } from './heliSnapshot';
 import { StateView, attackPairs, fillSeatStats, statsLength, type SimView } from '../sim/view';
 import { fillMatchView, matchPackedLength } from '../sim/matchView';
 import { scheduledTurn } from '../sim/time';
@@ -25,6 +26,7 @@ import {
   type Speed,
   type StateDiff,
   type Unsubscribe,
+  type HeliSnapshot,
   type StructureSnapshot,
   type ViewSnapshot,
 } from './protocol';
@@ -47,6 +49,8 @@ export interface MainThreadHostOptions {
   readonly hashEveryTicks?: number;
   /** The step function (default: the real one). A test passes a broken copy to prove the golden check notices. */
   readonly stepFn?: StepFn;
+  /** The occluder layer of the world (M12a-1): a resumed state gets its Los / Nav environment from it, because the snapshot bytes do not hold it. */
+  readonly maxElev?: ArrayLike<number>;
 }
 
 export class MainThreadHost implements SimHost {
@@ -66,6 +70,8 @@ export class MainThreadHost implements SimHost {
   private lastRejectTick = -1;
   /** The fingerprint of the structure table in the last diff that carried it (-1 = none yet): a diff carries the table only when it changed. */
   private lastStructSig = -1;
+  /** The same for the helicopter table (M12a-1). */
+  private lastHeliSig = -1;
   /** Reused for the statistics of every view (the snapshot gets a copy). */
   private readonly statsScratch: Uint32Array;
   private readonly driver: TickDriver | null;
@@ -95,7 +101,7 @@ export class MainThreadHost implements SimHost {
    */
   static resume(snapshot: Snapshot, options: MainThreadHostOptions = {}): MainThreadHost | null {
     if (typeof snapshot !== 'object' || snapshot === null) return null;
-    const r = deserialize(snapshot.bytes);
+    const r = deserialize(snapshot.bytes, options.maxElev === undefined ? undefined : { maxElev: options.maxElev });
     if (!r.ok || r.state.tick !== snapshot.tick || hashState(r.state) !== snapshot.hash) return null;
     if (!validResume(snapshot.resume, r.state.tick)) return null;
     return new MainThreadHost(r.state, options, snapshot.resume);
@@ -216,7 +222,16 @@ export class MainThreadHost implements SimHost {
       owner: full ? s.owner.slice() : null,
       terrain: full ? s.terrain.slice() : null,
       structures: full ? snapshotStructures(s.structures) : this.changedStructures(),
+      helis: full ? snapshotHelis(s.helis, ownerSlots(s.header.seats)) : this.changedHelis(),
     };
+  }
+
+  /** The helicopter table when it differs from the one the last diff carried, else null. */
+  private changedHelis(): HeliSnapshot | null {
+    const sig = heliSignature(this.state.helis);
+    if (sig === this.lastHeliSig) return null;
+    this.lastHeliSig = sig;
+    return snapshotHelis(this.state.helis, ownerSlots(this.state.header.seats));
   }
 
   /** The structure table when it differs from the one the last diff carried, else null (the signature costs one pass over the used slots). */

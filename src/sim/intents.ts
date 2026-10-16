@@ -7,10 +7,10 @@
 import { DISTRICT_MAX_SLOTS, STRUCT_CAPACITY } from './rules';
 import { MAX_SEATS } from './state';
 
-export type IntentKind = 'Noop' | 'DebugPaint' | 'Spawn' | 'Attack' | 'CancelAttack' | 'DebugGive' | 'Build' | 'Upgrade' | 'Delete' | 'BuildDistrict' | 'UpgradeDistrict' | 'RemoveDistrict';
+export type IntentKind = 'Noop' | 'DebugPaint' | 'Spawn' | 'Attack' | 'CancelAttack' | 'DebugGive' | 'Build' | 'Upgrade' | 'Delete' | 'BuildDistrict' | 'UpgradeDistrict' | 'RemoveDistrict' | 'ProduceHeli';
 
 /** The intent kinds in wire order (the index is the kind byte of the codec). Append only: a published code never changes meaning. */
-export const INTENT_KINDS: readonly IntentKind[] = ['Noop', 'DebugPaint', 'Spawn', 'Attack', 'CancelAttack', 'DebugGive', 'Build', 'Upgrade', 'Delete', 'BuildDistrict', 'UpgradeDistrict', 'RemoveDistrict'];
+export const INTENT_KINDS: readonly IntentKind[] = ['Noop', 'DebugPaint', 'Spawn', 'Attack', 'CancelAttack', 'DebugGive', 'Build', 'Upgrade', 'Delete', 'BuildDistrict', 'UpgradeDistrict', 'RemoveDistrict', 'ProduceHeli'];
 
 /** Does nothing; valid for any seat. Exists to prove the pipeline (and as the heartbeat of a lockstep client). */
 export interface NoopBody {
@@ -126,8 +126,15 @@ export interface RemoveDistrictBody {
   readonly slot: number;
 }
 
+/** A seat orders a helicopter in its Factory `factory` (a structure table id): 200 gold at once, ready after 12 s, one at a time per Factory, within the fleet cap. The refusals are the REJECT_HELI_* codes (and REJECT_PHASE in the spawn phase). */
+export interface ProduceHeliBody {
+  readonly kind: 'ProduceHeli';
+  readonly seat: number;
+  readonly factory: number;
+}
+
 /** An intent before it has an id (what the UI submits to a host). */
-export type IntentBody = NoopBody | DebugPaintBody | SpawnBody | AttackBody | CancelAttackBody | DebugGiveBody | BuildBody | UpgradeBody | DeleteBody | BuildDistrictBody | UpgradeDistrictBody | RemoveDistrictBody;
+export type IntentBody = NoopBody | DebugPaintBody | SpawnBody | AttackBody | CancelAttackBody | DebugGiveBody | BuildBody | UpgradeBody | DeleteBody | BuildDistrictBody | UpgradeDistrictBody | RemoveDistrictBody | ProduceHeliBody;
 
 export type Intent = IntentBody & { readonly id: number };
 
@@ -158,6 +165,10 @@ export function upgradeDistrictBody(seat: number, structure: number, slot: numbe
 }
 export function removeDistrictBody(seat: number, structure: number, slot: number): RemoveDistrictBody {
   return { kind: 'RemoveDistrict', seat, structure, slot };
+}
+
+export function produceHeliBody(seat: number, factory: number): ProduceHeliBody {
+  return { kind: 'ProduceHeli', seat, factory };
 }
 
 /** The intents of one turn: all intents that run in the step that starts at tick `turn`. */
@@ -250,6 +261,19 @@ export const REJECT_DISTRICT_KIND = 43;
 /** BuildDistrict in a City that is still being built. */
 export const REJECT_DISTRICT_CITY_BUILDING = 44;
 
+/** ProduceHeli on a structure that is not a live Factory (no such id, a free slot, or another type). */
+export const REJECT_HELI_NO_FACTORY = 45;
+/** ProduceHeli in another seat's Factory. */
+export const REJECT_HELI_NOT_OWNER = 46;
+/** ProduceHeli in a Factory that is still being built. */
+export const REJECT_HELI_FACTORY_BUILDING = 47;
+/** ProduceHeli in a Factory that already has a helicopter under production (one at a time per Factory). */
+export const REJECT_HELI_QUEUE_BUSY = 48;
+/** ProduceHeli beyond the fleet cap (2 + the sum of the Factory levels, at most 12; a helicopter under production counts). */
+export const REJECT_HELI_FLEET_CAP = 49;
+/** ProduceHeli the purse cannot pay. */
+export const REJECT_HELI_NO_GOLD = 50;
+
 export interface ValidateContext {
   readonly seats: number;
   readonly cells: number;
@@ -269,7 +293,7 @@ function isIntegerIn(v: unknown, lo: number, hi: number): boolean {
 /** Why an intent is not valid in this match (REJECT_*), or REJECT_NONE. Total: any value whatsoever may be passed in. */
 export function validateIntent(x: unknown, ctx: ValidateContext): number {
   if (typeof x !== 'object' || x === null) return REJECT_SHAPE;
-  const o = x as { kind?: unknown; seat?: unknown; id?: unknown; cell?: unknown; target?: unknown; pct?: unknown; gold?: unknown; troops?: unknown; type?: unknown; structure?: unknown; slot?: unknown; districtKind?: unknown };
+  const o = x as { kind?: unknown; seat?: unknown; id?: unknown; cell?: unknown; target?: unknown; pct?: unknown; gold?: unknown; troops?: unknown; type?: unknown; structure?: unknown; slot?: unknown; districtKind?: unknown; factory?: unknown };
   const code = kindCode(o.kind);
   if (code < 0) return REJECT_KIND;
   if (!isIntegerIn(o.seat, 0, MAX_SEATS - 1) || (o.seat as number) >= ctx.seats) return REJECT_SEAT;
@@ -292,6 +316,8 @@ export function validateIntent(x: unknown, ctx: ValidateContext): number {
     if (!isIntegerIn(o.cell, 0, ctx.cells - 1)) return REJECT_CELL;
   } else if (o.kind === 'Upgrade' || o.kind === 'Delete') {
     if (!isIntegerIn(o.structure, 0, STRUCT_CAPACITY - 1)) return REJECT_STRUCT_ID;
+  } else if (o.kind === 'ProduceHeli') {
+    if (!isIntegerIn(o.factory, 0, STRUCT_CAPACITY - 1)) return REJECT_STRUCT_ID;
   } else if (o.kind === 'BuildDistrict' || o.kind === 'UpgradeDistrict' || o.kind === 'RemoveDistrict') {
     if (!isIntegerIn(o.structure, 0, STRUCT_CAPACITY - 1)) return REJECT_STRUCT_ID;
     if (!isIntegerIn(o.slot, 0, DISTRICT_MAX_SLOTS - 1)) return REJECT_DISTRICT_SLOT;
@@ -313,6 +339,7 @@ function comparePayload(a: Intent, b: Intent): number {
     if (a.structure !== b.structure) return a.structure - b.structure;
     return a.slot !== b.slot ? a.slot - b.slot : a.districtKind - b.districtKind;
   }
+  if (a.kind === 'ProduceHeli' && b.kind === 'ProduceHeli') return a.factory - b.factory;
   if ((a.kind === 'UpgradeDistrict' && b.kind === 'UpgradeDistrict') || (a.kind === 'RemoveDistrict' && b.kind === 'RemoveDistrict')) {
     return a.structure !== b.structure ? a.structure - b.structure : a.slot - b.slot;
   }
@@ -339,7 +366,7 @@ export const INVALID_BODY: IntentBody = Object.freeze({ kind: 'Noop', seat: -1 }
  */
 export function copyBody(x: unknown): IntentBody {
   if (typeof x !== 'object' || x === null) return INVALID_BODY;
-  const o = x as { kind?: unknown; seat?: unknown; cell?: unknown; target?: unknown; pct?: unknown; gold?: unknown; troops?: unknown; type?: unknown; structure?: unknown; slot?: unknown; districtKind?: unknown };
+  const o = x as { kind?: unknown; seat?: unknown; cell?: unknown; target?: unknown; pct?: unknown; gold?: unknown; troops?: unknown; type?: unknown; structure?: unknown; slot?: unknown; districtKind?: unknown; factory?: unknown };
   const seat = typeof o.seat === 'number' ? o.seat : -1;
   if (o.kind === 'Noop') return { kind: 'Noop', seat };
   if (o.kind === 'DebugPaint') return { kind: 'DebugPaint', seat, cell: typeof o.cell === 'number' ? o.cell : -1 };
@@ -354,6 +381,7 @@ export function copyBody(x: unknown): IntentBody {
   if (o.kind === 'BuildDistrict') return { kind: 'BuildDistrict', seat, structure: num(o.structure), slot: num(o.slot), districtKind: num(o.districtKind) };
   if (o.kind === 'UpgradeDistrict') return { kind: 'UpgradeDistrict', seat, structure: num(o.structure), slot: num(o.slot) };
   if (o.kind === 'RemoveDistrict') return { kind: 'RemoveDistrict', seat, structure: num(o.structure), slot: num(o.slot) };
+  if (o.kind === 'ProduceHeli') return { kind: 'ProduceHeli', seat, factory: num(o.factory) };
   return INVALID_BODY;
 }
 
@@ -382,6 +410,8 @@ export function withId(body: IntentBody, id: number): Intent {
       return { kind: 'UpgradeDistrict', seat: body.seat, structure: body.structure, slot: body.slot, id };
     case 'RemoveDistrict':
       return { kind: 'RemoveDistrict', seat: body.seat, structure: body.structure, slot: body.slot, id };
+    case 'ProduceHeli':
+      return { kind: 'ProduceHeli', seat: body.seat, factory: body.factory, id };
     default:
       return { kind: 'Noop', seat: body.seat, id };
   }

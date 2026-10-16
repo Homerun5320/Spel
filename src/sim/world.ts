@@ -15,6 +15,11 @@ export interface SimWorldInput {
   readonly cosQ15: ArrayLike<number>;
   /** Overrides the computed world hash (a real match passes the checksum of the sim pack). */
   readonly mapHash?: number;
+  /**
+   * Real maximum elevation per cell in metres (the occluder layer of the Los / Nav queries that the helicopter rules ask from inside `step`, M12a-1).
+   * Optional and NOT part of the map hash: a world without it plays exactly as before, and the first Los / Nav question on its states throws a clear error.
+   */
+  readonly maxElev?: ArrayLike<number>;
 }
 
 export interface SimWorld {
@@ -25,6 +30,8 @@ export interface SimWorld {
   readonly elevation: Uint16Array;
   readonly rowCos: Uint16Array;
   readonly mapHash?: number;
+  /** The occluder layer (see SimWorldInput.maxElev), a copy. */
+  readonly maxElev?: Int16Array;
 }
 
 /** Copies and checks the input. Throws RangeError for sizes that do not match (a programming error of the loader). */
@@ -44,7 +51,9 @@ export function createSimWorld(input: SimWorldInput): SimWorld {
   const rowCos = new Uint16Array(height);
   for (let y = 0; y < height; y++) rowCos[y] = input.cosQ15[y] as number;
   if (!validRowCos(rowCos)) throw new RangeError('cos table values must be 0..32768');
-  return input.mapHash === undefined ? { width, height, terrain, elevation, rowCos } : { width, height, terrain, elevation, rowCos, mapHash: input.mapHash };
+  if (input.maxElev !== undefined && input.maxElev.length !== n) throw new RangeError('maxElev must be width * height long');
+  const base = input.mapHash === undefined ? { width, height, terrain, elevation, rowCos } : { width, height, terrain, elevation, rowCos, mapHash: input.mapHash };
+  return input.maxElev === undefined ? base : { ...base, maxElev: Int16Array.from(input.maxElev) };
 }
 
 export interface WorldMatchOptions {
@@ -72,5 +81,6 @@ export function createWorldState(world: SimWorld, options: WorldMatchOptions): G
     elevation: world.elevation,
     rowCos: world.rowCos,
     mapHash: world.mapHash,
+    maxElev: world.maxElev,
   });
 }

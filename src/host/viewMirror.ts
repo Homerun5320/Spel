@@ -11,6 +11,8 @@ import { PHASE_PLAY, phaseAt, phaseTicksLeft, type MatchPhase } from '../sim/flo
 import type { StructureView } from '../sim/structureRules';
 import type { DistrictView } from '../sim/districtRules';
 import { MirrorStructures } from './structureMirror';
+import { MirrorHelis } from './heliMirror';
+import type { HeliView } from '../sim/heliTable';
 import { matchPackedLength, matchViewOf, type MatchView } from '../sim/matchView';
 import { countContacts, statsViewOf, type ReadonlyNumbers, type SeatStatsView, type SimView } from '../sim/view';
 import type { HostEvent, SimHost, Speed, StateDiff, Unsubscribe, ViewSnapshot } from './protocol';
@@ -49,6 +51,7 @@ export class ViewMirror implements SimView {
   private readonly attackFlags: Uint8Array;
   private readonly slots: number;
   private readonly structureTable = new MirrorStructures();
+  private readonly heliTable = new MirrorHelis();
 
   private constructor(v: ViewSnapshot) {
     if (v.owner === null || v.terrain === null) throw new Error('a mirror needs the full view (requestView)');
@@ -73,6 +76,7 @@ export class ViewMirror implements SimView {
     this.attackFlags = new Uint8Array(this.slots * this.slots);
     this.setAttacks(v.attacks);
     if (v.structures !== null) this.structureTable.adopt(v.structures);
+    if (v.helis !== null) this.heliTable.adopt(v.helis);
   }
 
   private setAttacks(pairs: Uint16Array): void {
@@ -92,6 +96,14 @@ export class ViewMirror implements SimView {
   }
   get structuresVersion(): number {
     return this.structureTable.version;
+  }
+
+  /** The helicopter table (M12a-1): the copy of the last table the host sent; `helisVersion` moves when a new one arrived. */
+  get helis(): HeliView {
+    return this.heliTable;
+  }
+  get helisVersion(): number {
+    return this.heliTable.version;
   }
 
   falloutUntilAt(): number {
@@ -183,6 +195,7 @@ export class ViewMirror implements SimView {
     this.matchPacked.set(d.view.match);
     this.setAttacks(d.view.attacks);
     if (d.view.structures !== null) this.structureTable.adopt(d.view.structures);
+    if (d.view.helis !== null) this.heliTable.adopt(d.view.helis);
     this.frames++;
     for (const l of this.listeners) l(this, d);
   }

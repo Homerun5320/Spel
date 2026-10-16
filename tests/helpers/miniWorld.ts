@@ -51,7 +51,7 @@ export function miniWorld(): WorldData {
     };
   });
   return {
-    sim: { width: MINI_W, height: MINI_H, terrainClass: terrain, meanElev: new Int16Array(n), cosQ15: new Array<number>(MINI_H).fill(32768) },
+    sim: { width: MINI_W, height: MINI_H, terrainClass: terrain, meanElev: new Int16Array(n), maxElev: new Int16Array(n), cosQ15: new Array<number>(MINI_H).fill(32768) },
     country,
     coast: new Uint8Array(n),
     meta: { countries },

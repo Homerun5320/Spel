@@ -86,6 +86,27 @@ export interface ViewSnapshot {
   readonly terrain: Uint8Array | null;
   /** The structure table (M10): always present in the answer to `requestView`; in a frame's diff only when the table changed since the last frame that carried it, else null. */
   readonly structures: StructureSnapshot | null;
+  /** The helicopter table (M12a-1): always present in the answer to `requestView`; in a frame's diff only when it changed since the last frame that carried it, else null. */
+  readonly helis: HeliSnapshot | null;
+}
+
+/** The helicopter table as the page sees it (M12a-1): copies of the sim's arrays for the slots 0..highWater-1 (a free slot has owner 0) and the helicopters per ownerId. */
+export interface HeliSnapshot {
+  readonly capacity: number;
+  readonly highWater: number;
+  readonly liveCount: number;
+  readonly owner: Uint16Array;
+  readonly state: Uint8Array;
+  readonly factory: Uint16Array;
+  readonly readyTick: Uint32Array;
+  readonly x: Int32Array;
+  readonly y: Int32Array;
+  readonly alt: Int32Array;
+  readonly hp: Uint16Array;
+  readonly load: Uint16Array;
+  readonly fuel: Uint32Array;
+  /** Helicopters per ownerId (also those under production). */
+  readonly counts: Uint16Array;
 }
 
 /**
@@ -144,6 +165,25 @@ export function cloneView(v: ViewSnapshot): ViewSnapshot {
     owner: v.owner === null ? null : v.owner.slice(),
     terrain: v.terrain === null ? null : v.terrain.slice(),
     structures: v.structures === null ? null : cloneStructures(v.structures),
+    helis: v.helis === null ? null : cloneHelis(v.helis),
+  };
+}
+
+/** A deep copy of a helicopter snapshot. */
+export function cloneHelis(s: HeliSnapshot): HeliSnapshot {
+  return {
+    ...s,
+    owner: s.owner.slice(),
+    state: s.state.slice(),
+    factory: s.factory.slice(),
+    readyTick: s.readyTick.slice(),
+    x: s.x.slice(),
+    y: s.y.slice(),
+    alt: s.alt.slice(),
+    hp: s.hp.slice(),
+    load: s.load.slice(),
+    fuel: s.fuel.slice(),
+    counts: s.counts.slice(),
   };
 }
 
