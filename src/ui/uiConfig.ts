@@ -217,3 +217,29 @@ export const CITY_VIEW = {
  * "3,4 mdr", English "1.2M" / "3.4B"), so the late upgrade prices stay short.
  */
 export const GOLD_DISPLAY_FACTOR = 100;
+
+/**
+ * M13b: the deploy mode (send a helicopter). The sliders' defaults and steps, the preview's rate, and the colours of the route line and the landing-zone
+ * marker (RGB 0..1, handed to `DeployLayer.setStyle`): the route runs from `routeCool` where an enemy sensor cannot see it to `routeHot` where one can.
+ */
+export const DEPLOY = {
+  /** The troop slider starts here (one troop is the cheap way to look at a route). */
+  troopsDefault: 1,
+  troopsStep: 1,
+  /** The preview asks the sim's rules at most this often (fx seconds between two questions: 5 Hz). */
+  previewIntervalS: 0.2,
+  style: {
+    routeCool: [0.2, 0.95, 0.35],
+    routeHot: [1, 0.2, 0.15],
+    /** Marker colour while waiting for the answer, for a valid zone and for a refused one. */
+    marker: [
+      [1, 0.85, 0.3],
+      [0.25, 1, 0.4],
+      [1, 0.25, 0.2],
+    ],
+    dimAlpha: 0.35,
+    markerAlpha: 0.9,
+    markerScreenFrac: 0.012,
+    markerMinM: 12000,
+  },
+} as const;

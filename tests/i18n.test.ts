@@ -160,7 +160,7 @@ function listTs(dir: string): string[] {
   return out;
 }
 
-const KEY_LITERAL = /'((?:app|start|help|hotkey|hud|phase|reject|toast|tooltip|class|setup|sel|win|pause|result|elim|spectator)\.[A-Za-z0-9]+(?:\.[A-Za-z0-9]+)?)'/g;
+const KEY_LITERAL = /'((?:app|start|help|hotkey|hud|phase|reject|toast|tooltip|class|setup|sel|win|pause|result|elim|spectator|deploy|heli)\.[A-Za-z0-9]+(?:\.[A-Za-z0-9]+)?)'/g;
 
 describe('the source and the tables agree', () => {
   const files = listTs(SRC).filter((f) => !f.endsWith(path.join('ui', 'i18n.ts')));

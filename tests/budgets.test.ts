@@ -16,10 +16,10 @@ describe('docs/ARCHITECTURE.md "Budgetar"', () => {
 });
 
 describe('Fix-Audit2: per-layer draw-call rows pin the real total, not only the 100 ceiling', () => {
-  it('the per-layer draw-call allowances (terrain, shell, stars, structures, districts) add up to at most 16, so the global 100 stays a ceiling and not a licence', () => {
+  it('the per-layer draw-call allowances (terrain, shell, stars, structures, districts, helicopters, deploy) add up to at most 18 (M13b: +3 for the deploy layer; was 16), so the global 100 stays a ceiling and not a licence', () => {
     const [, ...layers] = readBudgets();
     const sum = layers.reduce((s, l) => s + l.drawCalls, 0);
-    expect(sum).toBeLessThanOrEqual(16);
+    expect(sum).toBeLessThanOrEqual(18);
     expect(layers.every((l) => l.drawCalls <= 10)).toBe(true);
   });
 });
@@ -29,6 +29,16 @@ describe('M13a-1: the helicopter layer has its own row', () => {
     const [, ...layers] = readBudgets();
     const row = layers.find((l) => l.layer.startsWith('Helikoptrar'));
     expect(row).toEqual({ layer: expect.stringContaining('Helikoptrar'), triangles: 7_000, drawCalls: 1 });
-    expect(layers.reduce((s, l) => s + l.drawCalls, 0)).toBeLessThanOrEqual(17);
+    expect(layers.reduce((s, l) => s + l.drawCalls, 0)).toBeLessThanOrEqual(18); // M13b: 17 + the deploy layer's 3 = 18 after the helicopter layer's own 1 is already in 17
+  });
+});
+
+describe('M13b: the deploy layer has its own row', () => {
+  it('three draw calls (the route twice, the marker once) and no more than a thousand triangles; the helicopter layer and the deploy layer together are at most 4 extra calls', () => {
+    const [, ...layers] = readBudgets();
+    const row = layers.find((l) => l.layer.startsWith('Utplaceringslagret'));
+    expect(row).toEqual({ layer: expect.stringContaining('Utplaceringslagret'), triangles: 1_000, drawCalls: 3 });
+    const heli = layers.find((l) => l.layer.startsWith('Helikoptrar')) as { drawCalls: number };
+    expect(heli.drawCalls + (row as { drawCalls: number }).drawCalls).toBeLessThanOrEqual(4);
   });
 });

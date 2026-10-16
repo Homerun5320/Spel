@@ -96,6 +96,7 @@ export function hudCss(): string {
 /* M10-4: the selection panel sits bottom left above the status panel and wraps on a narrow window. */
 .sel-panel { position: absolute; left: 0.6em; bottom: 0.6em; width: 17.5em; max-width: calc(100vw - 1.2em); padding: 0.45em 0.6em 0.5em; display: flex; flex-direction: column; gap: 0.25em; pointer-events: auto; }
 .sel-panel[hidden] { display: none !important; }
+.sel-panel { max-height: calc(100% - 1.2em); overflow-y: auto; } /* M13b: the deploy block makes the Factory panel tall; a short window scrolls it instead of cutting the top off */
 .sel-name { font-weight: 800; font-size: 1.05em; }
 .sel-level, .sel-note { color: ${C.textDim}; font-size: 0.85em; }
 .sel-state { color: ${C.barWarning}; font-size: 0.85em; }
@@ -108,6 +109,23 @@ export function hudCss(): string {
 .sel-heli { display: flex; flex-direction: column; gap: 0.2em; margin-top: 0.3em; }
 .sel-heli[hidden] { display: none !important; }
 .sel-heli-fleet[data-full="1"] { color: ${C.barWarning}; }
+/* M13b: while the deploy mode is on the panel shows only the deploy block (a short window cannot hold both) */
+.sel-panel[data-deploying="1"] .sel-fx, .sel-panel[data-deploying="1"] .sel-row, .sel-panel[data-deploying="1"] > .sel-note, .sel-panel[data-deploying="1"] .sel-heli > .sel-btn, .sel-panel[data-deploying="1"] .sel-heli > .sel-state, .sel-panel[data-deploying="1"] .sel-heli > .sel-note { display: none; }
+/* M13b: the deploy block and the helicopter list inside the Factory panel */
+.deploy-box { display: flex; flex-direction: column; gap: 0.3em; margin-top: 0.3em; }
+.deploy-controls { display: flex; flex-direction: column; gap: 0.25em; }
+.deploy-controls[hidden], .heli-list[hidden], .deploy-status[hidden], .deploy-box [hidden] { display: none !important; }
+.deploy-slider { width: 100%; min-height: ${target}; accent-color: ${C.accent}; }
+.deploy-mode { display: flex; gap: 0.3em; }
+.deploy-mode .sel-btn { flex: 1; }
+.deploy-mode .sel-btn[aria-pressed="true"] { background: ${C.buttonActive}; box-shadow: inset 0 0 0 1px ${C.accent}; }
+.deploy-open[data-active="1"] { box-shadow: inset 0 0 0 1px ${C.accent}; }
+.deploy-status { font-weight: 700; }
+.deploy-status[data-state="valid"] { color: ${C.troops}; }
+.deploy-status[data-state="invalid"] { color: ${C.danger}; }
+.heli-list { display: flex; flex-direction: column; gap: 0.2em; }
+.heli-row { display: flex; align-items: center; justify-content: space-between; gap: 0.5em; font-size: 0.9em; }
+.heli-recall { min-height: 0; padding: 0.15em 0.6em; font-size: 0.9em; }
 
 /* Narrow screens (a phone held upright, D107): the banner takes the whole top row left of the Dev button, with the countdown beside the
    text; the leaderboard sits below it, so nothing overlaps the banner, the board or the Dev button (48 px + 8 px margins). */

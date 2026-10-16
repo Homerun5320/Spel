@@ -31,11 +31,16 @@ import { PerfSceneRun, type PerfSceneHost } from './perfScene';
 import { createBuildBar, type BuildBar } from '../ui/buildBar';
 import { buildRejectKey, spawnPhaseBlocks } from '../ui/buildReasons';
 import { REJECT_PHASE } from '../ui/hudCodes';
-import { HeliWatcher, heliPanelInfo } from '../ui/heliInfo';
+import { HeliWatcher, MISSION_LANDED, MISSION_LOST, MissionWatcher, heliPanelInfo, ownHeliRows, padHeliOf, type HeliRow } from '../ui/heliInfo';
+import { createDeployBox, type DeployBox } from '../ui/deployBox';
+import { createDeployMode, type DeployMode } from './deployMode';
+import { LaunchPreviewer, previewLaunch, type PreviewRequest, type PreviewResult } from './launchPreview';
+import { rejectKey } from '../ui/hudLogic';
 import { mountToasts, showToast, tickToasts, visibleToastKeys } from '../ui/toast';
 import { createHelpOverlay, type HelpOverlay } from '../ui/helpOverlay';
 import { attachHotkeys, hotkeys, registerGameHotkeys } from './hotkeys';
 import { createPlacementMode, type PlacementMode, type PlacementState } from './placement';
+import { AIR_MODE_AGL_M, REJECT_HELI_NO_PAD, REJECT_HELI_NO_ROUTE, createLos, createLosTerrain, createNav, launchHeliBody, recallHeliBody, validateLaunchHeli, type Nav } from '../sim/public';
 import { STRUCT_CITY, STRUCT_FACTORY, produceHeliBody, buildBody, buildDistrictBody, deleteBody, removeDistrictBody, upgradeBody, upgradeDistrictBody, validateBuild } from '../sim/public';
 import { createCityViewPanel, type CityViewPanel } from '../ui/cityViewPanel';
 import { CAMERA_FOV_DEG, EARTH_RADIUS_KM } from '../render/config';
@@ -47,7 +52,7 @@ import { rangeRingCells, selectionInfo } from '../ui/structureInfo';
 import { createSelectionMode, pickStructure, type SelectionMode } from './structureSelect';
 import { createMatchHud, notConquerableText, rejectText, type MatchHud, type MatchHudModel } from '../ui/matchHud';
 import { getLanguage, onLanguageChange, setStrictI18n, t, type TextKey } from '../ui/i18n';
-import { CITY_VIEW, GPU_TIP_PREF_KEY, START_FLY_KM, START_SPIN_DEG_PER_S, SETUP_IDLE_DIST_KM } from '../ui/uiConfig';
+import { CITY_VIEW, DEPLOY, GPU_TIP_PREF_KEY, START_FLY_KM, START_SPIN_DEG_PER_S, SETUP_IDLE_DIST_KM } from '../ui/uiConfig';
 import { mountStartScreen, type StartScreen } from '../ui/startScreen';
 import { applyStartLanguage } from './langPref';
 import { getPref, setPref } from './prefs';
@@ -165,6 +170,24 @@ export interface TerrainStateInfo {
   capped: boolean;
   /** Every float of the instance data is finite. */
   finite: boolean;
+}
+
+/** M13b: what `__test.deploy()` reports. */
+export interface DeployInfo {
+  active: boolean;
+  factory: number;
+  hover: number;
+  markerCell: number;
+  markerState: number;
+  routeVertices: number;
+  visibleMeshes: number;
+  status: 'idle' | 'pending' | 'ready';
+  reason: number;
+  etaSeconds: number;
+  fuelCells: number;
+  troops: number;
+  queriesSent: number;
+  queriesDropped: number;
 }
 
 export interface GlobeTestHooks {
@@ -292,6 +315,11 @@ export interface GlobeTestHooks {
   /** M13a-1: forces the rotor angle (radians; null = the fx clock) and switches the helicopter layer on or off, so a test can tell the rotor's pixels and the layer's draw call. */
   heliSpin(angle: number | null): void;
   heliLayer(on: boolean): void;
+  /** M13b: the deploy mode (active, the Factory, the hovered cell, what the layer shows, the preview's verdict and counters) and the deploy layer's switch for a draw-call count. */
+  deploy(): DeployInfo;
+  deployLayer(on: boolean): void;
+  /** M13b: the preview of a request answered now, synchronously, from the page's own Nav (a test compares it with the sim; null = no Nav). */
+  previewNow(factory: number, lzCell: number, troops: number, mode: 0 | 1): { reason: number; waypoints: number; etaSeconds: number } | null;
   /** Look-1: switches the City style live (the preference is not written in test mode). */
   setCityStyle(style: CityStyle): void;
   /** Look-2: draws structure `id` (and the districts of a City) as if it had `level`; render only. `null` clears. */
@@ -459,6 +487,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   canvas.style.touchAction = 'none';
 
   const globe = new Globe({ canvas, width, height, dpr, quality, world, preserveDrawingBuffer: params.test, terrain: ctx.state.terrain.terrain, chunkDebug: ctx.state.terrain.chunkDebug, detail: ctx.state.raw.detail !== '0', fineDetail: ctx.state.raw.mottle !== '0' });
+  globe.deploy.setStyle(DEPLOY.style); // M13b: the colours of the route and the landing-zone marker (src/ui/uiConfig.ts)
   globe.setView({ ...DEFAULT_START_VIEW, distKm: fitViewDistKm(DEFAULT_START_VIEW.distKm, width / height) }); // CamFix-2: a tall window starts farther out so that the disc fits
   const groundView = ctx.state.view !== null && globe.terrainMode === 'chunks' ? GROUND_VIEWS[ctx.state.view] : null; // `?view=alps-valley` (M07a)
   if (groundView !== null) globe.setGroundView(groundView);
@@ -524,6 +553,12 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   let selectedId = -1;
   let selectionMode = null as SelectionMode | null;
   let selectPanel = null as SelectionPanel | null;
+  /** M13b: the deploy mode (send a helicopter) on the input stack, the Factory it sends from, the box in the Factory panel and the throttled preview. */
+  let deployMode = null as DeployMode | null;
+  let deployFactory = -1;
+  let deployBox = null as DeployBox | null;
+  let deployHover = -1;
+  const deployPreviewer = new LaunchPreviewer((req) => Promise.resolve(runPreview(req)), DEPLOY.previewIntervalS);
   /** Districts-2a: the city view (the City id while open, -1 = closed), its input mode and panel. */
   let cityId = -1;
   /** The open-city flight is the flight running (Escape or closing the view cancels it; a drag or the wheel already do). */
@@ -708,6 +743,12 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     buildBar = createBuildBar(buildRoot, { select: (type) => enterPlacement(type) });
     buildBarWanted = !params.test || ctx.state.raw.hud === '1';
     selectPanel = createSelectionPanel(buildRoot, { upgrade: (id) => s.submit(upgradeBody(s.localSeat, id)), remove: (id) => s.submit(deleteBody(s.localSeat, id)), openCity: (id) => openCity(id), produceHeli: (id) => s.submit(produceHeliBody(s.localSeat, id)) });
+    // M13b: the deploy block and the helicopter list live in the Factory panel's helicopter box
+    deployBox = createDeployBox(selectPanel.heliBox, {
+      open: () => (deployMode !== null ? exitDeploy() : enterDeploy(selectedId)),
+      cancel: () => exitDeploy(),
+      recall: (heli) => s.submit(recallHeliBody(s.localSeat, heli)),
+    });
     cityPanel = createCityViewPanel(buildRoot, {
       build: (id, slot, kind) => s.submit(buildDistrictBody(s.localSeat, id, slot, kind)),
       upgrade: (id, slot) => s.submit(upgradeDistrictBody(s.localSeat, id, slot)),
@@ -756,6 +797,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   /** The one model object the HUD reads each frame (rewritten in place: nothing is allocated per frame). */
   let model: { -readonly [K in keyof MatchHudModel]: MatchHudModel[K] } | null = null;
   const heliWatcher = new HeliWatcher();
+  const missionWatcher = new MissionWatcher();
   // the Factory panel's helicopter numbers are asked once per tick, not once per frame
   let heliKey = '';
   let heliCache: ReturnType<typeof heliPanelInfo> | null = null;
@@ -789,8 +831,10 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
         const onMountain = session.view.terrainClass[session.view.structures.cell[selectedId] as number] === CLASS_MOUNTAIN;
         globe.structures.setSelection(selectedId, rangeRingCells(info.type, info.level, onMountain));
         selectPanel?.update(buildBarWanted && cityId < 0 ? info : null, onMountain, info.type === STRUCT_FACTORY ? heliInfoOf(session.view, L, selectedId) : null);
+        if (info.type === STRUCT_FACTORY && buildBarWanted && cityId < 0) deployBoxFrame(session, selectedId);
       }
     }
+    deployFrame(session);
     if (cityId >= 0) {
       const ci = selectionInfo(session.view, L, cityId);
       if (ci === null || !ci.owned || ci.type !== STRUCT_CITY) closeCity(); // destroyed, deleted or conquered
@@ -799,6 +843,9 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     const heliNews = heliWatcher.update(session.view, session.view.helisVersion, L);
     if (heliNews === 'produced') showToast('toast.heli.produced', {}, 'info');
     else if (heliNews === 'scrapped') showToast('toast.heli.scrapped', {}, 'warn');
+    const mission = missionWatcher.update(session.view, session.view.helisVersion, L);
+    if ((mission & MISSION_LANDED) !== 0) showToast('toast.heli.landed', {}, 'info');
+    if ((mission & MISSION_LOST) !== 0) showToast('toast.heli.lost', {}, 'warn');
     const refused = session.takeNewReject();
     if (refused !== 0) hud.toast(rejectText(refused), fxNow());
   };
@@ -1168,6 +1215,9 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       case 'select':
         selectStructure(command.structure);
         break;
+      case 'deploy':
+        enterDeploy(command.factory);
+        break;
       case 'invalid':
         if (command.reason === 'unplayable') hud?.toast(notConquerableText(), fxNow());
         else if (command.reason === 'not-spawned') hud?.toast(rejectText(REJECT_NOT_SPAWNED), fxNow());
@@ -1236,6 +1286,140 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     placementMode = mode;
     inputStack.push(mode);
   };
+  // --- Deploy (M13b): send a helicopter. The Nav the rules read is built once per session on the world's elevation layers (like the sim's own); the verdict is
+  // `validateLaunchHeli` (the sim's check), the preview is throttled (src/app/launchPreview.ts), the layer draws the route and the marker (3 draw calls) -------
+  let previewCache: { session: MatchSession; nav: Nav } | null = null;
+  const previewNavOf = (sess: MatchSession): Nav | null => {
+    if (previewCache !== null && previewCache.session === sess) return previewCache.nav;
+    const maxElev = world.sim.maxElev;
+    if (maxElev === undefined) return null;
+    const los = createLos(createLosTerrain(world.sim.width, world.sim.height, world.meta.sim.cosQ15, world.sim.meanElev, maxElev));
+    const nav = createNav({ width: world.sim.width, height: world.sim.height, terrainClass: sess.view.terrainClass, meanElev: world.sim.meanElev }, los);
+    previewCache = { session: sess, nav };
+    return nav;
+  };
+  const runPreview = (req: PreviewRequest): PreviewResult => {
+    const sess = session;
+    const nav = sess === null ? null : previewNavOf(sess);
+    if (sess === null || nav === null) return { request: req, reason: REJECT_HELI_NO_ROUTE, waypoints: null, exposed: null, etaSeconds: 0, fuelCells: 0, exposedCells: 0 };
+    return previewLaunch(nav, sess.view, sess.localSeat, req);
+  };
+  const exitDeploy = (): void => {
+    if (deployMode !== null && inputStack.top === deployMode) inputStack.pop();
+  };
+  const enterDeploy = (factory: number): void => {
+    const sess = session;
+    if (sess === null || setupScreen !== null || deployBox === null) return;
+    const L = sess.localSeat;
+    const v = sess.view;
+    if (factory < 0 || factory >= v.structures.highWater || v.structures.type[factory] !== STRUCT_FACTORY || v.structures.owner[factory] !== sess.localOwner) {
+      showToast('toast.heli.noFactory', {}, 'error');
+      return;
+    }
+    if (padHeliOf(v, L, factory) < 0) {
+      showToast(rejectKey(REJECT_HELI_NO_PAD), { code: REJECT_HELI_NO_PAD }, 'error');
+      return;
+    }
+    if (deployMode !== null) {
+      if (deployFactory === factory) return;
+      exitDeploy();
+    }
+    exitPlacement();
+    deployFactory = factory;
+    deployHover = -1;
+    deployPreviewer.clear();
+    const box = deployBox;
+    const mode = createDeployMode(factory, {
+      pickCell: cellAt,
+      hover: (c) => {
+        deployHover = c === null ? -1 : c;
+      },
+      decide: (cell) => {
+        const nav = previewNavOf(sess);
+        return nav === null ? REJECT_HELI_NO_ROUTE : validateLaunchHeli(sess.view, nav, L, factory, cell, box.troops(), box.mode());
+      },
+      send: (cell) => {
+        sess.submit(launchHeliBody(L, factory, cell, box.troops(), box.mode()));
+        showToast('deploy.sent', {}, 'info');
+      },
+      refused: (reason) => showToast(rejectKey(reason), { code: reason }, 'error'),
+      exit: exitDeploy,
+      ended: () => {
+        deployMode = null;
+        deployFactory = -1;
+        deployHover = -1;
+        deployPreviewer.clear();
+        deployReq = null;
+        deployRouteFor = null;
+        deployMarkerKey = '';
+        globe.deploy.setRoute(null, null, 0);
+        globe.deploy.setMarker(-1, 0);
+      },
+    });
+    deployMode = mode;
+    inputStack.push(mode);
+  };
+  let deployReq = null as PreviewRequest | null;
+  let deployRouteFor = null as PreviewResult | null;
+  let deployMarkerKey = '';
+  /** Once per frame while the mode is on: the wanted request, the throttled poll, the marker and the route. Allocates only when the cell or a slider moved. */
+  const deployFrame = (sess: MatchSession): void => {
+    const box = deployBox;
+    if (deployMode === null || box === null) return;
+    const v = sess.view;
+    if (deployFactory >= v.structures.highWater || v.structures.owner[deployFactory] !== sess.localOwner || v.structures.type[deployFactory] !== STRUCT_FACTORY) {
+      exitDeploy(); // the Factory was lost
+      return;
+    }
+    const troops = box.troops();
+    const flight = box.mode();
+    if (deployHover < 0) deployReq = null;
+    else if (deployReq === null || deployReq.lzCell !== deployHover || deployReq.troops !== troops || deployReq.mode !== flight || deployReq.factory !== deployFactory) {
+      deployReq = { factory: deployFactory, lzCell: deployHover, troops, mode: flight };
+    }
+    deployPreviewer.want(deployReq);
+    deployPreviewer.poll(fxNow());
+    const cur = deployPreviewer.current();
+    const state = cur === null ? 0 : cur.reason === 0 ? 1 : 2;
+    const key = `${deployHover}:${state}`;
+    if (key !== deployMarkerKey) {
+      deployMarkerKey = key;
+      globe.deploy.setMarker(deployHover, state);
+    }
+    if (deployHover < 0) {
+      if (deployRouteFor !== null) {
+        deployRouteFor = null;
+        globe.deploy.setRoute(null, null, 0);
+      }
+    } else if (cur !== null && cur !== deployRouteFor) {
+      deployRouteFor = cur;
+      globe.deploy.setRoute(cur.waypoints, cur.exposed, AIR_MODE_AGL_M[cur.request.mode] as number);
+    }
+  };
+  const heliRowsBuf: HeliRow[] = [];
+  /** The deploy block and the helicopter list in the Factory panel (only while a Factory is selected). */
+  const deployBoxFrame = (sess: MatchSession, factory: number): void => {
+    const box = deployBox;
+    if (box === null) return;
+    const v = sess.view;
+    const L = sess.localSeat;
+    const pad = padHeliOf(v, L, factory);
+    const cur = deployMode === null || deployHover < 0 ? null : deployPreviewer.current();
+    const status = deployMode === null || deployHover < 0 ? 'idle' : cur === null ? 'pending' : cur.reason === 0 ? 'valid' : 'invalid';
+    box.update(
+      {
+        canOpen: pad >= 0 || deployMode !== null,
+        openReason: pad >= 0 ? 0 : REJECT_HELI_NO_PAD,
+        active: deployMode !== null,
+        status,
+        reason: cur === null ? 0 : cur.reason,
+        etaSeconds: cur === null ? 0 : cur.etaSeconds,
+        fuelCells: cur === null ? 0 : cur.fuelCells,
+        exposedCells: cur === null ? 0 : cur.exposedCells,
+      },
+      ownHeliRows(v, L, heliRowsBuf),
+    );
+  };
   // Every game key is an entry of the registry (src/app/hotkeys.ts); the reserved keys are handed to the stack while a match is on (the setup screen and the menus own the keyboard before it).
   hotkeys.context = { matchOn: () => setupScreen === null && session !== null, modalOpen: keysBlockedByModal };
   registerGameHotkeys(
@@ -1251,6 +1435,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       slower: () => session?.slower(),
       faster: () => session?.faster(),
       toggleHelp: () => toggleHelp(),
+      deploy: () => (deployMode !== null ? exitDeploy() : enterDeploy(selectedId)),
     },
     signal,
   );
@@ -1620,6 +1805,31 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
         globe.helis.spinOverride = angle;
       },
       heliLayer: (on) => globe.helis.setEnabled(on),
+      deploy: () => {
+        const cur = deployPreviewer.current();
+        const layer = globe.deploy.info();
+        return {
+          active: deployMode !== null,
+          factory: deployFactory,
+          hover: deployHover,
+          markerCell: layer.markerCell,
+          markerState: layer.markerState,
+          routeVertices: layer.routeVertices,
+          visibleMeshes: layer.visibleMeshes,
+          status: deployPreviewer.status(),
+          reason: cur === null ? -1 : cur.reason,
+          etaSeconds: cur === null ? 0 : cur.etaSeconds,
+          fuelCells: cur === null ? 0 : cur.fuelCells,
+          troops: deployBox === null ? 0 : deployBox.troops(),
+          queriesSent: deployPreviewer.sent,
+          queriesDropped: deployPreviewer.dropped,
+        };
+      },
+      deployLayer: (on) => globe.deploy.setEnabled(on),
+      previewNow: (factory, lzCell, troops, mode) => {
+        const r = runPreview({ factory, lzCell, troops, mode });
+        return { reason: r.reason, waypoints: r.waypoints === null ? 0 : r.waypoints.length, etaSeconds: r.etaSeconds };
+      },
       setCityStyle: (style) => applyCityStyle(style),
       setLevelOverride(id, level): void {
         globe.structures.setLevelOverride(id, level);

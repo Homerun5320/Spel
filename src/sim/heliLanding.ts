@@ -27,18 +27,14 @@ import {
   MILLI_QT_PER_QT,
   QT_PER_TROOP,
 } from './rules';
+import { atWar } from './diplomacy';
 import type { GameState } from './state';
 import { collectPosts, collectWalls, postAdjustedCost, wallAdjustedCost } from './structureEffects';
 import { changeOwner } from './territory';
 
-/**
- * HOOK for the diplomacy track (M18c-1): may `owner` set troops down on a cell that belongs to `targetOwner`? No relation query exists yet, so it is
- * always false. When relations land, a truce or an alliance returns true here; a blocked landing keeps its load aboard and the helicopter turns home.
- */
-export function landingBlockedBy(owner: number, targetOwner: number): boolean {
-  void owner;
-  void targetOwner;
-  return false;
+/** May `owner` set troops down on a cell that belongs to `targetOwner`? Not when a truce or an alliance binds them (the same rule as an Attack); a blocked landing keeps its load aboard and the helicopter turns home. */
+export function landingBlockedBy(state: GameState, owner: number, targetOwner: number): boolean {
+  return !atWar(state, owner, targetOwner);
 }
 
 /** The neighbour offsets of the landing in their fixed order: N, E, S, W, NE, SE, SW, NW as (dx, dy). */
@@ -88,7 +84,7 @@ export function performLanding(state: GameState, id: number): void {
   const h = grid.cells / w;
   const lzOwner = state.owner[lz] as number;
   t.target[id] = 0;
-  if (lzOwner === ownerId || (lzOwner !== 0 && landingBlockedBy(ownerId, lzOwner))) {
+  if (lzOwner === ownerId || (lzOwner !== 0 && landingBlockedBy(state, ownerId, lzOwner))) {
     state.outbox.push(OUTBOX_HELI_LANDED, tick, id, 0); // nothing to take here: the load flies home with the helicopter
     return;
   }
@@ -104,7 +100,7 @@ export function performLanding(state: GameState, id: number): void {
     }
     const o = state.owner[c] as number;
     if (o === ownerId) continue;
-    if (o !== 0 && landingBlockedBy(ownerId, o)) {
+    if (o !== 0 && landingBlockedBy(state, ownerId, o)) {
       if (k === 0) break;
       continue;
     }

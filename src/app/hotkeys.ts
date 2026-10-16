@@ -141,6 +141,8 @@ export interface GameHotkeyActions {
   slower(): void;
   faster(): void;
   toggleHelp(): void;
+  /** M13b: key L, send a helicopter from the selected Factory (the deploy mode). Optional so that older callers keep compiling. */
+  deploy?(): void;
 }
 
 /**
@@ -181,6 +183,7 @@ export function registerGameHotkeys(registry: HotkeyRegistry, a: GameHotkeyActio
   add({ id: 'faster', keys: ['.'], labelKey: 'hotkey.faster', scope: 'match', run: () => (a.faster(), true) });
   add({ id: 'commit-down', keys: ['[', '-'], labelKey: 'hotkey.commitDown', scope: 'match', run: () => (a.commit(-1), true) });
   add({ id: 'commit-up', keys: [']', '+'], labelKey: 'hotkey.commitUp', scope: 'match', run: () => (a.commit(1), true) });
+  add({ id: 'deploy', keys: ['l'], labelKey: 'hotkey.deploy', scope: 'match', noRepeat: true, run: () => (a.deploy?.(), true) });
   add({ id: 'help', keys: ['?'], labelKey: 'hotkey.help', scope: 'match', run: () => (a.toggleHelp(), true) });
   add({ id: 'overlay', keys: ['F3'], labelKey: 'hotkey.overlay', scope: 'global', run: () => (a.toggleOverlay(), true) });
 }

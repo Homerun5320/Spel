@@ -14,13 +14,13 @@ import {
   REJECT_HELI_NOT_OWNER,
   REJECT_HELI_QUEUE_BUSY,
   REJECT_NONE,
-  REJECT_PHASE,
-} from './intents';
+  REJECT_PHASE, REJECT_DIPLO_TREATY_BOUND } from './intents';
 import { PHASE_SPAWN } from './flow';
 import { HELI_APPROACH, HELI_BUILDING, HELI_CRUISE, HELI_HOVER, HELI_LIFT, HELI_PAD, type HeliView } from './heliTable';
 import type { AltMode } from './los/cache';
 
 
+import { RELATION_WAR } from './diplomacyTable';
 import { seatToOwner } from './state';
 import { STRUCT_FACTORY, type StructureView } from './structureRules';
 import type { Nav } from './nav/grid';
@@ -91,6 +91,8 @@ export interface LaunchProbe {
   readonly canNavigate: boolean;
   score(lzCell: number, from: number, mode: AltMode): LzResult;
   route(from: number, to: number, mode: AltMode): RouteResult;
+  /** M18c-1 integration: true when the zone cell belongs to a nation the seat has a truce or an alliance with (a landing there is not allowed, like an Attack). */
+  zoneBound(lzCell: number): boolean;
 }
 
 /** What a successful LaunchHeli check found: the helicopter that goes and its planned route. */
@@ -128,6 +130,7 @@ export function checkLaunchHeli(src: HeliSource, phaseRefuses: boolean, seat: nu
   if (!probe.canNavigate) return REJECT_HELI_NO_ROUTE;
   const mode: AltMode = altMode === 1 ? 1 : 0;
   const from = s.cell[factory] as number;
+  if (probe.zoneBound(lzCell)) return REJECT_DIPLO_TREATY_BOUND;
   const lz = probe.score(lzCell, from, mode);
   if (lz.reason !== 0) return lz.reason;
   const route = probe.route(from, lzCell, mode);
@@ -156,6 +159,10 @@ export function validateLaunchHeli(view: SimView, nav: Nav, seat: number, factor
     canNavigate: true,
     score: (cell, from, mode) => scoreLz(nav, view, seat, cell, from, mode),
     route: (from, to, mode) => planRoute(nav, view, seat, from, to, mode),
+    zoneBound: (cell) => {
+      const o = view.owner[cell] as number;
+      return o !== 0 && o !== seatToOwner(seat) && view.diplomacy.relation(seat, o - 1) !== RELATION_WAR;
+    },
   };
   return checkLaunchHeli(view, view.flow && view.phase === PHASE_SPAWN, seat, factory, lzCell, troops, altMode, probe, emptyLaunchPlan());
 }

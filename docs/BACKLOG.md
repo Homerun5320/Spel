@@ -461,6 +461,15 @@ Not done in the Fix-UI slice (the sim, host and AI findings belong to Fix-Sim):
 - The pad corner assumes level 1 of the Factory model (a high-level Factory model grows round it); read the Factory level into the layer if a level-10 plate ever reaches the corner.
 - A leak test (320x180, 60 renders, heapDelta) was not added: the layer creates one geometry, one material and four instanced buffers once and nothing per frame or per table change; `Globe.dispose` frees them.
 - `HeliLayer` takes the altitude above ground as `alt - GAMEPLAY_HEIGHT_EXAG * meanElev(cell)`; if M12a-2 defines `alt` differently for flight, change that one line (`aglM` in `rebuild`).
+## M13b leftovers (-> "M13b-2")
+- The beachhead ring: a pulsing ring in the owner colour on a not yet established beachhead (one row in the ring layer, no new draw call) needs the beachhead table in `SimView` (it is game state in `src/sim/heliTable.ts` but not exported to the view in this branch), and the toast for `BEACHHEAD_REVERTED` the same (the page gets no outbox events other than rejects, so it would be made from the table like `MissionWatcher`). Do it with the merge of M12a-3.
+- `e2e/deploy.test.ts` has an `it.skip`: after the landing the cells of the beachhead are the player's in the ownership texture. It cannot pass until the landing of M12a-3 is merged (today the helicopter hovers and goes home); enable it at the merge (launch as in the first test, advance until `toast.heli.landed`, read the owner of the LZ cell).
+- The exposure plan view on key E (a heat map from the exposure field, redrawn at most 2 Hz from the fx clock, 0 extra draw calls; E is reserved in the registry). Not started.
+- A SAM variant for the deploy preview scenario (an enemy SAM on the High route) belongs to M13a-2 / M12b.
+- The route is a 1-pixel line (WebGL has no wide lines): a ribbon with a width in pixels in the vertex shader would read better on a 4K screen. The route is drawn at the ground height plus the flight mode's AGL; over a ridge the real helicopter flies higher (the floor in `src/sim/heliFlight.ts`), so the line dips below the real path there.
+- The helicopter list has no ETA per row: `HeliView` carries no target cell. Add `target` to the view and show the seconds left.
+- The preview asks the sim's rules at 5 Hz on the main thread (an A* of a few ms on the 256x128 nav grid, measured by the perf scene only when a user hovers). If the A* ever shows in the report, run it in the WorkerHost (M24a) behind the same `query` function.
+- Touch: a tap on a valid zone sends at once (no hover on a phone); a two-step "tap to preview, tap again to send" would be kinder.
 
 ## M12a-3 leftovers (landing, beachhead, cut-off cluster)
 

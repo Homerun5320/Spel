@@ -6,9 +6,10 @@ import { cutOffWeightOf } from '../../src/sim/beachheadCluster';
 import { applyLaunchHeli, applyRecallHeli } from '../../src/sim/heliFlight';
 import { landingBlockedBy, landingCell, landingCostMilli } from '../../src/sim/heliLanding';
 import { heliPhase } from '../../src/sim/heliPhase';
+import { RELATION_ALLIANCE, RELATION_TRUCE, RELATION_WAR } from '../../src/sim/diplomacyTable';
 import { BEACH_CUT_OFF, HELI_PAD, HELI_UNLOAD } from '../../src/sim/heliTable';
 import { ownedStdAreaQ15, ownerCapQt } from '../../src/sim/economy';
-import { produceHeliBody, REJECT_HELI_NOT_FLYING, REJECT_NONE, withId, type IntentBody } from '../../src/sim/intents';
+import { produceHeliBody, REJECT_DIPLO_TREATY_BOUND, REJECT_HELI_NOT_FLYING, REJECT_NONE, withId, type IntentBody } from '../../src/sim/intents';
 import { LZ_ENEMY_CITY_NEAR, LZ_OUT_OF_FUEL, LZ_PEAK, LZ_STEEP, LZ_TERRAIN_CLASS, LZ_WATER } from '../../src/sim/nav/lz';
 import {
   OUTBOX_BEACHHEAD_FORMED,
@@ -171,9 +172,42 @@ describe('the landing zone is judged by scoreLz at LaunchHeli (the refusal is th
     expect([HELI_UNLOAD_TICKS, BEACHHEAD_LANDING_CELLS, BEACHHEAD_CHECK_TICKS, BEACHHEAD_ESTABLISH_CELLS, BEACHHEAD_REVERT_TICKS, TICK_HZ]).toEqual([10, 9, 10, 80, 450, 10]);
   });
 
-  it('the diplomacy hook exists and blocks nothing yet', () => {
-    expect(landingBlockedBy(1, 2)).toBe(false);
-    expect(landingBlockedBy(1, 0)).toBe(false);
+  it('the diplomacy hook: war and neutral land never block; a truce or an alliance does (M18c-1 integration)', () => {
+    const s = world();
+    expect(landingBlockedBy(s, 1, 2)).toBe(false);
+    expect(landingBlockedBy(s, 1, 0)).toBe(false);
+    s.diplo.setRelation(1, 2, RELATION_TRUCE, s.tick + 1000);
+    expect(landingBlockedBy(s, 1, 2)).toBe(true);
+    expect(landingBlockedBy(s, 1, 0)).toBe(false);
+    s.diplo.setRelation(1, 2, RELATION_ALLIANCE, 0);
+    expect(landingBlockedBy(s, 1, 2)).toBe(true);
+    s.diplo.setRelation(1, 2, RELATION_WAR, 0);
+    expect(landingBlockedBy(s, 1, 2)).toBe(false);
+  });
+
+  it('LaunchHeli to a zone owned by a treaty partner is refused with REJECT_DIPLO_TREATY_BOUND, at war it is accepted', () => {
+    const s = world();
+    const f = factoryWithHeli(s);
+    s.diplo.setRelation(1, 2, RELATION_TRUCE, s.tick + 5000);
+    expect(applyLaunchHeli(s, 0, f, ENEMY_LZ, 100, 0)).toBe(REJECT_DIPLO_TREATY_BOUND);
+    expect(s.helis.state[0]).toBe(HELI_PAD); // nothing left the pad, no troops were taken
+    s.diplo.setRelation(1, 2, RELATION_WAR, 0);
+    expect(applyLaunchHeli(s, 0, f, ENEMY_LZ, 100, 0)).toBe(REJECT_NONE);
+  });
+
+  it('a treaty made while the helicopter flies: it lands nowhere (HELI_LANDED b = 0), the zone stays with its owner and the load flies home', () => {
+    const s = world();
+    const f = factoryWithHeli(s);
+    expect(applyLaunchHeli(s, 0, f, ENEMY_LZ, 300, 0)).toBe(REJECT_NONE);
+    s.diplo.setRelation(1, 2, RELATION_TRUCE, s.tick + 100000);
+    let landed: OutboxEvent | undefined;
+    for (let i = 0; i < 3000 && landed === undefined; i++) {
+      fly(s);
+      landed = s.outbox.drain().find((e) => e.kind === OUTBOX_HELI_LANDED);
+    }
+    expect(landed).toBeDefined();
+    expect((landed as OutboxEvent).b).toBe(0);
+    expect(s.owner[ENEMY_LZ]).toBe(2);
   });
 });
 

@@ -19,6 +19,7 @@ import { groundPickerOf, pickGround, type GroundHit } from './transforms';
 import { OwnershipTexture } from './ownership';
 import { StructureLayer } from './structures';
 import { HeliLayer } from './heliLayer';
+import { DeployLayer } from './deployLayer';
 import { DistrictLayer } from './districts';
 import { meshTriangles, type QualitySettings } from './quality';
 import { buildStars } from './stars';
@@ -142,6 +143,8 @@ export class Globe {
   readonly structures: StructureLayer;
   /** The helicopters of the match (M13a-1): one instanced draw call. */
   readonly helis: HeliLayer;
+  /** M13b: the route and the landing-zone marker of the deploy mode (3 draw calls while a route and a marker are shown, 0 otherwise). */
+  readonly deploy: DeployLayer;
   /** Districts-2b: the districts on the Cities (one instanced draw call). */
   readonly districts: DistrictLayer;
   /** The sim tick as a fraction (set by the page every frame; drives the construction look of the structures). */
@@ -262,7 +265,8 @@ export class Globe {
     this.structures = new StructureLayer({ tier: o.quality.tier, gridWidth: o.world.sim.width, gridHeight: o.world.sim.height, sun: this.sun });
     this.districts = new DistrictLayer({ tier: o.quality.tier, gridWidth: o.world.sim.width, gridHeight: o.world.sim.height, sun: this.sun });
     this.helis = new HeliLayer({ gridWidth: o.world.sim.width, gridHeight: o.world.sim.height, sun: this.sun, meanElev: o.world.sim.meanElev });
-    this.scene.add(this.stars, this.mesh, ...this.structures.meshes, ...this.districts.meshes, ...this.helis.meshes, this.shell);
+    this.deploy = new DeployLayer(o.world.sim.width, o.world.sim.height);
+    this.scene.add(this.stars, this.mesh, ...this.structures.meshes, ...this.districts.meshes, ...this.helis.meshes, ...this.deploy.meshes, this.shell);
   }
 
   /** The sim tick including the fraction of the tick in progress (the page sets it every frame). */
@@ -279,6 +283,7 @@ export class Globe {
     this.field.exaggeration = x;
     this.structures.setExaggeration(x);
     this.helis.setExaggeration(x);
+    this.deploy.setExaggeration(x);
     this.districts.setExaggeration(x);
     (this.material.uniforms.uExag as { value: number }).value = x;
     this.chunkTerrain?.setExaggeration(x);
@@ -517,6 +522,7 @@ export class Globe {
     c.updateMatrixWorld();
     this.structures.frame(p.position, now, this.tickFraction, this.renderer.domElement.height);
     this.helis.frame(p.position, now);
+    this.deploy.frame(p.position);
     this.districts.frame(p.position, now, this.tickFraction, this.renderer.domElement.height, Math.tan((p.fovDeg * Math.PI) / 360));
     this.chunkTerrain?.update(p);
     if (draw) {
@@ -704,6 +710,7 @@ export class Globe {
   dispose(): void {
     this.structures.dispose();
     this.helis.dispose();
+    this.deploy.dispose();
     this.districts.dispose();
     this.gpuTimer?.dispose();
     this.chunkTerrain?.dispose();

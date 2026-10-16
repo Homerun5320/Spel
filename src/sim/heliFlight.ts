@@ -40,6 +40,7 @@ import {
   QT_PER_TROOP,
   TICK_HZ,
 } from './rules';
+import { atWar } from './diplomacy';
 import { ownerToSeat, seatToOwner, type GameState } from './state';
 import { STRUCT_FACTORY } from './structureRules';
 import { spawnPhaseRefuses } from './structures';
@@ -59,6 +60,10 @@ function probeOf(state: GameState, seat: number): LaunchProbe {
     canNavigate: hasOccluders(state),
     score: (cell, from, mode) => scoreLzOf(state, seat, cell, from, mode),
     route: (from, to, mode) => planRouteOf(state, seat, from, to, mode),
+    zoneBound: (cell) => {
+      const o = state.owner[cell] as number;
+      return o !== 0 && o !== seatToOwner(seat) && !atWar(state, seatToOwner(seat), o);
+    },
   };
 }
 

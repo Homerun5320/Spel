@@ -187,6 +187,24 @@ ACCEPTANS
 - [x] Perf within budgetMs(0.5)
 - [x] `npm run verify:fast` green
 - Result: `npm run verify:fast` green (typecheck, lint, unit tests 2 min 35 s); perf alone: heliLanding.perf (tick with 12 airborne and 4 beachheads 34 us, four searches 11 us), heliFlight.perf, heli.perf green. The full `npm run verify`, Chromium, the pack and the pull request are the orchestrator's. Details, mutant table and the Alps text replay in `docs/DECISIONS.md` "M12a-3".
+### M13b: deploy mode, landing zone preview and route preview (render, UI, app; src/sim untouched; one slice in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+Previous merge SHA: nothing of this branch is merged (pull request #1 is a draft); base commit a81d4b0.
+GÖR
+- [x] 1. GÖR and ACCEPTANS written here first
+- [x] 2. `src/app/launchPreview.ts`: `previewLaunch` (the verdict IS `validateLaunchHeli`), `LaunchPreviewer` (one query out, stale answers dropped, 5 Hz, answers as Promises)
+- [x] 3. Deploy mode (`src/app/deployMode.ts`, an input mode; Escape pops), `src/ui/deployBox.ts` in the Factory panel (button, troop slider 1..600, Low / High, verdict, flight time and fuel, Cancel), live marker and route (`src/render/deployLayer.ts`, 3 draw calls)
+- [x] 4. Key L (registry) and the resolver rule `factory-deploy` (a right click with a Factory selected opens the mode)
+- [x] 5. Helicopter list with Recall in the Factory panel; toasts for landed and shot down (`MissionWatcher`), sv and en
+- [ ] 6. Beachhead ring: NOT done here (the beachhead table is not in `SimView` in this branch), see BACKLOG "M13b-2"
+- [ ] 7. Exposure plan view (key E): NOT done (time), see BACKLOG "M13b-2"
+ACCEPTANS
+- [x] Parity: `previewLaunch` / `validateLaunchHeli` equal the real LaunchHeli intent for 35 cells and every reason code, BAD_TROOPS, NO_PAD, NOT_OWNER, NO_FACTORY (`tests/app/launchPreview.test.ts`), NO_GOLD for the production check
+- [x] Async and throttle with a delayed fake query (`tests/app/launchPreview.test.ts`)
+- [x] Playwright flow (`e2e/deploy.test.ts`): green and red marker, route, 300 troops, Low, launch, flight, landing toast, Escape, refused zone sends nothing (the beachhead-ownership step is `it.skip` until M12a-3 is merged)
+- [x] Draw calls: route 2 + marker 1, layer on/off by `renderer.info` (3 measured, with the helicopter layer 4); no console errors; leak test `e2e/deployLeak.serial.test.ts` (320x180, 60 renders, heap delta 0.09 MB, geometries and textures unchanged)
+- [x] Screenshots looked at: `test-results/shots/deploy-red.png`, `deploy-green.png`, `deploy-route-tilted.png`, `deploy-flying.png`, `deploy-landed.png` (the beachhead picture waits for M12a-3)
+- [x] `npm run verify:fast` green (typecheck, lint, 237 unit files, 2579 tests + 2 expected fail; 1 min 50 s); touched e2e green: deploy, deployLeak.serial, m20aLite, structuresSelect, structures, helis, modalKeys, hud, fixLayout, fixUi
+- Not run here: the full `npm run verify`, the Artifact pack, a pull request (the orchestrator). The beachhead step of `e2e/deploy.test.ts` is `it.skip` until M12a-3 is merged.
 
 ## Next
 
