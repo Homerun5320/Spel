@@ -419,14 +419,16 @@ export const ADAPT_DENSITY_SCALE = 0.7;
 /** Size factor of a structure by level (index = level; 0 unused): the model grows 25 % and 50 % with the upgrades. */
 export const STRUCT_LEVEL_SCALE: readonly number[] = [0, 1.0, 1.25, 1.5];
 /** Look-1: mid-range enlargement. A structure (and its districts) is drawn up to STRUCT_CLOSE_MUL times its true size between camera distances STRUCT_CLOSE_RISE_HI_M and 1.6 times that, rising from 1x at STRUCT_CLOSE_RISE_LO_M (a City is a 15 px blob at 30 km, too small) and easing back to 1x at STRUCT_CLOSE_FAR_M where the scale policy takes over; closer than the rise it is true size, so a City reads as a town at 3 km and as blocks at 800 m. Smoothstep shader maths, no extra draw call. */
-export const STRUCT_CLOSE_MUL = 2.4;
+export const STRUCT_CLOSE_MUL = 1.7; // Look-2: was 2.4 (a gentler, less massive look)
 export const STRUCT_CLOSE_RISE_LO_M = 5000;
 export const STRUCT_CLOSE_RISE_HI_M = 25000;
 export const STRUCT_CLOSE_FAR_M = 150000;
 /** The model keeps at least this share of the camera distance as its radius (the scale policy: world size grows with the distance so that a structure is visible from high up). */
 export const STRUCT_SCREEN_FRAC = 0.011;
 /** The most the scale policy enlarges a model beyond its true size (a structure from orbit stays a speck rather than a blob the size of a country). */
-export const STRUCT_MAX_SCALE = 70;
+export const STRUCT_MAX_SCALE = 35; // Look-2: was 70
+/** Look-2: the HARD cap of the apparent radius of any model at any camera distance and level, in multiples of its true model size (`radiusM`): the City's is 35 x 700 m = 24.5 km, well under half the spacing of two Cities (3 cells, about 117 km); the other types are capped in proportion. */
+export const STRUCT_APPARENT_CAP_MUL = 35;
 /** Seconds (fx clock) of the pop-in tween of a structure that appears while the page is watching. */
 export const STRUCT_POP_SECONDS = 0.45;
 /** While under construction the model grows from this share of its height to the full height. */

@@ -52,7 +52,7 @@ import {
   removeClick,
   tileInfo,
 } from '../../src/ui/cityViewModel';
-import { formatFixed, t } from '../../src/ui/i18n';
+import { formatFixed, formatGoldRate, t } from '../../src/ui/i18n';
 import { DELETE_ARM_MS } from '../../src/ui/structureInfo';
 import { CITY_VIEW } from '../../src/ui/uiConfig';
 
@@ -148,7 +148,7 @@ describe('cityInfo: the tiles of a City', () => {
     s.tick += total;
     tile = tileInfo(viewOf(s), 0, id, 0);
     expect(tile.state).toBe('ready');
-    const tenths = (level: number): string => formatFixed(districtEffect(DISTRICT_MARKET, level).goldMilliPerSec / 1000, 1);
+    const tenths = (level: number): string => formatGoldRate(districtEffect(DISTRICT_MARKET, level).goldMilliPerSec);
     expect(tile.fxNow).toEqual({ key: 'sel.district.fxMarket', params: { gold: tenths(1) } });
     expect(districtEffect(DISTRICT_MARKET, 1).goldMilliPerSec).toBe(300); // Sim-Growth: the lowered Market table 0.3 / 0.7 / 1.1 gold/s
     expect(tile.fxNext?.params.gold).toBe(tenths(2));

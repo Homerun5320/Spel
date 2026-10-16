@@ -2,7 +2,7 @@
 // see structureInfo.ts), the upgrade price and the delete cooldown, with the buttons Upgrade and Delete. The panel only reports clicks: the page sends
 // the intents. A button the sim would refuse is dimmed (aria-disabled) and its tooltip says why.
 import { fxNow } from '../render/clock';
-import { languageVersion, t } from './i18n';
+import { formatGold, languageVersion, t } from './i18n';
 import { deleteArmed, deleteClick, deleteWhyKey, effectLines, structureNameKey, upgradeWhyKey, type DeleteArm, type SelectionInfo } from './structureInfo';
 import { STRUCT_CITY, maxLevelOf } from '../sim/public';
 
@@ -77,17 +77,25 @@ export function createSelectionPanel(parent: HTMLElement, actions: { upgrade(id:
       root.dataset.level = String(info.level);
       root.setAttribute('aria-label', t('sel.panel'));
       name.textContent = t(structureNameKey(info.type));
-      level.textContent = `${t('sel.level', { level: info.level, max: maxLevelOf(info.type) })} · ${t(info.owned ? 'sel.owner.you' : 'sel.owner.other')}`;
+      level.textContent = `${t(info.level >= maxLevelOf(info.type) ? 'sel.levelTop' : 'sel.level', { level: info.level })} · ${t(info.owned ? 'sel.owner.you' : 'sel.owner.other')}`;
       state.textContent = info.upgrading ? t('sel.state.upgrading') : info.finished ? '' : t('sel.state.building');
       state.hidden = state.textContent === '';
-      fx.textContent = effectLines(info.type, info.level, onMountain)
+      const fxNow = effectLines(info.type, info.level, onMountain)
         .map((l) => t(l.key, l.params))
         .join(' ');
+      // Look-2: levels are unlimited and the steps gentle, so the next level's numbers are shown too (only when they differ and the building can still level up)
+      const fxUp =
+        info.upgradePrice > 0
+          ? effectLines(info.type, info.level + 1, onMountain)
+              .map((l) => t(l.key, l.params))
+              .join(' ')
+          : '';
+      fx.textContent = fxUp !== '' && fxUp !== fxNow ? `${fxNow} ${t('sel.fxNext', { fx: fxUp })}` : fxNow;
       // Upgrade
-      up.textContent = info.upgradePrice > 0 ? t('sel.upgrade', { price: info.upgradePrice }) : t('sel.upgradeMax');
+      up.textContent = info.upgradePrice > 0 ? t('sel.upgrade', { price: formatGold(info.upgradePrice) }) : t('sel.upgradeMax');
       up.dataset.price = String(info.upgradePrice);
       up.dataset.reason = String(info.upgradeReason);
-      setDimmed(up, info.upgradeReason !== 0, info.upgradeReason !== 0 ? t(upgradeWhyKey(info.upgradeReason), { price: info.upgradePrice }) : t('sel.upgradeTip', { price: info.upgradePrice, level: info.level + 1, seconds: info.upgradeSeconds }));
+      setDimmed(up, info.upgradeReason !== 0, info.upgradeReason !== 0 ? t(upgradeWhyKey(info.upgradeReason), { price: formatGold(info.upgradePrice) }) : t('sel.upgradeTip', { price: formatGold(info.upgradePrice), level: info.level + 1, seconds: info.upgradeSeconds }));
       // Delete
       del.textContent = armed ? t('sel.deleteConfirm') : t('sel.delete');
       del.dataset.armed = armed ? '1' : '0';

@@ -391,3 +391,10 @@ Not done in the Fix-UI slice (the sim, host and AI findings belong to Fix-Sim):
 - `SCORE_CITY_LEVEL_POINTS` (25 per City level) and `SCORE_FACTORY_LEVEL_POINTS` now let a level 999 City add 25 000 points to the score win; cap the counted level (for example at 10) or make the points concave if the score win matters.
 - The AI stops at `AI_CITY_LEVEL_CAP` 10 and `AI_STRUCT_LEVEL_CAP` / `AI_DISTRICT_LEVEL_CAP` 3: a smarter AI could buy levels by payback.
 - Conquest keeps 75 percent of a level; a level 999 City falls to 749 in one capture. A gentler loss at very high levels (for example a flat cap of 25 levels) is an option.
+
+## Look-2 leftovers
+- Polar overlap: the cap (24.5 km radius) is fixed in metres, but cells shrink east-west with cos(lat); two Cities 3 cells apart touch from about 65 degrees of latitude. A latitude-aware cap would fix it.
+- Extra towers beyond the last band (a second City geometry with more instances up to a triangle budget); Look-2 only makes the model taller.
+- The effect lines of Factory and Port still read the Fix-UI per-level tables (`atLevel` clamps to the table's last entry); when Sim-Levels2 replaces the tables with functions, `effectLines` should call them.
+- District upgrade time is not shown (the district upgrade has no separate time in the tile model).
+- A latency check of `sel.fxNext` text length on a phone-width panel.

@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
 import { OUT_DIR, compareGolden, decodePng, encodePng, launchBrowser, openPage } from '../scripts/shot.mjs';
 import { timeForSubsolarLon } from '../src/render/geo';
 import { cellToLatLon } from '../src/render/transforms';
-import { formatFixed, formatInt } from '../src/ui/i18n';
+import { formatGoldRate, formatInt } from '../src/ui/i18n';
 import { REJECT_DELETE_COOLDOWN, REJECT_NONE, REJECT_STRUCT_BUSY } from '../src/sim/intents';
 import { CAP_CITY_LEVEL_TROOPS, CITY_GOLD_MILLI_PER_SEC_PER_LEVEL, POST_RADIUS_CELLS, SAM_RADIUS_BASE_CELLS } from '../src/sim/rules';
 import { STRUCT_CITY, STRUCT_POST, STRUCT_SAM, upgradePriceGold } from '../src/sim/structureRules';
@@ -117,7 +117,9 @@ describe('selecting a structure', () => {
       expect(await panel.getAttribute('data-level')).toBe('1');
       expect(await panel.getAttribute('data-type')).toBe(String(STRUCT_CITY));
       // what it gives: the sim's numbers (rules.ts), through the text key
-      const expectFx = await t.text('sel.fx.city', { gold: formatFixed(CITY_GOLD_MILLI_PER_SEC_PER_LEVEL / 1000, 1), troops: formatInt(CAP_CITY_LEVEL_TROOPS) });
+      // Look-2: the gold is shown x GOLD_DISPLAY_FACTOR and the panel adds the next level's numbers
+      const fxOf = (level: number): Promise<string> => t.text('sel.fx.city', { gold: formatGoldRate(cityGoldMilli(level)), troops: formatInt(cityTroopCap(level)) });
+      const expectFx = `${await fxOf(1)} ${await t.text('sel.fxNext', { fx: await fxOf(2) })}`;
       expect(await page.locator('[data-testid="sel-fx"]').textContent()).toBe(expectFx);
       const upgrade = page.locator('[data-testid="sel-upgrade"]');
       expect(await upgrade.getAttribute('data-price')).toBe(String(upgradePriceGold(STRUCT_CITY, 2)));

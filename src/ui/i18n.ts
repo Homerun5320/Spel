@@ -6,6 +6,8 @@
 //
 // Developer tools (the Dev panel, the perf overlay and its report, the debug pages) are Swedish only on purpose (D98).
 
+import { GOLD_DISPLAY_FACTOR } from './uiConfig';
+
 export type Lang = 'sv' | 'en';
 export const LANGUAGES: readonly Lang[] = ['sv', 'en'];
 export const DEFAULT_LANGUAGE: Lang = 'sv';
@@ -197,7 +199,9 @@ const sv = {
   'hud.build.tooPoorOf': 'För lite guld: {name} kostar {price} guld.',
   'hud.build.needFactory': '{name} kräver en färdig egen fabrik.',
   'sel.panel': 'Vald byggnad',
-  'sel.level': 'Nivå {level} av {max}',
+  'sel.level': 'Nivå {level}',
+  'sel.levelTop': 'Nivå {level} (högsta)',
+  'sel.fxNext': 'Nästa nivå: {fx}',
   'sel.owner.you': 'din',
   'sel.owner.other': 'någon annans',
   'sel.state.building': 'Under konstruktion',
@@ -232,7 +236,8 @@ const sv = {
   'sel.city.openTip': 'Öppna stadsvyn: bygg och uppgradera distrikt i staden.',
   'sel.city.close': 'Stäng',
   'sel.city.panel': 'Stadsvy',
-  'sel.city.title': 'Stad, nivå {level} av {max}',
+  'sel.city.title': 'Stad, nivå {level}',
+  'sel.city.titleTop': 'Stad, nivå {level} (högsta)',
   'sel.city.upgrade': 'Uppgradera staden ({price})',
   'sel.city.upgradeMax': 'Högsta nivå',
   'sel.city.upgradeTip': 'Uppgradera staden till nivå {level} för {price} guld. Tar {seconds} s. Mer guld och fler trupper.',
@@ -258,7 +263,8 @@ const sv = {
   'sel.district.build': '{name} ({price} guld)',
   'sel.district.buildTime': 'Byggtid {seconds} s',
   'sel.district.buildTip': 'Bygg {name} för {price} guld. Byggtid {seconds} s. {fx}',
-  'sel.district.level': 'Nivå {level} av {max}',
+  'sel.district.level': 'Nivå {level}',
+  'sel.district.levelTop': 'Nivå {level} (högsta)',
   'sel.district.now': 'Nu: {fx}',
   'sel.district.next': 'Nästa nivå: {fx}',
   'sel.district.maxed': 'Högsta nivån.',
@@ -519,7 +525,9 @@ const en: Record<TextKey, string> = {
   'hud.build.tooPoorOf': 'Not enough gold: {name} costs {price} gold.',
   'hud.build.needFactory': '{name} needs a finished factory of your own.',
   'sel.panel': 'Selected building',
-  'sel.level': 'Level {level} of {max}',
+  'sel.level': 'Level {level}',
+  'sel.levelTop': 'Level {level} (highest)',
+  'sel.fxNext': 'Next level: {fx}',
   'sel.owner.you': 'yours',
   'sel.owner.other': "someone else's",
   'sel.state.building': 'Under construction',
@@ -554,7 +562,8 @@ const en: Record<TextKey, string> = {
   'sel.city.openTip': 'Open the city view: build and upgrade districts in the city.',
   'sel.city.close': 'Close',
   'sel.city.panel': 'City view',
-  'sel.city.title': 'City, level {level} of {max}',
+  'sel.city.title': 'City, level {level}',
+  'sel.city.titleTop': 'City, level {level} (highest)',
   'sel.city.upgrade': 'Upgrade city ({price})',
   'sel.city.upgradeMax': 'Top level',
   'sel.city.upgradeTip': 'Upgrade the city to level {level} for {price} gold. Takes {seconds} s. More gold and more troops.',
@@ -580,7 +589,8 @@ const en: Record<TextKey, string> = {
   'sel.district.build': '{name} ({price} gold)',
   'sel.district.buildTime': 'Build time {seconds} s',
   'sel.district.buildTip': 'Build {name} for {price} gold. Build time {seconds} s. {fx}',
-  'sel.district.level': 'Level {level} of {max}',
+  'sel.district.level': 'Level {level}',
+  'sel.district.levelTop': 'Level {level} (highest)',
   'sel.district.now': 'Now: {fx}',
   'sel.district.next': 'Next level: {fx}',
   'sel.district.maxed': 'Top level.',
@@ -763,6 +773,22 @@ export function formatFixed(value: number, decimals: number): string {
 }
 
 /** Seconds as "m:ss" (language neutral). */
+/**
+ * Look-2: the ONE way a gold amount (a purse, a price, a cost) is shown: the sim amount times GOLD_DISPLAY_FACTOR, a whole number with the language's
+ * thousands separator. Every surface that names gold goes through this and `formatGoldRate`; tests/ui/goldDisplay.test.ts scans the UI sources for the rest.
+ */
+export function formatGold(simGold: number): string {
+  return formatInt(simGold * GOLD_DISPLAY_FACTOR);
+}
+
+/** The same for gold per second, given in sim milli-gold per second: up to two decimals, trailing zeros dropped ("5", "0,5", "0,25"), so a gentle per-level step stays readable. */
+export function formatGoldRate(milliPerSec: number): string {
+  const hundredths = Math.round((milliPerSec * GOLD_DISPLAY_FACTOR) / 10);
+  if (hundredths % 100 === 0) return formatInt(hundredths / 100);
+  if (hundredths % 10 === 0) return formatFixed(hundredths / 100, 1);
+  return formatFixed(hundredths / 100, 2);
+}
+
 export function formatClock(totalSeconds: number): string {
   const s = Math.max(0, Math.floor(totalSeconds));
   const m = Math.floor(s / 60);

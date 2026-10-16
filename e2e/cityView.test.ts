@@ -15,7 +15,7 @@ import { CITY_GOLD_MILLI_PER_SEC_PER_LEVEL, DISTRICT_BUILD_TICKS } from '../src/
 import { barracksRegenPctAt, marketGoldMilliAt } from '../src/sim/levelCurves';
 import { STRUCT_CITY, maxLevelOf, upgradeTicksOf } from '../src/sim/structureRules';
 import { districtSlotsOf } from '../src/sim/districtRules';
-import { formatFixed } from '../src/ui/i18n';
+import { formatGoldRate } from '../src/ui/i18n';
 
 let browser: Browser;
 const baseUrl = inject('baseUrl');

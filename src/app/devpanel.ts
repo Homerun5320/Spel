@@ -2,6 +2,7 @@
 // app is registered here with `registerDevMode`, so that nobody has to edit the address bar. A mode is written to the
 // HASH (`#perf`, grammar in params.ts) and the page reloads; the app also listens to `hashchange` and restarts the mode
 // without a reload. The panel never touches `location.search`.
+import { GOLD_DISPLAY_FACTOR } from '../ui/uiConfig';
 import { DEV_PANEL_EVENT, DEV_PANEL_REQUEST_EVENT, type DevPanelEventDetail } from '../ui/events';
 import { parseHash, toHash, type RawParams } from './params';
 import { siteUrl } from './paths';
@@ -114,6 +115,11 @@ export function mountDevPanel(opts: DevPanelOptions): DevPanel {
     addr.textContent = `Adress: ${hash && hash !== '#' ? hash : '(ingen ankare)'}`;
     addr.style.cssText = 'font:12px ui-monospace,Menlo,Consolas,monospace;color:#9bd;margin-bottom:8px;word-break:break-all;';
     panel.appendChild(addr);
+    const goldHint = document.createElement('div');
+    goldHint.dataset.devGoldFactor = '1';
+    goldHint.textContent = `Guldvisning: visat guld = simulerat guld x ${GOLD_DISPLAY_FACTOR} (bara texten; GOLD_DISPLAY_FACTOR i src/ui/uiConfig.ts)`;
+    goldHint.style.cssText = 'font:12px system-ui,sans-serif;color:#9bd;margin-bottom:8px;';
+    panel.appendChild(goldHint);
     const itemStyle =
       'display:block;box-sizing:border-box;width:100%;min-height:44px;margin:0 0 6px 0;padding:8px 10px;text-align:left;border-radius:6px;' +
       'border:1px solid #3a5a9a;background:#16294a;color:#e8f0ff;font:14px system-ui,sans-serif;cursor:pointer;text-decoration:none;';

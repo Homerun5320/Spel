@@ -1,39 +1,89 @@
-// Look-1: the City tiers (band and scale from level and top level) and the two City models.
+// Look-1 / Look-2: the structure tiers (band, footprint and height from any level 1..999), the caps and the two City models.
 import { describe, expect, it } from 'vitest';
-import { CITY_BANDS, cityBand, levelScale } from '../../src/render/cityTiers';
-import { STRUCT_CLOSE_MUL } from '../../src/render/config';
-import { closeMul } from '../../src/render/rings';
+import { CITY_BANDS, LEVEL_SCALE_TOP, TALL_EXTRA, districtLevelScale, levelArcShare, levelBand, levelCode, levelHeight, levelScale, levelTall } from '../../src/render/cityTiers';
+import { STRUCT_APPARENT_CAP_MUL, STRUCT_CLOSE_MUL } from '../../src/render/config';
+import { closeMul, modelRadiusM } from '../../src/render/rings';
 import { STRUCTURE_MODELS, cityLights } from '../../src/render/structureModels';
 import { STRUCT_CITY } from '../../src/sim/public';
 
 const city = () => STRUCTURE_MODELS[STRUCT_CITY] as NonNullable<(typeof STRUCTURE_MODELS)[number]>;
 
-describe('the tier function', () => {
-  it('level 1 is the first band, the top level the last, for 3 and for 10 levels', () => {
-    for (const max of [2, 3, 5, 10, 20]) {
-      expect(cityBand(1, max)).toBe(0);
-      expect(cityBand(max, max)).toBe(CITY_BANDS - 1);
+describe('the band function (Look-2: unlimited levels, saturating)', () => {
+  it('level 1 is band 0, the edges 3, 8, 20, 50 start bands 1 to 4, and 999 is still band 4', () => {
+    expect([1, 2, 3, 7, 8, 19, 20, 49, 50, 999].map((l) => levelBand(l))).toEqual([0, 0, 1, 1, 2, 2, 3, 3, 4, 4]);
+    expect(levelBand(0)).toBe(0);
+    expect(levelBand(5000)).toBe(CITY_BANDS - 1);
+    expect(levelBand(Number.NaN)).toBe(0);
+  });
+  it('band, footprint, height and arc are monotone over every level 1..999; the footprint saturates at LEVEL_SCALE_TOP', () => {
+    let band = -1;
+    let sc = 0;
+    let tall = -1;
+    let arc = -1;
+    for (let l = 1; l <= 999; l++) {
+      expect(levelBand(l)).toBeGreaterThanOrEqual(band);
+      expect(levelScale(l)).toBeGreaterThanOrEqual(sc);
+      expect(levelTall(l)).toBeGreaterThanOrEqual(tall);
+      expect(levelArcShare(l)).toBeGreaterThanOrEqual(arc);
+      expect(levelCode(l)).toBeGreaterThanOrEqual(1);
+      expect(Math.floor(levelCode(l))).toBe(levelBand(l) + 1); // the packed code never leaks into the next band
+      band = levelBand(l);
+      sc = levelScale(l);
+      tall = levelTall(l);
+      arc = levelArcShare(l);
+    }
+    expect(levelScale(1)).toBe(1);
+    expect(levelScale(999)).toBeCloseTo(LEVEL_SCALE_TOP, 9);
+    expect(levelScale(999)).toBeLessThanOrEqual(1.5);
+    expect(levelScale(5000)).toBe(levelScale(999));
+    expect(levelTall(50)).toBe(0);
+    expect(levelHeight(999)).toBeCloseTo(1 + TALL_EXTRA, 9);
+    expect(levelArcShare(50)).toBeCloseTo(1, 9);
+    expect(levelArcShare(1)).toBe(0);
+    // a gentle curve: half the growth is done by level 32 (log scale), not by level 500
+    expect(levelScale(32)).toBeGreaterThan(1 + (LEVEL_SCALE_TOP - 1) * 0.45);
+  });
+  it('the district size is the Look-1 table up to level 3 and saturates at 1.5 beyond', () => {
+    expect([1, 2, 3].map(districtLevelScale)).toEqual([1, 1.2, 1.4]);
+    expect(districtLevelScale(999)).toBeCloseTo(1.5, 9);
+    let prev = 0;
+    for (let l = 1; l <= 999; l++) {
+      expect(districtLevelScale(l)).toBeGreaterThanOrEqual(prev);
+      prev = districtLevelScale(l);
     }
   });
-  it('is monotone in the level and uses every band when the top level is 5 or more', () => {
-    for (const max of [3, 5, 10]) {
-      let prev = -1;
-      let prevScale = 0;
-      const seen = new Set<number>();
-      for (let l = 1; l <= max; l++) {
-        const b = cityBand(l, max);
-        const sc = levelScale(l, max);
-        expect(b).toBeGreaterThanOrEqual(prev);
-        expect(sc).toBeGreaterThan(prevScale);
-        prev = b;
-        prevScale = sc;
-        seen.add(b);
+});
+
+describe('the hard cap of the apparent size (Look-2)', () => {
+  const dists = [150, 800, 3000, 25000, 30000, 150000, 1e6, 1e7, 4e7 * 1000];
+  it('a model of any type and level never shows a radius above the cap, at any distance from 150 m to 40 000 km', () => {
+    for (const size of [700, 560, 520, 450]) {
+      for (const level of [1, 10, 100, 999]) {
+        for (const d of dists) expect(modelRadiusM(d, size, level)).toBeLessThanOrEqual(STRUCT_APPARENT_CAP_MUL * size + 1e-6);
       }
-      if (max >= 5) expect(seen.size).toBe(CITY_BANDS);
+    }
+    expect(STRUCT_APPARENT_CAP_MUL * 700).toBeLessThanOrEqual(25000);
+  });
+  it('up close a City is at most about 1.2 km, at 30 km at most 2.4 km (a town, not a province)', () => {
+    for (const level of [1, 10, 100, 999]) {
+      expect(modelRadiusM(800, 700, level)).toBeLessThanOrEqual(1200);
+      expect(modelRadiusM(3000, 700, level)).toBeLessThanOrEqual(1200);
+      expect(modelRadiusM(30000, 700, level)).toBeLessThanOrEqual(2400);
     }
   });
-  it('the scale keeps the old values at three levels: 1, 1.25, 1.5', () => {
-    expect([1, 2, 3].map((l) => levelScale(l, 3))).toEqual([1, 1.25, 1.5]);
+  it('two Cities 3 cells apart (39 km a cell at the equator, cos(lat) east-west) do not overlap at any distance up to 60 degrees latitude', () => {
+    for (const latDeg of [0, 30, 45, 60]) {
+      const spacingM = 3 * 39000 * Math.cos((latDeg * Math.PI) / 180);
+      for (const d of dists) expect(2 * modelRadiusM(d, 700, 999)).toBeLessThan(spacingM);
+    }
+  });
+  it('the radius is continuous in the distance (no jump where the caps meet)', () => {
+    let prev = modelRadiusM(100, 700, 999);
+    for (let d = 100; d < 1e8; d *= 1.01) {
+      const v = modelRadiusM(d, 700, 999);
+      expect(Math.abs(v - prev)).toBeLessThan(0.03 * Math.max(prev, 700));
+      prev = v;
+    }
   });
 });
 

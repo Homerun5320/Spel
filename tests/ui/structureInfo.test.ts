@@ -41,7 +41,7 @@ import { CLASS_PLAINS } from '../../src/sim/terrain';
 import { StateView } from '../../src/sim/view';
 import { buildRejectKey, structureRefusalKey } from '../../src/ui/buildReasons';
 import { rejectKey } from '../../src/ui/hudLogic';
-import { formatInt, t } from '../../src/ui/i18n';
+import { formatGoldRate, formatInt, t } from '../../src/ui/i18n';
 import {
   DELETE_ARM_MS,
   deleteArmed,
@@ -80,7 +80,7 @@ describe('effectLines: the numbers of the structure\'s own level, from the sim t
   });
 
   it('City: gold and troop cap follow the sim per level, levels 1 to 10 (thousands grouped)', () => {
-    expect(effectLines(STRUCT_CITY, 1)[0]?.params).toEqual({ gold: '1,5', troops: formatInt(CAP_CITY_LEVEL_TROOPS) });
+    expect(effectLines(STRUCT_CITY, 1)[0]?.params).toEqual({ gold: '15', troops: formatInt(CAP_CITY_LEVEL_TROOPS) });
     for (const level of [2, 3, 5, maxLevelOf(STRUCT_CITY)]) {
       const tenths = Math.round(cityGoldMilli(level) / 100); // the panel shows at most one decimal
       expect(effectLines(STRUCT_CITY, level)[0]?.params.gold).toBe(String(tenths / 10).replace('.', ','));

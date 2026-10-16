@@ -184,3 +184,9 @@ export const CITY_VIEW = {
     kind: ['#000000', '#8ee6b0', '#ffd666', '#ff9e7a', '#b4c4e0'],
   },
 } as const;
+
+/**
+ * Look-2: the VISUAL inflation of gold. Every gold amount, price and gold per second the player sees is the sim's number times this factor (the first City
+ * reads 4 000 gold instead of 400); the sim, the prices and the pace are unchanged. Only `formatGold` / `formatGoldRate` in i18n.ts use it.
+ */
+export const GOLD_DISPLAY_FACTOR = 10;

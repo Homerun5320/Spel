@@ -37,18 +37,14 @@ import {
 } from '../sim/public';
 import { spawnPhaseBlocks } from './buildReasons';
 import { REJECT_PHASE } from './hudCodes';
-import { formatFixed, formatInt, type TextKey, type TextParams } from './i18n';
+import { formatFixed, formatGoldRate, formatInt, type TextKey, type TextParams } from './i18n';
 
 export interface EffectLine {
   readonly key: TextKey;
   readonly params: TextParams;
 }
 
-/** Gold per second with at most one decimal in the language's own format ("1,5", "3"; thousands separated). */
-function gold(milliPerSec: number): string {
-  const tenths = Math.round(milliPerSec / 100);
-  return tenths % 10 === 0 ? formatInt(tenths / 10) : formatFixed(tenths / 10, 1);
-}
+const gold = formatGoldRate; // Look-2: the displayed gold per second (GOLD_DISPLAY_FACTOR in, up to two decimals)
 
 /** The value of a per-level table at `level` (clamped to the table, so a level outside 1..max shows the nearest). */
 function atLevel(table: readonly number[], level: number): number {

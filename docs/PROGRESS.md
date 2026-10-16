@@ -1222,3 +1222,10 @@ Base: 2dd505a. ENGINE_VERSION 12, FORMAT_VERSION 10. The UI track (Look-1) reads
 - [x] 4. Level display: the panels already read "Nivå n av max" and the upgrade tooltip names the next level (max from `STRUCT_MAX_LEVEL` in public.ts); the far icon of a City has a clockwise progress arc (lit share = level / max) instead of a digit
 - [x] Tests: `tests/render/cityTiers.test.ts`, `tests/app/cityStyle.test.ts`, `tests/render/flyToFast.test.ts`, `e2e/lookCities.test.ts` (goldens `city-old.png`, `city-new.png`); goldens `structures-city`, `structures-factory-port`, `districts-layer` re-pinned once (DECISIONS Look-1). Leftovers: "Look-1 leftovers" in `docs/BACKLOG.md`.
 - Not run here: the full `npm run verify`, the Artifact pack, the pull request (the orchestrator).
+
+### Look-2: unlimited levels in the render and UI, a capped footprint, visual gold inflation (one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+Base aa9b996. Parallel track Sim-Levels2 owns the sim numbers.
+- [x] 1. Capped footprint and gentler look: saturating bands (1, 3, 8, 20, 50), logarithmic footprint (at most 1.3 x), taller beyond band 4, hard cap `STRUCT_APPARENT_CAP_MUL` (City 24.5 km at any distance), `STRUCT_CLOSE_MUL` 1.7, districts too; `tests/render/cityTiers.test.ts`, `e2e/look2.test.ts`
+- [x] 2. Level display: "Nivå n" without max, "(högsta)" at the cap, next-level numbers in the panel, logarithmic far-icon arc
+- [x] 3. Visual gold inflation `GOLD_DISPLAY_FACTOR` 10 through `formatGold` / `formatGoldRate`; `tests/ui/goldDisplay.test.ts`; Dev panel hint line
+- Leftovers: "Look-2 leftovers" in `docs/BACKLOG.md`. Not run here: the full `npm run verify`, the Artifact pack.

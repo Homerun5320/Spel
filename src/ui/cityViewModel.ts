@@ -45,7 +45,7 @@ import {
 } from '../sim/public';
 import { spawnPhaseBlocks } from './buildReasons';
 import { REJECT_PHASE } from './hudCodes';
-import { formatFixed, formatInt, type TextKey, type TextParams } from './i18n';
+import { formatFixed, formatGoldRate, formatInt, type TextKey, type TextParams } from './i18n';
 import type { DeleteArm } from './structureInfo';
 import { deleteArmed, deleteClick } from './structureInfo';
 
@@ -70,10 +70,6 @@ export interface FxLine {
   readonly params: TextParams;
 }
 
-function goldText(milli: number): string {
-  const tenths = Math.round(milli / 100);
-  return tenths % 10 === 0 ? formatInt(tenths / 10) : formatFixed(tenths / 10, 1);
-}
 
 /** What a finished district of `kind` at `level` gives, as one text line (the sim's numbers through `districtEffect`). */
 export function districtFxLine(kind: number, level: number): FxLine {
@@ -82,7 +78,7 @@ export function districtFxLine(kind: number, level: number): FxLine {
     case DISTRICT_HOUSING:
       return { key: 'sel.district.fxHousing', params: { troops: formatInt(e.capTroops) } };
     case DISTRICT_MARKET:
-      return { key: 'sel.district.fxMarket', params: { gold: goldText(e.goldMilliPerSec) } };
+      return { key: 'sel.district.fxMarket', params: { gold: formatGoldRate(e.goldMilliPerSec) } };
     case DISTRICT_BARRACKS:
       return { key: 'sel.district.fxBarracks', params: { pct: e.regenPct } };
     default:

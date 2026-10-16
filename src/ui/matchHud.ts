@@ -12,7 +12,7 @@ import { drawFlag, type FlagSpec } from './flag';
 import type { SeatLabels } from './seatLabels';
 import { TICK_HZ } from './hudCodes';
 import { bannerState, phaseName, rankOf, rankTop, rejectKey, seatName, shareHundredths, troopBar } from './hudLogic';
-import { formatClock, formatFixed, formatInt, languageVersion, t, type TextKey } from './i18n';
+import { formatClock, formatFixed, formatGold, formatGoldRate, formatInt, languageVersion, t, type TextKey } from './i18n';
 import { mountHudStyle } from './hudStyle';
 import { COMMIT_MAX_PCT, COMMIT_MIN_PCT, COMMIT_STEP_PCT, FLAG_ROW_H, FLAG_ROW_W, LEADERBOARD_INCLUDES_TRIBES, LEADERBOARD_ROWS, PLAY_HINT_SECONDS, TOAST_SECONDS, TROOP_WARNING_FRACTION } from './uiConfig';
 
@@ -217,8 +217,8 @@ export function createMatchHud(parent: HTMLElement, actions: MatchHudActions, op
   let nationLang = -1;
   const goldLabel = cell(label('hud-label', 'hud.gold'));
   const goldRow = el('span', 'hud-right');
-  const goldNum = dyn(new TextCell(el('span', 'hud-num hud-gold', 'gold'), (a) => formatInt(a), true));
-  const goldRate = dyn(new TextCell(el('span', 'hud-dim', 'gold-rate'), (a) => t('hud.goldRate', { rate: formatFixed(a / 1000, 1) }), true));
+  const goldNum = dyn(new TextCell(el('span', 'hud-num hud-gold', 'gold'), (a) => formatGold(a), true));
+  const goldRate = dyn(new TextCell(el('span', 'hud-dim', 'gold-rate'), (a) => t('hud.goldRate', { rate: formatGoldRate(a) }), true));
   goldRow.append(goldNum.el, document.createTextNode(' '), goldRate.el);
   const troopsLabel = cell(label('hud-label', 'hud.troops'));
   const troopsRow = el('span', 'hud-right');

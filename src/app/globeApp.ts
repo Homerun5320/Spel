@@ -280,6 +280,8 @@ export interface GlobeTestHooks {
   props(): PropsInfo;
   /** Look-1: switches the City style live (the preference is not written in test mode). */
   setCityStyle(style: CityStyle): void;
+  /** Look-2: draws structure `id` (and the districts of a City) as if it had `level`; render only. `null` clears. */
+  setLevelOverride(id: number, level: number | null): void;
   /** Sends a raw intent body of any seat through the host (what a UI would; used to try illegal ones). Effective T + 2 ticks later. */
   submit(body: IntentBody): void;
   /** Test-only gift: sends a DebugGive intent (valid only when the match config has debugIntents, which test mode sets). Effective T + 2 ticks later. */
@@ -1494,6 +1496,10 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       state: matchState,
       props: propsInfo,
       setCityStyle: (style) => applyCityStyle(style),
+      setLevelOverride(id, level): void {
+        globe.structures.setLevelOverride(id, level);
+        globe.districts.setLevelOverride(id, level);
+      },
       submit(body): void {
         session?.submit(body);
       },
