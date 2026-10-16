@@ -61,7 +61,7 @@ describe('helicopter refusal texts', () => {
   it('the neighbours still behave: a build refusal, a district refusal and an unknown code keep their keys', () => {
     expect(rejectKey(32)).toBe('toast.build.gold');
     expect(rejectKey(44)).toBe('toast.district.cityBuilding');
-    expect(rejectKey(51)).toBe('reject.other');
+    expect(rejectKey(55)).toBe('reject.other'); // 51 to 54 are the LaunchHeli / RecallHeli reasons since M12a-2
     expect(rejectKey(64)).toBe('reject.other');
     expect(rejectKey(73)).toBe('reject.other');
   });

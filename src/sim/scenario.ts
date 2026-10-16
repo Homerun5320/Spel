@@ -54,7 +54,8 @@ export const GOLDEN_PARAMS: ScenarioParams = Object.freeze({
 export function createScenarioState(p: Partial<ScenarioParams> = {}): GameState {
   const q = { ...GOLDEN_PARAMS, ...p };
   const world = buildFixtureWorld(q.seed, q.width, q.height);
-  return createState({ width: q.width, height: q.height, seed: q.seed, seats: q.seats, config: q.config, terrain: world.terrain, elevation: world.elevation });
+  // M12a-2: the occluder layer is the mean elevation (it is not in the map hash), so that LaunchHeli can plan routes and the golden run contains real flights.
+  return createState({ width: q.width, height: q.height, seed: q.seed, seats: q.seats, config: q.config, terrain: world.terrain, elevation: world.elevation, maxElev: Int16Array.from(world.elevation) });
 }
 
 /** The bodies the script submits for the turn that runs at `turn` (before ids are handed out). Pure in (seed, turn). */
@@ -124,6 +125,9 @@ export function scenarioBodies(seed: number, turn: number, seats: number, cells:
   if (turn > 12 && hash2(seed, turn, 650) % 101 === 0) out.push({ kind: 'RemoveDistrict', seat: hash2(seed, turn, 651) % seats, structure: hash2(seed, turn, 652) % 12, slot: hash2(seed, turn, 653) % 4 });
   // Helicopters (M12a-1): a ProduceHeli in a low structure id about one turn in 13 (most are refused: no such Factory, not the seat's, unfinished, the purse). Last in the list again, so the picks above stay where they were.
   if (turn > 12 && hash2(seed, turn, 660) % 13 === 0) out.push({ kind: 'ProduceHeli', seat: hash2(seed, turn, 661) % seats, factory: hash2(seed, turn, 662) % 12 });
+  // Flights (M12a-2): a LaunchHeli about one turn in 2 (a Factory id, a cell, 0 to 300 troops, a mode; most are refused, some fly) and a RecallHeli about one in 5. Last in the list again.
+  if (turn > 12 && hash2(seed, turn, 670) % 2 === 0) out.push({ kind: 'LaunchHeli', seat: hash2(seed, turn, 671) % seats, factory: hash2(seed, turn, 672) % 6, lzCell: hash2(seed, turn, 673) % cells, troops: hash2(seed, turn, 674) % 301, altMode: hash2(seed, turn, 675) & 1 });
+  if (turn > 12 && hash2(seed, turn, 680) % 5 === 0) out.push({ kind: 'RecallHeli', seat: hash2(seed, turn, 681) % seats, heli: hash2(seed, turn, 682) % 4 });
   return out;
 }
 

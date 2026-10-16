@@ -61,7 +61,7 @@ describe('codec: malformed bytes give an error result and never throw', () => {
   it('names the failure', () => {
     expect(err(decodeIntent(new Uint8Array([])))).toBe('truncated');
     expect(err(decodeIntent(new Uint8Array([0, 1])))).toBe('truncated');
-    expect(err(decodeIntent(new Uint8Array([13, 0, 0])))).toBe('kind'); // M12a-1 made kind 12 (ProduceHeli) valid, Districts-1 kinds 9 to 11;
+    expect(err(decodeIntent(new Uint8Array([15, 0, 0])))).toBe('kind'); // M12a-1 made kind 12 (ProduceHeli) valid, Districts-1 kinds 9 to 11;
     expect(err(decodeIntent(new Uint8Array([0, 0, 0, 0])))).toBe('trailing');
     expect(err(decodeIntent(new Uint8Array([1, 0, 0])))).toBe('truncated'); // DebugPaint without a cell
     expect(err(decodeIntent(new Uint8Array([0, 0, 0x80, 0])))).toBe('varint'); // 0x80 0x00 is a long form of 0

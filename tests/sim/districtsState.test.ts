@@ -42,8 +42,8 @@ function refused(tamper: (s: GameState) => void, error = 'structure-range'): voi
 }
 
 describe('versions', () => {
-  it('ENGINE_VERSION is 14 and FORMAT_VERSION is 12 (M12a-1: the air block; was 13 and 11 after Sim-Levels2, 12 and 10 after Sim-Growth)', () => {
-    expect(ENGINE_VERSION).toBe(14);
+  it('ENGINE_VERSION is 15 (M12a-2: the flight; 14 after M12a-1) and FORMAT_VERSION is 12 (M12a-1: the air block; was 13 and 11 after Sim-Levels2, 12 and 10 after Sim-Growth)', () => {
+    expect(ENGINE_VERSION).toBe(15);
     expect(FORMAT_VERSION).toBe(12);
   });
 });
