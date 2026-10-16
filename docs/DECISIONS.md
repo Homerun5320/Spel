@@ -1042,7 +1042,7 @@ STOP RULE FIRED. The mask, the composite, the queries and the accuracy criteria 
 4. **The result screen reads only the sim.** Rank 1 is the winner, then the sim's own tiebreak (score, land, seat). Score, peak land, built and conquered are the `MatchView` numbers; the land percent column is the sim's land-share statistic (`landShareQ15`), the only figure the `MatchView` does not carry in percent. "Peak land" is in weighted standard cells like the score. When the match ends the page pauses the host (the sim already only counts ticks).
 5. **Escape.** `escapeAction(depth)`: a mode on the stack closes, an empty stack opens the pause menu; the menu closes on the next Escape. While the result screen or the elimination panel is open Escape does nothing. The menu remembers whether the game was paused before it opened and restores that.
 6. **Elimination.** The panel pauses the game behind it; "Watch" unpauses, shows the spectator bar (badge, 1x / 2x / 4x, menu) and never asks again; the pause menu still works. A nation that is eliminated gives one toast "X was eliminated" (its capital loss is then not reported separately); a capital loss alone gives a warn toast. Several seats in one frame are joined into one toast (the toast module renews a toast with the same key, so two toasts of one kind would overwrite each other).
-7. **Not changed.** The standard "Play" match still has no `win` block (it never ends); it is created by `MatchSession.create`, whose config is not part of this slice (BACKLOG). `tests/i18n.test.ts` got the new key prefixes `win`, `pause`, `result`, `elim`, `spectator` in its source scan (a wider net, nothing loosened).
+7. **Not changed.** The standard "Play" match had no `win` block in this slice (it never ended); it is created by `MatchSession.create`, whose config is not part of this slice (BACKLOG). [Fix-3C: stale since commit 2dd505a, the plain Play match gets `defaultWinConfig('world')` outside test mode, see D Fix-3C.] `tests/i18n.test.ts` got the new key prefixes `win`, `pause`, `result`, `elim`, `spectator` in its source scan (a wider net, nothing loosened).
 8. **Test hooks.** `__test.forceEliminated(seat)` makes the panels see a seat as eliminated (the sim cannot be steered to that in a few ticks); `__test.matchInfo()` returns the `MatchView` as plain arrays for the "statistics equal the sim" assertion.
 
 ## M11b: air navigation (nav grid, planRoute, scoreLz, debug/viewshed.html)
@@ -1241,3 +1241,37 @@ Problem: `step(state, turn)` reaches neither `Los` nor `Nav` (built outside the 
 
 11. **One existing assertion changed, because the change causes it.** `e2e/cityView.test.ts` asserted that after "Oppna stad" from 2600 km the camera stands below 2600 m (the old 1500 m end altitude with slack). With the fit the flight ends at about 3.6 km at 960x540 (and higher in a portrait window), so the bound is now 5000 m (the test still proves a flight happened: it starts above 5000 m); nothing else of that test moved.
 12. **A second existing assertion changed for the same reason.** `e2e/lookCities.test.ts` asserted an end altitude of 1500 m +- 150 and the City at the screen centre after the fast open-city flight; both are what Fix-3B changes on purpose. It now asserts at least 1450 m and below 5000 m, the City left of the panel and within 80 px of the middle of the free part (the flight is still at most 1.8 s and still ends in the same number of frames).
+## Fix-3C: docs that lied, test holes in app and UI, hygiene (audit 2, lenses fit and mutation; headless)
+
+1. **Each finding checked against HEAD 04eaba8 first.** fit[2] (PROGRESS), fit[7] (ARCHITECTURE), fit[8] (BACKLOG, M18-2 point 7) were all still true and are corrected: Done rows for every slice since M10-4, finished passes moved to a section "Archive" at the end of `docs/PROGRESS.md` (text kept, two stale boxes ticked with a note), Known issues M11a now says "accepted by the owner" (M11b point 10), Next points at M12a and M20a-lite and at audit 3 after five pushes. mutation[6] was true (no test on the Play win path). mutation[2] app part and mutation[10] were true. fit[9] true. fit[10] true (313 158 B gz total, main chunk 263 782 B at Fix-3C; the 311.9 kB of the audit was measured with Vite's own gzip).
+2. **`STRUCT_LEVEL_SCALE` is left in `src/render/config.ts` (marked unused in ARCHITECTURE).** Removing it means editing `tests/render/structureModels.test.ts`, and the render side belongs to another builder. BACKLOG has the line.
+3. **The Play win choice moved to `winForPlay(test)` in `src/app/match.ts`** (the globeApp.ts change is one call plus two import edits). `MatchOptions.win` became `WinConfig | undefined` so the call can pass `undefined` in test mode. Behaviour is unchanged: the plain Play match gets `defaultWinConfig('world')` outside test mode (commit 2dd505a), test mode none.
+4. **`cityTotals` caps the Barracks sum at `BARRACKS_REGEN_PCT_MAX`** (the owner-wide cap the sim applies in `src/sim/structureEffects.ts`). A single panel therefore shows at most the cap; the true owner sum over several Cities is also capped, so the panel never over-promises. Chosen over a label change because the number is what the player compares with the sim.
+5. **Bundle guard** in `tests/portable.test.ts` (it reuses the build the file already makes): total gzipped JS at most 329 000 B (measured 313 158 B, +5 %) and the largest chunk at most 277 000 B (measured 263 782 B, +5 %). The old acceptance "<= 300 KB gz" has been missed since the city view and the match flow; the caps pin the present size so growth fails a test. Raise them only with a line here. Lazy loading of the city view and the match panels is a BACKLOG proposal.
+6. **`PLAYER_FACING` in `tests/i18n.test.ts`** got the 14 files of the finding; the scan found no Swedish literal. The district icon literal `#0d1830` is `UI_COLORS.field` now (same value, no visible change).
+7. **Mutants** (each applied by hand to the one line, the named test file run, the line restored). `tests/ui/fix3c.test.ts` (UI) and `tests/app/winPath.test.ts` (app):
+
+| mutant | change | killed by |
+|---|---|---|
+| ma-win-session | drop the `win` spread in `MatchSession.create` | winPath: session given the block carries it |
+| ma-win-play | `winForPlay` always undefined | winPath: winForPlay |
+| ma-win-play-inv | `winForPlay` inverted | winPath: winForPlay |
+| sm-check-win | `checkDraft` drops the win spread | winPath: checkDraft Standard / Sandbox / Quick |
+| sm-stored-win | `storedOf` drops `win` | winPath: stored setup keeps a win draft |
+| sm-draft-win | `draftFromStored` ignores the stored win | winPath: stored setup keeps a win draft |
+| sm-draft-clamp | no `clampWinDraft` on the way back | winPath: out of range is pulled into range |
+| sm-draft-guard | `isWinDraft` replaced by `!== undefined` | winPath: other shape gives the base draft |
+| ws-flags-swap | `last` and `score` bits swapped in `winInfoOfView` | winPath: flags both ways |
+| ws-draft-null | `winDraftOf(null)` gives Standard | winPath: winDraftOf |
+| ws-draft-undef | `winDraftOf(undefined)` gives Quick | winPath: winDraftOf |
+| ws-draft-minutes | the "equals the area default" shortcut removed | winPath: winDraftOf over all regions (a region default is a fixed choice in some areas) |
+| ws-preset-land-off | `presetOf` compares the land percent of an off switch | winPath: presetOf |
+| ws-preset-score-off | same for the minutes of an off score switch | winPath: presetOf |
+| cv-sig-kind / level / progress / wait / price | one field of `citySignature` set to a constant | fix3c: one test per field |
+| cv-sig-state | the building / upgrading code set to 0 | NOT killed, EQUIVALENT: a tile in the other state always differs in its progress or in the upgrade / remove reasons, which are in the signature |
+| cv-totals-cap | `cityTotals` without the Barracks cap | fix3c: five Barracks at level 999 |
+| br-phase-flow | `spawnPhaseBlocks` returns `view.flow` | fix3c: spawnPhaseBlocks |
+| mf-rows-score / mf-rows-winner | `resultRows` score order reversed / winner-first removed | fix3c: resultRows |
+| mf-watch-elim-cap | `&& e === 0` dropped in `MatchWatcher` | fix3c: eliminated nation not reported again as capital lost (the same-scan case is guarded by the `else if`, so the test uses two scans) |
+
+8. **Not done (BACKLOG "Fix-3C"):** the districts drop policy (logged), lazy loading, `STRUCT_LEVEL_SCALE` removal, PREVIEW text for the match flow (Swedish file).

@@ -20,7 +20,7 @@ import {
 } from './cityViewModel';
 import { formatFixed, formatGold, formatGoldRate, formatInt, languageVersion, t } from './i18n';
 import type { DeleteArm } from './structureInfo';
-import { CITY_VIEW } from './uiConfig';
+import { CITY_VIEW, UI_COLORS } from './uiConfig';
 
 export interface CityViewActions {
   build(structure: number, slot: number, kind: number): void;
@@ -58,20 +58,20 @@ export function districtIcon(kind: number, px: number = CITY_VIEW.iconPx): SVGSV
   switch (kind) {
     case 1: // Housing: a house
       shape('path', { d: 'M12 3 L22 12 H19 V21 H5 V12 H2 Z' });
-      shape('rect', { x: '10', y: '14', width: '4', height: '7', fill: '#0d1830' });
+      shape('rect', { x: '10', y: '14', width: '4', height: '7', fill: UI_COLORS.field });
       break;
     case 2: // Market: a coin
       shape('circle', { cx: '12', cy: '12', r: '9.5' });
-      shape('rect', { x: '10.8', y: '5.5', width: '2.4', height: '13', fill: '#0d1830' });
-      shape('rect', { x: '7', y: '10.8', width: '10', height: '2.4', fill: '#0d1830' });
+      shape('rect', { x: '10.8', y: '5.5', width: '2.4', height: '13', fill: UI_COLORS.field });
+      shape('rect', { x: '7', y: '10.8', width: '10', height: '2.4', fill: UI_COLORS.field });
       break;
     case 3: // Barracks: a shield
       shape('path', { d: 'M12 2 L21 5 V12 C21 17 17 20.5 12 22 C7 20.5 3 17 3 12 V5 Z' });
-      shape('path', { d: 'M12 6 L13.6 10 H18 L14.4 12.6 L15.8 17 L12 14.3 L8.2 17 L9.6 12.6 L6 10 H10.4 Z', fill: '#0d1830' });
+      shape('path', { d: 'M12 6 L13.6 10 H18 L14.4 12.6 L15.8 17 L12 14.3 L8.2 17 L9.6 12.6 L6 10 H10.4 Z', fill: UI_COLORS.field });
       break;
     default: // Walls: a crenellated wall
       shape('path', { d: 'M2 21 V8 H6 V5 H9 V8 H10 V5 H14 V8 H15 V5 H18 V8 H22 V21 Z' });
-      shape('rect', { x: '9.5', y: '14', width: '5', height: '7', fill: '#0d1830' });
+      shape('rect', { x: '9.5', y: '14', width: '5', height: '7', fill: UI_COLORS.field });
       break;
   }
   return svg;

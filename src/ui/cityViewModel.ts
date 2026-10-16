@@ -43,6 +43,7 @@ import {
   validateUpgrade,
   type SimView,
 } from '../sim/public';
+import { BARRACKS_REGEN_PCT_MAX } from '../sim/rules';
 import { spawnPhaseBlocks } from './buildReasons';
 import { REJECT_PHASE } from './hudCodes';
 import { formatFixed, formatGoldRate, formatInt, type TextKey, type TextParams } from './i18n';
@@ -254,7 +255,8 @@ export function cityTotals(view: SimView, id: number): CityTotals {
     regen += e.regenPct;
     if (e.wallsCostPct > walls) walls = e.wallsCostPct;
   }
-  return { goldMilliPerSec: gold, capTroops: cap, regenPct: regen, wallsCostPct: walls };
+  // The sim caps the owner's whole Barracks sum at BARRACKS_REGEN_PCT_MAX (Fix-3C): one panel never shows more than the owner can get.
+  return { goldMilliPerSec: gold, capTroops: cap, regenPct: Math.min(regen, BARRACKS_REGEN_PCT_MAX), wallsCostPct: walls };
 }
 
 /** The whole description of City `id` for `seat`, or null when `id` is not a City that exists. */
