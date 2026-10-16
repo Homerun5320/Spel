@@ -611,15 +611,17 @@ export function attachDomInput(canvas: HTMLCanvasElement, stack: InputStack, hov
  * The keyboard of the stack: every RESERVED key (`isReservedKey`: 1 to 6, E, H, F, Escape) of a `keydown` on `target` goes to `stack.key`, and
  * nothing else does (the match keys of `src/app/matchKeys.ts` stay with the page). `enabled()` says whether a game is on (the setup screen and the
  * menus own the keyboard before it). A key already handled (`defaultPrevented`) or typed into a text field is not ours; the stack itself refuses
- * ctrl, alt and meta (browser shortcuts such as Ctrl+1). `preventDefault` is called for a key a mode used, and for Escape only when it popped a mode
+ * ctrl, alt and meta (browser shortcuts such as Ctrl+1). While `modalOpen` says so, only Escape is handed on. `preventDefault` is called for a key a mode used, and for Escape only when it popped a mode
  * (an Escape that opens the pause menu must not be swallowed before the browser's own full-screen exit). M20a's hotkeys.ts takes this adapter over.
  */
-export function attachDomKeys(target: EventTarget, stack: InputStack, enabled: () => boolean, signal?: AbortSignal): void {
+export function attachDomKeys(target: EventTarget, stack: InputStack, enabled: () => boolean, signal?: AbortSignal, modalOpen?: () => boolean): void {
   target.addEventListener(
     'keydown',
     (ev: Event) => {
       const e = ev as KeyboardEvent;
       if (e.defaultPrevented || !isReservedKey(e.key) || !enabled()) return;
+      // A modal (pause menu, elimination panel, result screen) owns the keyboard: only Escape goes through (Fix-3B).
+      if (e.key !== 'Escape' && modalOpen?.() === true) return;
       const el = e.target as { tagName?: string; type?: string } | null;
       const typing = typingInField({ key: e.key, ctrlKey: e.ctrlKey, altKey: e.altKey, metaKey: e.metaKey, targetTag: el?.tagName, targetType: el?.type });
       const depth = stack.depth;

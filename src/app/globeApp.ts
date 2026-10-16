@@ -613,6 +613,8 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     session.setPaused(true);
     panels.openPause();
   };
+  /** A modal (pause menu, elimination panel, result screen) is open or the match is over: the match keys and the reserved keys but Escape are dead (Fix-3B). */
+  const keysBlockedByModal = (): boolean => panels !== null && (panels.modalOpen || flowEnded);
   /** Once per frame: the toasts for other nations' elimination and capital loss, the elimination panel, the result screen. Allocates only when something happens. */
   const updateMatchFlow = (): void => {
     const s = session;
@@ -857,7 +859,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       }
       const t = e.target instanceof HTMLElement ? e.target : null;
       // The reserved keys (1 to 6, E, H, F, Escape) belong to the input stack: `attachDomKeys` below hands them to it, and the match keys never bind them.
-      if (session === null) return;
+      if (session === null || keysBlockedByModal()) return;
       const action = matchKeyAction({ key: e.key, code: e.code, ctrlKey: e.ctrlKey, altKey: e.altKey, metaKey: e.metaKey, repeat: e.repeat, targetTag: t?.tagName, targetType: t instanceof HTMLInputElement ? t.type : undefined });
       if (action === null) return;
       e.preventDefault();
@@ -1134,7 +1136,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     inputStack.push(mode);
   };
   // The reserved keys go to the stack while a match is on (the setup screen and the menus own the keyboard before it).
-  attachDomKeys(window, inputStack, () => setupScreen === null && session !== null, signal);
+  attachDomKeys(window, inputStack, () => setupScreen === null && session !== null, signal, keysBlockedByModal);
   let inputOn = false;
   const attachInput = (): void => {
     if (inputOn) return;
