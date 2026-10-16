@@ -123,11 +123,10 @@ export function createSelectionPanel(parent: HTMLElement, actions: { upgrade(id:
       const showHeli = info.type === STRUCT_FACTORY && info.owned && heli !== null && actions.produceHeli !== undefined;
       heliBox.hidden = !showHeli;
       if (showHeli && heli !== null) {
-        const price = formatGold(heli.price);
-        heliBtn.textContent = t('sel.heli.build', { price });
+        heliBtn.textContent = t('sel.heli.build', { price: formatGold(heli.price) });
         heliBtn.dataset.reason = String(heli.reason);
         const why = heli.reason !== 0 ? t(rejectKey(heli.reason), { code: heli.reason }) : '';
-        setDimmed(heliBtn, heli.reason !== 0, heli.reason !== 0 ? why : t('sel.heli.tip', { price, seconds: heli.buildSeconds }));
+        setDimmed(heliBtn, heli.reason !== 0, heli.reason !== 0 ? why : t('sel.heli.tip', { price: formatGold(heli.price), seconds: heli.buildSeconds }));
         heliWhy.textContent = why;
         heliWhy.hidden = why === '';
         heliQueue.textContent = heli.queueSeconds > 0 ? t('sel.heli.queue', { s: heli.queueSeconds }) : '';

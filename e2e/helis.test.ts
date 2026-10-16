@@ -97,6 +97,9 @@ describe('the helicopter is visible', () => {
       await t.advance(0.1, (BUILD_TICKS[STRUCT_FACTORY] as number) + 8);
       expect((await t.state()).structures.byType[STRUCT_FACTORY]).toBe(1);
       expect(await t.helis()).toEqual([]);
+      // the parked helicopter stands 0.52 Factory units east and 0.5 south of the Factory centre (HELI_PAD_OFFSET, 700 m a unit): the close-ups look at it
+      const heliLat = at.lat - (0.5 * 700) / 111200;
+      const heliLon = at.lon + (0.52 * 700) / (111200 * Math.cos((at.lat * Math.PI) / 180));
       const day = timeForSubsolarLon(at.lon + 25);
       const night = timeForSubsolarLon(at.lon + 180);
       await closeUp(page, at.lat, at.lon, 2.6, 1500, day);
@@ -144,16 +147,20 @@ describe('the helicopter is visible', () => {
       // the rotor alone: two renders with the same spin are identical, a quarter of the blade period later they differ near the helicopter only
       await page.addStyleTag({ content: '.hud-root, .build-bar, .build-hint, .toast-stack { visibility: hidden !important; }' });
       await page.keyboard.press('Escape');
-      await closeUp(page, at.lat, at.lon, 0.6, 520, day);
+      await closeUp(page, heliLat, heliLon, 0.6, 450, day);
       await page.evaluate(() => (window as any).__test.heliSpin(0));
       await t.settle();
-      const a = decodePng(await page.screenshot());
+      const shotA = await page.screenshot();
+      fs.writeFileSync(path.join(SHOT_DIR, 'helis-rotor-0.png'), shotA);
+      const a = decodePng(shotA);
       await t.settle();
       const a2 = decodePng(await page.screenshot());
       expect(diffBox(a, a2).n).toBe(0);
       await page.evaluate(() => (window as any).__test.heliSpin(Math.PI / 4));
       await t.settle();
-      const b = decodePng(await page.screenshot());
+      const shotB = await page.screenshot();
+      fs.writeFileSync(path.join(SHOT_DIR, 'helis-rotor-45.png'), shotB);
+      const b = decodePng(shotB);
       const d = diffBox(b, a);
       expect(d.n).toBeGreaterThan(40);
       expect((d.x1 - d.x0) * (d.y1 - d.y0)).toBeLessThan(0.25 * a.width * a.height);
@@ -172,11 +179,11 @@ describe('the helicopter is visible', () => {
       // the four close-ups for the eye
       for (const [name, dKm, agl, time] of [
         ['3km-day', 2.6, 1500, day],
-        ['800m-day', 0.6, 520, day],
+        ['800m-day', 0.6, 450, day],
         ['3km-night', 2.6, 1500, night],
-        ['800m-night', 0.6, 520, night],
+        ['800m-night', 0.6, 450, night],
       ] as const) {
-        await closeUp(page, at.lat, at.lon, dKm, agl, time);
+        await closeUp(page, heliLat, heliLon, dKm, agl, time);
         await t.settle();
         fs.writeFileSync(path.join(SHOT_DIR, `helis-${name}.png`), await page.screenshot());
       }

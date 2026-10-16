@@ -491,8 +491,8 @@ export const DISTRICT_FADE_PX_HI = 5;
 // ---- M13a-1: the helicopter layer (src/render/heliLayer.ts) ----
 /** Capacity of the helicopter instance buffer: the sim table's HELI_CAPACITY (a test pins the equality). */
 export const HELI_INSTANCE_CAP = 64;
-/** The helicopter model is built in a unit disc; this is that unit in FACTORY units (one factory unit = 700 m at true size), so a helicopter keeps a fixed share of its Factory under the scale policy. 0.07 = 49 m. */
-export const HELI_MODEL_SCALE = 0.07;
+/** The helicopter model is built in a unit disc; this is that unit in FACTORY units (one factory unit = 700 m at true size), so a helicopter keeps a fixed share of its Factory under the scale policy. 0.11 = 77 m. */
+export const HELI_MODEL_SCALE = 0.11;
 /** Metres of the unit the scale policy works in (the Factory's `radiusM`): the helicopter shares the structures' policy so the pad offset below stays beside the Factory at every zoom. */
 export const HELI_POLICY_SIZE_M = 700;
 /** Where a parked helicopter stands, in Factory model units: east, up (the plate top), north. A free corner of the plate beside the hall. */
