@@ -119,6 +119,17 @@ GÖR och ACCEPTANS:
 - [x] ENGINE_VERSION 20 once, FORMAT_VERSION 14 (the salvo clock `salvoTick` per structure row); sim-hashes.json and match-hashes.json recomputed once.
 - [ ] Toast texts that say WHY (SAM / Post): not done, the page does not see the cause (BACKLOG "M12b").
 - [x] `npm run verify:fast` green (see the M12b block of `docs/DECISIONS.md`).
+### M18b-1: federations part 1 of 3, the baked provinces and sub-nations (headless tools and data; no sim, ai, render, ui or app change; previous merge SHA f29121a8d1607ca169e6675b5f22a52d76c42ef7)
+
+- [x] Source: Natural Earth admin-1 50 m (same repo and commit as the rest of the bake), fetched through the allowed host raw.githubusercontent.com, file in `NE_FILES.admin1`.
+- [x] Province raster (u16, sim grid) and province table, gaps flood-filled per country in a fixed order; tiny provinces flagged.
+- [x] Candidates (`FEDERATION_MIN_AREA_CELLS`) and sub-nations (`FEDERATION_MIN_PROVINCE_CELLS`, `FEDERATION_MAX_SUBNATIONS`) with a u8 raster.
+- [x] New pack `public/data/federations.bin.gz`; manifest and checksums get NEW rows, every old hash unchanged, `e2e/goldens` untouched.
+- [x] `src/data/federations.ts` (pure parser, writer, `loadFederations`, `federationOfCell`, `membersOfCountry`, `isFederationCandidate`); not wired into the game.
+- [x] `npm run bake` (also `-- --only=federations`), `npm run bake:check`, `npm run bake:federations` (report and `--png=`).
+- [x] Tests `tests/bake/federations.test.ts` (round trip, corrupt packs, raster invariants, candidates, min size, determinism, old hashes pinned), mutants shown in DECISIONS.
+- [x] Picture looked at (RUS, USA, CHN, IND, BRA); report in DECISIONS block M18b-1.
+- [x] `npm run verify:fast` green (see DECISIONS M18b-1).
 
 ## Next
 

@@ -22,6 +22,14 @@
   }
  },
  "packs": {
+  "federations": {
+   "bytes": 1584894,
+   "file": "federations.bin.gz",
+   "fnv1a": "fb66f721",
+   "gzBytes": 27416,
+   "gzSha256": "46c4edaa6172ea27ef80f5522aba0f9dfb6249dd0db6a398054959e844a06250",
+   "sha256": "6be09461844cde079530e4c3d0cb3b5ab5f8158950c3b6dd44ee2f001a865adc"
+  },
   "render": {
    "bytes": 18874368,
    "file": "render.bin.gz",

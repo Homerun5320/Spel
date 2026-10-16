@@ -19,6 +19,7 @@
     "artifact:pack": "node scripts/artifact-pack.mjs",
     "bake": "tsx tools/bake/index.ts",
     "bake:check": "tsx tools/bake/check.ts",
+    "bake:federations": "tsx tools/bake/federationsReport.ts",
     "gen:lut": "tsx tools/gen/lut.ts",
     "sim:run": "tsx tools/sim/run.ts",
     "sim:scenario": "tsx tools/sim/scenario.ts",

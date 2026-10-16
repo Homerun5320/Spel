@@ -533,3 +533,9 @@ Not done in the Fix-UI slice (the sim, host and AI findings belong to Fix-Sim):
 - The raid statistics are scripted, one defended case each (plains, ridge). A mixed case (one SAM visible, one hidden) and a High-mode raid statistic are in `tests/sim/airDefense.test.ts` only as single checks; M19 measures AI raids in full matches.
 - `heli-raid --fixture alps` draws its Factories and zones inside one 4 x 10 degree box; the zones are reset between trials, so a raid is not affected by the earlier landings. Other regions (Himalaya, Andes) are a flag away.
 - A destroyed SAM's salvo clock dies with its table row; a conquered SAM keeps the clock (the new owner's first salvo can wait up to 90 ticks). Left as is.
+## M18b-1
+
+- The 10 m admin-1 file (12 MB) would give provinces for more countries (Kazakhstan, Argentina, Mexico, ...); not baked, the 50 m file covers the great powers and is 5 times smaller.
+- Better names for merged sub-nations (the province nearest the group centre, or a hand-written region table) and Swedish names.
+- Sub-nations are unbalanced (Sakha 4978 cells against Yamalo-Nenets 1158); a balancing pass is out of scope.
+- A synthetic test for the minimum-size merge that also runs without the bake cache (today only the real-data rebuild catches it).

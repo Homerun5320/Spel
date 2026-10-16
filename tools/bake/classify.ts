@@ -119,3 +119,18 @@ export function classifyLand(c: LandCell): TerrainClassId {
   }
   return TerrainClass.Plains;
 }
+
+// ---- Federations (M18b-1; docs/DECISIONS.md block M18b-1 has the measurements) ------------------------------------------
+/**
+ * A country is a federation candidate when it has Natural Earth admin-1 provinces AND at least this many land sim cells:
+ * 2000 is about 1.6 % of the 124 869 land cells without Antarctica. Measured: it admits Russia, Canada, the USA, China, Brazil,
+ * Australia and India (2256 cells) and excludes Indonesia (1229) and South Africa (924); Kazakhstan (2653) and Argentina (2258)
+ * are over the line but the 50 m admin-1 file has no provinces for them.
+ */
+export const FEDERATION_MIN_AREA_CELLS = 2000;
+/** A sub-nation holds at least this many land cells (about 1.5 times the fair start K = 197 plus room to grow), else it is merged into a neighbour. */
+export const FEDERATION_MIN_PROVINCE_CELLS = 300;
+/** At most this many sub-nations per country: the smallest are merged into their smallest neighbour until the count fits. */
+export const FEDERATION_MAX_SUBNATIONS = 12;
+/** A province with at most this many cells is "tiny": it is listed but never a sub-nation of its own. */
+export const PROVINCE_TINY_CELLS = 1;

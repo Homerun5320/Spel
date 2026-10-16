@@ -1683,3 +1683,93 @@ result: downed cells=0 cause=SAM | state hash dc7c1530
 ```
 
 **Result.** `npm run verify:fast` green (typecheck, lint, 258 unit files, 2979 tests, 2 min 06 s); `tests/airDefense.perf.test.ts` green alone; no Chromium was started. The full `npm run verify` (e2e, e2e-serial) is the orchestrator's.
+
+## M18b-1
+
+Federations part 1 of 3: the baked provinces and sub-nations ("delnationer"). Headless; no sim, ai, render, ui or app change; e2e/goldens untouched.
+
+1. **Source.** Natural Earth `ne_50m_admin_1_states_provinces.geojson` (2.3 MB; the 10 m file is 12 MB) at the same commit `ca96624a56bd078437bca8184e78163e5039ad19`, fetched from the allowed host raw.githubusercontent.com (it needed `NODE_USE_ENV_PROXY=1` in this sandbox; the bake cache is gitignored). The 50 m file has 294 provinces for nine countries only: RUS 85, USA 51, IND 36, IDN 33, CHN 31, BRA 27, CAN 13, AUS 9, ZAF 9. Other countries have no provinces and can never be federations (the 10 m file would add more, backlog). `public/data/meta.json` is NOT changed (its file list would change its hash), so the admin-1 file is named in CREDITS.md and here.
+2. **Pack.** `public/data/federations.bin.gz` (27 kB gz): header, country table, province table (id, country index, key = iso_3166_2 else name, English name, cells, centroid cell, tiny flag), sub-nation table (id, country index, name, cells, centroid, province ids), u16 province raster, u8 sub-nation raster. The format is in the comment of `src/data/federations.ts`. manifest.json gets `federations`, checksums.json a new row `packs.federations`; all old rows are byte-identical (the diff of both files has only added lines), `bake:check` also parses the pack. `npm run bake -- --only=federations` rebuilds just the new pack and the two index files from the committed sim pack; a full `npm run bake` adds it too.
+3. **Province raster.** Polygons are filled on the sim grid (cell centre rule of `fillPolygon`); a province cell must lie on a land cell of the province's own country. Gaps (narrow borders, coast differences) are filled by a breadth-first flood from the painted cells in index order with the neighbour order west, east, north, south, inside the same country; cells no flood reaches (islands without a polygon) go to the nearest province centroid of that country. Every land cell of a country with provinces has exactly one province.
+4. **Candidates.** `FEDERATION_MIN_AREA_CELLS` = 2000 (1.6 % of the 124 869 land cells without Antarctica) AND provinces in the file. Measured land cells: RUS 23782, CAN 13859, USA 9019, CHN 7721, BRA 5737, AUS 5645, IND 2256, (KAZ 2653 and ARG 2258 have no provinces), IDN 1229, ZAF 924. Result: Russia, Canada, USA, China, Brazil, Australia, India (a 4 % line would have dropped India).
+5. **Sub-nations.** Provinces with at least one cell are merged: while the smallest group has fewer than `FEDERATION_MIN_PROVINCE_CELLS` (300, about 1.5 times the fair start K = 197) cells or there are more than `FEDERATION_MAX_SUBNATIONS` (12) groups, the smallest group joins its smallest land neighbour (ties: longer shared border, then lower id); a group with no land neighbour (Hawaii) joins the nearest group by province centroids. Names: the biggest province name, "A and B" for two, "A Region" for three or more (English only). Ids are global, 1 to 64, in country order, biggest first.
+6. **Report** (`npm run bake:federations`, pasted):
+
+```
+RUS Russia: 23782 cells, 85 provinces -> 12 sub-nations
+    1 Sakha Republic (4978 cells, 1 provinces)
+    2 Krasnoyarsk Krai (3998 cells, 1 provinces)
+    3 Khabarovsk Krai Region (2372 cells, 5 provinces)
+    4 Irkutsk Region (1758 cells, 7 provinces)
+    5 Arkhangelsk Region (1641 cells, 3 provinces)
+    6 Khanty-Mansi Autonomous Okrug Region (1489 cells, 4 provinces)
+    7 Kirov Region (1474 cells, 31 provinces)
+    8 Zabaykalsky Krai Region (1289 cells, 4 provinces)
+    9 Sverdlovsk Region (1272 cells, 14 provinces)
+   10 Chukotka Autonomous Okrug (1186 cells, 1 provinces)
+   11 Murmansk Region (1167 cells, 11 provinces)
+   12 Yamalo-Nenets Autonomous Okrug (1158 cells, 1 provinces)
+CAN Canada: 13859 cells, 13 provinces -> 10 sub-nations
+   13 Nunavut (4270 cells, 1 provinces)
+   14 Northwest Territories (2188 cells, 1 provinces)
+   15 Quebec Region (1784 cells, 4 provinces)
+   16 British Columbia (1108 cells, 1 provinces)
+   17 Ontario (1106 cells, 1 provinces)
+   18 Alberta (762 cells, 1 provinces)
+   19 Saskatchewan (751 cells, 1 provinces)
+   20 Manitoba (749 cells, 1 provinces)
+   21 Yukon (701 cells, 1 provinces)
+   22 Newfoundland and Labrador (440 cells, 1 provinces)
+USA United States of America: 9019 cells, 51 provinces -> 12 sub-nations
+   23 Alaska (2275 cells, 1 provinces)
+   24 Michigan Region (838 cells, 5 provinces)
+   25 Wyoming Region (753 cells, 4 provinces)
+   26 New York Region (749 cells, 15 provinces)
+   27 Montana Region (706 cells, 3 provinces)
+   28 Georgia Region (692 cells, 7 provinces)
+   29 California Region (586 cells, 3 provinces)
+   30 Missouri Region (568 cells, 5 provinces)
+   31 Texas (525 cells, 1 provinces)
+   32 New Mexico and Colorado (487 cells, 2 provinces)
+   33 Nevada and Arizona (471 cells, 2 provinces)
+   34 Idaho and Washington (369 cells, 2 provinces)
+CHN China: 7721 cells, 31 provinces -> 12 sub-nations
+   35 Xinjiang (1422 cells, 1 provinces)
+   36 Inner Mongolia (1045 cells, 1 provinces)
+   37 Tibet (874 cells, 1 provinces)
+   38 Hebei Region (736 cells, 9 provinces)
+   39 Sichuan and Yunnan (647 cells, 2 provinces)
+   40 Qinghai (576 cells, 1 provinces)
+   41 Shaanxi Region (505 cells, 4 provinces)
+   42 Jiangxi Region (444 cells, 4 provinces)
+   43 Heilongjiang (441 cells, 1 provinces)
+   44 Guangxi Region (391 cells, 4 provinces)
+   45 Gansu (335 cells, 1 provinces)
+   46 Jilin and Liaoning (305 cells, 2 provinces)
+BRA Brazil: 5737 cells, 27 provinces -> 8 sub-nations
+   47 Amazonas and Acre (1144 cells, 2 provinces)
+   48 Pará Region (1051 cells, 3 provinces)
+   49 Maranhão Region (842 cells, 9 provinces)
+   50 Mato Grosso and Rondônia (768 cells, 2 provinces)
+   51 Bahia Region (618 cells, 4 provinces)
+   52 Mato Grosso do Sul Region (488 cells, 3 provinces)
+   53 Rio Grande do Sul Region (422 cells, 3 provinces)
+   54 Minas Gerais (404 cells, 1 provinces)
+AUS Australia: 5645 cells, 9 provinces -> 5 sub-nations
+   55 Western Australia (1852 cells, 1 provinces)
+   56 Queensland (1209 cells, 1 provinces)
+   57 Northern Territory (953 cells, 1 provinces)
+   58 New South Wales Region (886 cells, 4 provinces)
+   59 South Australia (745 cells, 1 provinces)
+IND India: 2256 cells, 36 provinces -> 5 sub-nations
+   60 Uttar Pradesh Region (592 cells, 11 provinces)
+   61 Rajasthan and Madhya Pradesh (470 cells, 2 provinces)
+   62 Karnataka Region (466 cells, 6 provinces)
+   63 Bihar Region (381 cells, 12 provinces)
+   64 Maharashtra Region (347 cells, 3 provinces)
+```
+
+7. **Picture.** Looked at RUS, USA, CHN with India, and BRA (coloured PNG from `npm run bake:federations -- --png=<file> --country=RUS`, not committed). Contiguous and sensibly sized. Russia has Sakha and Krasnoyarsk as big nations and a European block named "Kirov Region", a poor name (it holds 31 provinces; naming by the biggest province is crude, backlog). The USA has Alaska and eleven blocks of one to fifteen states, Hawaii joins the California block. China and Brazil look right. Loose parts (largest connected part as a share of the nation): Nunavut 0.58, Northwest Territories 0.77, Arkhangelsk Region 0.83 (Novaya Zemlya), Newfoundland and Labrador 0.73, Bihar Region 0.53 (north-east India behind the narrow neck the 39 km grid cuts); everything else at least 0.91. The test documents these five as the only exceptions (at least 0.5).
+8. **Mutants shown** (`tests/bake/federations.test.ts` fails for each): the flood fill switched off, and the minimum size rule removed (both fail the byte-for-byte rebuild from the real admin-1 file). Moving one cell of the sub-nation raster, a raster value out of range, a bad magic, version, grid size, a truncated file and a trailing byte are the corrupt-pack cases. The rebuild test needs the gitignored bake cache and is skipped without it; the invariants on the committed pack always run.
+9. **For M18b-2.** `loadFederations(loader, countries.length)` gives a `Federations`; use `isFederationCandidate(f, countryIndex)`, `membersOfCountry(f, countryIndex)` (sub-nation ids, ascending), `federationOfCell(f, cell)`, `f.subNations[id - 1]` (name, cells, centroid, provinces) and `f.provinces`. Country index = index in meta.json countries = country id - 1. `centroid` is a cell inside the sub-nation (a capital candidate). Country ids and every old hash are unchanged.
+10. **verify:fast:** see the final report of the slice.
