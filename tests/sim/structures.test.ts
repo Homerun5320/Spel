@@ -49,6 +49,7 @@ import {
 import { StructureTable } from '../../src/sim/structures';
 import { CLASS_DEEP_SEA, CLASS_FOREST, CLASS_HILLS, CLASS_MOUNTAIN, CLASS_PEAK, CLASS_PLAINS } from '../../src/sim/terrain';
 import { StateView, type SimView } from '../../src/sim/view';
+import { saveLayout } from '../helpers/saveLayout';
 
 const W = 128;
 const H = 64;
@@ -378,9 +379,7 @@ describe('the table', () => {
     expect(deserialize(bytes).ok).toBe(true);
     // the first live record starts after highWater, recycledCount, recycled[], deleteReady[], liveCount: flip its type to 0
     const view = new DataView(bytes.buffer);
-    // M18c-1: the diplomacy block (16 + 12 per ownerId) and the match block (40 + 24 per ownerId) and the district count (4, no districts here) sit between the records and the checksum
-    const slots = s.header.seats + 1;
-    const live = bytes.length - 4 - (16 + 12 * slots) - (40 + 24 * slots) - 4 - s.structures.liveCount * 32;
+    const live = saveLayout(bytes, s.header.seats).structureRecordsAt(s.structures.liveCount); // no districts here
     view.setUint32(live + 4, 0, true);
     const bad = deserialize(bytes);
     expect(bad.ok).toBe(false);

@@ -325,7 +325,8 @@ describe('serialisation and the hash with helicopters in the table', () => {
   it('round trip: same hash, same bytes, same tables; the Los / Nav environment is not in the bytes', () => {
     const s = furnished();
     const bytes = serialize(s);
-    const r = deserialize(bytes);
+    const maxElev = new Int16Array(W * H); // Fix-4A2: a helicopter in the air needs the occluder layer on load ('no-occluders' otherwise)
+    const r = deserialize(bytes, { maxElev });
     if (!r.ok) throw new Error(r.error);
     expect(hashState(r.state)).toBe(hashState(s));
     expect(Array.from(serialize(r.state))).toEqual(Array.from(bytes));
@@ -340,7 +341,7 @@ describe('serialisation and the hash with helicopters in the table', () => {
     expect(r.state.beachheads.liveCount).toBe(2);
     expect(r.state.beachheads.status[1]).toBe(2);
     expect(r.state.helis.countOf(1)).toBe(s.helis.countOf(1)); // the derived counts are rebuilt
-    expect(r.state.env.maxElev).toBeNull();
+    expect(Array.from(r.state.env.maxElev ?? [])).toEqual(Array.from(maxElev)); // the layer is the one handed in, never read from the bytes (same bytes as the state without it, above)
   });
 
   it('every field of both tables is in the hash', () => {
@@ -412,7 +413,7 @@ describe('serialisation and the hash with helicopters in the table', () => {
     const forged = (edit: (s: GameState) => void): string => {
       const s = furnished();
       edit(s);
-      const r = deserialize(serialize(s)); // serialize signs whatever is in the state
+      const r = deserialize(serialize(s), { maxElev: new Int16Array(W * H) }); // serialize signs whatever is in the state; Fix-4A2: the airborne helicopter needs the occluder layer
       return r.ok ? 'ok' : r.error;
     };
     expect(forged(() => undefined)).toBe('ok');
