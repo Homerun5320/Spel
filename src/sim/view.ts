@@ -14,6 +14,7 @@ import { structGoldMilliPerSec } from './structureEffects';
 import { landShareQ15 } from './territory';
 import type { StructureView } from './structureRules';
 import type { DistrictView } from './districtRules';
+import type { HeliView } from './heliTable';
 import { fillMatchView, matchPackedLength, matchViewOf, type MatchView } from './matchView';
 
 /** An array you can index and measure but not write to (the type of a typed array without its mutators). */
@@ -94,6 +95,8 @@ export interface SimView {
   readonly structures: StructureView;
   /** The district table (Districts-1), read-only: kind, level, readyTick and upgradeReadyTick per (structure, slot) at `structureId * DISTRICT_MAX_SLOTS + slot`, and `districtsOwned(ownerId, kind)`. A ViewMirror carries a copy of it with the structure table. */
   readonly districts: DistrictView;
+  /** The helicopter table (M12a-1), read-only: owner, state, factory, readyTick, position, hp, load and fuel by helicopter id, and `countOf(ownerId)`. A ViewMirror carries a copy of it (the host sends it when it changed). */
+  readonly helis: HeliView;
   /** The tick until which a cell is fallout, 0 = not (the FALLOUT_UNTIL layer: zero until M14). */
   falloutUntilAt(cell: number): number;
   /**
@@ -281,6 +284,9 @@ export class StateView implements SimView {
   }
   get districts(): DistrictView {
     return this.state.structures;
+  }
+  get helis(): HeliView {
+    return this.state.helis;
   }
   falloutUntilAt(): number {
     return 0;

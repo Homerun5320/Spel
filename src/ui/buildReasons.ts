@@ -23,6 +23,20 @@ import {
   REJECT_STRUCT_ID,
   REJECT_STRUCT_MAX_LEVEL,
   REJECT_STRUCT_NOT_OWNER,
+  LZ_ENEMY_CITY_NEAR,
+  LZ_NO_ROUTE,
+  LZ_OUT_OF_FUEL,
+  LZ_PEAK,
+  LZ_STEEP,
+  LZ_TERRAIN_CLASS,
+  LZ_TOO_HIGH,
+  LZ_WATER,
+  REJECT_HELI_FACTORY_BUILDING,
+  REJECT_HELI_FLEET_CAP,
+  REJECT_HELI_NO_FACTORY,
+  REJECT_HELI_NO_GOLD,
+  REJECT_HELI_NOT_OWNER,
+  REJECT_HELI_QUEUE_BUSY,
 } from '../sim/public';
 import { PHASE_SPAWN, REJECT_PHASE } from './hudCodes';
 import type { TextKey } from './i18n';
@@ -95,6 +109,45 @@ export function structureRefusalKey(reason: number): TextKey {
       return 'toast.district.cityBuilding';
     case REJECT_PHASE: // Fix-Sim: Build / Upgrade / Delete are refused in the spawn phase like Attack
       return 'reject.phase';
+    default:
+      return airRefusalKey(reason);
+  }
+}
+
+/**
+ * The toast key of a helicopter refusal (M12a-1): the ProduceHeli codes 45 to 50 and the eight landing-zone reasons 65 to 72 that `scoreLz` returns
+ * (LaunchHeli of part 2 reports the same). Other codes: the build refusals, then 'reject.other'.
+ */
+export function airRefusalKey(reason: number): TextKey {
+  switch (reason) {
+    case REJECT_HELI_NO_FACTORY:
+      return 'toast.heli.noFactory';
+    case REJECT_HELI_NOT_OWNER:
+      return 'toast.heli.notOwner';
+    case REJECT_HELI_FACTORY_BUILDING:
+      return 'toast.heli.factoryBuilding';
+    case REJECT_HELI_QUEUE_BUSY:
+      return 'toast.heli.queueBusy';
+    case REJECT_HELI_FLEET_CAP:
+      return 'toast.heli.fleetCap';
+    case REJECT_HELI_NO_GOLD:
+      return 'toast.heli.noGold';
+    case LZ_WATER:
+      return 'toast.lz.water';
+    case LZ_PEAK:
+      return 'toast.lz.peak';
+    case LZ_TERRAIN_CLASS:
+      return 'toast.lz.terrain';
+    case LZ_STEEP:
+      return 'toast.lz.steep';
+    case LZ_ENEMY_CITY_NEAR:
+      return 'toast.lz.enemyCity';
+    case LZ_TOO_HIGH:
+      return 'toast.lz.tooHigh';
+    case LZ_OUT_OF_FUEL:
+      return 'toast.lz.outOfFuel';
+    case LZ_NO_ROUTE:
+      return 'toast.lz.noRoute';
     default:
       return buildRejectKey(reason);
   }

@@ -202,3 +202,13 @@ export { AI_CITY_LEVEL_CAP, AI_DISTRICT_LEVEL_CAP, AI_STRUCT_LEVEL_CAP, STRUCT_L
 export { districtMaxLevel } from './districtRules';
 export { levelAfterConquest } from './structures';
 export { satPermille } from './levelCurves';
+
+// M12a-1 (append-only): helicopters, part 1. The read-only table type and the state numbers, the ProduceHeli check (the very function the sim runs), the fleet cap and
+// count, the intent body, the refusal codes and the constants of rules.ts the UI and the AI read (each has a row in docs/BALANCE.md).
+export type { HeliView } from './heliTable';
+export { HELI_APPROACH, HELI_BUILDING, HELI_CRUISE, HELI_DOWNED, HELI_HOVER, HELI_LIFT, HELI_PAD, HELI_POS_ONE, HELI_RETURN, HELI_UNLOAD } from './heliTable';
+export { HELI_PRICE_MILLI, fleetCapOf, fleetCountOf, validateProduceHeli } from './heliRules';
+export type { ProduceHeliBody } from './intents';
+export { produceHeliBody } from './intents';
+export { REJECT_HELI_FACTORY_BUILDING, REJECT_HELI_FLEET_CAP, REJECT_HELI_NO_FACTORY, REJECT_HELI_NO_GOLD, REJECT_HELI_NOT_OWNER, REJECT_HELI_QUEUE_BUSY } from './intents';
+export { HELI_BUILD_TICKS, HELI_FLEET_BASE, HELI_FLEET_MAX, HELI_HP_TENTHS, HELI_MAX_TROOPS, HELI_PRICE_GOLD, LZ_REASON_BASE } from './rules';

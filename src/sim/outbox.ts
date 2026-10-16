@@ -14,6 +14,24 @@ export const OUTBOX_CAPITAL_LOST = 4;
 /** The match ended: a = ownerId of the winner (0 = none), b = WIN_REASON_*. */
 export const OUTBOX_MATCH_END = 5;
 
+// M12a-1: helicopter events. HELI_QUEUED, HELI_PRODUCED and HELI_SCRAPPED are pushed from part 1; the rest are declared for parts 2 and 3.
+/** A helicopter was ordered: a = helicopter id, b = Factory structure id. */
+export const OUTBOX_HELI_QUEUED = 6;
+/** A helicopter finished production and stands on its pad: a = helicopter id, b = Factory structure id. */
+export const OUTBOX_HELI_PRODUCED = 7;
+/** A parked or queued helicopter was scrapped because its Factory was lost: a = helicopter id, b = its state (HELI_*). */
+export const OUTBOX_HELI_SCRAPPED = 8;
+/** (part 2) A helicopter took off: a = helicopter id, b = landing-zone cell. */
+export const OUTBOX_HELI_LAUNCHED = 9;
+/** (part 3) A helicopter set down and unloaded: a = helicopter id, b = landing-zone cell. */
+export const OUTBOX_HELI_LANDED = 10;
+/** (part 3) A beachhead was formed: a = beachhead slot, b = seed cell. */
+export const OUTBOX_BEACHHEAD_FORMED = 11;
+/** (part 3) A cut-off beachhead returned to neutral: a = beachhead slot, b = seed cell. */
+export const OUTBOX_BEACHHEAD_REVERTED = 12;
+/** (part 2) A helicopter went down: a = helicopter id, b = cause (1 = out of fuel; the air-defence causes come with M12b). */
+export const OUTBOX_HELI_DOWNED = 13;
+
 export interface OutboxEvent {
   readonly kind: number;
   /** The tick of the step that produced the event (the tick before it was incremented). */

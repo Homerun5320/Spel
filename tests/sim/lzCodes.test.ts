@@ -22,11 +22,14 @@ describe('LZ reason codes versus REJECT codes', () => {
     expect(new Set(LZ).size).toBe(8);
   });
 
-  it('every LZ code has a name, and rejectKey never maps one to the text of a REJECT code (it is the generic "other")', () => {
+  it('every LZ code has a name, and rejectKey maps each one to its OWN text (M12a-1: toast.lz.*), never to the text of a REJECT code', () => {
+    const keys = new Set<string>();
     for (const code of LZ) {
       expect(typeof (LZ_REASON_NAMES as Readonly<Record<number, string>>)[code]).toBe('string');
-      expect(rejectKey(code)).toBe('reject.other');
+      expect(rejectKey(code), `LZ code ${code}`).toMatch(/^toast\.lz\./); // Fix-3A2 had the generic 'reject.other' here until the texts existed
+      keys.add(rejectKey(code));
     }
+    expect(keys.size).toBe(8);
     expect(rejectKey(intents.REJECT_TERRAIN)).toBe('reject.terrain'); // the old collision: NO_ROUTE (8) read as REJECT_TERRAIN (8)
   });
 });

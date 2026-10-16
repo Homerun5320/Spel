@@ -23,7 +23,7 @@ export function loadRealWorld(dir: string = DATA_DIR): Promise<SimWorld> {
       readBytes: async (url: string): Promise<Uint8Array> => new Uint8Array(fs.readFileSync(path.join(dir, decodeURIComponent(new URL(url).pathname.replace(/^\/data\//, ''))))),
     });
     const [sim, meta] = await Promise.all([loader.loadSim(), loader.loadMeta()]);
-    return createSimWorld({ width: sim.width, height: sim.height, terrainClass: sim.terrainClass, meanElev: sim.meanElev, cosQ15: meta.sim.cosQ15 });
+    return createSimWorld({ width: sim.width, height: sim.height, terrainClass: sim.terrainClass, meanElev: sim.meanElev, maxElev: sim.maxElev, cosQ15: meta.sim.cosQ15 });
   })();
   if (dir === DATA_DIR) cached = load;
   return load;
@@ -39,7 +39,7 @@ export function loadRealWorldData(dir: string = DATA_DIR): Promise<WorldData> {
     });
     const [sim, meta, overrides] = await Promise.all([loader.loadSim(), loader.loadMeta(), loader.loadOverrides()]);
     return {
-      sim: { width: sim.width, height: sim.height, terrainClass: sim.terrainClass, meanElev: sim.meanElev, cosQ15: meta.sim.cosQ15 },
+      sim: { width: sim.width, height: sim.height, terrainClass: sim.terrainClass, meanElev: sim.meanElev, maxElev: sim.maxElev, cosQ15: meta.sim.cosQ15 },
       country: sim.country,
       coast: sim.coast,
       meta,

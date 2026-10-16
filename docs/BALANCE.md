@@ -298,3 +298,13 @@ Economy script result (M09c, Russia, seed 1, 10 minutes, `npm run sim:scenario -
 | `LZ_SCORE_BASE` | 1000 | points | eget val | Score of a perfectly flat, unexposed landing zone. |
 | `LZ_SCORE_SPREAD_PER_M` | 2 | points per metre of 3x3 spread | eget val | Flatter is better. |
 | `LZ_SCORE_EXPOSED_PER_CELL` | 60 | points per exposed nav cell of the approach | eget val | A less exposed approach is better; the score never falls below 1 for a valid zone. |
+| `HELI_CAPACITY` | 64 | slots | eget val | M12a-1: slots of the helicopter table; a structural limit, never reached (the fleet cap is 12). |
+| `BEACHHEAD_CAPACITY` | 64 | slots | eget val | M12a-1: slots of the beachhead table (part 3 fills it). |
+| `HELI_ROUTE_CAPACITY` | 64 | waypoints | eget val | M12a-1: waypoints one helicopter stores for its route (part 2). |
+| `HELI_PRICE_GOLD` | 200 | gold | plan | M12a-1: price of one helicopter, taken when ProduceHeli is applied. |
+| `HELI_BUILD_TICKS` | 120 | ticks | plan | M12a-1: production time, 12 s, one at a time per Factory. |
+| `HELI_FLEET_BASE` | 2 | helicopters | plan | M12a-1: fleet cap = this + the sum of the levels of the finished Factories. |
+| `HELI_FLEET_MAX` | 12 | helicopters | plan | M12a-1: the hard top of the fleet cap (a helicopter under production counts). |
+| `HELI_MAX_TROOPS` | 600 | troops | plan | M12a-1: most troops one helicopter carries (part 2). |
+| `HELI_HP_TENTHS` | 1000 | tenths of HP | plan | M12a-1: hit points of a helicopter, 100.0 HP stored in tenths. |
+| `HELI_FUEL_MAX_Q8` | 46080 | Q8 sim cells | eget val | M12a-1: a full tank, HELI_FUEL_CELLS * 256. |

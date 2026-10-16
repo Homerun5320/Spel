@@ -425,3 +425,12 @@ Not done in the Fix-UI slice (the sim, host and AI findings belong to Fix-Sim):
 - `STRUCT_LEVEL_SCALE` in `src/render/config.ts` is unused; remove it together with its pin in `tests/render/structureModels.test.ts` (a test edit, left for a pass that may touch tests).
 - `docs/PREVIEW.md` has no text for the match flow (Vinstvillkor, pause menu, result screen, elimination) and says "2, 3 eller 4" district slots (now 2 to 5 over ten levels); Swedish file, not done in Fix-3C.
 
+## M12a-1
+- Part 2 must add `maxElev: world.sim.maxElev` to the two `sim:` field lists in `src/app/globeApp.ts` (only `src/app` was off limits in M12a-1); without it a live match throws `MissingOccluderError` at its first Los / Nav question.
+- The fleet cap counts only FINISHED Factories (an unfinished one adds nothing) and a seat that loses a Factory keeps its helicopters over the cap. Both are provisional (DECISIONS M12a-1); M19 may prefer "scrap the oldest over the cap" or counting the building Factory.
+- A Factory lost to conquest scraps only the queued and parked helicopters. What happens to an airborne one whose home Factory is gone belongs to part 2 (RTB to the nearest own Factory, scrapped when there is none).
+- The queue is one helicopter per Factory and a refused order gives no queue of orders. A multi-order queue (several in a row, paid one by one) is an idea for M19 balance.
+- `SimView.helis` is a full copy of the 64-slot table sent when its signature changes; positions will change every tick once helicopters fly (part 2), so the page then gets a table per frame. If that shows in the perf report, send only the airborne rows or interpolate from launch data.
+- The AI does not order or fly helicopters (M17).
+- No UI for ordering a helicopter yet (button, hotkey, fleet counter): M13. The refusal texts exist already (`toast.heli.*`, `toast.lz.*`).
+- Helicopter and beachhead tables in a saved game: part 3 may want a "cluster" table of its own; the beachhead rows keep seed, owner, land tick and status, the cluster cells are found by search from the seed.

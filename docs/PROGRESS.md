@@ -89,6 +89,18 @@ Resume: Läs CLAUDE.md och docs/PROGRESS.md, kör git log -10 och npm run verify
 - [x] 9. `__test.give` above DEBUG_GIVE_MAX throws with the reason (e2e in `e2e/modalKeys.test.ts`)
 - Not run here: the full `npm run verify`, the Artifact pack, the pull request (the orchestrator). Leftovers: "Fix-3B" in `docs/BACKLOG.md`.
 
+### M12a-1: helicopters in the sim, part 1 of 3 (Los/Nav inside step, the helicopter and beachhead tables, ProduceHeli, the fleet cap; headless sim; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+Previous merge SHA (origin/main; nothing of this branch is merged, pull request #1 is a draft): f29121a8d1607ca169e6675b5f22a52d76c42ef7.
+- [x] 1. GÖR and ACCEPTANS written here first
+- [x] 2. Los/Nav inside `step`: optional `maxElev` in `SimWorldInput` / `SimWorld` (not in `mapHash`), a lazy, never hashed, never serialised Los/Nav on `GameState.env`, dropped by `deserialize`; `exposureOf` / `planRouteOf` / `scoreLzOf` take a state; a clear error when `maxElev` is missing
+- [x] 3. Helicopter table (SoA, 64) and beachhead table (64) designed for all of M12a, serialised and hashed; ENGINE_VERSION and FORMAT_VERSION bumped once, both golden hash files re-pinned once, identical in Node and worker
+- [x] 4. `ProduceHeli{factory}` with codec and reason codes (NOT_OWNER, NO_FACTORY, FACTORY_BUILDING, QUEUE_BUSY, FLEET_CAP, NO_GOLD, REJECT_PHASE); 200 gold, 12 s, fleet cap 2 + sum of Factory levels (max 12, a helicopter in production counts); ONE implementation shared with `validateProduceHeli` (pinned in `tests/ai/boundary.test.ts`); SimView read access (`helis`, `fleetCapOf`, `fleetCountOf`)
+- [x] 5. Outbox events (HeliQueued, HeliProduced; the rest declared); a Factory conquered or destroyed scraps its helicopters and its queued production (provisional)
+- [x] 6. Reject texts (the ProduceHeli codes and the eight LZ codes 65..72), sv and en
+- [x] 7. Tests: every reason code, price and time tick-exact, fleet cap, free list and reused id, round trip and snapshot equals straight run with helicopters, Los/Nav access, conquest, goldens in Node and worker, perf (12 helicopters, 300 structures, 12 players)
+- [x] 8. Docs (DECISIONS M12a-1 with its mutant table and the hooks for part 2, ARCHITECTURE, BALANCE, BACKLOG) and `npm run verify:fast` green (typecheck, lint, 226 unit files, 2484 tests + 2 expected fail; 2 min 32 s). Perf (alone): heli.perf, sim.perf, structures.perf, ai.perf green.
+- Not run here: the full `npm run verify`, Chromium, the pack, a pull request (the orchestrator).
+
 ## Next
 
 - Next slices: M12a (helicopters in the sim, headless) and M20a-lite (the HUD; the keydown rule of the M20a note in `docs/ARCHITECTURE.md` counts `src/ui/matchPanels.ts` and `src/app/debugViewshed.ts` too).

@@ -239,6 +239,7 @@ function stubView(tick: number, p: { troops: number[]; cap: number[]; alive?: nu
     attackRunning: () => false,
     structures: { capacity: 0, highWater: 0, liveCount: 0, type: [], owner: [], cell: [], level: [], buildTick: [], readyTick: [], upgradeReadyTick: [], idAt: () => -1, ownedCount: () => 0, deleteReadyTick: () => 0 },
     districts: { districtKind: [], districtLevel: [], districtReadyTick: [], districtUpgradeReadyTick: [], districtsOwned: () => 0 },
+    helis: { capacity: 0, highWater: 0, liveCount: 0, owner: [], state: [], factory: [], readyTick: [], x: [], y: [], alt: [], hp: [], load: [], fuel: [], countOf: () => 0 },
     falloutUntilAt: () => 0,
     match: matchViewOf(n, new Uint32Array(matchPackedLength(n))),
   };

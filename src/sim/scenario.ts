@@ -122,6 +122,8 @@ export function scenarioBodies(seed: number, turn: number, seats: number, cells:
   if (turn > 12 && hash2(seed, turn, 630) % 29 === 0) out.push({ kind: 'BuildDistrict', seat: hash2(seed, turn, 631) % seats, structure: hash2(seed, turn, 632) % 12, slot: hash2(seed, turn, 633) % 4, districtKind: hash2(seed, turn, 634) % 6 });
   if (turn > 12 && hash2(seed, turn, 640) % 37 === 0) out.push({ kind: 'UpgradeDistrict', seat: hash2(seed, turn, 641) % seats, structure: hash2(seed, turn, 642) % 12, slot: hash2(seed, turn, 643) % 4 });
   if (turn > 12 && hash2(seed, turn, 650) % 101 === 0) out.push({ kind: 'RemoveDistrict', seat: hash2(seed, turn, 651) % seats, structure: hash2(seed, turn, 652) % 12, slot: hash2(seed, turn, 653) % 4 });
+  // Helicopters (M12a-1): a ProduceHeli in a low structure id about one turn in 13 (most are refused: no such Factory, not the seat's, unfinished, the purse). Last in the list again, so the picks above stay where they were.
+  if (turn > 12 && hash2(seed, turn, 660) % 13 === 0) out.push({ kind: 'ProduceHeli', seat: hash2(seed, turn, 661) % seats, factory: hash2(seed, turn, 662) % 12 });
   return out;
 }
 

@@ -13,6 +13,9 @@
 //      enclave queue: ENCLAVE_FLIP_TICKS x (count u32, count x cell u32)
 //      ONLY when config flag 8 (homeRules) is on: country u8 x n, homeLand u8 x (seats+1), portMilli u16 x (seats+1),
 //               defenceMilli u16 x (seats+1)   (D112: a match without the flag is byte-identical to M05, so FORMAT_VERSION stays 5)
+//      air block (M12a-1, always present, between the home block and the structure block): helicopters: highWater u32, recycledCount u32, recycled u32 x recycledCount, liveCount u32,
+//               then per live slot by ascending id: id owner state factory readyTick stateTick x y alt hp load fuel mode target routeLen routeIdx (u32 each, x y alt signed),
+//               each followed by routeLen x cell u32; beachheads: count u32, then per live slot by ascending index: index owner seed landTick status (u32 each)
 //      structures (M09 part A, always present): highWater u32, recycledCount u32, recycled u32 x recycledCount, deleteReady u32 x (seats+1), embargo u8 x (seats+1)^2 (M09 part B),
 //               liveCount u32, then per live slot by ascending id: id type owner cell level buildTick readyTick upgradeReadyTick (u32 each),
 //               then (Districts-1) districtCount u32 and per district by ascending (id, slot): id slot kind level readyTick upgradeReadyTick (u32 each)
@@ -25,10 +28,31 @@ import { Attack, AttackTable } from './attacks';
 import { EnclaveQueues, enclaveBucket } from './enclaveQueue';
 import { TRAIT_MAX_MILLI, TRAIT_MIN_MILLI, type HomeRules } from './homeRules';
 import { foldStructures } from './structures';
+import { BEACH_STATUS_MAX, BeachheadTable, HELI_BUILDING, HELI_PAD, HELI_STATE_MAX, HeliTable, foldHelis } from './heliTable';
+import { SimEnv } from './env';
 import { MatchState, normalWin, winFlagsOf, type WinConfig, WIN_FLAG_LAND, WIN_FLAG_LAST, WIN_FLAG_SCORE } from './matchState';
 import { FNV_OFFSET, finishHash, foldBytes, foldU16, foldU32, foldWord } from './hash';
-import { BUILD_TICKS, DISTRICT_BUILD_TICKS, DISTRICT_MAX_SLOTS, D_MAX_CELLS, ENCLAVE_FLIP_TICKS, MICRO_CELLS_PER_CELL, MICRO_QT_PER_QT, MILLI_QT_PER_QT, PROGRESS_DEBT_MAX, STRUCT_CAPACITY, STRUCT_LEVEL_HARD_CAP } from './rules';
-import { STRUCT_CITY, STRUCT_TYPE_SLOTS, maxLevelOf } from './structureRules';
+import {
+  BEACHHEAD_CAPACITY,
+  BUILD_TICKS,
+  DISTRICT_BUILD_TICKS,
+  DISTRICT_MAX_SLOTS,
+  D_MAX_CELLS,
+  ENCLAVE_FLIP_TICKS,
+  HELI_BUILD_TICKS,
+  HELI_CAPACITY,
+  HELI_FUEL_MAX_Q8,
+  HELI_HP_TENTHS,
+  HELI_MAX_TROOPS,
+  HELI_ROUTE_CAPACITY,
+  MICRO_CELLS_PER_CELL,
+  MICRO_QT_PER_QT,
+  MILLI_QT_PER_QT,
+  PROGRESS_DEBT_MAX,
+  STRUCT_CAPACITY,
+  STRUCT_LEVEL_HARD_CAP,
+} from './rules';
+import { STRUCT_CITY, STRUCT_FACTORY, STRUCT_TYPE_SLOTS, maxLevelOf } from './structureRules';
 import { districtSlotsOf, isDistrictKind } from './districtRules';
 import { StructureTable } from './structures';
 import {
@@ -46,8 +70,8 @@ import {
   type MatchHeader,
 } from './state';
 
-/** Bumped when the byte layout above changes. 2: owner u16 (D71). 3: players, rowCos and the per-owner economy arrays (M04). 4: attacks and the enclave queue (M04 conquest). 5: the exposure array (M04 fix pass). 6: the structure table (M09 part A). 7: the embargo flags (M09 part B). 8: the district table (Districts-1). 9: the match block (M18-1). 10: Sim-Growth (City levels up to 10, five district slots per row). 11: Sim-Levels2 (u16 levels up to 999 in the structure and district tables). */
-export const FORMAT_VERSION = 11;
+/** Bumped when the byte layout above changes. 2: owner u16 (D71). 3: players, rowCos and the per-owner economy arrays (M04). 4: attacks and the enclave queue (M04 conquest). 5: the exposure array (M04 fix pass). 6: the structure table (M09 part A). 7: the embargo flags (M09 part B). 8: the district table (Districts-1). 9: the match block (M18-1). 10: Sim-Growth (City levels up to 10, five district slots per row). 11: Sim-Levels2 (u16 levels up to 999 in the structure and district tables). 12: M12a-1 (the air block: the helicopter and beachhead tables). */
+export const FORMAT_VERSION = 12;
 /** 'SPEL' as a little-endian u32. */
 export const MAGIC = 0x4c455053;
 export const HEADER_BYTES = 64;
@@ -70,6 +94,12 @@ const BYTES_PER_STRUCTURE = 32;
 const BYTES_PER_ATTACK = 36;
 /** One frontier bag: depth and count, then its cells (4 bytes each). */
 const BYTES_PER_BAG = 8;
+/** The air block of a state without helicopters and beachheads: highWater, recycledCount, liveCount, beachhead count. */
+const EMPTY_AIR_BYTES = 16;
+/** One live helicopter: id owner state factory readyTick stateTick x y alt hp load fuel mode target routeLen routeIdx (its route cells follow, 4 bytes each). */
+const BYTES_PER_HELI = 64;
+/** One live beachhead: index owner seed landTick status. */
+const BYTES_PER_BEACHHEAD = 20;
 /** The match block: ten u32 scalars and six u32 arrays of (seats + 1). */
 function matchBytes(seats: number): number {
   return 40 + 24 * ownerSlots(seats);
@@ -90,6 +120,7 @@ export type DeserializeError =
   | 'enclave-range'
   | 'home-range'
   | 'structure-range'
+  | 'air-range'
   | 'match-range'
   | 'checksum';
 
@@ -99,7 +130,7 @@ export type DeserializeResult =
 
 /** Number of bytes serialize() produces for a size when no attack is running and no enclave candidate is queued. */
 export function serializedLength(width: number, height: number, seats: number): number {
-  return HEADER_BYTES + width * height * BYTES_PER_CELL + height * BYTES_PER_ROW + ownerSlots(seats) * BYTES_PER_OWNER + EMPTY_TABLES_BYTES + EMPTY_STRUCTURE_BYTES + ownerSlots(seats) * 4 + ownerSlots(seats) * ownerSlots(seats) + matchBytes(seats) + CHECKSUM_BYTES;
+  return HEADER_BYTES + width * height * BYTES_PER_CELL + height * BYTES_PER_ROW + ownerSlots(seats) * BYTES_PER_OWNER + EMPTY_TABLES_BYTES + EMPTY_STRUCTURE_BYTES + ownerSlots(seats) * 4 + ownerSlots(seats) * ownerSlots(seats) + EMPTY_AIR_BYTES + matchBytes(seats) + CHECKSUM_BYTES;
 }
 
 /** Number of non-empty frontier bags of an attack. */
@@ -120,6 +151,9 @@ export function serializedLengthOf(state: GameState): number {
   for (const a of state.attacks.list) n += BYTES_PER_ATTACK + a.size * 4 + bagsOf(a) * BYTES_PER_BAG;
   if (state.home !== null) n += homeBytes(state.width * state.height, state.header.seats);
   n += state.structures.liveCount * BYTES_PER_STRUCTURE + state.structures.recycledCount * 4 + state.structures.districtCount * BYTES_PER_DISTRICT;
+  const hl = state.helis;
+  n += hl.liveCount * BYTES_PER_HELI + hl.recycledCount * 4 + state.beachheads.liveCount * BYTES_PER_BEACHHEAD;
+  for (let id = 0; id < hl.highWater; id++) if (hl.owner[id] !== 0) n += (hl.routeLen[id] as number) * 4;
   return n + state.enclaves.length * 4;
 }
 
@@ -205,6 +239,7 @@ export function hashState(state: GameState): number {
     x = foldU16(x, home.defenceMilli);
   }
   x = foldStructures(x, state.structures);
+  x = foldHelis(x, state.helis, state.beachheads);
   x = foldMatch(x, state);
   return finishHash(x);
 }
@@ -304,6 +339,53 @@ export function serialize(state: GameState): Uint8Array {
     p += home.homeLand.length;
     p = putU16s(v, p, home.portMilli);
     p = putU16s(v, p, home.defenceMilli);
+  }
+  const hl = state.helis;
+  v.setUint32(p, hl.highWater, true);
+  v.setUint32(p + 4, hl.recycledCount, true);
+  p += 8;
+  for (let i = 0; i < hl.recycledCount; i++) {
+    v.setUint32(p, hl.recycled[i] as number, true);
+    p += 4;
+  }
+  v.setUint32(p, hl.liveCount, true);
+  p += 4;
+  for (let id = 0; id < hl.highWater; id++) {
+    if (hl.owner[id] === 0) continue;
+    const len = hl.routeLen[id] as number;
+    v.setUint32(p, id, true);
+    v.setUint32(p + 4, hl.owner[id] as number, true);
+    v.setUint32(p + 8, hl.state[id] as number, true);
+    v.setUint32(p + 12, hl.factory[id] as number, true);
+    v.setUint32(p + 16, hl.readyTick[id] as number, true);
+    v.setUint32(p + 20, hl.stateTick[id] as number, true);
+    v.setInt32(p + 24, hl.x[id] as number, true);
+    v.setInt32(p + 28, hl.y[id] as number, true);
+    v.setInt32(p + 32, hl.alt[id] as number, true);
+    v.setUint32(p + 36, hl.hp[id] as number, true);
+    v.setUint32(p + 40, hl.load[id] as number, true);
+    v.setUint32(p + 44, hl.fuel[id] as number, true);
+    v.setUint32(p + 48, hl.mode[id] as number, true);
+    v.setUint32(p + 52, hl.target[id] as number, true);
+    v.setUint32(p + 56, len, true);
+    v.setUint32(p + 60, hl.routeIdx[id] as number, true);
+    p += BYTES_PER_HELI;
+    for (let k = 0; k < len; k++) {
+      v.setUint32(p, hl.route[id * HELI_ROUTE_CAPACITY + k] as number, true);
+      p += 4;
+    }
+  }
+  const bh = state.beachheads;
+  v.setUint32(p, bh.liveCount, true);
+  p += 4;
+  for (let i = 0; i < BEACHHEAD_CAPACITY; i++) {
+    if (bh.owner[i] === 0) continue;
+    v.setUint32(p, i, true);
+    v.setUint32(p + 4, bh.owner[i] as number, true);
+    v.setUint32(p + 8, bh.seed[i] as number, true);
+    v.setUint32(p + 12, bh.landTick[i] as number, true);
+    v.setUint32(p + 16, bh.status[i] as number, true);
+    p += BYTES_PER_BEACHHEAD;
   }
   const st = state.structures;
   v.setUint32(p, st.highWater, true);
@@ -421,8 +503,13 @@ function fail(error: DeserializeError): DeserializeResult {
   return { ok: false, error };
 }
 
-/** Rebuilds a state from bytes made by serialize(). Checks the layout, the ranges and the checksum. Never throws. */
-export function deserialize(bytes: Uint8Array): DeserializeResult {
+/** What a restored state needs that is not game state (M12a-1): the occluder layer of the world it was played on, for the Los / Nav queries. */
+export interface DeserializeOptions {
+  readonly maxElev?: ArrayLike<number>;
+}
+
+/** Rebuilds a state from bytes made by serialize(). Checks the layout, the ranges and the checksum. Never throws. The Los / Nav caches are never in the bytes: they are built on demand from `options.maxElev`. */
+export function deserialize(bytes: Uint8Array, options?: DeserializeOptions): DeserializeResult {
   if (!isBytes(bytes)) return fail('not-bytes');
   if (bytes.length < HEADER_BYTES + CHECKSUM_BYTES) return fail('too-short');
   const v = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
@@ -440,6 +527,7 @@ export function deserialize(bytes: Uint8Array): DeserializeResult {
   const config = flagsToConfig(flags);
   if (config === null || seats < 1 || seats > MAX_SEATS || players < 1 || players > seats || !validDimensions(width, height)) return fail('header');
   const n = width * height;
+  if (options?.maxElev !== undefined && options.maxElev.length !== n) return fail('header');
   if (bytes.length < serializedLength(width, height, seats)) return fail('size');
 
   const rng = new Uint32Array(4);
@@ -567,6 +655,102 @@ export function deserialize(bytes: Uint8Array): DeserializeResult {
     }
     home = { country, homeLand, portMilli, defenceMilli };
   }
+  // The air block (M12a-1, between the home block and the structure block): the helicopter table, then the beachheads. Every count is checked against the bytes that are left before it is trusted.
+  const helis = new HeliTable(slots);
+  const beachheads = new BeachheadTable();
+  if (p + EMPTY_AIR_BYTES > end) return fail('size');
+  helis.highWater = v.getUint32(p, true);
+  helis.recycledCount = v.getUint32(p + 4, true);
+  p += 8;
+  if (helis.highWater > HELI_CAPACITY || helis.recycledCount > helis.highWater || p + helis.recycledCount * 4 + 4 + 4 > end) return fail('air-range');
+  for (let i = 0; i < helis.recycledCount; i++) {
+    const id = v.getUint32(p, true);
+    p += 4;
+    if (id >= helis.highWater) return fail('air-range');
+    helis.recycled[i] = id;
+  }
+  const heliLive = v.getUint32(p, true);
+  p += 4;
+  if (heliLive + helis.recycledCount !== helis.highWater) return fail('air-range');
+  let lastHeli = -1;
+  const worldCells = n;
+  for (let k = 0; k < heliLive; k++) {
+    if (p + BYTES_PER_HELI + 4 > end) return fail('air-range');
+    const id = v.getUint32(p, true);
+    const ownerId = v.getUint32(p + 4, true);
+    const hs = v.getUint32(p + 8, true);
+    const factory = v.getUint32(p + 12, true);
+    const readyTick = v.getUint32(p + 16, true);
+    const stateTick = v.getUint32(p + 20, true);
+    const hx = v.getInt32(p + 24, true);
+    const hy = v.getInt32(p + 28, true);
+    const alt = v.getInt32(p + 32, true);
+    const hp = v.getUint32(p + 36, true);
+    const load = v.getUint32(p + 40, true);
+    const fuel = v.getUint32(p + 44, true);
+    const mode = v.getUint32(p + 48, true);
+    const target = v.getUint32(p + 52, true);
+    const routeLen = v.getUint32(p + 56, true);
+    const routeIdx = v.getUint32(p + 60, true);
+    p += BYTES_PER_HELI;
+    if (id <= lastHeli || id >= helis.highWater || ownerId < 1 || ownerId > seats || hs < HELI_BUILDING || hs > HELI_STATE_MAX || factory >= STRUCT_CAPACITY) return fail('air-range');
+    if (hx < 0 || hx >= width * 256 || hy < 0 || hy >= height * 256 || alt < 0 || alt > 65535) return fail('air-range');
+    if (hp > HELI_HP_TENTHS || load > HELI_MAX_TROOPS || fuel > HELI_FUEL_MAX_Q8 || mode > 1 || target > worldCells || routeLen > HELI_ROUTE_CAPACITY || routeIdx > routeLen) return fail('air-range');
+    // A queued helicopter has the production time the rules set (its Factory is checked below, once the structure table is read).
+    if (hs === HELI_BUILDING && readyTick !== stateTick + HELI_BUILD_TICKS) return fail('air-range');
+    if (p + routeLen * 4 + 4 > end) return fail('air-range');
+    lastHeli = id;
+    helis.owner[id] = ownerId;
+    helis.state[id] = hs;
+    helis.factory[id] = factory;
+    helis.readyTick[id] = readyTick;
+    helis.stateTick[id] = stateTick;
+    helis.x[id] = hx;
+    helis.y[id] = hy;
+    helis.alt[id] = alt;
+    helis.hp[id] = hp;
+    helis.load[id] = load;
+    helis.fuel[id] = fuel;
+    helis.mode[id] = mode;
+    helis.target[id] = target;
+    helis.routeLen[id] = routeLen;
+    helis.routeIdx[id] = routeIdx;
+    for (let r = 0; r < routeLen; r++) {
+      const cell = v.getUint32(p, true);
+      p += 4;
+      if (cell >= n) return fail('air-range');
+      helis.route[id * HELI_ROUTE_CAPACITY + r] = cell;
+    }
+  }
+  // The recycled ids must be exactly the unused slots below highWater (no duplicate, none of them alive).
+  for (let i = 0; i < helis.recycledCount; i++) {
+    const id = helis.recycled[i] as number;
+    if (helis.owner[id] !== 0) return fail('air-range');
+    helis.owner[id] = 0xffff;
+  }
+  for (let i = 0; i < helis.recycledCount; i++) {
+    const id = helis.recycled[i] as number;
+    if (helis.owner[id] === 0) return fail('air-range');
+    helis.owner[id] = 0;
+  }
+  const beachCount = v.getUint32(p, true);
+  p += 4;
+  if (beachCount > BEACHHEAD_CAPACITY || p + beachCount * BYTES_PER_BEACHHEAD > end) return fail('air-range');
+  let lastBeach = -1;
+  for (let k = 0; k < beachCount; k++) {
+    const i = v.getUint32(p, true);
+    const ownerId = v.getUint32(p + 4, true);
+    const seed = v.getUint32(p + 8, true);
+    const landTick = v.getUint32(p + 12, true);
+    const status = v.getUint32(p + 16, true);
+    p += BYTES_PER_BEACHHEAD;
+    if (i <= lastBeach || i >= BEACHHEAD_CAPACITY || ownerId < 1 || ownerId > seats || seed >= n || status < 1 || status > BEACH_STATUS_MAX) return fail('air-range');
+    lastBeach = i;
+    beachheads.owner[i] = ownerId;
+    beachheads.seed[i] = seed;
+    beachheads.landTick[i] = landTick;
+    beachheads.status[i] = status;
+  }
   const structures = new StructureTable(n, slots);
   if (p + 8 > end) return fail('size');
   structures.highWater = v.getUint32(p, true);
@@ -649,6 +833,13 @@ export function deserialize(bytes: Uint8Array): DeserializeResult {
     if (structures.owner[id] === 0) return fail('structure-range');
     structures.owner[id] = 0;
   }
+  // A queued or parked helicopter has a live Factory of its owner (conquest, Delete and destruction scrap them).
+  for (let id = 0; id < helis.highWater; id++) {
+    const hs = helis.state[id] as number;
+    if (helis.owner[id] === 0 || (hs !== HELI_BUILDING && hs !== HELI_PAD)) continue;
+    const f = helis.factory[id] as number;
+    if (structures.owner[f] !== helis.owner[id] || structures.type[f] !== STRUCT_FACTORY) return fail('air-range');
+  }
   const m = new MatchState(slots);
   const win = readMatch(v, p, slots, seats, m);
   if (win === 'bad') return fail('match-range');
@@ -659,7 +850,7 @@ export function deserialize(bytes: Uint8Array): DeserializeResult {
   const header: MatchHeader = Object.freeze({ engineVersion, mapHash, seed, config: finalConfig, seats, players });
   let state: GameState;
   try {
-    state = assembleState({ header, width, height, tick: v.getUint32(36, true), rejects: v.getUint32(40, true), rng, terrain, elevation, owner, stamp, exposure, rowCos, troops, troopFrac, gold, capital, attacks, enclaves, structures, match: m, home });
+    state = assembleState({ header, width, height, tick: v.getUint32(36, true), rejects: v.getUint32(40, true), rng, terrain, elevation, owner, stamp, exposure, rowCos, troops, troopFrac, gold, capital, attacks, enclaves, structures, helis, beachheads, match: m, home, env: new SimEnv(options?.maxElev === undefined ? null : Int16Array.from(options.maxElev)) });
   } catch {
     return fail('header');
   }

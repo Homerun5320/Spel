@@ -493,3 +493,28 @@ export const LZ_ENEMY_CITY_CELLS = 2;
 export const LZ_SCORE_BASE = 1000;
 export const LZ_SCORE_SPREAD_PER_M = 2;
 export const LZ_SCORE_EXPOSED_PER_CELL = 60;
+
+// ---------------------------------------------------------------------------------------------------------------
+// M12a-1: the helicopter table, production and the fleet cap (src/sim/helis.ts, src/sim/heliRules.ts). The flight numbers of part 2 are the
+// M11b mode table above; every constant has a row in docs/BALANCE.md. Provisional: the M12a-1 block of docs/DECISIONS.md.
+
+/** Slots of the helicopter table (a structural limit): ids 0..HELI_CAPACITY - 1. The fleet cap (HELI_FLEET_MAX) is far below it, so the table never fills. */
+export const HELI_CAPACITY = 64;
+/** Slots of the beachhead table (a structural limit): at most this many landings are tracked at once. */
+export const BEACHHEAD_CAPACITY = 64;
+/** Waypoints one helicopter can store for its route (a structural limit of the fixed per-helicopter route buffer; part 2 refuses a longer route with NO_ROUTE). */
+export const HELI_ROUTE_CAPACITY = 64;
+/** Price of one helicopter in whole gold, taken when ProduceHeli is applied. */
+export const HELI_PRICE_GOLD = 200;
+/** Production time of a helicopter in ticks (12 s), one at a time per Factory. */
+export const HELI_BUILD_TICKS = 120;
+/** Fleet cap = HELI_FLEET_BASE + the sum of the levels of the seat's finished Factories, at most HELI_FLEET_MAX; a helicopter under production counts. */
+export const HELI_FLEET_BASE = 2;
+/** The hard top of the fleet cap (Sim-Levels2 lets Factory levels reach 999, so this clamps). */
+export const HELI_FLEET_MAX = 12;
+/** Most troops one helicopter carries. */
+export const HELI_MAX_TROOPS = 600;
+/** Hit points of a helicopter in tenths (100.0 HP). */
+export const HELI_HP_TENTHS = 1000;
+/** Fuel of a full tank in Q8 sim cells (HELI_FUEL_CELLS * 256): the fuel field of the table counts down from this as the helicopter flies. */
+export const HELI_FUEL_MAX_Q8 = 46080;
