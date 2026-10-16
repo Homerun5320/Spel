@@ -15,6 +15,7 @@ import { landShareQ15 } from './territory';
 import type { StructureView } from './structureRules';
 import type { DistrictView } from './districtRules';
 import type { HeliView } from './heliTable';
+import { DiplomacyReader, type DiplomacyView } from './diplomacyTable';
 import { fillMatchView, matchPackedLength, matchViewOf, type MatchView } from './matchView';
 
 /** An array you can index and measure but not write to (the type of a typed array without its mutators). */
@@ -107,6 +108,8 @@ export interface SimView {
   attackRunning(attacker: number, target: number): boolean;
   /** The match end (M18-1): result, win progress for the HUD and the per-seat statistics. Read-only; a match without win rules has `winFlags` 0 and never ends. */
   readonly match: MatchView;
+  /** Truces, alliances, open proposals, betrayal cooldowns and embargoes (M18c-1), read-only, by SEAT. A ViewMirror carries a copy of the table (the host sends it when it changed). */
+  readonly diplomacy: DiplomacyView;
 }
 
 /**
@@ -216,6 +219,7 @@ export class StateView implements SimView {
   private readonly scoreScratch: Uint32Array;
   readonly stats: SeatStatsView;
   readonly match: MatchView;
+  readonly diplomacy: DiplomacyView;
   ownerVersion = 0;
   private lastOwnerStamp = -1;
 
@@ -226,6 +230,7 @@ export class StateView implements SimView {
     this.matchPacked = new Uint32Array(matchPackedLength(seats));
     this.scoreScratch = new Uint32Array(ownerSlots(seats));
     this.match = matchViewOf(seats, this.matchPacked);
+    this.diplomacy = new DiplomacyReader(state.diplo, state.header.players, () => state.tick);
     this.refresh();
   }
 

@@ -100,6 +100,26 @@ Previous merge SHA (origin/main; nothing of this branch is merged, pull request 
 - [x] 7. Tests: every reason code, price and time tick-exact, fleet cap, free list and reused id, round trip and snapshot equals straight run with helicopters, Los/Nav access, conquest, goldens in Node and worker, perf (12 helicopters, 300 structures, 12 players)
 - [x] 8. Docs (DECISIONS M12a-1 with its mutant table and the hooks for part 2, ARCHITECTURE, BALANCE, BACKLOG) and `npm run verify:fast` green (typecheck, lint, 226 unit files, 2484 tests + 2 expected fail; 2 min 32 s). Perf (alone): heli.perf, sim.perf, structures.perf, ai.perf green.
 - Not run here: the full `npm run verify`, Chromium, the pack, a pull request (the orchestrator).
+### M18c-1: diplomacy in the sim and the AI (truce, alliance, embargo; headless; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+Previous merge SHA (origin/main): f29121a8d1607ca169e6675b5f22a52d76c42ef7; nothing of this branch is merged (pull request #1 is a draft); base commit a81d4b0.
+GÖR
+- [x] 1. GÖR and ACCEPTANS written here first
+- [x] 2. Model: relation per seat pair (war / truce 2400 ticks / alliance), proposal table (32, 600 ticks), betrayal cooldown, embargo owner; in state, serialize and hash (FORMAT and ENGINE raised once, goldens recomputed once)
+- [x] 3. Intents ProposeTreaty, AcceptTreaty, DeclineTreaty, BreakTreaty, ImposeEmbargo, LiftEmbargo (wire kinds 15 to 20, reason codes 80 to 93), ONE shared check each behind validate*, exports pinned, SimView.diplomacy
+- [x] 4. Rules: no Attack between treaty parties, running attacks cancelled, truce expires tick-exactly, Break gives war + cooldown + statistics, alliance trade, embargo trade, elimination clears
+- [x] 5. Statistics in MatchView (treaties made, broken, active relations)
+- [x] 6. AI: replies after a delay, proposes, breaks an alliance as a leader, never an invalid intent; memory in the AI blob
+- [x] 7. Texts sv and en for the new reasons; tests; docs; `npm run verify:fast`
+ACCEPTANS
+- [x] Every intent and reason code tested, one shared implementation, exports pinned
+- [x] Attack ban between treaty parties and cancelled running attacks tested; expiry tick-exact
+- [x] Betrayal: cooldown, statistics; embargo and alliance trade act in the economy
+- [x] Serialisation, hash, goldens in Node and worker; goldens recomputed once
+- [x] The AI replies and proposes by the rules, never an invalid intent over 20 seeds; solo script and pace test inside their bands
+- [x] `npm run verify:fast` green
+
+- Result: `npm run verify:fast` green (typecheck, lint, 238 unit files, 2625 tests; 2 min 02 s); perf alone (sim, ai, conquest) green; `npm run sim:scenario -- --solo` unchanged (10 786 cells at minute 10); the full `npm run verify`, Chromium, the pack and the pull request are the orchestrator's. The orchestrator sets the final ENGINE_VERSION / FORMAT_VERSION and regenerates `e2e/goldens/sim-hashes.json` and `e2e/goldens/match-hashes.json` when the two sim tracks are merged (here ENGINE 16, FORMAT 13). Details, measured AI behaviour and the moved test bounds in `docs/DECISIONS.md` "M18c-1".
+
 ### M20a-lite: hotkey registry, help overlay `?`, command resolver, top bar with a win meter (UI and app; src/sim untouched; one slice in its own worktree; the orchestrator owns merging, pushing and the Artifact)
 GÖR
 - [x] 1. `src/app/hotkeys.ts`: `registerHotkey`-style registry (`HotkeyRegistry.register`), every game key moved in (F focus, 1 to 6, Escape via the input stack, space / `,` / `.` / `[` / `]` / `-` / `+`, F3, F2, `?`); the Fix-3B modal block and `RESERVED_KEYS` kept

@@ -7,10 +7,10 @@
 import { DISTRICT_MAX_SLOTS, HELI_CAPACITY, STRUCT_CAPACITY } from './rules';
 import { MAX_SEATS } from './state';
 
-export type IntentKind = 'Noop' | 'DebugPaint' | 'Spawn' | 'Attack' | 'CancelAttack' | 'DebugGive' | 'Build' | 'Upgrade' | 'Delete' | 'BuildDistrict' | 'UpgradeDistrict' | 'RemoveDistrict' | 'ProduceHeli' | 'LaunchHeli' | 'RecallHeli';
+export type IntentKind = 'Noop' | 'DebugPaint' | 'Spawn' | 'Attack' | 'CancelAttack' | 'DebugGive' | 'Build' | 'Upgrade' | 'Delete' | 'BuildDistrict' | 'UpgradeDistrict' | 'RemoveDistrict' | 'ProduceHeli' | 'LaunchHeli' | 'RecallHeli' | 'ProposeTreaty' | 'AcceptTreaty' | 'DeclineTreaty' | 'BreakTreaty' | 'ImposeEmbargo' | 'LiftEmbargo';
 
 /** The intent kinds in wire order (the index is the kind byte of the codec). Append only: a published code never changes meaning. */
-export const INTENT_KINDS: readonly IntentKind[] = ['Noop', 'DebugPaint', 'Spawn', 'Attack', 'CancelAttack', 'DebugGive', 'Build', 'Upgrade', 'Delete', 'BuildDistrict', 'UpgradeDistrict', 'RemoveDistrict', 'ProduceHeli', 'LaunchHeli', 'RecallHeli'];
+export const INTENT_KINDS: readonly IntentKind[] = ['Noop', 'DebugPaint', 'Spawn', 'Attack', 'CancelAttack', 'DebugGive', 'Build', 'Upgrade', 'Delete', 'BuildDistrict', 'UpgradeDistrict', 'RemoveDistrict', 'ProduceHeli', 'LaunchHeli', 'RecallHeli', 'ProposeTreaty', 'AcceptTreaty', 'DeclineTreaty', 'BreakTreaty', 'ImposeEmbargo', 'LiftEmbargo'];
 
 /** Does nothing; valid for any seat. Exists to prove the pipeline (and as the heartbeat of a lockstep client). */
 export interface NoopBody {
@@ -154,8 +154,54 @@ export interface RecallHeliBody {
   readonly heli: number;
 }
 
+/**
+ * M18c-1 (wire kinds 15 to 20): a seat proposes a treaty to the player seat `to`: `treaty` 1 = truce (TRUCE_TICKS from the acceptance), 2 = alliance (until somebody breaks it).
+ * At most one open proposal per directed pair; it lasts PROPOSAL_TTL_TICKS. All seats in these bodies are SEATS (0-based), never ownerIds. The refusals are the REJECT_DIPLO_* codes.
+ */
+export interface ProposeTreatyBody {
+  readonly kind: 'ProposeTreaty';
+  readonly seat: number;
+  readonly to: number;
+  readonly treaty: number;
+}
+
+/** A seat accepts the open proposal that `from` made to it: the relation changes at once, in both directions, and attacks between the two are called off. */
+export interface AcceptTreatyBody {
+  readonly kind: 'AcceptTreaty';
+  readonly seat: number;
+  readonly from: number;
+}
+
+/** A seat declines (removes) the open proposal that `from` made to it. */
+export interface DeclineTreatyBody {
+  readonly kind: 'DeclineTreaty';
+  readonly seat: number;
+  readonly from: number;
+}
+
+/** A seat breaks its truce or alliance with `with`: war at once, the betrayal cooldown starts and the betrayal is counted. */
+export interface BreakTreatyBody {
+  readonly kind: 'BreakTreaty';
+  readonly seat: number;
+  readonly with: number;
+}
+
+/** A seat puts an embargo on `target`: the trade between their Ports is worth nothing to either, until the seat lifts it. Free of charge, one-sided to impose, two-sided in effect. */
+export interface ImposeEmbargoBody {
+  readonly kind: 'ImposeEmbargo';
+  readonly seat: number;
+  readonly target: number;
+}
+
+/** A seat lifts the embargo it put on `target` (the trade resumes unless `target` has an embargo of its own on the seat). */
+export interface LiftEmbargoBody {
+  readonly kind: 'LiftEmbargo';
+  readonly seat: number;
+  readonly target: number;
+}
+
 /** An intent before it has an id (what the UI submits to a host). */
-export type IntentBody = NoopBody | DebugPaintBody | SpawnBody | AttackBody | CancelAttackBody | DebugGiveBody | BuildBody | UpgradeBody | DeleteBody | BuildDistrictBody | UpgradeDistrictBody | RemoveDistrictBody | ProduceHeliBody | LaunchHeliBody | RecallHeliBody;
+export type IntentBody = NoopBody | DebugPaintBody | SpawnBody | AttackBody | CancelAttackBody | DebugGiveBody | BuildBody | UpgradeBody | DeleteBody | BuildDistrictBody | UpgradeDistrictBody | RemoveDistrictBody | ProduceHeliBody | LaunchHeliBody | RecallHeliBody | ProposeTreatyBody | AcceptTreatyBody | DeclineTreatyBody | BreakTreatyBody | ImposeEmbargoBody | LiftEmbargoBody;
 
 export type Intent = IntentBody & { readonly id: number };
 
@@ -197,6 +243,25 @@ export function launchHeliBody(seat: number, factory: number, lzCell: number, tr
 }
 export function recallHeliBody(seat: number, heli: number): RecallHeliBody {
   return { kind: 'RecallHeli', seat, heli };
+}
+
+export function proposeTreatyBody(seat: number, to: number, treaty: number): ProposeTreatyBody {
+  return { kind: 'ProposeTreaty', seat, to, treaty };
+}
+export function acceptTreatyBody(seat: number, from: number): AcceptTreatyBody {
+  return { kind: 'AcceptTreaty', seat, from };
+}
+export function declineTreatyBody(seat: number, from: number): DeclineTreatyBody {
+  return { kind: 'DeclineTreaty', seat, from };
+}
+export function breakTreatyBody(seat: number, withSeat: number): BreakTreatyBody {
+  return { kind: 'BreakTreaty', seat, with: withSeat };
+}
+export function imposeEmbargoBody(seat: number, target: number): ImposeEmbargoBody {
+  return { kind: 'ImposeEmbargo', seat, target };
+}
+export function liftEmbargoBody(seat: number, target: number): LiftEmbargoBody {
+  return { kind: 'LiftEmbargo', seat, target };
 }
 
 /** The intents of one turn: all intents that run in the step that starts at tick `turn`. */
@@ -310,6 +375,36 @@ export const REJECT_HELI_NO_ROUTE = 53;
 /** RecallHeli of a helicopter that is not in the air on a mission (no such helicopter, parked, in production, already returning or down). */
 export const REJECT_HELI_NOT_FLYING = 54;
 
+// M18c-1: the diplomacy refusals. Codes 55 to 63 and 73 to 79 are left to the helicopter milestone (landing-zone codes are 65..72), these start at 80.
+/** Diplomacy intent whose target seat is not a player (a tribe). Also: a tribe as the sender. */
+export const REJECT_DIPLO_NOT_PLAYER = 80;
+/** Diplomacy intent aimed at the sender itself. */
+export const REJECT_DIPLO_SELF = 81;
+/** ProposeTreaty of a truce while there is a truce or an alliance already. */
+export const REJECT_DIPLO_AT_PEACE = 82;
+/** ProposeTreaty of an alliance while there is one already. */
+export const REJECT_DIPLO_ALLIED = 83;
+/** ProposeTreaty while the sender already has an open proposal to the same seat. */
+export const REJECT_DIPLO_PENDING = 84;
+/** AcceptTreaty / DeclineTreaty without an open proposal (none was made, or it ran out, or was answered). */
+export const REJECT_DIPLO_NO_PROPOSAL = 85;
+/** ProposeTreaty inside the sender's betrayal cooldown. */
+export const REJECT_DIPLO_COOLDOWN = 86;
+/** BreakTreaty without a treaty. */
+export const REJECT_DIPLO_NO_TREATY = 87;
+/** A diplomacy intent by or at a seat that has been eliminated. */
+export const REJECT_DIPLO_ELIMINATED = 88;
+/** A diplomacy intent after the match has ended. */
+export const REJECT_DIPLO_MATCH_ENDED = 89;
+/** Attack on a seat the attacker has a truce or an alliance with. */
+export const REJECT_DIPLO_TREATY_BOUND = 90;
+/** ImposeEmbargo on a seat the sender already has an embargo on. */
+export const REJECT_DIPLO_EMBARGO_SET = 91;
+/** LiftEmbargo of an embargo the sender did not put on. */
+export const REJECT_DIPLO_EMBARGO_NONE = 92;
+/** ProposeTreaty while the proposal table is full. */
+export const REJECT_DIPLO_FULL = 93;
+
 export interface ValidateContext {
   readonly seats: number;
   readonly cells: number;
@@ -329,7 +424,7 @@ function isIntegerIn(v: unknown, lo: number, hi: number): boolean {
 /** Why an intent is not valid in this match (REJECT_*), or REJECT_NONE. Total: any value whatsoever may be passed in. */
 export function validateIntent(x: unknown, ctx: ValidateContext): number {
   if (typeof x !== 'object' || x === null) return REJECT_SHAPE;
-  const o = x as { kind?: unknown; seat?: unknown; id?: unknown; cell?: unknown; target?: unknown; pct?: unknown; gold?: unknown; troops?: unknown; type?: unknown; structure?: unknown; slot?: unknown; districtKind?: unknown; factory?: unknown; lzCell?: unknown; altMode?: unknown; heli?: unknown };
+  const o = x as { kind?: unknown; seat?: unknown; id?: unknown; cell?: unknown; target?: unknown; pct?: unknown; gold?: unknown; troops?: unknown; type?: unknown; structure?: unknown; slot?: unknown; districtKind?: unknown; factory?: unknown; lzCell?: unknown; altMode?: unknown; heli?: unknown; to?: unknown; treaty?: unknown; from?: unknown; with?: unknown };
   const code = kindCode(o.kind);
   if (code < 0) return REJECT_KIND;
   if (!isIntegerIn(o.seat, 0, MAX_SEATS - 1) || (o.seat as number) >= ctx.seats) return REJECT_SEAT;
@@ -361,6 +456,15 @@ export function validateIntent(x: unknown, ctx: ValidateContext): number {
     if (!isIntegerIn(o.altMode, 0, 1)) return REJECT_SHAPE;
   } else if (o.kind === 'RecallHeli') {
     if (!isIntegerIn(o.heli, 0, HELI_CAPACITY - 1)) return REJECT_ID;
+  } else if (o.kind === 'ProposeTreaty') {
+    if (!isIntegerIn(o.to, 0, ctx.seats - 1)) return REJECT_TARGET;
+    if (!isIntegerIn(o.treaty, 1, 2)) return REJECT_SHAPE;
+  } else if (o.kind === 'AcceptTreaty' || o.kind === 'DeclineTreaty') {
+    if (!isIntegerIn(o.from, 0, ctx.seats - 1)) return REJECT_TARGET;
+  } else if (o.kind === 'BreakTreaty') {
+    if (!isIntegerIn(o.with, 0, ctx.seats - 1)) return REJECT_TARGET;
+  } else if (o.kind === 'ImposeEmbargo' || o.kind === 'LiftEmbargo') {
+    if (!isIntegerIn(o.target, 0, ctx.seats - 1)) return REJECT_TARGET;
   } else if (o.kind === 'BuildDistrict' || o.kind === 'UpgradeDistrict' || o.kind === 'RemoveDistrict') {
     if (!isIntegerIn(o.structure, 0, STRUCT_CAPACITY - 1)) return REJECT_STRUCT_ID;
     if (!isIntegerIn(o.slot, 0, DISTRICT_MAX_SLOTS - 1)) return REJECT_DISTRICT_SLOT;
@@ -389,6 +493,10 @@ function comparePayload(a: Intent, b: Intent): number {
     return a.troops !== b.troops ? a.troops - b.troops : a.altMode - b.altMode;
   }
   if (a.kind === 'RecallHeli' && b.kind === 'RecallHeli') return a.heli - b.heli;
+  if (a.kind === 'ProposeTreaty' && b.kind === 'ProposeTreaty') return a.to !== b.to ? a.to - b.to : a.treaty - b.treaty;
+  if ((a.kind === 'AcceptTreaty' && b.kind === 'AcceptTreaty') || (a.kind === 'DeclineTreaty' && b.kind === 'DeclineTreaty')) return a.from - b.from;
+  if (a.kind === 'BreakTreaty' && b.kind === 'BreakTreaty') return a.with - b.with;
+  if ((a.kind === 'ImposeEmbargo' && b.kind === 'ImposeEmbargo') || (a.kind === 'LiftEmbargo' && b.kind === 'LiftEmbargo')) return a.target - b.target;
   if ((a.kind === 'UpgradeDistrict' && b.kind === 'UpgradeDistrict') || (a.kind === 'RemoveDistrict' && b.kind === 'RemoveDistrict')) {
     return a.structure !== b.structure ? a.structure - b.structure : a.slot - b.slot;
   }
@@ -415,7 +523,7 @@ export const INVALID_BODY: IntentBody = Object.freeze({ kind: 'Noop', seat: -1 }
  */
 export function copyBody(x: unknown): IntentBody {
   if (typeof x !== 'object' || x === null) return INVALID_BODY;
-  const o = x as { kind?: unknown; seat?: unknown; cell?: unknown; target?: unknown; pct?: unknown; gold?: unknown; troops?: unknown; type?: unknown; structure?: unknown; slot?: unknown; districtKind?: unknown; factory?: unknown; lzCell?: unknown; altMode?: unknown; heli?: unknown };
+  const o = x as { kind?: unknown; seat?: unknown; cell?: unknown; target?: unknown; pct?: unknown; gold?: unknown; troops?: unknown; type?: unknown; structure?: unknown; slot?: unknown; districtKind?: unknown; factory?: unknown; lzCell?: unknown; altMode?: unknown; heli?: unknown; to?: unknown; treaty?: unknown; from?: unknown; with?: unknown };
   const seat = typeof o.seat === 'number' ? o.seat : -1;
   if (o.kind === 'Noop') return { kind: 'Noop', seat };
   if (o.kind === 'DebugPaint') return { kind: 'DebugPaint', seat, cell: typeof o.cell === 'number' ? o.cell : -1 };
@@ -433,6 +541,12 @@ export function copyBody(x: unknown): IntentBody {
   if (o.kind === 'ProduceHeli') return { kind: 'ProduceHeli', seat, factory: num(o.factory) };
   if (o.kind === 'LaunchHeli') return { kind: 'LaunchHeli', seat, factory: num(o.factory), lzCell: num(o.lzCell), troops: num(o.troops), altMode: num(o.altMode) };
   if (o.kind === 'RecallHeli') return { kind: 'RecallHeli', seat, heli: num(o.heli) };
+  if (o.kind === 'ProposeTreaty') return { kind: 'ProposeTreaty', seat, to: num(o.to), treaty: num(o.treaty) };
+  if (o.kind === 'AcceptTreaty') return { kind: 'AcceptTreaty', seat, from: num(o.from) };
+  if (o.kind === 'DeclineTreaty') return { kind: 'DeclineTreaty', seat, from: num(o.from) };
+  if (o.kind === 'BreakTreaty') return { kind: 'BreakTreaty', seat, with: num(o.with) };
+  if (o.kind === 'ImposeEmbargo') return { kind: 'ImposeEmbargo', seat, target: num(o.target) };
+  if (o.kind === 'LiftEmbargo') return { kind: 'LiftEmbargo', seat, target: num(o.target) };
   return INVALID_BODY;
 }
 
@@ -467,6 +581,18 @@ export function withId(body: IntentBody, id: number): Intent {
       return { kind: 'LaunchHeli', seat: body.seat, factory: body.factory, lzCell: body.lzCell, troops: body.troops, altMode: body.altMode, id };
     case 'RecallHeli':
       return { kind: 'RecallHeli', seat: body.seat, heli: body.heli, id };
+    case 'ProposeTreaty':
+      return { kind: 'ProposeTreaty', seat: body.seat, to: body.to, treaty: body.treaty, id };
+    case 'AcceptTreaty':
+      return { kind: 'AcceptTreaty', seat: body.seat, from: body.from, id };
+    case 'DeclineTreaty':
+      return { kind: 'DeclineTreaty', seat: body.seat, from: body.from, id };
+    case 'BreakTreaty':
+      return { kind: 'BreakTreaty', seat: body.seat, with: body.with, id };
+    case 'ImposeEmbargo':
+      return { kind: 'ImposeEmbargo', seat: body.seat, target: body.target, id };
+    case 'LiftEmbargo':
+      return { kind: 'LiftEmbargo', seat: body.seat, target: body.target, id };
     default:
       return { kind: 'Noop', seat: body.seat, id };
   }

@@ -22,6 +22,26 @@ Below, everything is in English. See `docs/DECISIONS.md` D73 to D80 for how the 
 | `MAX_INTENTS_PER_TURN` | 4096 | intents | eget val | A larger turn is refused as a whole. |
 | `MAX_TICKS_PER_FRAME` | 8 | ticks | eget val | The host drops the surplus of a stalled frame. |
 
+## Diplomacy (M18c-1)
+
+Truces, alliances, proposals and the AI's answers (`src/sim/diplomacy.ts`, `src/ai/diplomacy.ts`). The numbers are the prompt's (source `plan`) or our own (`eget val`); provisional until the first playtest, see the M18c-1 block of `docs/DECISIONS.md`.
+
+| Constant | Value | Unit | Source | Note |
+|----------|-------|------|--------|------|
+| `TRUCE_TICKS` | 2400 | ticks | plan | M18c-1: a truce lasts 4 minutes from the tick it was accepted, then it is war again (a new proposal can renew it). An alliance has no end. |
+| `PROPOSAL_TTL_TICKS` | 600 | ticks | plan | M18c-1: an open proposal can be accepted or declined for 60 s. |
+| `PROPOSAL_CAPACITY` | 32 | proposals | plan | M18c-1: the proposal table is full at this many open proposals (ProposeTreaty then gives REJECT_DIPLO_FULL). |
+| `TREATY_BREAK_COOLDOWN_TICKS` | 1800 | ticks | plan | M18c-1: after BreakTreaty the breaker may not propose a treaty for 3 minutes. A truce that runs out costs nothing. |
+| `DIPLOMACY_REPLY_MIN_TICKS` | 30 | ticks | plan | M18c-1: the AI answers a proposal after this many ticks at the earliest (3 s). |
+| `DIPLOMACY_REPLY_MAX_TICKS` | 60 | ticks | plan | M18c-1: and after this many at the latest (6 s); the delay is drawn from the AI's own stream. |
+| `AI_TRUCE_ACCEPT_WARS` | 2 | parties | plan | M18c-1: the AI accepts a truce when an attack runs between it and at least this many other players (either way). |
+| `AI_ALLY_PROPOSER_MAX_PCT` | 25 | percent of land | plan | M18c-1: the AI accepts an alliance only from a proposer holding at most this share. |
+| `AI_ALLY_LEADER_MIN_PCT` | 30 | percent of land | plan | M18c-1: and only while a leader above this share is at war with both. |
+| `AI_GRUDGE_TICKS` | 3000 | ticks | plan | M18c-1: the AI makes no treaty with a seat that broke one against it in the last 5 minutes. |
+| `AI_WEAK_MEDIAN_PCT` | 50 | percent of the median share | plan | M18c-1: an AI below this share of the median land share of the living players proposes a truce to the strongest neighbour that attacked it. |
+| `AI_PROPOSE_COOLDOWN_TICKS` | 600 | ticks | plan | M18c-1: at most one proposal per AI per 60 s. |
+| `AI_LEADER_PCT` | 40 | percent of land | plan | M18c-1: the AIs propose an alliance against a leader above this share; an AI that gets above it itself breaks its alliances. |
+
 ## Units (M04)
 
 | Constant | Value | Unit | Source | Note |

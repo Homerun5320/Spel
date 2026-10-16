@@ -10,7 +10,7 @@ const LZ = [LZ_WATER, LZ_PEAK, LZ_TERRAIN_CLASS, LZ_STEEP, LZ_ENEMY_CITY_NEAR, L
 
 describe('LZ reason codes versus REJECT codes', () => {
   const rejects = Object.entries(intents)
-    .filter(([k, v]) => k.startsWith('REJECT_') && typeof v === 'number')
+    .filter(([k, v]) => k.startsWith('REJECT_') && !k.startsWith('REJECT_DIPLO_') && typeof v === 'number') // M18c-1: the diplomacy block (80 to 93) sits ABOVE the landing-zone range on purpose (tests/sim/diplomacy.test.ts pins it); the 0 to 54 block stays below
     .map(([, v]) => v as number);
 
   it('the two ranges are disjoint: no LZ reason equals any REJECT_* code, and every LZ reason is above the highest REJECT code', () => {

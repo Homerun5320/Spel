@@ -28,6 +28,7 @@ import type { Attack } from './attacks';
 import { addTroops, deductTroops, isTribe } from './economy';
 import { isqrt } from './detmath';
 import { adjustedCostMilliQt } from './homeRules';
+import { RELATION_WAR } from './diplomacyTable';
 import { hash2 } from './fixture';
 import {
   BASE_COST_MILLI_QT_PER_SIM_CELL,
@@ -51,6 +52,7 @@ import {
 } from './rules';
 import { PHASE_IMMUNITY, PHASE_SPAWN, phaseAt } from './flow';
 import {
+  REJECT_DIPLO_TREATY_BOUND,
   REJECT_IMMUNE,
   REJECT_NONE,
   REJECT_NO_ATTACK,
@@ -365,12 +367,22 @@ export function applyAttack(state: GameState, seat: number, target: number, pct:
   }
   if ((state.agg.area[owner] as number) === 0) return REJECT_NOT_SPAWNED;
   if (target === owner) return REJECT_SELF;
+  // Diplomacy (M18c-1): no Attack on a seat the attacker has a truce or an alliance with (one comparison when nobody has a treaty).
+  if (target !== 0 && state.diplo.pairs.length !== 0 && state.diplo.relationOf(owner, target) !== RELATION_WAR) return REJECT_DIPLO_TREATY_BOUND;
   if (state.borders.contact(owner, target) === 0) return REJECT_NO_CONTACT;
   const have = state.troops[owner] as number;
   const commit = isTribe(state, owner) ? Math.floor(have / TRIBE_ATTACK_DIV) : Math.floor((have * pct) / 100);
   if (commit <= 0) return REJECT_NO_TROOPS;
   launchAttack(state, owner, target, deductTroops(state, owner, commit));
   return REJECT_NONE;
+}
+
+/** Ends the attacks between two owners at once, in both directions (a treaty has begun): the troops go back to the attackers, the cells already taken stay taken. */
+export function cancelAttacksBetween(state: GameState, a: number, b: number): void {
+  const ab = state.attacks.find(a, b);
+  if (ab !== null) endNow(state, ab);
+  const ba = state.attacks.find(b, a);
+  if (ba !== null) endNow(state, ba);
 }
 
 /** Applies a CancelAttack intent. */

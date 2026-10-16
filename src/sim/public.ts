@@ -220,3 +220,42 @@ export type { LaunchHeliBody, RecallHeliBody } from './intents';
 export { launchHeliBody, recallHeliBody } from './intents';
 export { REJECT_HELI_BAD_TROOPS, REJECT_HELI_NO_PAD, REJECT_HELI_NO_ROUTE, REJECT_HELI_NOT_FLYING } from './intents';
 export { HELI_CLEARANCE_GAME_M, HELI_DOWNED_TICKS, HELI_HOVER_TICKS, HELI_TAKEOFF_TICKS } from './rules';
+
+// M18c-1 (append-only): diplomacy. The read-only `DiplomacyView` (`SimView.diplomacy`), the relation and treaty numbers, the six intent bodies and constructors, the
+// refusal codes 80 to 93, the checks (the very functions the sim runs) and the constants of rules.ts the UI and the AI read (each has a row in docs/BALANCE.md).
+export type { DiplomacyView } from './diplomacyTable';
+export { RELATION_ALLIANCE, RELATION_TRUCE, RELATION_WAR, TREATY_ALLIANCE, TREATY_TRUCE } from './diplomacyTable';
+export type { AcceptTreatyBody, BreakTreatyBody, DeclineTreatyBody, ImposeEmbargoBody, LiftEmbargoBody, ProposeTreatyBody } from './intents';
+export { acceptTreatyBody, breakTreatyBody, declineTreatyBody, imposeEmbargoBody, liftEmbargoBody, proposeTreatyBody } from './intents';
+export {
+  REJECT_DIPLO_ALLIED,
+  REJECT_DIPLO_AT_PEACE,
+  REJECT_DIPLO_COOLDOWN,
+  REJECT_DIPLO_ELIMINATED,
+  REJECT_DIPLO_EMBARGO_NONE,
+  REJECT_DIPLO_EMBARGO_SET,
+  REJECT_DIPLO_FULL,
+  REJECT_DIPLO_MATCH_ENDED,
+  REJECT_DIPLO_NOT_PLAYER,
+  REJECT_DIPLO_NO_PROPOSAL,
+  REJECT_DIPLO_NO_TREATY,
+  REJECT_DIPLO_PENDING,
+  REJECT_DIPLO_SELF,
+  REJECT_DIPLO_TREATY_BOUND,
+} from './intents';
+export { validateAcceptTreaty, validateBreakTreaty, validateDeclineTreaty, validateImposeEmbargo, validateLiftEmbargo, validateProposeTreaty } from './diplomacy';
+export {
+  AI_ALLY_LEADER_MIN_PCT,
+  AI_ALLY_PROPOSER_MAX_PCT,
+  AI_GRUDGE_TICKS,
+  AI_LEADER_PCT,
+  AI_PROPOSE_COOLDOWN_TICKS,
+  AI_TRUCE_ACCEPT_WARS,
+  AI_WEAK_MEDIAN_PCT,
+  DIPLOMACY_REPLY_MAX_TICKS,
+  DIPLOMACY_REPLY_MIN_TICKS,
+  PROPOSAL_CAPACITY,
+  PROPOSAL_TTL_TICKS,
+  TREATY_BREAK_COOLDOWN_TICKS,
+  TRUCE_TICKS,
+} from './rules';

@@ -215,6 +215,11 @@ describe('types: what src/sim/public.ts lets the AI reach', () => {
         'HeliView', 'HELI_APPROACH', 'HELI_BUILDING', 'HELI_CRUISE', 'HELI_DOWNED', 'HELI_HOVER', 'HELI_LIFT', 'HELI_PAD', 'HELI_POS_ONE', 'HELI_RETURN', 'HELI_UNLOAD', 'HELI_PRICE_MILLI', 'fleetCapOf', 'fleetCountOf', 'validateProduceHeli', 'ProduceHeliBody', 'produceHeliBody', 'REJECT_HELI_FACTORY_BUILDING', 'REJECT_HELI_FLEET_CAP', 'REJECT_HELI_NO_FACTORY', 'REJECT_HELI_NO_GOLD', 'REJECT_HELI_NOT_OWNER', 'REJECT_HELI_QUEUE_BUSY', 'HELI_BUILD_TICKS', 'HELI_FLEET_BASE', 'HELI_FLEET_MAX', 'HELI_HP_TENTHS', 'HELI_MAX_TROOPS', 'HELI_PRICE_GOLD', 'LZ_REASON_BASE',
         // M12a-2
         'validateLaunchHeli', 'validateRecallHeli', 'LaunchHeliBody', 'RecallHeliBody', 'launchHeliBody', 'recallHeliBody', 'REJECT_HELI_BAD_TROOPS', 'REJECT_HELI_NO_PAD', 'REJECT_HELI_NO_ROUTE', 'REJECT_HELI_NOT_FLYING', 'HELI_CLEARANCE_GAME_M', 'HELI_DOWNED_TICKS', 'HELI_HOVER_TICKS', 'HELI_TAKEOFF_TICKS',
+        // M18c-1
+        'DiplomacyView', 'RELATION_ALLIANCE', 'RELATION_TRUCE', 'RELATION_WAR', 'TREATY_ALLIANCE', 'TREATY_TRUCE', 'AcceptTreatyBody', 'BreakTreatyBody', 'DeclineTreatyBody', 'ImposeEmbargoBody', 'LiftEmbargoBody', 'ProposeTreatyBody', 'acceptTreatyBody', 'breakTreatyBody', 'declineTreatyBody', 'imposeEmbargoBody', 'liftEmbargoBody', 'proposeTreatyBody',
+        'REJECT_DIPLO_ALLIED', 'REJECT_DIPLO_AT_PEACE', 'REJECT_DIPLO_COOLDOWN', 'REJECT_DIPLO_ELIMINATED', 'REJECT_DIPLO_EMBARGO_NONE', 'REJECT_DIPLO_EMBARGO_SET', 'REJECT_DIPLO_FULL', 'REJECT_DIPLO_MATCH_ENDED', 'REJECT_DIPLO_NOT_PLAYER', 'REJECT_DIPLO_NO_PROPOSAL', 'REJECT_DIPLO_NO_TREATY', 'REJECT_DIPLO_PENDING', 'REJECT_DIPLO_SELF', 'REJECT_DIPLO_TREATY_BOUND',
+        'validateAcceptTreaty', 'validateBreakTreaty', 'validateDeclineTreaty', 'validateImposeEmbargo', 'validateLiftEmbargo', 'validateProposeTreaty',
+        'AI_ALLY_LEADER_MIN_PCT', 'AI_ALLY_PROPOSER_MAX_PCT', 'AI_GRUDGE_TICKS', 'AI_LEADER_PCT', 'AI_PROPOSE_COOLDOWN_TICKS', 'AI_TRUCE_ACCEPT_WARS', 'AI_WEAK_MEDIAN_PCT', 'DIPLOMACY_REPLY_MAX_TICKS', 'DIPLOMACY_REPLY_MIN_TICKS', 'PROPOSAL_CAPACITY', 'PROPOSAL_TTL_TICKS', 'TREATY_BREAK_COOLDOWN_TICKS', 'TRUCE_TICKS',
       ].sort(),
     );
   });

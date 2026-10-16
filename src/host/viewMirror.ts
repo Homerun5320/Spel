@@ -12,6 +12,8 @@ import type { StructureView } from '../sim/structureRules';
 import type { DistrictView } from '../sim/districtRules';
 import { MirrorStructures } from './structureMirror';
 import { MirrorHelis } from './heliMirror';
+import { MirrorDiplomacy } from './diplomacyMirror';
+import type { DiplomacyView } from '../sim/diplomacyTable';
 import type { HeliView } from '../sim/heliTable';
 import { matchPackedLength, matchViewOf, type MatchView } from '../sim/matchView';
 import { countContacts, statsViewOf, type ReadonlyNumbers, type SeatStatsView, type SimView } from '../sim/view';
@@ -52,6 +54,7 @@ export class ViewMirror implements SimView {
   private readonly slots: number;
   private readonly structureTable = new MirrorStructures();
   private readonly heliTable = new MirrorHelis();
+  private readonly diploTable: MirrorDiplomacy;
 
   private constructor(v: ViewSnapshot) {
     if (v.owner === null || v.terrain === null) throw new Error('a mirror needs the full view (requestView)');
@@ -74,9 +77,11 @@ export class ViewMirror implements SimView {
     this.match = matchViewOf(v.seats, this.matchPacked);
     this.slots = ownerSlots(v.seats);
     this.attackFlags = new Uint8Array(this.slots * this.slots);
+    this.diploTable = new MirrorDiplomacy(this.slots, v.players, () => this.tick);
     this.setAttacks(v.attacks);
     if (v.structures !== null) this.structureTable.adopt(v.structures);
     if (v.helis !== null) this.heliTable.adopt(v.helis);
+    if (v.diplomacy !== null) this.diploTable.adopt(v.diplomacy);
   }
 
   private setAttacks(pairs: Uint16Array): void {
@@ -104,6 +109,14 @@ export class ViewMirror implements SimView {
   }
   get helisVersion(): number {
     return this.heliTable.version;
+  }
+
+  /** The diplomacy (M18c-1): the copy of the last table the host sent, read against the mirror's tick; `diplomacyVersion` moves when a new one arrived. */
+  get diplomacy(): DiplomacyView {
+    return this.diploTable.view;
+  }
+  get diplomacyVersion(): number {
+    return this.diploTable.version;
   }
 
   falloutUntilAt(): number {
@@ -196,6 +209,7 @@ export class ViewMirror implements SimView {
     this.setAttacks(d.view.attacks);
     if (d.view.structures !== null) this.structureTable.adopt(d.view.structures);
     if (d.view.helis !== null) this.heliTable.adopt(d.view.helis);
+    if (d.view.diplomacy !== null) this.diploTable.adopt(d.view.diplomacy);
     this.frames++;
     for (const l of this.listeners) l(this, d);
   }

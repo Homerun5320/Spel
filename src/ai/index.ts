@@ -3,4 +3,5 @@ export { createAiMemory, type AiMemory } from './memory';
 export { pickSpawnCell } from './place';
 export { buildMove } from './build';
 export { think } from './think';
-export { memoryWords, loadMemoryWords, MEMORY_FIXED_WORDS } from './memory';
+export { memoryWords, loadMemoryWords, MEMORY_FIXED_WORDS, diplomacyWords, loadDiplomacyWords, diplomacyWordCount } from './memory';
+export { diplomacyMove } from './diplomacy';

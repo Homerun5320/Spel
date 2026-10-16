@@ -1,4 +1,5 @@
 // The pace report (tools/sim/pace.ts, tempo pass D142): its pure parts, the scripted human, and the report on the real world.
+import { DiplomacyReader, DiplomacyTable } from '../../src/sim/diplomacyTable';
 import { describe, expect, it } from 'vitest';
 import type { SimView } from '../../src/sim/public';
 import { PHASE_PLAY, PHASE_SPAWN } from '../../src/sim/public';
@@ -242,6 +243,7 @@ function stubView(tick: number, p: { troops: number[]; cap: number[]; alive?: nu
     helis: { capacity: 0, highWater: 0, liveCount: 0, owner: [], state: [], factory: [], readyTick: [], x: [], y: [], alt: [], hp: [], load: [], fuel: [], countOf: () => 0 },
     falloutUntilAt: () => 0,
     match: matchViewOf(n, new Uint32Array(matchPackedLength(n))),
+    diplomacy: new DiplomacyReader(new DiplomacyTable(n + 1), n, () => tick),
   };
 }
 

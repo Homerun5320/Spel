@@ -80,6 +80,10 @@ export class MatchState {
   readonly conquered: Uint32Array;
   /** Districts the seat has built (BuildDistrict intents applied). */
   readonly districts: Uint32Array;
+  /** Treaties the seat has entered (an accepted proposal counts for both sides). Serialised in the diplomacy block (M18c-1). */
+  readonly treatiesMade: Uint32Array;
+  /** Treaties the seat has broken with BreakTreaty (the betrayals). Serialised in the diplomacy block. */
+  readonly treatiesBroken: Uint32Array;
 
   constructor(slots: number) {
     this.eliminated = new Uint8Array(slots);
@@ -88,5 +92,7 @@ export class MatchState {
     this.built = new Uint32Array(slots);
     this.conquered = new Uint32Array(slots);
     this.districts = new Uint32Array(slots);
+    this.treatiesMade = new Uint32Array(slots);
+    this.treatiesBroken = new Uint32Array(slots);
   }
 }

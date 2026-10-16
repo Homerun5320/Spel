@@ -15,6 +15,15 @@ import { MAX_INTENTS_PER_TURN } from './rules';
 import { OUTBOX_REJECT } from './outbox';
 import { nextU32 } from './rng';
 import { applySpawn } from './spawn';
+import {
+  applyAcceptTreaty,
+  applyBreakTreaty,
+  applyDeclineTreaty,
+  applyImposeEmbargo,
+  applyLiftEmbargo,
+  applyProposeTreaty,
+  expireDiplomacy,
+} from './diplomacy';
 import { applyBuildDistrict, applyRemoveDistrict, applyUpgradeDistrict } from './districts';
 import { applyLaunchHeli, applyRecallHeli } from './heliFlight';
 import { applyProduceHeli, heliPhase } from './heliPhase';
@@ -69,6 +78,18 @@ export function applyIntent(state: GameState, intent: Intent): number {
       return applyLaunchHeli(state, intent.seat, intent.factory, intent.lzCell, intent.troops, intent.altMode);
     case 'RecallHeli':
       return applyRecallHeli(state, intent.seat, intent.heli);
+    case 'ProposeTreaty':
+      return applyProposeTreaty(state, intent.seat, intent.to, intent.treaty);
+    case 'AcceptTreaty':
+      return applyAcceptTreaty(state, intent.seat, intent.from);
+    case 'DeclineTreaty':
+      return applyDeclineTreaty(state, intent.seat, intent.from);
+    case 'BreakTreaty':
+      return applyBreakTreaty(state, intent.seat, intent.with);
+    case 'ImposeEmbargo':
+      return applyImposeEmbargo(state, intent.seat, intent.target);
+    case 'LiftEmbargo':
+      return applyLiftEmbargo(state, intent.seat, intent.target);
     default:
       return REJECT_NONE;
   }
@@ -87,6 +108,8 @@ export function step(state: GameState, turn: TurnIntents): StepResult {
     return NOTHING_TO_DO;
   }
   state.work.reset();
+  // Phase 0 (M18c-1): truces that have run out become war and proposals that have run out go, before any intent of this tick looks at them.
+  expireDiplomacy(state);
   let applied = 0;
   let rejected = 0;
   if (list.length > 0) {
@@ -120,7 +143,7 @@ export function step(state: GameState, turn: TurnIntents): StepResult {
       applied++;
     }
   }
-  // Phases of a tick: 1 intents (above), 2 conquest, 3 enclaves, 4 economy, 5 structures (finished upgrades), 5b helicopters (finished production; M12a-1), 6 the generator, 7 the tick, 8 the match end (peak land, elimination, win conditions; M18-1).
+  // Phases of a tick: 0 diplomacy expiry (above, before the intents), 1 intents (above), 2 conquest, 3 enclaves, 4 economy, 5 structures (finished upgrades), 5b helicopters (finished production; M12a-1), 6 the generator, 7 the tick, 8 the match end (peak land, elimination, win conditions; M18-1).
   conquestPhase(state);
   enclavePhase(state);
   economyTick(state);
