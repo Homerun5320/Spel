@@ -1,12 +1,13 @@
-// The AI's diplomacy (M18c-1): it answers proposals, makes proposals and breaks an alliance when it has become the leader. Deterministic rules over the SimView;
+// The AI's diplomacy (M18c-1, temperament M18c-2: more willing to truce, see the answers below): it answers proposals, makes proposals and breaks an alliance when it has become the leader. Deterministic rules over the SimView;
 // the only randomness is the length of the pause before an answer, drawn from the AI's own stream (nothing is drawn unless a proposal arrives).
 //
-//  - Answers (every tick): a proposal is answered DIPLOMACY_REPLY_MIN_TICKS to DIPLOMACY_REPLY_MAX_TICKS after the AI first saw it. A truce is accepted when the proposer
-//    has more land than the AI, or the AI is already fighting AI_TRUCE_ACCEPT_WARS other players. An alliance is accepted when the proposer holds at most
+//  - Answers (every tick): a proposal is answered DIPLOMACY_REPLY_MIN_TICKS to DIPLOMACY_REPLY_MAX_TICKS after the AI first saw it. A truce is accepted (M18c-2) when the AI
+//    fights AI_TRUCE_ACCEPT_WARS players, or fights AI_TRUCE_OTHER_WARS other than the proposer and the proposer is not the leader, or its own land is below
+//    AI_TRUCE_MEDIAN_PCT of the median. An alliance is accepted when the proposer holds at most
 //    AI_ALLY_PROPOSER_MAX_PCT of the land and a leader above AI_ALLY_LEADER_MIN_PCT is at war with both of them (ganging up on the leader). Everything else is declined, and
 //    so is every proposal of a seat that broke a treaty against this AI in the last AI_GRUDGE_TICKS.
 //  - Proposals (on the think rhythm, at most one per AI_PROPOSE_COOLDOWN_TICKS): a weak AI (land below AI_WEAK_MEDIAN_PCT of the median of the living players) proposes a
-//    truce to the strongest neighbour that attacked it; an AI proposes an alliance to the strongest player that is not the leader when a leader holds more than AI_LEADER_PCT.
+//    truce (M18c-2: so does one fighting on several fronts) to the neighbour that attacked it most often (AI_TRUCE_MIN_HITS think rounds at least); an AI proposes an alliance to the strongest player that is not the leader when a leader holds more than AI_LEADER_PCT.
 //  - Breaking: an AI that holds more than AI_LEADER_PCT itself breaks its alliances (the betrayal mark applies to the AI too).
 // Every intent is checked with the same validate* function the sim runs before it is sent, so the AI never sends an invalid one.
 import {
@@ -17,6 +18,9 @@ import {
   AI_PROPOSE_COOLDOWN_TICKS,
   AI_THINK_PERIOD_TICKS,
   AI_TRUCE_ACCEPT_WARS,
+  AI_TRUCE_MEDIAN_PCT,
+  AI_TRUCE_MIN_HITS,
+  AI_TRUCE_OTHER_WARS,
   AI_WAR_START_TICKS,
   AI_WEAK_MEDIAN_PCT,
   DIPLOMACY_REPLY_MAX_TICKS,
@@ -61,12 +65,12 @@ function livingPlayer(view: SimView, seat: number): boolean {
   return seat < view.players && (view.stats.alive[seat] as number) === 1 && view.match.eliminated[seat] === 0;
 }
 
-/** How many other players an attack runs against or from. */
-function warCount(view: SimView, seat: number): number {
+/** How many other players (not `skip`) an attack runs against or from. */
+function warCount(view: SimView, seat: number, skip = -1): number {
   const me = seatToOwner(seat);
   let n = 0;
   for (let o = 0; o < view.players; o++) {
-    if (o === seat || !livingPlayer(view, o)) continue;
+    if (o === seat || o === skip || !livingPlayer(view, o)) continue;
     if (view.attackRunning(me, seatToOwner(o)) || view.attackRunning(seatToOwner(o), me)) n++;
   }
   return n;
@@ -98,6 +102,7 @@ function observe(view: SimView, memory: AiMemory): void {
     }
     memory.lastRel[o] = rel;
     memory.lastUntil[o] = tick + d.truceTicksLeft(seat, o);
+    if (o < view.players && view.attackRunning(seatToOwner(o), seatToOwner(seat))) memory.hits[o] = (memory.hits[o] as number) + 1;
   }
 }
 
@@ -110,7 +115,12 @@ function holdsGrudge(memory: AiMemory, other: number, tick: number): boolean {
 function wants(view: SimView, memory: AiMemory, from: number, kind: number): boolean {
   const seat = memory.seat;
   if (!livingPlayer(view, from) || holdsGrudge(memory, from, view.tick)) return false;
-  if (kind === TREATY_TRUCE) return share(view, from) > share(view, seat) || warCount(view, seat) >= AI_TRUCE_ACCEPT_WARS;
+  if (kind === TREATY_TRUCE) {
+    // M18c-2: at war with another party and the proposer is not the largest threat, or weaker than the median, or fighting on several fronts.
+    if (warCount(view, seat) >= AI_TRUCE_ACCEPT_WARS) return true;
+    if (warCount(view, seat, from) >= AI_TRUCE_OTHER_WARS && share(view, from) < share(view, strongest(view, -1, -1))) return true;
+    return share(view, seat) * 100 < medianShare(view) * AI_TRUCE_MEDIAN_PCT;
+  }
   if (kind !== TREATY_ALLIANCE || share(view, from) * 100 > AI_ALLY_PROPOSER_MAX_PCT * WEIGHT_ONE) return false;
   const leader = strongest(view, seat, from);
   const d = view.diplomacy;
@@ -166,17 +176,18 @@ function hasOpenProposal(view: SimView, seat: number): boolean {
 /** A proposal this AI wants to make now, or null. */
 function proposal(view: SimView, memory: AiMemory): IntentBody | null {
   const seat = memory.seat;
-  const me = seatToOwner(seat);
   const tick = view.tick;
   const d = view.diplomacy;
   if (tick < AI_WAR_START_TICKS || tick < memory.proposeAt || hasOpenProposal(view, seat) || d.breakCooldownLeft(seat) > 0) return null;
-  // A weak AI asks the strongest neighbour that attacked it for a truce.
-  if (share(view, seat) * 100 < medianShare(view) * AI_WEAK_MEDIAN_PCT) {
+  // A weak AI, or one fighting on several fronts, asks the neighbour that attacked it most often (the stronger on a tie) for a truce.
+  if (share(view, seat) * 100 < medianShare(view) * AI_WEAK_MEDIAN_PCT || warCount(view, seat) >= AI_TRUCE_ACCEPT_WARS) {
     let target = -1;
     for (let o = 0; o < view.players; o++) {
-      if (o === seat || !livingPlayer(view, o) || holdsGrudge(memory, o, tick) || !view.attackRunning(seatToOwner(o), me)) continue;
+      if (o === seat || !livingPlayer(view, o) || holdsGrudge(memory, o, tick) || (memory.hits[o] as number) < AI_TRUCE_MIN_HITS) continue;
       if (validateProposeTreaty(view, seat, o, TREATY_TRUCE) !== REJECT_NONE) continue;
-      if (target < 0 || share(view, o) > share(view, target)) target = o;
+      const h = memory.hits[o] as number;
+      const t = target < 0 ? -1 : (memory.hits[target] as number);
+      if (target < 0 || h > t || (h === t && share(view, o) > share(view, target))) target = o;
     }
     if (target >= 0) return proposeTreatyBody(seat, target, TREATY_TRUCE);
   }

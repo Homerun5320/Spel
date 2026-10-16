@@ -143,6 +143,8 @@ export interface GameHotkeyActions {
   toggleHelp(): void;
   /** M13b: key L, send a helicopter from the selected Factory (the deploy mode). Optional so that older callers keep compiling. */
   deploy?(): void;
+  /** M18c-2: key D, open or close the diplomacy panel. Optional so that older callers keep compiling. */
+  toggleDiplomacy?(): void;
 }
 
 /**
@@ -184,6 +186,7 @@ export function registerGameHotkeys(registry: HotkeyRegistry, a: GameHotkeyActio
   add({ id: 'commit-down', keys: ['[', '-'], labelKey: 'hotkey.commitDown', scope: 'match', run: () => (a.commit(-1), true) });
   add({ id: 'commit-up', keys: [']', '+'], labelKey: 'hotkey.commitUp', scope: 'match', run: () => (a.commit(1), true) });
   add({ id: 'deploy', keys: ['l'], labelKey: 'hotkey.deploy', scope: 'match', noRepeat: true, run: () => (a.deploy?.(), true) });
+  add({ id: 'diplomacy', keys: ['d'], labelKey: 'hotkey.diplo', scope: 'match', noRepeat: true, run: () => (a.toggleDiplomacy?.(), true) });
   add({ id: 'help', keys: ['?'], labelKey: 'hotkey.help', scope: 'match', run: () => (a.toggleHelp(), true) });
   add({ id: 'overlay', keys: ['F3'], labelKey: 'hotkey.overlay', scope: 'global', run: () => (a.toggleOverlay(), true) });
 }

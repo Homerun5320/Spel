@@ -489,3 +489,13 @@ Not done in the Fix-UI slice (the sim, host and AI findings belong to Fix-Sim):
 - The AI does not use the embargo, never proposes a truce to a human seat on its own initiative beyond the weak-AI rule, and does not answer a proposal from a seat it is at war with in a special way (it treats a truce as a way out of a losing war only through the two rules of DECISIONS "M18c-1" 7). A negotiating AI with demands (a truce only for land or gold) is a later idea.
 - The proposal table is per directed pair (A to B and B to A can both be open); an auto-accept when both ask for the same treaty at once was not built (the second proposal is refused as PENDING only in the same direction).
 - `atWar(state, ownerA, ownerB)` in `src/sim/diplomacy.ts` is the question the helicopter landing must ask before it takes a cell on a treaty party's land (the landing of M12a-3 is the helicopter track's; a landing on a treaty party's land should be refused like an Attack, with `REJECT_DIPLO_TREATY_BOUND`).
+
+## M18c-3 (from M18c-2)
+- Shared victory for an alliance, shared vision, chat, tributes, a declaration of war with notice (a warning before a truce ends is in the same family: `truceTicksLeft` is on the view; a "renew" button that proposes again).
+- The AI's embargo: the AI never imposes or lifts one.
+- Per-nation proposal toasts: `showToast` renews a toast with the same key, so two proposals at the same moment show one toast (the cards show both). A toast with a stacking key per nation would need a `showToast` variant.
+- The panel keeps no memory of past answers (a log of "who accepted what when"); a small history list under the rows would help a player who looked away.
+- The top-bar signal is a text "Förslag: n"; a pulse needs the fx clock (no CSS animation, tests/fxClock.test.ts).
+- The diplomacy panel sorts by seat; sorting by land share or by relation would be easy (`buildDiploRows` returns plain rows).
+- An AI that is asked for a truce by the human replies after 3 to 6 s; a visible "thinking" state in the row is the `waiting` text only.
+- The cards sit top left under the top bar (wide) or top right (narrow); with three cards and a selected structure on a 540 px high window they can reach the selection panel (the e2e checks one card).

@@ -1,7 +1,7 @@
 // The style sheet of the match HUD and the start screen, built from the tokens in uiConfig.ts. One <style> element per root; the
 // classes are prefixed `hud-` / `start-`. No transitions or animations (CSS time is not the fx clock; tests/fxClock.test.ts
 // forbids them): every visible change is a state change driven from JS.
-import { CITY_VIEW, GPU_TIP, HELP_OVERLAY, MATCH_PANELS, NARROW_MAX_PX, TOPBAR, HUD_FONT_BIAS_PX, HUD_FONT_MAX_PX, HUD_FONT_MIN_PX, HUD_FONT_VW, SETUP_PANEL_EM, SETUP_SHEET_VH, TARGET_MIN_PX, UI_COLORS as C, Z_HUD, Z_SETUP, Z_START_SCREEN } from './uiConfig';
+import { CITY_VIEW, GPU_TIP, HELP_OVERLAY, MATCH_PANELS, NARROW_MAX_PX, TOPBAR, HUD_FONT_BIAS_PX, HUD_FONT_MAX_PX, HUD_FONT_MIN_PX, HUD_FONT_VW, SETUP_PANEL_EM, SETUP_SHEET_VH, TARGET_MIN_PX, DIPLO, UI_COLORS as C, Z_HUD, Z_SETUP, Z_START_SCREEN } from './uiConfig';
 
 export function hudCss(): string {
   const fontSize = `clamp(${HUD_FONT_MIN_PX}px, calc(${HUD_FONT_VW}vw + ${HUD_FONT_BIAS_PX}px), ${HUD_FONT_MAX_PX}px)`;
@@ -26,11 +26,19 @@ export function hudCss(): string {
 .hud-board { position: absolute; right: 0.6em; top: ${TOPBAR.wideEm + 0.4}em; width: 14.5em; padding: 0.45em 0.6em 0.5em; }
 .hud-board[data-labels="1"] { width: 17.5em; }
 .hud-board-title { color: ${C.textDim}; font-size: 0.8em; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.2em; }
-.hud-row { display: grid; grid-template-columns: 1.6em 0.9em 1fr auto; align-items: center; column-gap: 0.4em; min-height: 1.7em; padding: 0 0.3em; border-radius: 0.3em; }
+.hud-row { display: grid; grid-template-columns: 1.6em 0.9em 1fr auto auto; align-items: center; column-gap: 0.4em; min-height: 1.7em; padding: 0 0.3em; border-radius: 0.3em; }
 .hud-row[data-you="1"] { background: ${C.youRow}; font-weight: 700; }
 .hud-rank { color: ${C.textDim}; text-align: right; font-variant-numeric: tabular-nums; }
 .hud-swatch { width: 0.9em; height: 0.9em; border-radius: 0.2em; border: 1px solid rgba(255, 255, 255, 0.7); }
-.hud-row[data-flag="1"] { grid-template-columns: 1.6em 0.9em auto 1fr auto; }
+.hud-row[data-flag="1"] { grid-template-columns: 1.6em 0.9em auto 1fr auto auto; }
+.hud-rels { display: inline-flex; gap: 0.15em; }
+.hud-rel { font-size: 0.75em; font-weight: 800; line-height: 1.3; padding: 0 0.3em; border-radius: 0.3em; border: 1px solid currentColor; }
+.hud-rel[hidden] { display: none !important; }
+.hud-diplo { display: inline-flex; align-items: center; gap: 0.4em; flex: none; margin-left: auto; }
+.hud-diplo .hud-btn { position: relative; min-width: 0; min-height: 0; height: 1.4em; padding: 0 0.6em; line-height: 1; font-size: 0.95em; } /* the row keeps its 1.4em; the touch target (TARGET_MIN_PX) is the invisible ::after */
+.hud-diplo .hud-btn::after { content: ''; position: absolute; left: -0.3em; right: -0.3em; top: calc(50% - ${TARGET_MIN_PX / 2}px); height: ${TARGET_MIN_PX}px; }
+.hud-diplo-signal { color: ${C.barWarning}; font-weight: 800; white-space: nowrap; }
+.hud-row2 > .hud-diplo { margin-left: auto; }
 .hud-flag { border-radius: 2px; border: 1px solid rgba(255, 255, 255, 0.55); display: block; }
 .hud-flag[hidden] { display: none !important; }
 .hud-nation { display: flex; align-items: center; gap: 0.5em; font-weight: 700; max-width: 12em; }
@@ -342,6 +350,53 @@ export function hudCss(): string {
   .mp-scrim:has(.mp-small) { padding-top: ${MATCH_PANELS.pauseTopNarrowEm}em; }
   .mp-table th, .mp-table td { padding: 0.3em 0.25em; }
   .mp-table { font-size: 0.9em; }
+}
+
+/* M18c-2: the diplomacy panel and the proposal cards */
+.diplo-overlay { position: absolute; inset: 0; z-index: ${DIPLO.z}; pointer-events: none; display: flex; align-items: center; justify-content: center; font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; font-size: ${fontSize}; line-height: 1.3; color: ${C.text}; box-sizing: border-box; padding: 0.6em; }
+.diplo-overlay *, .diplo-cards * { box-sizing: border-box; }
+.diplo-overlay[hidden] { display: none !important; }
+.diplo-card { pointer-events: auto; width: ${DIPLO.panelWidthEm}em; max-width: 100%; max-height: 100%; overflow: auto; background: ${DIPLO.cardBg}; border: 1px solid ${C.panelBorder}; border-radius: 0.8em; box-shadow: 0 0.3em 1.4em rgba(0, 0, 0, 0.6); padding: 0.6em 0.9em 0.7em; }
+.diplo-head { display: flex; align-items: center; justify-content: space-between; gap: 0.6em; margin-bottom: 0.3em; }
+.diplo-title { font-size: 1.15em; font-weight: 800; flex: 1 1 auto; }
+.diplo-cooldown { color: ${C.barWarning}; font-weight: 700; margin: 0.2em 0 0.3em; }
+.diplo-row { display: grid; grid-template-columns: minmax(8em, 1fr) minmax(8em, 1fr) minmax(0, 20em); column-gap: 0.8em; row-gap: 0.2em; align-items: center; padding: 0.4em 0; border-top: 1px solid ${C.panelBorder}; }
+.diplo-row[data-eliminated="1"] { opacity: 0.55; }
+.diplo-who { display: flex; align-items: center; gap: 0.45em; min-width: 0; }
+.diplo-swatch { flex: none; width: 0.9em; height: 0.9em; border-radius: 0.2em; border: 1px solid rgba(255, 255, 255, 0.7); }
+.diplo-name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.diplo-share { color: ${C.textDim}; font-variant-numeric: tabular-nums; flex: none; }
+.diplo-state { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.2em 0.5em; min-width: 0; }
+.diplo-row[data-relation="truce"] .diplo-rel { color: ${DIPLO.badge.truce}; font-weight: 700; }
+.diplo-row[data-relation="alliance"] .diplo-rel { color: ${DIPLO.badge.alliance}; font-weight: 700; }
+.diplo-marks { display: inline-flex; gap: 0.3em; }
+.diplo-mark { font-size: 0.8em; font-weight: 800; padding: 0 0.35em; border-radius: 0.3em; border: 1px solid currentColor; }
+.diplo-mark-embargo { color: ${DIPLO.badge.embargo}; }
+.diplo-mark-traitor { color: ${DIPLO.badge.traitor}; }
+.diplo-mark[hidden], .diplo-waiting[hidden], .diplo-note[hidden], .diplo-empty[hidden], .diplo-cooldown[hidden] { display: none !important; }
+.diplo-waiting { color: ${C.textDim}; font-size: 0.9em; }
+.diplo-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.3em; }
+.diplo-note { grid-column: 1 / -1; color: ${C.barWarning}; font-size: 0.9em; }
+.diplo-empty { color: ${C.textDim}; padding: 0.5em 0; }
+.diplo-hint { margin-top: 0.4em; color: ${C.textDim}; font-size: 0.85em; }
+.diplo-btn { min-height: 2.3em; padding: 0.15em 0.6em; border-radius: 0.5em; border: 1px solid ${C.buttonBorder}; background: ${C.button}; color: ${C.text}; font: inherit; font-weight: 700; cursor: pointer; touch-action: manipulation; }
+.diplo-btn:hover { background: ${C.buttonActive}; }
+.diplo-btn[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; }
+.diplo-btn[data-armed="1"] { border-color: ${C.danger}; box-shadow: inset 0 0 0 1px ${C.danger}; }
+.diplo-btn:focus-visible { outline: 2px solid ${C.accent}; outline-offset: 2px; }
+.diplo-cards { position: absolute; left: 0.6em; top: ${TOPBAR.wideEm + 0.4}em; width: ${DIPLO.cardWidthEm}em; max-width: calc(100% - 1.2em); z-index: ${Z_HUD + 1}; display: flex; flex-direction: column; gap: 0.4em; pointer-events: none; font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; font-size: ${fontSize}; line-height: 1.3; color: ${C.text}; }
+.diplo-pcard { pointer-events: auto; background: ${C.panel}; border: 1px solid ${DIPLO.badge.truce}; border-radius: 0.6em; box-shadow: 0 0.15em 0.7em rgba(0, 0, 0, 0.5); padding: 0.4em 0.6em; display: flex; flex-direction: column; gap: 0.3em; }
+.diplo-pcard[data-treaty="2"] { border-color: ${DIPLO.badge.alliance}; }
+.diplo-pcard[hidden] { display: none !important; }
+.diplo-pcard-top { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5em; }
+.diplo-pcard-text { font-weight: 700; min-width: 0; overflow-wrap: anywhere; }
+.diplo-pcard-left { color: ${C.textDim}; font-variant-numeric: tabular-nums; flex: none; }
+.diplo-pcard-btns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.3em; }
+@media (pointer: coarse) { .diplo-btn { min-height: ${target}; } }
+@media (max-width: ${NARROW_MAX_PX}px), (max-aspect-ratio: 1/1) {
+  .diplo-btn { min-height: ${target}; }
+  .diplo-row { grid-template-columns: minmax(0, 1fr); }
+  .diplo-cards { left: auto; right: 8px; top: ${TOPBAR.narrowBoardEm + 2.6}em; }
 }
 `;
 }

@@ -38,6 +38,9 @@ import { LaunchPreviewer, previewLaunch, type PreviewRequest, type PreviewResult
 import { rejectKey } from '../ui/hudLogic';
 import { mountToasts, showToast, tickToasts, visibleToastKeys } from '../ui/toast';
 import { createHelpOverlay, type HelpOverlay } from '../ui/helpOverlay';
+import { createDiploCards, createDiploPanel, type DiploActions, type DiploCards, type DiploPanel } from '../ui/diploPanel';
+import { attackBlock, DiploWatcher, NEWS_ACCEPTED, NEWS_DECLINED, NEWS_EXPIRED, NEWS_INCOMING } from '../ui/diploModel';
+import { diplomacyRefusalKey } from '../ui/diploReasons';
 import { attachHotkeys, hotkeys, registerGameHotkeys } from './hotkeys';
 import { createPlacementMode, type PlacementMode, type PlacementState } from './placement';
 import { AIR_MODE_AGL_M, REJECT_HELI_NO_PAD, REJECT_HELI_NO_ROUTE, createLos, createLosTerrain, createNav, launchHeliBody, recallHeliBody, validateLaunchHeli, type Nav } from '../sim/public';
@@ -71,6 +74,7 @@ import { createSeatLabels, type SeatLabels } from '../ui/seatLabels';
 import { winInfoOfView, winSummaryText } from './winSetup';
 import { nextFlagSeed } from './setupScreen';
 import type { MatchView } from '../sim/public';
+import { TREATY_ALLIANCE, acceptTreatyBody, breakTreatyBody, declineTreatyBody, imposeEmbargoBody, liftEmbargoBody, proposeTreatyBody } from '../sim/public';
 import { PHASE_IMMUNITY, PHASE_SPAWN } from '../sim/flow';
 import { DEBUG_GIVE_MAX, REJECT_NOT_SPAWNED } from '../sim/intents';
 import { seatToOwner } from '../sim/state';
@@ -543,6 +547,11 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   let hud = null as MatchHud | null;
   let help = null as HelpOverlay | null;
   let helpMode = null as InputMode | null;
+  // M18c-2: the diplomacy panel (an input mode while it is open), the proposal cards and the watcher that turns the proposal table into toasts
+  let diploPanel = null as DiploPanel | null;
+  let diploCards = null as DiploCards | null;
+  let diploMode = null as InputMode | null;
+  let diploWatcher = null as DiploWatcher | null;
   let buildBar = null as BuildBar | null;
   let buildRoot = null as HTMLElement | null;
   let buildBarWanted = false;
@@ -732,7 +741,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       if (d.fullOwner !== null) globe.ownership.setFromOwners(m.owner);
       else globe.ownership.applyCells(d.cells, d.owners);
     });
-    hud = createMatchHud(wrapper, { setCommit: (p) => s.setCommit(p), setSpeed: (sp) => s.setSpeed(sp), togglePause: () => s.togglePause() }, { seatColor, labels: s.labels, throttle: !params.test });
+    hud = createMatchHud(wrapper, { setCommit: (p) => s.setCommit(p), setSpeed: (sp) => s.setSpeed(sp), togglePause: () => s.togglePause(), openDiplomacy: () => toggleDiplomacy() }, { seatColor, labels: s.labels, throttle: !params.test });
     hud.setVisible(!params.test || ctx.state.raw.hud === '1'); // test mode hides it (the globe goldens), `#hud` / `?hud=1` shows it
     help = createHelpOverlay(wrapper, () => hotkeys.listed()); // generated from the registry (M20a-lite)
     // The build bar (M10): its own layer over the canvas, shown with the HUD and once you have spawned.
@@ -758,6 +767,27 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     });
     buildBar.setVisible(false);
     mountFlow(s);
+    // M18c-2: diplomacy. The panel and the cards only SEND intents (the sim refuses what the rules forbid) and read the sim; the watcher makes the toasts.
+    const L0 = s.localSeat;
+    const diploActions: DiploActions = {
+      propose: (seat, treaty) => s.submit(proposeTreatyBody(L0, seat, treaty)),
+      accept: (from) => s.submit(acceptTreatyBody(L0, from)),
+      decline: (from) => s.submit(declineTreatyBody(L0, from)),
+      breakTreaty: (seat) => s.submit(breakTreatyBody(L0, seat)),
+      impose: (seat) => s.submit(imposeEmbargoBody(L0, seat)),
+      lift: (seat) => s.submit(liftEmbargoBody(L0, seat)),
+      close: () => closeDiplomacy(),
+    };
+    const diploOpts = { nameOf: nameOfSeat, colorOf: seatColor };
+    diploPanel = createDiploPanel(wrapper, diploActions, diploOpts);
+    diploCards = createDiploCards(wrapper, diploActions, diploOpts);
+    diploWatcher = new DiploWatcher((kind, seat, treaty) => {
+      const name = nameOfSeat(seat);
+      if (kind === NEWS_INCOMING) showToast(treaty === TREATY_ALLIANCE ? 'toast.diplo.incomingAlliance' : 'toast.diplo.incomingTruce', { name }, 'info');
+      else if (kind === NEWS_ACCEPTED) showToast('toast.diplo.accepted', { name }, 'info');
+      else if (kind === NEWS_DECLINED) showToast('toast.diplo.declined', { name }, 'warn');
+      else if (kind === NEWS_EXPIRED) showToast('toast.diplo.expired', { name }, 'warn');
+    });
     // The two link chips of the start page sit above the HUD (they are outside the wrapper); the Dev panel lists the same pages.
     setLinkChipsHidden(true);
     refreshHud(); // the HUD is filled before its first frame is drawn
@@ -846,6 +876,12 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     const mission = missionWatcher.update(session.view, session.view.helisVersion, L);
     if ((mission & MISSION_LANDED) !== 0) showToast('toast.heli.landed', {}, 'info');
     if ((mission & MISSION_LOST) !== 0) showToast('toast.heli.lost', {}, 'warn');
+    // M18c-2: the proposals (cards and toasts) and the open panel; all write only when something changed
+    diploWatcher?.update(session.view, L);
+    if (buildBarWanted) {
+      diploCards?.update(session.view, L, session.view.diplomacyVersion);
+      diploPanel?.update(session.view, L, session.view.diplomacyVersion, fxNow());
+    }
     const refused = session.takeNewReject();
     if (refused !== 0) hud.toast(rejectText(refused), fxNow());
   };
@@ -864,6 +900,12 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     const visible = p.facing && p.inView;
     markerEl.hidden = !visible;
     if (visible) markerEl.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px)`;
+  };
+  /** An attack click: a treaty party is not attacked (M18c-2): the toast says why and no intent is sent; the sim would refuse it with the same code. */
+  const attackOrExplain = (sess: MatchSession, target: number): void => {
+    const block = attackBlock(sess.view, sess.localSeat, target);
+    if (block !== 0) showToast(diplomacyRefusalKey(block), undefined, 'warn');
+    else sess.attack(target);
   };
   /** One click on the globe: spawn in the spawn phase, otherwise attack the land under the cursor. */
   const onGlobeClick = (x: number, y: number): void => {
@@ -890,7 +932,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     }
     const meaning = clickMeaning(cell, v.terrainClass, v.owner, sess.localOwner);
     if (meaning.kind === 'unplayable') hud?.toast(notConquerableText(), fxNow());
-    else if (meaning.kind === 'attack') sess.attack(meaning.target); // your own land (kind 'own') does nothing
+    else if (meaning.kind === 'attack') attackOrExplain(sess, meaning.target); // your own land (kind 'own') does nothing
   };
 
   // --- Bookmarks and "F" (M08): the RTS camera flies to a place ------------------------------------------------------------------
@@ -1033,6 +1075,8 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     perf?.dispose();
     hud?.dispose();
     help?.dispose();
+    diploPanel?.dispose();
+    diploCards?.dispose();
     buildBar?.dispose();
     buildRoot?.remove();
     unmountToasts();
@@ -1204,7 +1248,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     const command = resolveCommand('context', sel, target, { localOwner: sess.localOwner, spawned: (v.stats.capital[sess.localSeat] as number) !== 0, spawnPhase: v.phase === PHASE_SPAWN });
     switch (command.kind) {
       case 'attack':
-        sess.attack(command.target);
+        attackOrExplain(sess, command.target);
         break;
       case 'build':
         sess.submit(buildBody(sess.localSeat, command.type, command.cell));
@@ -1251,6 +1295,31 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     };
     helpMode = mode;
     help.open();
+    inputStack.push(mode);
+  };
+  // --- The diplomacy panel (key D or the top-bar button, M18c-2): an input mode while it is open, so Escape (or a click on the globe) closes it ------------------
+  const closeDiplomacy = (): void => {
+    if (diploMode !== null && inputStack.top === diploMode) inputStack.pop();
+  };
+  const toggleDiplomacy = (): void => {
+    if (session === null || diploPanel === null || setupScreen !== null || helpMode !== null) return;
+    if (diploMode !== null) {
+      closeDiplomacy();
+      return;
+    }
+    const mode: InputMode = {
+      id: 'diplomacy',
+      onPop: () => {
+        diploPanel?.close();
+        diploMode = null;
+      },
+      key: () => true, // the build keys do nothing behind the panel
+      click: () => (closeDiplomacy(), true),
+      context: () => (closeDiplomacy(), true),
+      longPress: () => (closeDiplomacy(), true),
+    };
+    diploMode = mode;
+    diploPanel.open();
     inputStack.push(mode);
   };
   // --- Placement (M10): key 1 or the build button pushes the placement mode; the ghost is the layer's, the rules are the sim's (validateBuild) --------------
@@ -1435,6 +1504,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       slower: () => session?.slower(),
       faster: () => session?.faster(),
       toggleHelp: () => toggleHelp(),
+      toggleDiplomacy: () => toggleDiplomacy(),
       deploy: () => (deployMode !== null ? exitDeploy() : enterDeploy(selectedId)),
     },
     signal,

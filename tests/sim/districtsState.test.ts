@@ -42,8 +42,8 @@ function refused(tamper: (s: GameState) => void, error = 'structure-range'): voi
 }
 
 describe('versions', () => {
-  it('ENGINE_VERSION is 17 (M18c-1: diplomacy; 16 after M12a-3, 15 after M12a-2, 14 after M12a-1) and FORMAT_VERSION is 13 (M18c-1: the diplomacy block; 12 after M12a-1: the air block; was 13 and 11 after Sim-Levels2, 12 and 10 after Sim-Growth)', () => {
-    expect(ENGINE_VERSION).toBe(17);
+  it('ENGINE_VERSION is 18 (M18c-2: the AI temperament; 17 after M18c-1: diplomacy; 16 after M12a-3, 15 after M12a-2, 14 after M12a-1) and FORMAT_VERSION is 13 (M18c-1: the diplomacy block; 12 after M12a-1: the air block; was 13 and 11 after Sim-Levels2, 12 and 10 after Sim-Growth)', () => {
+    expect(ENGINE_VERSION).toBe(18);
     expect(FORMAT_VERSION).toBe(13);
   });
 });

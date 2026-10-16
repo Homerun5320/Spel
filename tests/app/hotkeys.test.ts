@@ -106,6 +106,29 @@ describe('the entries of the game', () => {
   });
 });
 
+describe('M18c-2: the diplomacy key', () => {
+  it('D is a listed match entry that calls the page, does not repeat, is dead behind a modal, and the help overlay lists it with its label in both languages', () => {
+    const log: string[] = [];
+    const reg = new HotkeyRegistry();
+    const flags = { modal: false };
+    reg.context = { matchOn: () => true, modalOpen: () => flags.modal };
+    registerGameHotkeys(reg, { stack: new InputStack({ id: 'base' }), toggleOverlay: () => undefined, commit: () => undefined, togglePause: () => undefined, slower: () => undefined, faster: () => undefined, toggleHelp: () => undefined, toggleDiplomacy: () => log.push('diplomacy') });
+    const entry = reg.listed().find((d) => d.id === 'diplomacy');
+    expect(entry).toBeDefined();
+    expect(entry?.keys).toEqual(['d']);
+    expect(entry?.scope).toBe('match');
+    expect(keysText(entry?.keys ?? [])).toBe('D');
+    expect(reg.handle(ev('d'))).toBe(true);
+    expect(reg.handle(ev('D'))).toBe(true);
+    expect(reg.handle(ev('d', { repeat: true }))).toBe(false);
+    expect(reg.handle(ev('d', { ctrlKey: true }))).toBe(false);
+    flags.modal = true;
+    expect(reg.handle(ev('d'))).toBe(false);
+    expect(log).toEqual(['diplomacy', 'diplomacy']);
+    for (const lang of ['sv', 'en'] as const) expect((TABLES[lang] as Record<string, string>)[entry?.labelKey ?? '']?.length).toBeGreaterThan(5);
+  });
+});
+
 describe('the help text of the entries', () => {
   it('every listed entry has a label in both languages, and the hidden ones are exactly the reserved keys of later milestones', () => {
     const { reg } = setup();

@@ -243,3 +243,18 @@ export const DEPLOY = {
     markerMinM: 12000,
   },
 } as const;
+
+/** M18c-2: the diplomacy panel, the proposal cards and the relation badges. Sizes in em of the HUD font, colours from UI_COLORS where one fits. */
+export const DIPLO = {
+  /** The panel sits above the HUD and below the help overlay (34) and the match panels (36). */
+  z: 33,
+  panelWidthEm: 46,
+  /** At most this many incoming proposals are shown as cards (the rest wait; the top-bar signal counts all of them). */
+  cardsMax: 3,
+  cardWidthEm: 16.5,
+  /** A break asks for a second click within this many fx seconds. */
+  confirmSeconds: 6,
+  /** The panel is nearly opaque: the top bar and the toasts behind it must not shine through the rows. */
+  cardBg: 'rgba(8, 13, 24, 0.97)',
+  badge: { truce: '#7fd1ff', alliance: '#8ee6b0', embargo: '#ffb02e', traitor: '#ff8a80' },
+} as const;

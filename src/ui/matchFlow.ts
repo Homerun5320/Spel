@@ -61,6 +61,9 @@ export interface ResultRow {
   readonly peakLand: number;
   readonly built: number;
   readonly conquered: number;
+  /** M18c-2: treaties the nation entered and treaties it broke (MatchView.treaties / betrayals). */
+  readonly treaties: number;
+  readonly betrayals: number;
 }
 
 /**
@@ -96,6 +99,8 @@ export function resultRows(m: MatchView, players: number, localSeat: number, nam
     peakLand: m.peakLand[s] as number,
     built: m.built[s] as number,
     conquered: m.conquered[s] as number,
+    treaties: m.treaties[s] as number,
+    betrayals: m.betrayals[s] as number,
   }));
 }
 

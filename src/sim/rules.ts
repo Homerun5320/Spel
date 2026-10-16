@@ -350,9 +350,14 @@ export const DIPLOMACY_REPLY_MIN_TICKS = 30;
 export const DIPLOMACY_REPLY_MAX_TICKS = 60;
 /** The AI accepts a truce when it is at war (an attack running either way) with at least this many parties already. */
 export const AI_TRUCE_ACCEPT_WARS = 2;
+/** M18c-2: the AI also accepts a truce when it is at war with at least this many OTHER players than the proposer and the proposer is not the leader (the largest land share), or when its own land share is below AI_TRUCE_MEDIAN_PCT percent of the median. */
+export const AI_TRUCE_OTHER_WARS = 1;
+export const AI_TRUCE_MEDIAN_PCT = 100;
+/** M18c-2: a think round in which an attack of a seat on this AI runs counts as a hit; an AI proposes a truce to the seat with the most hits once it has at least this many. */
+export const AI_TRUCE_MIN_HITS = 2;
 /** The AI accepts an alliance only from a proposer holding at most this percent of the land, and only against a leader holding more than AI_ALLY_LEADER_MIN_PCT. */
 export const AI_ALLY_PROPOSER_MAX_PCT = 25;
-export const AI_ALLY_LEADER_MIN_PCT = 30;
+export const AI_ALLY_LEADER_MIN_PCT = 25;
 /** The AI makes no treaty with a seat that broke one against it in the last this many ticks (5 minutes). */
 export const AI_GRUDGE_TICKS = 3000;
 /** A weak AI (land share below this percent of the median share of the living players) proposes a truce to the strongest neighbour that attacked it. */

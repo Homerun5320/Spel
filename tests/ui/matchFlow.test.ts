@@ -85,6 +85,14 @@ describe('the result rows', () => {
     expect(rows.find((r) => r.seat === 0)).toMatchObject({ you: true, eliminated: false });
   });
 
+  it('M18c-2: carries the treaties made and broken of every nation from the view', () => {
+    const t = view({ ended: 1, winner1: 1, seat: { score: [1, 2, 3], landStd: [4, 4, 4], treaties: [3, 0, 7, 0], betrayals: [0, 2, 1, 0] } });
+    const byseat = (seat: number) => resultRows(t.m, 3, 0, nameOf, colorOf, () => 0).find((r) => r.seat === seat);
+    expect(byseat(0)).toMatchObject({ treaties: 3, betrayals: 0 });
+    expect(byseat(1)).toMatchObject({ treaties: 0, betrayals: 2 });
+    expect(byseat(2)).toMatchObject({ treaties: 7, betrayals: 1 });
+  });
+
   it('breaks a full tie by the lower seat id', () => {
     const t = view({ ended: 1, winner1: 0, seat: { score: [1, 1, 1], landStd: [4, 4, 4] } });
     expect(resultRows(t.m, 3, 0, nameOf, colorOf, () => 0).map((r) => r.seat)).toEqual([0, 1, 2]);
