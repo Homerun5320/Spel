@@ -211,19 +211,19 @@ Previous merge SHA: nothing of this branch is merged (pull request #1 is a draft
 GÖR
 - [x] 1. GÖR and ACCEPTANS written here first
 - [x] 2. AI temperament: truce answer, alliance threshold, truce proposal to the most frequent attacker; ENGINE 18, goldens recomputed once; measured in `tools/sim/diploMeasure.ts`
-- [ ] 3. Pure model `src/ui/diploModel.ts` (rows, button states from validate*, confirm step) and the panel `src/ui/diploPanel.ts` (key D in the registry, a top bar button, Escape closes)
-- [ ] 4. Incoming proposal cards (at most 3, countdown, Accept / Decline), toasts for new proposals and for the AI's answers (accepted, declined, expired), a "n proposals" signal in the top bar
-- [ ] 5. Relation badges in the leaderboard and the panel rows; the result screen rows "Treaties made" / "Treaties broken"; an attack click on a treaty party gives a toast and sends no intent
-- [ ] 6. Tests: model units, e2e flow, three window sizes without overlap in both languages, 0 DOM mutations at rest, D in the `?` overlay; mutants shown
-- [ ] 7. Docs (DECISIONS M18c-2, ARCHITECTURE, BALANCE, PREVIEW, BACKLOG M18c-3) and `npm run verify:fast`
+- [x] 3. Pure model `src/ui/diploModel.ts` (rows, button states from validate*, confirm step) and the panel `src/ui/diploPanel.ts` (key D in the registry, a top bar button, Escape closes)
+- [x] 4. Incoming proposal cards (at most 3, countdown, Accept / Decline), toasts for new proposals and for the AI's answers (accepted, declined, expired), a "n proposals" signal in the top bar
+- [x] 5. Relation badges in the leaderboard and the panel rows; the result screen rows "Treaties made" / "Treaties broken"; an attack click on a treaty party gives a toast and sends no intent
+- [x] 6. Tests: model units, e2e flow, three window sizes without overlap in both languages, 0 DOM mutations at rest, D in the `?` overlay; mutants shown
+- [x] 7. Docs (DECISIONS M18c-2, ARCHITECTURE, BALANCE, PREVIEW, BACKLOG M18c-3) and `npm run verify:fast`
 ACCEPTANS
-- [ ] Panel: every button is decided by validate*; confirm step on Break; own cooldown shown
-- [ ] Incoming proposals can be accepted and declined; a toast for the AI's answer, also decline and expiry
-- [ ] Badges in the leaderboard; the result screen shows the treaty statistics
-- [ ] Attack click on a treaty party: an understandable toast and no needless intent
+- [x] Panel: every button is decided by validate*; confirm step on Break; own cooldown shown
+- [x] Incoming proposals can be accepted and declined; a toast for the AI's answer, also decline and expiry
+- [x] Badges in the leaderboard; the result screen shows the treaty statistics
+- [x] Attack click on a treaty party: an understandable toast and no needless intent
 - [x] AI temperament: measured acceptance rates logged, ENGINE raised once, goldens recomputed once, pace test inside its band
-- [ ] Three window sizes without overlap, both languages; 0 DOM mutations at rest; D in the `?` overlay
-- [ ] `npm run verify:fast` green; the touched e2e green
+- [x] Three window sizes without overlap, both languages; 0 DOM mutations at rest; D in the `?` overlay
+- [x] `npm run verify:fast` green; the touched e2e green
 
 ## Next
 

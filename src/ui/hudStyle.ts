@@ -35,7 +35,8 @@ export function hudCss(): string {
 .hud-rel { font-size: 0.75em; font-weight: 800; line-height: 1.3; padding: 0 0.3em; border-radius: 0.3em; border: 1px solid currentColor; }
 .hud-rel[hidden] { display: none !important; }
 .hud-diplo { display: inline-flex; align-items: center; gap: 0.4em; flex: none; margin-left: auto; }
-.hud-diplo .hud-btn { min-height: 1.9em; padding: 0 0.6em; }
+.hud-diplo .hud-btn { position: relative; min-width: 0; min-height: 0; height: 1.4em; padding: 0 0.6em; line-height: 1; font-size: 0.95em; } /* the row keeps its 1.4em; the touch target (TARGET_MIN_PX) is the invisible ::after */
+.hud-diplo .hud-btn::after { content: ''; position: absolute; left: -0.3em; right: -0.3em; top: calc(50% - ${TARGET_MIN_PX / 2}px); height: ${TARGET_MIN_PX}px; }
 .hud-diplo-signal { color: ${C.barWarning}; font-weight: 800; white-space: nowrap; }
 .hud-row2 > .hud-diplo { margin-left: auto; }
 .hud-flag { border-radius: 2px; border: 1px solid rgba(255, 255, 255, 0.55); display: block; }
@@ -355,9 +356,9 @@ export function hudCss(): string {
 .diplo-overlay { position: absolute; inset: 0; z-index: ${DIPLO.z}; pointer-events: none; display: flex; align-items: center; justify-content: center; font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; font-size: ${fontSize}; line-height: 1.3; color: ${C.text}; box-sizing: border-box; padding: 0.6em; }
 .diplo-overlay *, .diplo-cards * { box-sizing: border-box; }
 .diplo-overlay[hidden] { display: none !important; }
-.diplo-card { pointer-events: auto; width: ${DIPLO.panelWidthEm}em; max-width: 100%; max-height: 100%; overflow: auto; background: ${C.card}; border: 1px solid ${C.panelBorder}; border-radius: 0.8em; box-shadow: 0 0.3em 1.4em rgba(0, 0, 0, 0.6); padding: 0.6em 0.9em 0.7em; }
+.diplo-card { pointer-events: auto; width: ${DIPLO.panelWidthEm}em; max-width: 100%; max-height: 100%; overflow: auto; background: ${DIPLO.cardBg}; border: 1px solid ${C.panelBorder}; border-radius: 0.8em; box-shadow: 0 0.3em 1.4em rgba(0, 0, 0, 0.6); padding: 0.6em 0.9em 0.7em; }
 .diplo-head { display: flex; align-items: center; justify-content: space-between; gap: 0.6em; margin-bottom: 0.3em; }
-.diplo-title { font-size: 1.15em; font-weight: 800; }
+.diplo-title { font-size: 1.15em; font-weight: 800; flex: 1 1 auto; }
 .diplo-cooldown { color: ${C.barWarning}; font-weight: 700; margin: 0.2em 0 0.3em; }
 .diplo-row { display: grid; grid-template-columns: minmax(8em, 1fr) minmax(8em, 1fr) minmax(0, 20em); column-gap: 0.8em; row-gap: 0.2em; align-items: center; padding: 0.4em 0; border-top: 1px solid ${C.panelBorder}; }
 .diplo-row[data-eliminated="1"] { opacity: 0.55; }
@@ -378,7 +379,7 @@ export function hudCss(): string {
 .diplo-note { grid-column: 1 / -1; color: ${C.barWarning}; font-size: 0.9em; }
 .diplo-empty { color: ${C.textDim}; padding: 0.5em 0; }
 .diplo-hint { margin-top: 0.4em; color: ${C.textDim}; font-size: 0.85em; }
-.diplo-btn { min-height: ${target}; padding: 0.15em 0.6em; border-radius: 0.5em; border: 1px solid ${C.buttonBorder}; background: ${C.button}; color: ${C.text}; font: inherit; font-weight: 700; cursor: pointer; touch-action: manipulation; }
+.diplo-btn { min-height: 2.3em; padding: 0.15em 0.6em; border-radius: 0.5em; border: 1px solid ${C.buttonBorder}; background: ${C.button}; color: ${C.text}; font: inherit; font-weight: 700; cursor: pointer; touch-action: manipulation; }
 .diplo-btn:hover { background: ${C.buttonActive}; }
 .diplo-btn[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; }
 .diplo-btn[data-armed="1"] { border-color: ${C.danger}; box-shadow: inset 0 0 0 1px ${C.danger}; }
@@ -391,7 +392,9 @@ export function hudCss(): string {
 .diplo-pcard-text { font-weight: 700; min-width: 0; overflow-wrap: anywhere; }
 .diplo-pcard-left { color: ${C.textDim}; font-variant-numeric: tabular-nums; flex: none; }
 .diplo-pcard-btns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.3em; }
+@media (pointer: coarse) { .diplo-btn { min-height: ${target}; } }
 @media (max-width: ${NARROW_MAX_PX}px), (max-aspect-ratio: 1/1) {
+  .diplo-btn { min-height: ${target}; }
   .diplo-row { grid-template-columns: minmax(0, 1fr); }
   .diplo-cards { left: auto; right: 8px; top: ${TOPBAR.narrowBoardEm + 2.6}em; }
 }

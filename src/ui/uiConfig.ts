@@ -254,5 +254,7 @@ export const DIPLO = {
   cardWidthEm: 16.5,
   /** A break asks for a second click within this many fx seconds. */
   confirmSeconds: 6,
+  /** The panel is nearly opaque: the top bar and the toasts behind it must not shine through the rows. */
+  cardBg: 'rgba(8, 13, 24, 0.97)',
   badge: { truce: '#7fd1ff', alliance: '#8ee6b0', embargo: '#ffb02e', traitor: '#ff8a80' },
 } as const;

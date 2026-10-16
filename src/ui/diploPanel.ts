@@ -72,7 +72,7 @@ class RowView {
   private readonly share = span('diplo-share');
   private readonly rel = span('diplo-rel', 'diplo-rel');
   private readonly marks = span('diplo-marks');
-  private readonly embargoMark = span('diplo-mark diplo-mark-embargo', 'diplo-embargo');
+  private readonly embargoMark = span('diplo-mark diplo-mark-embargo', 'diplo-embargo-mark');
   private readonly traitorMark = span('diplo-mark diplo-mark-traitor', 'diplo-traitor');
   private readonly waiting = span('diplo-waiting', 'diplo-waiting');
   private readonly note = div('diplo-note', 'diplo-note');
@@ -155,7 +155,9 @@ export function createDiploPanel(parent: HTMLElement, actions: DiploActions, opt
   closeBtn.className = 'diplo-btn diplo-close';
   closeBtn.dataset.testid = 'diplo-close';
   closeBtn.addEventListener('click', () => actions.close());
-  head.append(title, closeBtn);
+  const selfMark = span('diplo-mark diplo-mark-traitor', 'diplo-self-traitor');
+  selfMark.hidden = true;
+  head.append(title, selfMark, closeBtn);
   const cooldown = div('diplo-cooldown', 'diplo-cooldown');
   cooldown.hidden = true;
   const list = div('diplo-list', 'diplo-list');
@@ -204,6 +206,10 @@ export function createDiploPanel(parent: HTMLElement, actions: DiploActions, opt
     const rows = buildDiploRows(v, L);
     setHidden(empty, rows.length !== 0);
     setText(empty, t('diplo.empty'));
+    const mine = v.match.betrayals[L] as number;
+    setHidden(selfMark, mine === 0);
+    setText(selfMark, t('diplo.traitor', { n: mine }));
+    setAttr(selfMark, 'title', t('diplo.traitorTip', { n: mine }));
     const cd = v.diplomacy.breakCooldownLeft(L);
     setHidden(cooldown, cd === 0);
     if (cd !== 0) setText(cooldown, t('diplo.cooldown', { time: formatClock(secondsLeft(cd)) }));
