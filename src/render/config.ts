@@ -466,6 +466,12 @@ export const RING_SEGMENTS = 96;
 /** Ring colours (sRGB). */
 export const SELECT_RING_RGB: readonly [number, number, number] = [1.0, 0.92, 0.35];
 export const RANGE_RING_RGB: readonly [number, number, number] = [0.45, 0.85, 1.0];
+/** Fix-4B: the pulsing ring round an own beachhead that is not yet ordinary land: radius in sim cells (the landing takes a 3x3 block), at most this many rings, pulse speed in radians per second, alpha range. */
+export const BEACH_RING_RADIUS_CELLS = 2.2;
+export const BEACH_RING_MAX = 3;
+export const BEACH_RING_PULSE_RAD_PER_SEC = 4;
+export const BEACH_RING_ALPHA_MIN = 0.4;
+export const BEACH_RING_ALPHA_MAX = 0.95;
 /** A city light is lit where the sun's elevation (dot of the surface normal and the sun) is below this value: the middle of the shader's day smoothstep (-0.10 .. 0.20). */
 export const NIGHT_LIGHT_SUN_DOT = 0.05;
 

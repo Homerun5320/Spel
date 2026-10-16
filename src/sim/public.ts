@@ -262,3 +262,7 @@ export {
   TREATY_BREAK_COOLDOWN_TICKS,
   TRUCE_TICKS,
 } from './rules';
+
+// Fix-4B (append-only): the read-only beachhead table and the three numbers the page needs to explain it (landing size, the size that makes it ordinary land, the time it lasts).
+export type { BeachheadView } from './view';
+export { BEACHHEAD_ESTABLISH_CELLS, BEACHHEAD_LANDING_CELLS, BEACHHEAD_REVERT_TICKS } from './rules';

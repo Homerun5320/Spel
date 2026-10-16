@@ -8,7 +8,8 @@
 // bar moves with a transform, the leaderboard is re-ranked once per tick into a preallocated array. `data-testid` ids are the
 // hooks of the e2e tests and `data-value` carries the raw number behind a formatted text.
 import type { SimView } from '../sim/view';
-import { fleetCapOf, fleetCountOf } from '../sim/public';
+import { BEACHHEAD_ESTABLISH_CELLS, fleetCapOf, fleetCountOf } from '../sim/public';
+import { ownBeachChip, type BeachChip } from './beachheadInfo';
 import { drawFlag, type FlagSpec } from './flag';
 import type { SeatLabels } from './seatLabels';
 import { TICK_HZ } from './hudCodes';
@@ -285,6 +286,12 @@ export function createMatchHud(parent: HTMLElement, actions: MatchHudActions, op
   const fleetText = dyn(new TextCell(el('span', 'hud-num', 'fleet'), (n, cap) => `${formatInt(n)}/${formatInt(cap)}`, true));
   fleetBox.append(fleetLabel.el, fleetText.el);
   let fleetTick = -1;
+  // Fix-4B: the count-down of the own beachhead that is still cut off (hidden when there is none); written once a second at most
+  const beachChip = dyn(new TextCell(el('span', 'hud-beach', 'beach-chip'), (cells, s) => t('hud.beach', { cells, need: BEACHHEAD_ESTABLISH_CELLS, s }), true));
+  beachChip.el.hidden = true;
+  const beachScratch: BeachChip = { slot: -1, cells: 0, need: 0, seconds: 0 };
+  let beachTick = -1;
+  let beachLang = -1;
   // The win meter: the leader's share against the land condition now (MatchView), and the hold count-down. Hidden when the match has no land condition.
   const winRow = el('div', 'hud-win', 'win');
   winRow.hidden = true;
@@ -316,7 +323,7 @@ export function createMatchHud(parent: HTMLElement, actions: MatchHudActions, op
   diploBox.append(diploBtn, diploSignal.el);
   let diploTick = -1;
   let diploLang = -1;
-  row2.append(winRow, fleetBox, diploBox);
+  row2.append(winRow, fleetBox, beachChip.el, diploBox);
   status.append(nationBox, goldGrp, troopsGrp, shareBox, timerBox, row2);
 
   // --- Leaderboard ---
@@ -467,6 +474,18 @@ export function createMatchHud(parent: HTMLElement, actions: MatchHudActions, op
       if (v.tick !== fleetTick) {
         fleetTick = v.tick;
         fleetText.set(fleetCountOf(v, L), fleetCapOf(v, L));
+      }
+      if (v.tick !== beachTick || languageVersion() !== beachLang) {
+        beachTick = v.tick;
+        beachLang = languageVersion();
+        const chip = ownBeachChip(v, L, beachScratch);
+        const has = chip.slot >= 0;
+        if (has) {
+          beachChip.set(chip.cells, chip.seconds);
+          const tip = t('hud.beachTip', { need: BEACHHEAD_ESTABLISH_CELLS });
+          if (beachChip.el.title !== tip) beachChip.el.title = tip;
+        }
+        if (beachChip.el.hidden === has) beachChip.el.hidden = !has;
       }
       if (v.tick !== diploTick || languageVersion() !== diploLang) {
         diploTick = v.tick;

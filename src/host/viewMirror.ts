@@ -12,11 +12,12 @@ import type { StructureView } from '../sim/structureRules';
 import type { DistrictView } from '../sim/districtRules';
 import { MirrorStructures } from './structureMirror';
 import { MirrorHelis } from './heliMirror';
+import { MirrorBeachheads } from './beachheadMirror';
 import { MirrorDiplomacy } from './diplomacyMirror';
 import type { DiplomacyView } from '../sim/diplomacyTable';
 import type { HeliView } from '../sim/heliTable';
 import { matchPackedLength, matchViewOf, type MatchView } from '../sim/matchView';
-import { countContacts, statsViewOf, type ReadonlyNumbers, type SeatStatsView, type SimView } from '../sim/view';
+import { countContacts, statsViewOf, type BeachheadView, type ReadonlyNumbers, type SeatStatsView, type SimView } from '../sim/view';
 import type { HostEvent, SimHost, Speed, StateDiff, Unsubscribe, ViewSnapshot } from './protocol';
 
 export type FrameListener = (mirror: ViewMirror, diff: StateDiff) => void;
@@ -54,6 +55,7 @@ export class ViewMirror implements SimView {
   private readonly slots: number;
   private readonly structureTable = new MirrorStructures();
   private readonly heliTable = new MirrorHelis();
+  private readonly beachTable = new MirrorBeachheads();
   private readonly diploTable: MirrorDiplomacy;
 
   private constructor(v: ViewSnapshot) {
@@ -81,6 +83,7 @@ export class ViewMirror implements SimView {
     this.setAttacks(v.attacks);
     if (v.structures !== null) this.structureTable.adopt(v.structures);
     if (v.helis !== null) this.heliTable.adopt(v.helis);
+    if (v.beachheads !== null) this.beachTable.adopt(v.beachheads);
     if (v.diplomacy !== null) this.diploTable.adopt(v.diplomacy);
   }
 
@@ -109,6 +112,14 @@ export class ViewMirror implements SimView {
   }
   get helisVersion(): number {
     return this.heliTable.version;
+  }
+
+  /** The beachhead rows (Fix-4B): the copy of the last table the host sent; `beachheadsVersion` moves when a new one arrived. */
+  get beachheads(): BeachheadView {
+    return this.beachTable;
+  }
+  get beachheadsVersion(): number {
+    return this.beachTable.version;
   }
 
   /** The diplomacy (M18c-1): the copy of the last table the host sent, read against the mirror's tick; `diplomacyVersion` moves when a new one arrived. */
@@ -209,6 +220,7 @@ export class ViewMirror implements SimView {
     this.setAttacks(d.view.attacks);
     if (d.view.structures !== null) this.structureTable.adopt(d.view.structures);
     if (d.view.helis !== null) this.heliTable.adopt(d.view.helis);
+    if (d.view.beachheads !== null) this.beachTable.adopt(d.view.beachheads);
     if (d.view.diplomacy !== null) this.diploTable.adopt(d.view.diplomacy);
     this.frames++;
     for (const l of this.listeners) l(this, d);

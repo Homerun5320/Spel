@@ -31,6 +31,7 @@ import { PerfSceneRun, type PerfSceneHost } from './perfScene';
 import { createBuildBar, type BuildBar } from '../ui/buildBar';
 import { buildRejectKey, spawnPhaseBlocks } from '../ui/buildReasons';
 import { REJECT_PHASE } from '../ui/hudCodes';
+import { BEACH_ESTABLISHED, BEACH_REVERTED, BeachheadWatcher, beachSecondsLeft, ownBeachSeeds } from '../ui/beachheadInfo';
 import { HeliWatcher, MISSION_LANDED, MISSION_LOST, MissionWatcher, heliPanelInfo, ownHeliRows, padHeliOf, type HeliRow } from '../ui/heliInfo';
 import { createDeployBox, type DeployBox } from '../ui/deployBox';
 import { createDeployMode, type DeployMode } from './deployMode';
@@ -46,7 +47,7 @@ import { createPlacementMode, type PlacementMode, type PlacementState } from './
 import { AIR_MODE_AGL_M, REJECT_HELI_NO_PAD, REJECT_HELI_NO_ROUTE, createLos, createLosTerrain, createNav, launchHeliBody, recallHeliBody, validateLaunchHeli, type Nav } from '../sim/public';
 import { STRUCT_CITY, STRUCT_FACTORY, produceHeliBody, buildBody, buildDistrictBody, deleteBody, removeDistrictBody, upgradeBody, upgradeDistrictBody, validateBuild } from '../sim/public';
 import { createCityViewPanel, type CityViewPanel } from '../ui/cityViewPanel';
-import { CAMERA_FOV_DEG, EARTH_RADIUS_KM } from '../render/config';
+import { BEACH_RING_MAX, CAMERA_FOV_DEG, EARTH_RADIUS_KM } from '../render/config';
 import { cityFitFlight, cityFlightNeeded, createCityViewMode, isDoubleClick } from './cityViewMode';
 import type { InputMode } from './input';
 import { CLASS_MOUNTAIN } from '../sim/terrain';
@@ -319,6 +320,8 @@ export interface GlobeTestHooks {
   /** M13a-1: forces the rotor angle (radians; null = the fx clock) and switches the helicopter layer on or off, so a test can tell the rotor's pixels and the layer's draw call. */
   heliSpin(angle: number | null): void;
   heliLayer(on: boolean): void;
+  /** Fix-4B: the own beachhead rows of the mirror (slot, seed cell, landing tick, cells held, seconds left) and what the ring layer draws. */
+  beach(): { rows: Array<{ slot: number; seed: number; landTick: number; cells: number; seconds: number }>; ring: { count: number; cells: number[]; drawIndices: number } };
   /** M13b: the deploy mode (active, the Factory, the hovered cell, what the layer shows, the preview's verdict and counters) and the deploy layer's switch for a draw-call count. */
   deploy(): DeployInfo;
   deployLayer(on: boolean): void;
@@ -523,6 +526,9 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   let frames = 0;
   // the input stack's per-frame tick (the long-press timer of the touch input); set where the stack is built
   let tickInput: (now: number) => void = () => undefined;
+  // Fix-4B: the pulsing rings of the own beachheads follow the beachhead table (written only when its version moved)
+  let beachRingVersion = -1;
+  const beachSeeds = new Int32Array(BEACH_RING_MAX);
   const renderFrame = (draw = true): void => {
     tickInput(fxNow());
     tickToasts(fxNow());
@@ -532,6 +538,10 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       globe.structures.setTable(session.view.structures, session.view.structuresVersion);
       globe.districts.setTable(session.view.structures, session.view.districts, session.view.structuresVersion); // Districts-2b
       globe.helis.setTable(session.view.helis, session.view.helisVersion); // M13a-1
+      if (session.view.beachheadsVersion !== beachRingVersion) {
+        beachRingVersion = session.view.beachheadsVersion;
+        globe.structures.setBeachRings(beachSeeds, ownBeachSeeds(session.view, session.localSeat, beachSeeds), session.localOwner);
+      }
       globe.setTickFraction(session.view.tick + (params.test ? 0 : session.alpha()));
     }
     globe.render(draw);
@@ -713,6 +723,8 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     elimHandled = false;
     structToastShown = false;
     globe.structures.setLocalOwner(s.localOwner);
+    beachRingVersion = -1;
+    beachWatcher.reset();
     panels = createMatchPanels(
       wrapper,
       {
@@ -828,6 +840,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   let model: { -readonly [K in keyof MatchHudModel]: MatchHudModel[K] } | null = null;
   const heliWatcher = new HeliWatcher();
   const missionWatcher = new MissionWatcher();
+  const beachWatcher = new BeachheadWatcher();
   // the Factory panel's helicopter numbers are asked once per tick, not once per frame
   let heliKey = '';
   let heliCache: ReturnType<typeof heliPanelInfo> | null = null;
@@ -876,6 +889,9 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     const mission = missionWatcher.update(session.view, session.view.helisVersion, L);
     if ((mission & MISSION_LANDED) !== 0) showToast('toast.heli.landed', {}, 'info');
     if ((mission & MISSION_LOST) !== 0) showToast('toast.heli.lost', {}, 'warn');
+    const beach = beachWatcher.update(session.view, session.view.beachheadsVersion, L);
+    if ((beach & BEACH_REVERTED) !== 0) showToast('toast.beach.reverted', {}, 'warn');
+    if ((beach & BEACH_ESTABLISHED) !== 0) showToast('toast.beach.established', {}, 'info');
     // M18c-2: the proposals (cards and toasts) and the open panel; all write only when something changed
     diploWatcher?.update(session.view, L);
     if (buildBarWanted) {
@@ -1875,6 +1891,17 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
         globe.helis.spinOverride = angle;
       },
       heliLayer: (on) => globe.helis.setEnabled(on),
+      beach: () => {
+        const rows: Array<{ slot: number; seed: number; landTick: number; cells: number; seconds: number }> = [];
+        if (session !== null) {
+          const b = session.view.beachheads;
+          for (let i = 0; i < b.capacity; i++) {
+            if (b.owner[i] !== session.localOwner) continue;
+            rows.push({ slot: i, seed: b.seed[i] as number, landTick: b.landTick[i] as number, cells: b.cellsOf(i), seconds: beachSecondsLeft(b.landTick[i] as number, session.view.tick) });
+          }
+        }
+        return { rows, ring: globe.structures.beachRingInfo() };
+      },
       deploy: () => {
         const cur = deployPreviewer.current();
         const layer = globe.deploy.info();

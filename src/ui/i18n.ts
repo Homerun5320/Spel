@@ -469,6 +469,11 @@ const sv = {
   'toast.diplo.expired': 'Ditt förslag till {name} gick ut utan svar.',
   'result.col.treaties': 'Ingångna avtal',
   'result.col.betrayals': 'Brutna avtal',
+  // Fix-4B: the beachhead of a helicopter landing (count-down chip, toasts)
+  'hud.beach': 'Brohuvud {cells}/{need} celler, {s} s kvar',
+  'hud.beachTip': 'Din landade mark är isolerad. Skicka fler trupper till kanten eller bygg en stad så att den växer till {need} celler, annars blir den neutral igen.',
+  'toast.beach.reverted': 'Brohuvudet isolerades och återgick till neutralt.',
+  'toast.beach.established': 'Brohuvudet är etablerat, marken är din.',
 } as const;
 
 export type TextKey = keyof typeof sv;
@@ -927,6 +932,11 @@ const en: Record<TextKey, string> = {
   'toast.diplo.expired': 'Your proposal to {name} ran out without an answer.',
   'result.col.treaties': 'Treaties made',
   'result.col.betrayals': 'Treaties broken',
+  // Fix-4B: the beachhead of a helicopter landing (count-down chip, toasts)
+  'hud.beach': 'Beachhead {cells}/{need} cells, {s} s left',
+  'hud.beachTip': 'Your landed ground is cut off. Send more troops to its edge or build a city so that it grows to {need} cells, or it turns neutral again.',
+  'toast.beach.reverted': 'The beachhead was cut off and went back to neutral.',
+  'toast.beach.established': 'The beachhead is established, the ground is yours.',
 };
 
 /** The two tables, for the parity test and for tools. Treat as read-only. */

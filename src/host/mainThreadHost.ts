@@ -11,6 +11,7 @@ import { step, type StepFn } from '../sim/step';
 import { MAX_SEATS, ownerSlots, type GameState } from '../sim/state';
 import { snapshotStructures, structureSignature } from './structureSnapshot';
 import { heliSignature, snapshotHelis } from './heliSnapshot';
+import { beachheadSignature, snapshotBeachheads } from './beachheadSnapshot';
 import { snapshotDiplomacy } from './diplomacySnapshot';
 import { StateView, attackPairs, fillSeatStats, statsLength, type SimView } from '../sim/view';
 import { fillMatchView, matchPackedLength } from '../sim/matchView';
@@ -27,6 +28,7 @@ import {
   type Speed,
   type StateDiff,
   type Unsubscribe,
+  type BeachheadSnapshot,
   type HeliSnapshot,
   type DiplomacySnapshot,
   type StructureSnapshot,
@@ -74,6 +76,8 @@ export class MainThreadHost implements SimHost {
   private lastStructSig = -1;
   /** The same for the helicopter table (M12a-1). */
   private lastHeliSig = -1;
+  /** The same for the beachhead rows (Fix-4B). */
+  private lastBeachSig = -1;
   /** The version of the diplomacy table in the last diff that carried it (-1 = none yet). */
   private lastDiploVersion = -1;
   /** Reused for the statistics of every view (the snapshot gets a copy). */
@@ -228,6 +232,7 @@ export class MainThreadHost implements SimHost {
       structures: full ? snapshotStructures(s.structures) : this.changedStructures(),
       helis: full ? snapshotHelis(s.helis, ownerSlots(s.header.seats)) : this.changedHelis(),
       diplomacy: full ? snapshotDiplomacy(s.diplo) : this.changedDiplomacy(),
+      beachheads: full ? snapshotBeachheads(s) : this.changedBeachheads(),
     };
   }
 
@@ -236,6 +241,14 @@ export class MainThreadHost implements SimHost {
     if (this.state.diplo.version === this.lastDiploVersion) return null;
     this.lastDiploVersion = this.state.diplo.version;
     return snapshotDiplomacy(this.state.diplo);
+  }
+
+  /** The beachhead rows when they differ from the ones the last diff carried, else null (the signature costs one cluster search per row, nothing without rows). */
+  private changedBeachheads(): BeachheadSnapshot | null {
+    const sig = beachheadSignature(this.state);
+    if (sig === this.lastBeachSig) return null;
+    this.lastBeachSig = sig;
+    return snapshotBeachheads(this.state);
   }
 
   /** The helicopter table when it differs from the one the last diff carried, else null. */
