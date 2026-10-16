@@ -1219,6 +1219,8 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   const chaseFlying = (id: number): boolean => {
     const sess = session;
     if (sess === null) return false;
+    globe.helis.setTable(sess.view.helis, sess.view.helisVersion); // the camera of the ride must see the table of THIS frame, not the last one drawn
+    globe.helis.refresh();
     const h = sess.view.helis;
     if (id < 0 || id >= h.highWater || h.owner[id] !== sess.localOwner || globe.helis.slotOn[id] !== 1) return false;
     const st = h.state[id] as number;

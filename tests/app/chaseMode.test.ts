@@ -154,6 +154,6 @@ describe('key H', () => {
     modal = false;
     expect(reg.handle({ ...h, typing: true })).toBe(false); // a text field has the focus
     expect(started).toBe(2);
-    expect(reg.find('h')?.hidden).not.toBe(true); // listed in the help overlay
+    expect(reg.find('h')?.scope).toBe('stack'); // the reserved key goes to the stack
   });
 });

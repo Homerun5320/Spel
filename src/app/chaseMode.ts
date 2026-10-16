@@ -75,11 +75,11 @@ export function createChaseMode(heli: number, target: ChaseTarget): ChaseMode {
     } else {
       const dt = lastNow < 0 ? 0 : Math.max(0, Math.min(0.5, now - lastNow));
       const a = 1 - Math.exp(-dt / HELI_CHASE_SMOOTH_S);
-      // the place follows exactly (a helicopter covers kilometres a tick: any lag would lose it); the heading and the height ease
+      // the place follows exactly (a helicopter covers kilometres a tick and follows the terrain: any lag in place or height would lose it); only the heading eases
       sm.lat = raw.lat;
       sm.lon = raw.lon;
       sm.heading = (sm.heading + shortestAngle(sm.heading, raw.heading) * a + 360) % 360;
-      sm.radius += (raw.radius - sm.radius) * a;
+      sm.radius = raw.radius;
     }
     if (now >= 0) lastNow = now;
     target.apply(chaseView(sm, target.groundRadius));

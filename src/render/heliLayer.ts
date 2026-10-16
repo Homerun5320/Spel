@@ -212,6 +212,11 @@ export class HeliLayer {
     return this.table;
   }
 
+  /** Rewrites the instances now when the table, the palette or the exaggeration changed (the chase camera reads the slots before the frame's own `frame` does). */
+  refresh(): void {
+    if (this.dirty) this.rebuild();
+  }
+
   /** Switches the layer off or on (a test counts the draw calls with and without it). */
   setEnabled(on: boolean): void {
     this.enabled = on;

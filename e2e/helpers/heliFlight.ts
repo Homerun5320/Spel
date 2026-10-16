@@ -108,3 +108,8 @@ export async function prepare(page: Page): Promise<{ capital: number; factory: n
   return { capital, factory, lz: (valid[0] as { cell: number }).cell, at };
 }
 
+
+/** The console messages of the page without the SwiftShader driver's own performance notes ("GL Driver Message ... Running out of reserved outsideRenderPass queueSerial"), which a long run of draws prints. */
+export function quiet(messages: ReadonlyArray<{ text: string; type: string }>): Array<{ text: string; type: string }> {
+  return messages.filter((m) => !/GL Driver Message/.test(m.text));
+}

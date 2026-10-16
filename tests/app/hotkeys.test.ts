@@ -136,7 +136,7 @@ describe('the help text of the entries', () => {
       expect(TABLES.sv[d.labelKey], d.id).toBeTruthy();
       expect(TABLES.en[d.labelKey], d.id).toBeTruthy();
     }
-    expect(reg.entries().filter((d) => d.hidden === true).map((d) => d.id)).toEqual(['exposure']); // M13a-2: H (chase) is a listed key now
+    expect(reg.entries().filter((d) => d.hidden === true).map((d) => d.id)).toEqual(['exposure', 'chase']);
   });
   it('keysText prints ranges, capitals and alternatives', () => {
     expect(keysText(['1', '2', '3', '4', '5', '6'])).toBe('1-6');

@@ -168,6 +168,12 @@ Lägen som finns registrerade i Dev-panelen (F2 eller hörnknappen) just nu:
 17bb. **Tangenten N.** **N** slår nationsetiketterna och frontpilarna av och på tillsammans (ett meddelande bekräftar), valet sparas till nästa gång och står i hjälprutan (`?`). Standard är på. I en testsida (`?test=1`) är de av om du inte lägger till `labels=1`.
 17bc. **Adresser.** Artifact: samma länk (spela som vanligt) eller `#test_seed-7_hud-1_labels-1` för en match med etiketter; lokalt / Netlify: `?test=1&hud=1&labels=1&seed=7`. Dev-panelen (F2) har ingen särskild kontroll för etiketterna; tangenten N finns i hjälprutan (`?`).
 
+### 5j. Effekter, medåkning och ikon för helikoptern (M13a-2)
+
+17bd. **Effekterna.** Allt som flyger får nu en **skugga** på marken under sig (mörkare ju lägre den flyger), **damm** från rotorn vid start, landning och låg flygning, **rep och prickar** i din färg som glider ned när trupperna hoppar av (medan den svävar och landar), **landningsdamm**, en **flagga** i ägarens färg som hissas på brohuvudets mark när det bildas och står kvar så länge brohuvudet finns, och **eldblixt och rök** när en helikopter skjuts ned (röken är borta efter ungefär 5 sekunder). Helikoptrarna glider nu mjukt mellan två tick i stället för att hoppa. På mellanavstånd, när modellen är för liten för att synas, visas en liten **stjärnikon** i ägarens färg; den försvinner när modellen tar över.
+17be. **Åk med.** Tryck **H** när en av dina helikoptrar är i luften: kameran följer den bakom och strax ovanför, mjukt i sidled (den svänger med helikopterns färdriktning), och håller sig alltid över marken. **H** igen, **Esc**, ett drag med musen eller hjulet avslutar. Är ingen helikopter i luften får du "Ingen helikopter i luften.". Är en pausmeny eller resultatrutan öppen gör H ingenting. I listan **Dina helikoptrar** (Factory markerad) finns en knapp **Åk med** på varje rad som flyger. Tangenten står inte i hjälprutan (knappen Åk med är den synliga vägen).
+17bf. **Adresser.** Artifact: samma länk (spela som vanligt: effekterna är alltid på). Test: `#test_seed-7_hud-1_ai-0_fx-1`; lokalt / Netlify: `?test=1&hud=1&ai=0&seed=7&fx=1` (utan `fx=1` är effekterna av i en testsida, så att guldbilderna inte ändras). Dev-panelen (F2) har ingen särskild kontroll; H finns inte i hjälprutan.
+
 ## 6. Det som inte fungerar i en Artifact
 
 18. **Ladda ner-knappar fungerar inte** (nedladdningar från sidan är blockerade). Rapporter visas i stället i en textruta som du kan markera och kopiera. Knappen "Kopiera rapport" fungerar (urklipp går bara efter ett klick).

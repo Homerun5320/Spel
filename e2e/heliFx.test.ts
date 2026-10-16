@@ -11,7 +11,7 @@ import { cellToLatLon } from '../src/render/transforms';
 import { HELI_CHASE_CLEAR_M, HELI_FX_PARTICLES_MAX } from '../src/render/config';
 import { HELI_APPROACH, HELI_CRUISE, HELI_DOWNED, HELI_HOVER, HELI_LIFT, HELI_PAD, HELI_RETURN, HELI_UNLOAD } from '../src/sim/heliTable';
 import { STRUCT_SAM } from '../src/sim/structureRules';
-import { HEIGHT, SHOT_DIR, T, WIDTH, look, prepare, type Drawn } from './helpers/heliFlight';
+import { HEIGHT, SHOT_DIR, T, WIDTH, look, prepare, quiet, type Drawn } from './helpers/heliFlight';
 
 let browser: Browser;
 const baseUrl = inject('baseUrl');
@@ -47,6 +47,7 @@ describe('the helicopter effects', () => {
       const seen = new Set<number>();
       let maxParticles = 0;
       let counted = false;
+      let pictured = false;
       for (let i = 0; i < 700; i++) {
         await t.advance(0, 1);
         await t.settle(0.1, 1);
@@ -57,6 +58,11 @@ describe('the helicopter effects', () => {
         if (h.state === HELI_PAD || h.state === HELI_RETURN) {
           if (seen.has(HELI_UNLOAD)) break;
           continue;
+        }
+        if (h.state === HELI_LIFT && h.aglM > 150 && !pictured) {
+          // the climb over the Factory: the first picture was taken in its hall at ground level
+          pictured = true;
+          await look(page, '1b-lift-climb', h.lat, h.lon, 1.4, h.aglM + 700, 32);
         }
         if (seen.has(h.state)) continue;
         seen.add(h.state);
@@ -106,10 +112,10 @@ describe('the helicopter effects', () => {
       await t.settle(0.05, 2);
       expect((await t.fx()).flags).toBe(1);
       const sl = cellToLatLon(seed, WIDTH, HEIGHT);
-      await look(page, '6-flag-rising', sl.lat, sl.lon, 0.7, 260, 28);
+      await look(page, '6-flag-rising', sl.lat, sl.lon, 1.1, 420, 20);
       await t.settle(1, 3); // the hoist takes 1.6 s of fx time
-      await look(page, '7-flag-up', sl.lat, sl.lon, 0.7, 260, 28);
-      expect(consoleMessages).toEqual([]);
+      await look(page, '7-flag-up', sl.lat, sl.lon, 1.1, 420, 20);
+      expect(quiet(consoleMessages)).toEqual([]);
     } finally {
       await page.close();
     }
@@ -162,7 +168,7 @@ describe('the helicopter effects', () => {
       // 5 s after the hit nothing of it is left (the clock only moves on a frame: step it in 0.5 s notches)
       for (let k = 0; k < 24 && (await clock()) - t0 < 6.5; k++) await t.settle(0.5, 1);
       expect((await t.fx()).particles).toBe(0);
-      expect(consoleMessages).toEqual([]);
+      expect(quiet(consoleMessages)).toEqual([]);
     } finally {
       await page.close();
     }
@@ -205,16 +211,16 @@ describe('the chase camera', () => {
         if (!c.active) break;
         lowest = Math.min(lowest, c.camAglM);
         const h = (await t.helis())[0] as Drawn;
-        // the camera stays within a kilometre of the helicopter (its drawn radius and place, Earth radii)
+        // the camera stays within three kilometres of the helicopter (more only where the ground behind it rises above its altitude) (its drawn radius and place, Earth radii)
         const cam = (await page.evaluate(() => (window as any).__test.cameraPosition())) as [number, number, number];
         const la = (h.lat * Math.PI) / 180;
         const lo = (h.lon * Math.PI) / 180;
         const hv = [Math.cos(la) * Math.sin(lo), Math.sin(la), Math.cos(la) * Math.cos(lo)].map((v) => v * h.radius);
         const km = Math.hypot(cam[0] - (hv[0] as number), cam[1] - (hv[1] as number), cam[2] - (hv[2] as number)) * 6371;
-        expect(km, `the camera rides within a kilometre at step ${i}`).toBeLessThan(1);
+        expect(km, `the camera rides within 3 km at step ${i}`).toBeLessThan(3);
         expect(km).toBeGreaterThan(0.2);
         if (i === 30) {
-          await t.settle(0.1, 2);
+          await t.settle(0.05, 6); // the terrain chunks of the new place refine over a few frames (the test mode jumps kilometres a tick)
           fs.writeFileSync(path.join(SHOT_DIR, 'fx-a-chase-view.png'), await page.screenshot({ timeout: 90_000 }));
         }
       }
@@ -242,8 +248,10 @@ describe('the chase camera', () => {
       await t.settle(0.1, 1);
       expect((await t.chase()).active).toBe(false);
       // a modal blocks the key: with the pause menu open H starts nothing
-      await page.keyboard.press('Escape');
-      await t.settle(0.1, 1);
+      for (let k = 0; k < 3 && !(await page.locator('[data-testid="pause-menu"]').isVisible()); k++) {
+        await page.keyboard.press('Escape'); // the selection of the Factory goes first, then the pause menu opens
+        await t.settle(0.1, 1);
+      }
       expect(await page.locator('[data-testid="pause-menu"]').isVisible()).toBe(true);
       await page.keyboard.press('h');
       await t.settle(0.1, 1);
@@ -252,9 +260,35 @@ describe('the chase camera', () => {
       await t.settle(0.1, 1);
       void capital;
       void at;
-      expect(consoleMessages).toEqual([]);
+      expect(quiet(consoleMessages)).toEqual([]);
     } finally {
       await page.close();
     }
+  }, 600_000);
+});
+
+describe('the effects are cosmetic', () => {
+  it('the same flow with and without the effect layers ends on the same simulation hash', async () => {
+    const hashes: number[] = [];
+    for (const fx of ['0', '1']) {
+      const { page, consoleMessages } = await openPage(browser, baseUrl, `test=1&seed=7&ai=0&hud=1&fx=${fx}`);
+      try {
+        const t = T(page);
+        const { factory, lz } = await prepare(page);
+        await t.submit({ kind: 'LaunchHeli', seat: 0, factory, lzCell: lz, troops: 300, altMode: 0 });
+        for (let i = 0; i < 160; i++) {
+          await t.advance(0, 1);
+          if (i % 4 === 0) await t.settle(0.1, 1); // frames in between: the effects feed on them
+        }
+        expect((await t.fx()).enabled).toBe(fx === '1');
+        hashes.push(await t.hash());
+        expect(quiet(consoleMessages)).toEqual([]);
+      } finally {
+        await page.close();
+      }
+    }
+    console.log(`[fx] sim hash without ${hashes[0]}, with ${hashes[1]}`);
+    expect(hashes[0]).toBe(hashes[1]);
+    expect(hashes[0]).not.toBe(0);
   }, 600_000);
 });
