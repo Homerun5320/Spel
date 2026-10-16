@@ -148,11 +148,23 @@ describe('the SAM site behind the ridge', () => {
         hover(fx, 92, 48, 1); // stand it up again: the next salvo is another independent trial
       }
     }
-    expect(hits / 10000).toBeGreaterThan((SAM_HIT_PCT - 3) / 100);
-    expect(hits / 10000).toBeLessThan((SAM_HIT_PCT + 3) / 100);
+    expect(SAM_HIT_PCT).toBe(55);
+    expect(hits / 10000).toBeGreaterThan(0.52); // the literals of the plan: 55 % per salva, +-3 points
+    expect(hits / 10000).toBeLessThan(0.58);
     const causes = s.outbox.drain().filter((e) => e.kind === OUTBOX_HELI_DOWNED).map((e) => e.b);
     expect(causes.length).toBe(hits);
     expect(new Set(causes)).toEqual(new Set([HELI_DOWN_SAM]));
+  });
+
+  it('fire control is the SAM\'s OWN mask: a site behind the ridge stays silent even when another site of the same owner sees the helicopter', () => {
+    const fx = syntheticFixture('ridge-sam', 7);
+    const s = fx.state;
+    const hidden = fx.sams[0] as number; // behind the ridge: cannot see a Low helicopter over the zone
+    const open = finished(s, STRUCT_SAM, 75, 48); // in the open on the helicopter's side: sees it
+    hover(fx, 92, 48, 0);
+    airDefensePhase(s);
+    expect(s.structures.salvoTick[open]).not.toBe(0); // control: the layer detects it and the open site fires
+    expect(s.structures.salvoTick[hidden]).toBe(0); // the composite coverage sees it, but this site's own mask does not
   });
 
   it('the salvo period: one salvo per SAM_SALVO_PERIOD_TICKS, the first as soon as the target is valid', () => {
@@ -266,7 +278,7 @@ describe('treaties silence the guns, and a change is felt on the next tick', () 
       for (const sam of fx.sams) expect(s.structures.salvoTick[sam]).toBe(0);
       s.diplo.setRelation(1, 2, RELATION_WAR, 0); // the treaty is broken
       airDefensePhase(s);
-      expect(s.helis.hp[id] < HELI_HP_TENTHS || s.helis.state[id] === HELI_DOWNED).toBe(true); // the Post bit in that very tick
+      expect((s.helis.hp[id] as number) < HELI_HP_TENTHS || s.helis.state[id] === HELI_DOWNED).toBe(true); // the Post bit in that very tick
       expect(fx.sams.some((sam) => (s.structures.salvoTick[sam] as number) !== 0)).toBe(true);
     }
   });

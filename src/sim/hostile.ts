@@ -3,6 +3,7 @@
 // exposure colour and the air-defence rules of the sim (src/sim/airDefense.ts). A view without a `diplomacy` window (a test view, a fixture) treats every other
 // party as hostile, which is exactly the war-by-default of a fresh match, so the navigation fingerprints do not move.
 import { RELATION_WAR, type DiplomacyView } from './diplomacyTable';
+import { ownerToSeat } from './state';
 
 /** What the predicate reads: the optional diplomacy window of a SimView. */
 export interface HostileSource {
@@ -20,5 +21,5 @@ export function hostileSeats(src: HostileSource, a: number, b: number): boolean 
 export function hostileOwners(src: HostileSource, ownerA: number, ownerB: number): boolean {
   if (ownerA === ownerB) return false;
   if (ownerA === 0 || ownerB === 0) return true;
-  return hostileSeats(src, ownerA - 1, ownerB - 1);
+  return hostileSeats(src, ownerToSeat(ownerA), ownerToSeat(ownerB));
 }

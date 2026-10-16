@@ -105,6 +105,21 @@ ACCEPTANS
 - [x] `PLAYER_FACING` finds files by itself
 - [x] `npm run verify:fast` green; the touched e2e green (`beachhead`, `deploy`, `helis`, `cityOpenFit`, `deployAlloc.serial`)
 
+### M12b: air defence against helicopters and raid statistics (headless sim and the scenario CLI; ENGINE 20, FORMAT 14; one slice in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+
+GÖR och ACCEPTANS:
+
+- [x] `hostile(a, b)` (`src/sim/hostile.ts`): used by `planRoute`, `scoreLz` (`ENEMY_CITY_NEAR`), the route preview colour and the guns; one test per use that fails when it is replaced by "other seat" (`tests/sim/airDefense.test.ts`).
+- [x] Defense Post: 15 dps within 12 cells, stacks, both modes; 7 s +-1 for one Post, half for two (test).
+- [x] SAM: layer detection AND own mask AND range; salvo every 90 ticks, the first at once; 55 % from the splitmix32 mixer on (seed, tick, SAM id); Low never engaged behind the ridge, High 55 % +-3 over 10 000 rolls; out of range / destroyed / unfinished never fire; reverse visiting order gives equal hashes.
+- [x] A shot-down helicopter: `HELI_DOWNED` with cause SAM / Post, load lost, no territory, troops after = before minus load.
+- [x] Spatial hash (typed arrays) for Posts and SAM sites; `tests/airDefense.perf.test.ts`: 12 helicopters + 40 structures, median over 200 ticks after 50 warm-ups well under `budgetMs(0.5)`.
+- [x] `heli-raid --fixture <alps|plains-sam|ridge-sam> --seed N` in the scenario CLI (`tools/sim/heliRaid.ts`): deterministic, a smoke test per fixture.
+- [x] Scripted raids, 50 trials each, Low: alps 100 %, plains with two SAM sites 2 %, ridge 100 % (numbers in `docs/BALANCE.md` and the M12b block of `docs/DECISIONS.md`; no constant had to be tuned).
+- [x] ENGINE_VERSION 20 once, FORMAT_VERSION 14 (the salvo clock `salvoTick` per structure row); sim-hashes.json and match-hashes.json recomputed once.
+- [ ] Toast texts that say WHY (SAM / Post): not done, the page does not see the cause (BACKLOG "M12b").
+- [x] `npm run verify:fast` green (see the M12b block of `docs/DECISIONS.md`).
+
 ## Next
 
 - Next slices: M12b (anti-air against helicopters and raid statistics; must follow "Audit 3 downstream decisions" in `docs/DECISIONS.md`), M13a-2 (effects, the H camera), M20a-2 (nation labels and front arrows), M18b (federations), M18d (technology), M18e (more building types and a city map), M13c (travel over land, sea and air), M14 and onwards.

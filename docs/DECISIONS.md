@@ -1619,3 +1619,67 @@ Audit 3 findings 2.2, 2.3 and 2.4. All four were checked against HEAD c672abe an
 ## Fix-4 integration (orchestrator)
 
 The four audit-3 tracks were merged in the order 4A1, 4A2, 4B, then 4C; 4C rewrote `docs/ARCHITECTURE.md` into an index, so its merge took the 4C file and the rows that 4A1, 4A2 and 4B had added to the old file were re-applied by hand into `docs/arch/sim.md` (full rows) and the index (short rows). `ENGINE_VERSION` is 19 (4A1 only; 4A2 and 4B bumped nothing), the golden hash files are 4A1's. `tests/portable.test.ts`: total gzip cap 352 000 -> 370 000 B (measured 352 096 after M18c-2's diplomacy panel and 4B's beachhead view; the cap is measured plus about 5 %, as before). The page JavaScript has grown 12 % since Fix-3C; the real reduction candidates (the English string table, the sim chunk until Play is pressed, three.js) are in BACKLOG from audit 3.
+
+## M12b: air defence against helicopters and raid statistics (ENGINE 20, FORMAT 14)
+
+Headless slice; decision (b) of "Audit 3 downstream decisions" is done here, (a) and (c) are left to M17 (BACKLOG "M12b").
+
+**Rules.**
+1. `hostile(a, b)` (`src/sim/hostile.ts`): false for the same party, a truce and an alliance, true otherwise. It reads the optional `diplomacy` window of the view (`NavView.diplomacy?`; the state's own `StateNavView` carries a `DiplomacyReader` on the live table). A view without it (a fixture, an old test view) treats everybody as hostile, which is the war default, so the nav fingerprints and every LZ / route test are unchanged. Used by `planRoute` (the sensors it avoids and counts), `scoreLz` (`ENEMY_CITY_NEAR`), `previewLaunch` (the red waypoints; the ONE line touched in `src/app/launchPreview.ts`) and the guns. The guns read the live table every tick, so a treaty signed or broken in mid-flight acts from the next tick; a route that was planned before is not re-planned (a flight keeps its line).
+2. Defense Post: `POST_AA_DPS` 15 = 15 tenths of a hit point per tick on the helicopter's 1000, within `POST_AA_RADIUS_CELLS` (= `POST_RADIUS_CELLS` 12, no new number), both flight modes, stacking: one Post fells a full helicopter in 67 ticks (6.7 s), two in 34. The pad repairs hit points (`setDown` sets `hp` to `HELI_HP_TENTHS`; before M12b nothing could hurt one).
+3. SAM site: a hostile, airborne (LIFT to RETURN, not PAD / BUILDING / DOWNED) helicopter is a valid target when the owner's layer detects the cell (`Los.detected`, Low only above the mask, High in range) AND the site's own mask lets it fire (`Los.fireControl`, the range is `samRadiusCells(level, mountain)`, the existing level curve; the hit chance is flat). A site fires when `tick >= salvoTick` (the first as soon as a target is valid) at the lowest-id valid target, sets `salvoTick = tick + SAM_SALVO_PERIOD_TICKS` (90) and rolls `samRoll(seed, tick, samId)` < `SAM_HIT_PCT` (55): three nested `splitmix32Mix`, no PRNG state. The nominal Low / High altitude of the LOS maths (ground + 300 / 3000 m) is used, as the route planner does, not the exact flown altitude (a flown Low helicopter is at or above the nominal one over ridges, so the sites are slightly pessimistic for the attacker only over a crest).
+4. Order independence: every decision of a tick comes from the state at the start of the phase (helicopters in ascending id; each site picks the lowest valid id); only then salvos are spent, rolls made and kills and damage applied (a SAM kill wins over Post wear in the same tick). `airDefensePhase(state, reverse)` visits the structures backwards for the test; the hashes are equal tick by tick over 600 ticks and several kills.
+5. Spatial hash: `AaIndex` (counting-sort layout in typed arrays, 32-cell buckets, x wraps), rebuilt each tick that a helicopter is airborne (a scan of the structure table up to its high-water mark), kept in `state.env.aa` (derived, never hashed). Cost: 42 us median (12 helicopters, 40 structures, the budget is `budgetMs(0.5)` = 1092 us at the sandbox factor 2.18).
+6. State: `StructureTable.salvoTick` (u32 per row, reset on add / remove, kept by a conquest; serialised as the 9th word of a structure record, so `BYTES_PER_STRUCTURE` 32 -> 36, FORMAT 13 -> 14; hashed; `deserialize` refuses a clock on anything but a SAM or more than one period ahead of the saved tick: `structure-range`). ENGINE 19 -> 20 once; `e2e/goldens/sim-hashes.json` and `e2e/goldens/match-hashes.json` recomputed once with `UPDATE_GOLDENS=1` (the Node run and the worker run read the same files; `tests/sim/worker.test.ts` is unchanged).
+7. `HELI_DOWNED` causes in the event's `b`: `HELI_DOWN_FUEL` 1 (as before), `HELI_DOWN_SAM` 2, `HELI_DOWN_POST` 3. The load is lost (`downHeli` sets it to 0), nothing is painted, no beachhead.
+
+**Deviations from the prompt.** (1) One line in `src/app/launchPreview.ts` (decision (b) names the preview colour; the prompt forbids `src/app`): the order of the two wins, the line is minimal. (2) The toast texts were NOT added: the page sees the helicopter table, not the event, so it cannot tell fuel from SAM from Post; adding unused keys would fail `tests/i18n.test.ts`. The existing toast "En helikopter sköts ner." stays (BACKLOG "M12b"). (3) Test helpers changed because the change provably causes the difference: `tests/helpers/saveLayout.ts` (`BYTES_PER_STRUCTURE` 36) and `tests/helpers/heliFlights.ts` (the three enemy SAM sites of the M12a-2 flight-physics property now hold fire, `salvoTick = 0xffffffff`, because they were there to shape routes and the property is about flight physics, not survival). `tests/ai/boundary.test.ts` gets the ten new exports of `src/sim/public.ts` (an appended block); the version pins of `tests/sim/districtsState.test.ts` and `tests/sim/fixSim.test.ts` move to ENGINE 20 / FORMAT 14. (4) The CLI is a sub-command of `sim:scenario` (`heli-raid ...`), not a new npm script.
+
+**Raid statistics** (`raidStats`, 50 seeded trials, flight mode Low unless stated; `tests/sim/airDefense.test.ts` asserts the three targets; no constant was tuned, so zero of the two allowed rounds were used):
+
+| Fixture | Low | High | SAM kills (Low) |
+|---|---|---|---|
+| `alps` (real map, no air defence; seeds 1, 2, 3 all give 50/50) | 50/50 = 100 % (target >= 80 %) | not run | 0 |
+| `plains-sam` (two level-1 SAM sites that cover the zone and all of the last 12 cells) | 1/50 = 2 % (target <= 30 %) | 8/50 = 16 % | 49 |
+| `ridge-sam` (ridge between zone and site) | 50/50 = 100 % (98 points above the plains, target >= 30) | 20/50 = 40 % | 0 |
+
+A raid succeeds when the load comes down: a landing that took at least one cell, or a beachhead formed. A raid that is not shot down flies on to the pad in the replay but the statistics stop at the landing. `ridge-sam` Low is never covered because the 2000 m ridge hides the whole approach from the site, High is seen over it (range only) and dies 60 % of the time (more than one salvo during the hover).
+
+**Mutants** (each applied alone to the code, `tests/sim/airDefense.test.ts` run, every one failed except the last, which is equivalent):
+
+| Mutant | Failing tests |
+|---|---|
+| `SAM_HIT_PCT` 55 -> 70 | the 10 000-roll hit-rate test |
+| no `fireControl` (the site's own mask) | "fire control is the SAM's OWN mask" |
+| every helicopter counts as High | Low behind the ridge, and the 50-trial statistics |
+| guns shoot allies (`atWar` check removed) | "treaties silence the guns" |
+| route: `o === seat + 1` instead of `hostile()` | route test and preview test |
+| `scoreLz`: `owner === mine` | the ENEMY_CITY_NEAR test |
+| preview: `s === seat` | the preview test |
+| Posts do not stack | "fells a helicopter in 7 s ... two Posts" |
+| `POST_AA_DPS` 15 -> 8 | the same |
+| Posts do nothing | three tests (treaties, 7 s, radius) |
+| salvo clock set to `tick` (fires every tick) | the salvo-period test and the pinned replay hash |
+| roll not seeded by the tick | the hit-rate test and the `samRoll` spread test |
+| shot-down helicopter keeps its load | the pinned replay hash (troops after the shoot-down) |
+| destroyed site: index keeps removed ids | survives: equivalent, the index test `type` already excludes a removed row (`type` is 0) |
+
+(The first version of the hit-rate test imported `SAM_HIT_PCT` for its window, so the 70 mutant passed; the test now holds the literals 0.52 and 0.58 of the plan, found by this table.)
+
+**Replay extract** (`npm run sim:scenario -- heli-raid --fixture alps --seed 2`, over the Alps; positions in sim cells, altitudes in game metres, 8 x exaggerated):
+```
+tick 120 cruise pos=(544.0,145.0) alt=300m hp=100 exp=--
+tick 150 cruise pos=(539.5,149.5) alt=4764m hp=100 exp=--
+tick 160 cruise pos=(538.5,151.2) alt=7044m hp=100 exp=--      <- the crest
+tick 200 cruise pos=(538.5,159.6) alt=2324m hp=100 exp=--
+tick 340 hover pos=(538.5,188.5) alt=7260m hp=100 exp=--
+tick 377 return pos=(538.5,188.5) alt=7260m hp=100 exp=-- | landed cells=9; beachhead formed at 193050; turns for home
+```
+and a shoot-down (`--fixture plains-sam --seed 3`):
+```
+tick 470 cruise pos=(135.4,48.5) alt=340m hp=100 exp=--
+tick 473 downed pos=(136.1,48.5) alt=340m hp=100 exp=D- | DOWNED cause=SAM
+result: downed cells=0 cause=SAM | state hash dc7c1530
+```
+
+**Result.** `npm run verify:fast` green (typecheck, lint, 258 unit files, 2979 tests, 2 min 06 s); `tests/airDefense.perf.test.ts` green alone; no Chromium was started. The full `npm run verify` (e2e, e2e-serial) is the orchestrator's.
