@@ -335,6 +335,7 @@ const sv = {
   'spectator.badge': 'Åskådare',
   'toast.eliminated': '{names} är utslagen',
   'toast.capitalLost': '{names} förlorade huvudstaden',
+  'toast.structuresSimplified': 'Många byggnader: de längst bort visas som enkla ikoner',
 } as const;
 
 export type TextKey = keyof typeof sv;
@@ -660,6 +661,7 @@ const en: Record<TextKey, string> = {
   'spectator.badge': 'Spectator',
   'toast.eliminated': '{names} was eliminated',
   'toast.capitalLost': '{names} lost the capital',
+  'toast.structuresSimplified': 'Many buildings: the farthest ones are shown as simple icons',
 };
 
 /** The two tables, for the parity test and for tools. Treat as read-only. */

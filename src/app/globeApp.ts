@@ -614,10 +614,15 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     panels.openPause();
   };
   /** A modal (pause menu, elimination panel, result screen) is open or the match is over: the match keys and the reserved keys but Escape are dead (Fix-3B). */
+  let structToastShown = false;
   const keysBlockedByModal = (): boolean => panels !== null && (panels.modalOpen || flowEnded);
   /** Once per frame: the toasts for other nations' elimination and capital loss, the elimination panel, the result screen. Allocates only when something happens. */
   const updateMatchFlow = (): void => {
     const s = session;
+    if (s !== null && !structToastShown && globe.structures.dropped > 0) {
+      structToastShown = true; // Fix-3B: said once per match when the structure layer first runs out of allowance (the rest keep their icon)
+      showToast('toast.structuresSimplified', {}, 'info');
+    }
     if (s === null || panels === null || flowEnded) return;
     const m = flowMatch();
     const ev = watcher.scan(m, s.view.players, s.localSeat);
@@ -643,6 +648,8 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     flowLabels = s.labels ?? createSeatLabels([], s.view.players, s.localSeat);
     flowEnded = false;
     elimHandled = false;
+    structToastShown = false;
+    globe.structures.setLocalOwner(s.localOwner);
     panels = createMatchPanels(
       wrapper,
       {

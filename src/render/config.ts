@@ -435,6 +435,11 @@ export const STRUCT_POP_SECONDS = 0.45;
 export const STRUCT_BUILD_MIN_HEIGHT = 0.3;
 /** The triangle allowance of the structure layer per tier; the instance cap of a type is this divided by the triangles of its model. */
 export const STRUCT_TRIANGLE_BUDGET: Record<'test' | 'low' | 'medium' | 'high', number> = { test: 15000, low: 30000, medium: 60000, high: 120000 };
+/** Fix-3B: over its allowance the layer ranks the local player's structures first and then the nearest the camera, but only when the camera is lower than this (Earth radii of altitude, about 3200 km: higher up a model is under the icon threshold anyway and the cut is by id). */
+export const STRUCT_RANK_NEAR_ER = 0.5;
+/** Fix-3B: a ranked layer is re-ranked when the camera has moved more than this share of its altitude (never below STRUCT_RANK_MIN_ALT_ER of altitude) since the last ranking: not every frame. */
+export const STRUCT_RERANK_MOVE_FRAC = 0.25;
+export const STRUCT_RANK_MIN_ALT_ER = 0.005;
 /** M10-3: the SAM site's radar dish turns this many radians per fx second (a slow sweep; the angle is computed in the vertex shader). */
 export const STRUCT_DISH_RAD_PER_SEC = 0.9;
 /** Ghost colours (placement preview), sRGB 0 to 1, and how far they pull the model's own colours. */
