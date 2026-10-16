@@ -3,7 +3,7 @@
 //  - `createSelectionMode`: the input mode that is on the stack while a structure is selected. Escape pops it (the stack does that), a click
 //    on another own structure moves the selection, a click anywhere else deselects (and is used up: it does not also start an attack).
 import type { StructureView } from '../sim/public';
-import type { InputMode } from './input';
+import type { ContextCommand, InputMode } from './input';
 
 /**
  * The structure a click on `cell` selects, or -1. The structure standing on the cell wins; otherwise the nearest structure OF `ownerId` within
@@ -49,6 +49,11 @@ export interface SelectionTarget {
   exit(): void;
   /** Districts-2a: a click on the structure that is already selected (two of them in a row are a double click: the page opens the city view). */
   again?(id: number): void;
+  /**
+   * M20a-lite: a right click (or a long press) while the structure is selected. The mode passes {selection, command place} on to the page, which asks the
+   * command resolver (`resolveCommand('context', ...)`); without this hook the mode does not take the context command.
+   */
+  context?(selected: number, command: ContextCommand): void;
 }
 
 export interface SelectionMode extends InputMode {
@@ -63,6 +68,11 @@ export function createSelectionMode(structure: number, target: SelectionTarget):
     selected: () => current,
     onPop(): void {
       target.ended();
+    },
+    context(command: ContextCommand): boolean {
+      if (target.context === undefined) return false;
+      target.context(current, command);
+      return true;
     },
     click(x: number, y: number): boolean {
       const cell = target.pickCell(x, y);

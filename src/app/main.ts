@@ -4,6 +4,7 @@
 import { createSpike, TEST_SUN_LAT_DEG, TEST_SUN_LON_DEG, type Spike, type SpikeInfo } from '../render/spike';
 import { mountDevPanel } from './devpanel';
 import { bootGlobe, type GlobeTestHooks } from './globeApp';
+import { attachHotkeys, registerPageHotkeys } from './hotkeys';
 import { registerAppModes } from './modes';
 import { parseAppState, parseRaw } from './params';
 import { siteUrl } from './paths';
@@ -197,6 +198,8 @@ function boot(): void {
   if (!root) throw new Error('missing #root');
   registerAppModes();
   const panel = mountDevPanel({ parent: root, getRaw: () => parseRaw(window.location.search, window.location.hash) });
+  registerPageHotkeys(); // F2 (all scenes); the match scene adds its own entries (M20a-lite)
+  attachHotkeys(window);
 
   let stop: Stop | null = null;
   const restart = (): void => {

@@ -100,6 +100,20 @@ Previous merge SHA (origin/main; nothing of this branch is merged, pull request 
 - [x] 7. Tests: every reason code, price and time tick-exact, fleet cap, free list and reused id, round trip and snapshot equals straight run with helicopters, Los/Nav access, conquest, goldens in Node and worker, perf (12 helicopters, 300 structures, 12 players)
 - [x] 8. Docs (DECISIONS M12a-1 with its mutant table and the hooks for part 2, ARCHITECTURE, BALANCE, BACKLOG) and `npm run verify:fast` green (typecheck, lint, 226 unit files, 2484 tests + 2 expected fail; 2 min 32 s). Perf (alone): heli.perf, sim.perf, structures.perf, ai.perf green.
 - Not run here: the full `npm run verify`, Chromium, the pack, a pull request (the orchestrator).
+### M20a-lite: hotkey registry, help overlay `?`, command resolver, top bar with a win meter (UI and app; src/sim untouched; one slice in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+GÖR
+- [x] 1. `src/app/hotkeys.ts`: `registerHotkey`-style registry (`HotkeyRegistry.register`), every game key moved in (F focus, 1 to 6, Escape via the input stack, space / `,` / `.` / `[` / `]` / `-` / `+`, F3, F2, `?`); the Fix-3B modal block and `RESERVED_KEYS` kept
+- [x] 2. Grep test: no `keydown` listener outside `src/app/input.ts`, `src/app/hotkeys.ts` and the documented exceptions (`tests/app/hotkeyGrep.test.ts`, mutant included)
+- [x] 3. Help overlay `?` (`src/ui/helpOverlay.ts`) generated from the registry, sv and en, Escape through the input stack
+- [x] 4. `src/app/commandResolver.ts`: rule table (build on own ground, selected structure against another cell, attack), `registerCommandRule` for M13b / M15b; the selection mode gets `context(cmd)`
+- [x] 5. Top bar: gold with income, troops with cap bar and 80 % warning, land %, timer, win meter and hold count-down (`src/ui/winMeter.ts`), 10 Hz write gate (`src/ui/hudGate.ts`)
+ACCEPTANS
+- [x] The registry owns every game key; the grep test goes red for a new listener (`tests/app/hotkeys.test.ts`, `tests/app/hotkeyGrep.test.ts`)
+- [x] `?` overlay == registry both ways (`e2e/m20aLite.test.ts`); the modal tests of Fix-3Bs `e2e/modalKeys.test.ts` stay green
+- [x] Resolver table test for every rule and the invalid targets, `context(cmd)` of the selection mode (`tests/app/commandResolver.test.ts`); e2e for the right click (placement mode leaves without an intent, selected structure goes to the resolver)
+- [x] Top bar: values equal the sim, 0 DOM mutations at rest, no overlap at 960x540, 1366x640 and 540x960 with the longest strings, win meter follows the MatchView (`tests/ui/topBar.test.ts`, `e2e/m20aLite.test.ts`)
+- [x] Screenshots of `?` and the top bar looked at in both languages
+- [x] `npm run verify:fast` green; the touched e2e files green. Not run here: the full `npm run verify`, the Artifact pack, the pull request (the orchestrator).
 
 ## Next
 

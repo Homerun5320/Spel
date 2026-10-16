@@ -434,3 +434,13 @@ Not done in the Fix-UI slice (the sim, host and AI findings belong to Fix-Sim):
 - The AI does not order or fly helicopters (M17).
 - No UI for ordering a helicopter yet (button, hotkey, fleet counter): M13. The refusal texts exist already (`toast.heli.*`, `toast.lz.*`).
 - Helicopter and beachhead tables in a saved game: part 3 may want a "cluster" table of its own; the beachhead rows keep seed, owner, land tick and status, the cluster cells are found by search from the seed.
+
+## M20a-2
+- Pooled nation labels (name and troops, at most 32, fade by zoom, no overlap, none outside the screen) and front arrows for active attacks (at most 16): need the host snapshot to carry the active attacks (id, ownerId, target owner, front corners) as typed-array copies; `src/sim` stays untouched (M20a part 2).
+- The attack slider is the existing commitment slider as it is; the leaderboard shows the top 5 and you.
+- Wire the primary trigger through the resolver too (`resolveCommand('primary', ...)`): today the placement mode and the selection mode answer their own left clicks (D157) and the base click is `onGlobeClick`; the table already models them and the unit tests pin the rows. Then `onGlobeClick`, `trySelectStructure` and the selection mode's `click` can shrink to one call.
+- `registerCommandRule` for M13b (Factory selected + right click on land => LaunchHeli) and M15b (Silo selected => target mode): add the two command kinds to `Command` and a `case` each in `runContext` (`src/app/globeApp.ts`).
+- The help overlay does not rebuild when the language changes while it is open (it does on the next open); the E and H entries are hidden until M13.
+- Touch: the `?` overlay has no button, only the key (M20b adds the radial menu and a touch route).
+- The win meter shows the land condition only; a score or last-standing match shows no meter (the timer stays). A "time left" row for the score condition (`MatchView.timeLeftTicks`) is a one-liner when wanted.
+- Layout: the selection panel could sit beside the build bar now that the status panel left the bottom; the banner, the paused badge and the spectator bar are tied to the `TOPBAR` constants, not measured at run time.
