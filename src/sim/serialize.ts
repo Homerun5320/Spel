@@ -17,7 +17,7 @@
 //               then per live slot by ascending id: id owner state factory readyTick stateTick x y alt hp load fuel mode target routeLen routeIdx (u32 each, x y alt signed),
 //               each followed by routeLen x cell u32; beachheads: count u32, then per live slot by ascending index: index owner seed landTick status (u32 each)
 //      structures (M09 part A, always present): highWater u32, recycledCount u32, recycled u32 x recycledCount, deleteReady u32 x (seats+1), embargo u8 x (seats+1)^2 (M09 part B),
-//               liveCount u32, then per live slot by ascending id: id type owner cell level buildTick readyTick upgradeReadyTick (u32 each),
+//               liveCount u32, then per live slot by ascending id: id type owner cell level buildTick readyTick upgradeReadyTick salvoTick (u32 each),
 //               then (Districts-1) districtCount u32 and per district by ascending (id, slot): id slot kind level readyTick upgradeReadyTick (u32 each)
 //      match block (M18-1, always present): winFlags timeLimitTicks landSharePct holdTicks ended winner reason endTick holdOwner holdCount (u32 each), then six u32 x (seats+1)
 //               arrays: eliminated capitalLost peakLand built conquered districts
@@ -56,12 +56,13 @@ import {
   PROGRESS_DEBT_MAX,
   PROPOSAL_CAPACITY,
   PROPOSAL_TTL_TICKS,
+  SAM_SALVO_PERIOD_TICKS,
   STRUCT_CAPACITY,
   STRUCT_LEVEL_HARD_CAP,
   TREATY_BREAK_COOLDOWN_TICKS,
   TRUCE_TICKS,
 } from './rules';
-import { STRUCT_CITY, STRUCT_FACTORY, STRUCT_TYPE_SLOTS, maxLevelOf } from './structureRules';
+import { STRUCT_CITY, STRUCT_FACTORY, STRUCT_SAM, STRUCT_TYPE_SLOTS, maxLevelOf } from './structureRules';
 import { districtSlotsOf, isDistrictKind } from './districtRules';
 import { StructureTable } from './structures';
 import {
@@ -79,8 +80,8 @@ import {
   type MatchHeader,
 } from './state';
 
-/** Bumped when the byte layout above changes. 2: owner u16 (D71). 3: players, rowCos and the per-owner economy arrays (M04). 4: attacks and the enclave queue (M04 conquest). 5: the exposure array (M04 fix pass). 6: the structure table (M09 part A). 7: the embargo flags (M09 part B). 8: the district table (Districts-1). 9: the match block (M18-1). 10: Sim-Growth (City levels up to 10, five district slots per row). 11: Sim-Levels2 (u16 levels up to 999 in the structure and district tables). 12: M12a-1 (the air block: the helicopter and beachhead tables). 13: M18c-1 (the diplomacy block after the match block; the M12a-3 landing track may raise the format on its own branch, the orchestrator sets the final value when the tracks are merged). */
-export const FORMAT_VERSION = 13;
+/** Bumped when the byte layout above changes. 2: owner u16 (D71). 3: players, rowCos and the per-owner economy arrays (M04). 4: attacks and the enclave queue (M04 conquest). 5: the exposure array (M04 fix pass). 6: the structure table (M09 part A). 7: the embargo flags (M09 part B). 8: the district table (Districts-1). 9: the match block (M18-1). 10: Sim-Growth (City levels up to 10, five district slots per row). 11: Sim-Levels2 (u16 levels up to 999 in the structure and district tables). 12: M12a-1 (the air block: the helicopter and beachhead tables). 13: M18c-1 (the diplomacy block after the match block; the M12a-3 landing track may raise the format on its own branch, the orchestrator sets the final value when the tracks are merged). 14: M12b (the salvo clock `salvoTick` of every structure row). */
+export const FORMAT_VERSION = 14;
 /** 'SPEL' as a little-endian u32. */
 export const MAGIC = 0x4c455053;
 export const HEADER_BYTES = 64;
@@ -97,8 +98,8 @@ const EMPTY_TABLES_BYTES = 8 + ENCLAVE_FLIP_TICKS * 4;
 const EMPTY_STRUCTURE_BYTES = 16;
 /** One district: id, slot, kind, level, readyTick, upgradeReadyTick. */
 const BYTES_PER_DISTRICT = 24;
-/** One live structure: id, type, owner, cell, level, buildTick, readyTick, upgradeReadyTick. */
-const BYTES_PER_STRUCTURE = 32;
+/** One live structure: id, type, owner, cell, level, buildTick, readyTick, upgradeReadyTick, salvoTick (M12b). */
+const BYTES_PER_STRUCTURE = 36;
 /** One attack record without its frontier: nine u32. */
 const BYTES_PER_ATTACK = 36;
 /** One frontier bag: depth and count, then its cells (4 bytes each). */
@@ -429,6 +430,7 @@ export function serialize(state: GameState): Uint8Array {
     v.setUint32(p + 20, st.buildTick[id] as number, true);
     v.setUint32(p + 24, st.readyTick[id] as number, true);
     v.setUint32(p + 28, st.upgradeReadyTick[id] as number, true);
+    v.setUint32(p + 32, st.salvoTick[id] as number, true);
     p += BYTES_PER_STRUCTURE;
   }
   v.setUint32(p, st.districtCount, true);
@@ -951,10 +953,13 @@ export function deserialize(bytes: Uint8Array, options?: DeserializeOptions): De
     const buildTick = v.getUint32(p + 20, true);
     const readyTick = v.getUint32(p + 24, true);
     const upgradeReadyTick = v.getUint32(p + 28, true);
+    const salvoTick = v.getUint32(p + 32, true);
     p += BYTES_PER_STRUCTURE;
     if (id <= lastStruct || id >= structures.highWater || type < 1 || type >= STRUCT_TYPE_SLOTS || ownerId < 1 || ownerId > seats || cell >= n) return fail('structure-range');
     if (level < 1 || level > maxLevelOf(type) || readyTick !== buildTick + (BUILD_TICKS[type] as number) || structures.byCell[cell] !== 0) return fail('structure-range');
     if (upgradeReadyTick !== 0 && level >= maxLevelOf(type)) return fail('structure-range');
+    // M12b: only a SAM site has a salvo clock, and it never runs more than one period ahead of the saved tick.
+    if (salvoTick !== 0 && (type !== STRUCT_SAM || salvoTick > v.getUint32(36, true) + SAM_SALVO_PERIOD_TICKS)) return fail('structure-range');
     lastStruct = id;
     structures.type[id] = type;
     structures.owner[id] = ownerId;
@@ -963,6 +968,7 @@ export function deserialize(bytes: Uint8Array, options?: DeserializeOptions): De
     structures.buildTick[id] = buildTick;
     structures.readyTick[id] = readyTick;
     structures.upgradeReadyTick[id] = upgradeReadyTick;
+    structures.salvoTick[id] = salvoTick;
     structures.byCell[cell] = id + 1;
   }
   const districtCount = v.getUint32(p, true);

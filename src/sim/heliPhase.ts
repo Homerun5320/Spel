@@ -1,5 +1,6 @@
 // The helicopter mutators (M12a-1): ProduceHeli, the production phase of `step`, and the scrapping of the helicopters of a lost Factory.
 // Part 2 (M12a-2): LaunchHeli / RecallHeli and the flight are in src/sim/heliFlight.ts and run from this phase; M12a-3 adds the landing and the beachhead (src/sim/heliLanding.ts).
+import { airDefensePhase } from './airDefense';
 import { flyHelis } from './heliFlight';
 import { beachheadPhase } from './heliLanding';
 import { checkProduceHeli, HELI_PRICE_MILLI } from './heliRules';
@@ -79,5 +80,6 @@ export function heliPhase(state: GameState): void {
     state.outbox.push(OUTBOX_HELI_PRODUCED, tick, id, factory);
   }
   flyHelis(state); // M12a-2: the flight of every helicopter that is in the air or down (src/sim/heliFlight.ts)
+  airDefensePhase(state); // M12b: the Posts and SAM sites shoot at what flew into their reach (src/sim/airDefense.ts)
 }
 

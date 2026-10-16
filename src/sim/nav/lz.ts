@@ -2,6 +2,7 @@
 // order and the first that applies wins. A pure query over a SimView and the nav grid; nothing here is hashed state.
 import { ALT_MODE_LOW, type AltMode } from '../los/cache';
 import { HELI_FUEL_CELLS, LZ_REASON_BASE, LZ_ENEMY_CITY_CELLS, LZ_MAX_ELEV_M, LZ_SCORE_BASE, LZ_SCORE_EXPOSED_PER_CELL, LZ_SCORE_SPREAD_PER_M, LZ_STEEP_SPREAD_M } from '../rules';
+import { hostileOwners } from '../hostile';
 import { seatToOwner } from '../state';
 import { CLASS_DEEP_SEA, CLASS_HILLS, CLASS_PEAK, CLASS_PLAINS, CLASS_SHALLOWS } from '../terrain';
 import { STRUCT_CITY } from '../structureRules';
@@ -81,7 +82,7 @@ export function scoreLz(nav: Nav, view: NavView, seat: number, cell: number, fro
   const r2 = LZ_ENEMY_CITY_CELLS * LZ_ENEMY_CITY_CELLS;
   for (let id = 0; id < s.highWater; id++) {
     const owner = s.owner[id] as number;
-    if (owner === 0 || owner === mine || s.type[id] !== STRUCT_CITY) continue;
+    if (owner === 0 || !hostileOwners(view, mine, owner) || s.type[id] !== STRUCT_CITY) continue; // only a hostile City counts (M12b)
     const c = s.cell[id] as number;
     const x = c % w;
     let dx = Math.abs(x - cx);

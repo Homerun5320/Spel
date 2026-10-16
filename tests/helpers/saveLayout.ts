@@ -4,7 +4,7 @@
 const CHECKSUM = 4;
 const MATCH_FIXED = 40;
 const MATCH_PER_SLOT = 24;
-const BYTES_PER_STRUCTURE = 32;
+const BYTES_PER_STRUCTURE = 36; // M12b: + salvoTick
 const BYTES_PER_DISTRICT = 24;
 /** The air block of a state without helicopters and beachheads. */
 const EMPTY_AIR = 16;

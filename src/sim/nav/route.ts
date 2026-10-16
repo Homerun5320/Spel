@@ -14,10 +14,11 @@ import {
   SERVICE_CEILING_M,
   TICK_HZ,
 } from '../rules';
+import { hostileOwners, type HostileSource } from '../hostile';
 import type { Nav } from './grid';
 
 /** What a view must offer: the LOS source plus the number of seats (a SimView is one). */
-export interface NavView extends LosSource {
+export interface NavView extends LosSource, HostileSource {
   readonly seats: number;
 }
 
@@ -53,7 +54,7 @@ function exposedAt(nav: Nav, view: NavView, seat: number, mode: AltMode, n: numb
   const owners = nav.owners;
   for (let i = 0; i < owners.length; i++) {
     const o = owners[i] as number;
-    if (o === seat + 1) continue;
+    if (!hostileOwners(view, seat + 1, o)) continue; // an ally's or a truce partner's sensors are neither avoided nor counted (M12b)
     if (nav.los.detected(o, cell, mode) || nav.los.inPostRadius(o, cell)) {
       hit = 1;
       break;
@@ -124,7 +125,7 @@ export function cellDistance(simWidth: number, a: number, b: number): number {
 }
 
 /**
- * Plans a helicopter route of flight mode `mode` from sim cell `from` to sim cell `to` for `seat`. The enemies are every other seat; their
+ * Plans a helicopter route of flight mode `mode` from sim cell `from` to sim cell `to` for `seat`. The enemies are every seat that is hostile to `seat` (`hostile()`, src/sim/hostile.ts); their
  * SAM coverage and Post radii make nav cells "exposed". `lambda` weighs the exposure (0 = the straightest route). NO_ROUTE when a
  * cell is closed to the mode or the two are in different components (answered by the labels, no search).
  */

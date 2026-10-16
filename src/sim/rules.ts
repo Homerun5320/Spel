@@ -589,3 +589,17 @@ export const BEACHHEAD_CHECK_TICKS = 10;
 export const BEACHHEAD_REVERT_TICKS = 450;
 /** The price of a landing cell that belongs to somebody else, in percent of the plain cell price (the Attack price of an owned cell is the same at depth 0; this is the plan's "x2"). */
 export const LANDING_ENEMY_COST_PCT = 200;
+
+// ---------------------------------------------------------------------------------------------------------------
+// M12b: air defence against helicopters (src/sim/airDefense.ts). Every constant has a row in docs/BALANCE.md. Provisional: the M12b block of docs/DECISIONS.md.
+
+/** A finished Defense Post hurts every hostile helicopter within POST_AA_RADIUS_CELLS, in either flight mode (no new number: it is the Post's own radius). */
+export const POST_AA_RADIUS_CELLS = POST_RADIUS_CELLS;
+/** Damage of ONE Defense Post to a helicopter in hit points per second (stacks between Posts): 100 HP take about 6.7 s. */
+export const POST_AA_DPS = 15;
+/** The same in tenths of a hit point per tick, what the helicopter table counts in (HELI_HP_TENTHS = 1000): 15 dps = 1.5 HP/tick = 15 tenths. */
+export const POST_AA_TENTHS_PER_TICK = (POST_AA_DPS * 10) / TICK_HZ;
+/** A SAM site fires one salvo this many ticks apart (9 s); the first salvo goes as soon as a target is valid. */
+export const SAM_SALVO_PERIOD_TICKS = 90;
+/** Chance in percent that one salvo brings a helicopter down (a hit is a kill). Drawn from the splitmix32 mixer on (match seed, tick, SAM id). */
+export const SAM_HIT_PCT = 55;

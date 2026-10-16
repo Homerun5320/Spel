@@ -266,3 +266,8 @@ export {
 // Fix-4B (append-only): the read-only beachhead table and the three numbers the page needs to explain it (landing size, the size that makes it ordinary land, the time it lasts).
 export type { BeachheadView } from './view';
 export { BEACHHEAD_ESTABLISH_CELLS, BEACHHEAD_LANDING_CELLS, BEACHHEAD_REVERT_TICKS } from './rules';
+
+// M12b (append-only block): the hostility predicate (decision (b) of "Audit 3 downstream decisions"), the air-defence numbers the page can explain, and the causes of HELI_DOWNED.
+export { hostileOwners, hostileSeats, type HostileSource } from './hostile';
+export { HELI_DOWN_FUEL, HELI_DOWN_POST, HELI_DOWN_SAM } from './heliTable';
+export { POST_AA_DPS, POST_AA_RADIUS_CELLS, SAM_HIT_PCT, SAM_SALVO_PERIOD_TICKS } from './rules';

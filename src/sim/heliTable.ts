@@ -35,6 +35,14 @@ export const HELI_RETURN = 8;
 export const HELI_DOWNED = 9;
 export const HELI_STATE_MAX = 9;
 
+// The causes of a HELI_DOWNED event (`b` of OUTBOX_HELI_DOWNED).
+/** Out of fuel (M12a-2). */
+export const HELI_DOWN_FUEL = 1;
+/** Hit by a SAM salvo (M12b). */
+export const HELI_DOWN_SAM = 2;
+/** Worn down by Defense Posts (M12b). */
+export const HELI_DOWN_POST = 3;
+
 /** One cell in the Q8 position fixed point. */
 export const HELI_POS_ONE = 256;
 /** Half a cell: the offset of a cell centre. */
