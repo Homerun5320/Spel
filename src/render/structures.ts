@@ -9,9 +9,10 @@
 // palette or the exaggeration changed.
 import { BufferAttribute, BufferGeometry, DoubleSide, DynamicDrawUsage, InstancedBufferAttribute, InstancedBufferGeometry, Mesh, ShaderMaterial, Vector3, Vector4 } from 'three';
 import { STRUCT_CITY, type StructureView } from '../sim/public';
-import { EARTH_RADIUS_KM, GHOST_ALPHA, GHOST_BAD_RGB, GHOST_MIX, GHOST_OK_RGB, HEIGHT_EXAGGERATION, STRUCT_BUILD_MIN_HEIGHT, STRUCT_CLOSE_FAR_M, STRUCT_CLOSE_MUL, STRUCT_CLOSE_RISE_LO_M, STRUCT_CLOSE_RISE_HI_M, STRUCT_DISH_RAD_PER_SEC, STRUCT_APPARENT_CAP_MUL, STRUCT_MAX_SCALE, STRUCT_POP_SECONDS, STRUCT_SCREEN_FRAC, STRUCT_TRIANGLE_BUDGET, STRUCT_RANK_NEAR_ER, STRUCT_RERANK_MOVE_FRAC, STRUCT_RANK_MIN_ALT_ER, AMBIENT_DAY, AMBIENT_NIGHT, SUN_COLOR, ICON_FADE_PX_HI, ICON_FADE_PX_LO, ICON_HALF_PX, NIGHT_LIGHT_SUN_DOT, RANGE_RING_RGB, RING_HALF_WIDTH_FRAC, RING_HALF_WIDTH_M, RING_SEGMENTS, SELECT_RING_RGB } from './config';
+import { EARTH_RADIUS_KM, GHOST_ALPHA, GHOST_BAD_RGB, GHOST_MIX, GHOST_OK_RGB, HEIGHT_EXAGGERATION, STRUCT_BUILD_MIN_HEIGHT, STRUCT_CLOSE_FAR_M, STRUCT_CLOSE_MUL, STRUCT_CLOSE_RISE_LO_M, STRUCT_CLOSE_RISE_HI_M, STRUCT_DISH_RAD_PER_SEC, STRUCT_APPARENT_CAP_MUL, STRUCT_MAX_SCALE, STRUCT_POP_SECONDS, STRUCT_SCREEN_FRAC, STRUCT_TRIANGLE_BUDGET, STRUCT_RANK_NEAR_ER, STRUCT_RERANK_MOVE_FRAC, STRUCT_RANK_MIN_ALT_ER, AMBIENT_DAY, AMBIENT_NIGHT, SUN_COLOR, ICON_FADE_PX_HI, ICON_FADE_PX_LO, ICON_HALF_PX, ICON_HALF_PX_MIN, ICON_SPACING_FRAC, NIGHT_LIGHT_SUN_DOT, RANGE_RING_RGB, RING_HALF_WIDTH_FRAC, RING_HALF_WIDTH_M, RING_SEGMENTS, SELECT_RING_RGB } from './config';
 import { selectRingLiftsM, selectRingRadiusM } from './rings';
 import { latLonToVec } from './geo';
+import { iconSpacingM } from './iconScale';
 import type { QualityTier } from './quality';
 import { DEFAULT_CITY_STYLE, TALL_EXTRA, levelArcShare, levelCode, levelScale, type CityStyle } from './cityTiers';
 import { CITY_LIGHT_COUNT, STRUCTURE_MODELS, cityLights, modelledTypes, type ModelData } from './structureModels';
@@ -326,6 +327,7 @@ export class StructureLayer {
           uFadeHi: { value: ICON_FADE_PX_HI },
           uFadeLo: { value: ICON_FADE_PX_LO },
           uHalfPx: { value: ICON_HALF_PX },
+          uIconSpacing: { value: new Vector3(iconSpacingM(this.gridHeight), ICON_SPACING_FRAC, ICON_HALF_PX_MIN) },
         },
         vertexShader: iconVertexShader,
         fragmentShader: iconFragmentShader,
