@@ -1275,3 +1275,9 @@ Problem: `step(state, turn)` reaches neither `Los` nor `Nav` (built outside the 
 | mf-watch-elim-cap | `&& e === 0` dropped in `MatchWatcher` | fix3c: eliminated nation not reported again as capital lost (the same-scan case is guarded by the `else if`, so the test uses two scans) |
 
 8. **Not done (BACKLOG "Fix-3C"):** the districts drop policy (logged), lazy loading, `STRUCT_LEVEL_SCALE` removal, PREVIEW text for the match flow (Swedish file).
+
+## Fix-3 integration (orchestrator, after merging Fix-3A1, Fix-3A2, Fix-3B and Fix-3C)
+
+The full `npm run verify` of the merge found two e2e expectations that the merged slices made stale; both were corrected, none weakened:
+1. `e2e/viewshed.test.ts`: `NODE_FINGERPRINT` 4680ed7e -> abb0fadd. Fix-3A2 made the A* heuristic admissible, which changes real routes (DECISIONS Fix-3A2 point 3); Chromium returned abb0fadd, equal to the new `PINNED_HASH` in `tests/sim/nav.test.ts`, so Node and Chromium still agree.
+2. `e2e/rts.test.ts` ("the capital bookmark and F ..."): the test pressed Escape with an empty stack, then F. Since M18-2 that Escape opens the pause menu, and since Fix-3B (audit 2, feel[0]) the match keys are dead behind it, so F correctly did nothing. The test now presses Escape a second time (closes the menu) before F; every assertion is unchanged.

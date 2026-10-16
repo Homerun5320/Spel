@@ -8,7 +8,7 @@ import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
 import { OUT_DIR, analyzeImage, compareGolden, decodePng, launchBrowser, newTestPage } from '../scripts/shot.mjs';
 import type { ViewshedHooks } from '../src/app/debugViewshed';
 
-const NODE_FINGERPRINT = '4680ed7e'; // keep in step with PINNED_HASH in tests/sim/nav.test.ts
+const NODE_FINGERPRINT = 'abb0fadd'; // keep in step with PINNED_HASH in tests/sim/nav.test.ts (Fix-3A2: was 4680ed7e before the admissible A* heuristic)
 
 describe('debug/viewshed.html', () => {
   let browser: Browser;

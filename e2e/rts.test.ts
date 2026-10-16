@@ -374,6 +374,8 @@ describe('bookmarks, F and Escape', () => {
       await page.evaluate(() => (window as any).__test.setView({ lat: 0, lon: 0, distKm: 20000, heading: 0, tilt: 0 }));
       await page.keyboard.press('Escape');
       expect(await page.evaluate(() => (window as any).__test.flightActive())).toBe(false);
+      // Since M18-2 an Escape with an empty stack opens the pause menu, and since Fix-3B the match keys are dead behind it: close it again.
+      await page.keyboard.press('Escape');
       await page.keyboard.press('f');
       expect(await page.evaluate(() => (window as any).__test.flightActive())).toBe(true);
       for (let i = 0; i < 30 && (await page.evaluate(() => (window as any).__test.flightActive())); i++) await page.evaluate(() => (window as any).__test.settle(1 / 30, 30));
