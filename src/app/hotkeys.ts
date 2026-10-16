@@ -109,12 +109,13 @@ export class HotkeyRegistry {
 /** The page's registry. */
 export const hotkeys = new HotkeyRegistry();
 
-let attached = false;
+/** The targets that already carry the listener: attaching to one again does nothing (Fix-4B: per target, not per module, so a test can attach to its own fake target). */
+const attachedTo = new WeakSet<EventTarget>();
 
-/** The ONE `keydown` listener of the game (once per page; the Escape of a Dev panel or a setup screen that already used the key is not ours). */
+/** The ONE `keydown` listener of the game (once per page target; the Escape of a Dev panel or a setup screen that already used the key is not ours). */
 export function attachHotkeys(target: EventTarget, registry: HotkeyRegistry = hotkeys): void {
-  if (attached) return;
-  attached = true;
+  if (attachedTo.has(target)) return;
+  attachedTo.add(target);
   target.addEventListener('keydown', (ev: Event) => {
     const e = ev as KeyboardEvent;
     if (e.defaultPrevented) return;
