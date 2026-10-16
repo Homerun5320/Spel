@@ -225,6 +225,24 @@ ACCEPTANS
 - [x] Three window sizes without overlap, both languages; 0 DOM mutations at rest; D in the `?` overlay
 - [x] `npm run verify:fast` green; the touched e2e green
 
+### Fix-4B: the beachhead is shown and explained, the deploy mode stops making garbage, the test holes of the app and UI layer (audit 3; render, app, UI and one small read view in the sim; one slice in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+Previous merge SHA: nothing of this branch is merged (pull request #1 is a draft); base commit c672abe (M18c-2).
+GÖR
+- [x] 1. [2.1] `BeachheadView` in `SimView` (`src/sim/view.ts`, exported by `src/sim/public.ts`, pinned in `tests/ai/boundary.test.ts`), the host snapshot, signature and mirror, the pulsing ring in the existing ring mesh (no new draw call), the count-down chip in the top bar, the two toasts, `docs/PREVIEW.md` 17ao / 17as rewritten, unit tests and `e2e/beachhead.test.ts` with a picture
+- [x] 2. [2.6] the deploy mode and the Factory panel stop allocating per frame (no pick under a resting camera, integer keys instead of strings, one reused model object, reused rows, no drawn list outside test mode), measured before and after in `e2e/deployAlloc.serial.test.ts`
+- [x] 3. [1.6] the app layer faults (previewer, resolver, hotkeys, deploy mode): checked against HEAD, the one real fault fixed test first, the rest pinned with mutants
+- [x] 4. [1.7] `tests/host/heliTransport.test.ts`: helicopter and diplomacy snapshot, signature, mirror, every pure function of `src/ui/heliInfo.ts` and `src/ui/diploReasons.ts`, both watchers
+- [x] 5. [1.8] `cityFitFlight` computed by projection in `tests/app/cityFitProject.test.ts` (three window sizes and more), the vertical centring made exact
+- [x] 6. [2.0] `PLAYER_FACING` in `tests/i18n.test.ts` discovers the files itself
+- [x] 7. [2.5] the false gzip justification of M13b corrected in `docs/DECISIONS.md` and `docs/BACKLOG.md`
+- [x] 8. Docs: DECISIONS "Fix-4B" (mutant table, allocation numbers), ARCHITECTURE row, PREVIEW 17ao / 17as, BACKLOG
+ACCEPTANS
+- [x] BeachheadView in SimView and host; ring with count-down and both toasts; the PREVIEW text is true
+- [x] Deploy mode and Factory panel do not allocate per frame (measured before / after: +137 kB a frame over a selected Factory before, none after)
+- [x] The app faults of item 3 fixed test first or shown to be right already; the helper tests of items 4 and 5 written with mutants
+- [x] `PLAYER_FACING` finds files by itself
+- [x] `npm run verify:fast` green; the touched e2e green (`beachhead`, `deploy`, `helis`, `cityOpenFit`, `deployAlloc.serial`)
+
 ## Next
 
 - Next slices: M12a (helicopters in the sim, headless) and M20a-lite (the HUD; the keydown rule of the M20a note in `docs/ARCHITECTURE.md` counts `src/ui/matchPanels.ts` and `src/app/debugViewshed.ts` too).
