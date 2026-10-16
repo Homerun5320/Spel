@@ -133,14 +133,14 @@ describe('the reason codes and the one shared check', () => {
     expect(validateIntent({ kind: 'ImposeEmbargo', seat: 0, id: 1, target: 3 }, ctx)).toBe(0);
   });
 
-  it('the diplomacy codes are 80 to 93, all different, above the landing-zone range', () => {
+  it('the diplomacy codes are 80 to 94 (94 = M18b-2: a bound federation alliance), all different, above the landing-zone range', () => {
     const codes = Object.entries(intents)
       .filter(([k, v]) => k.startsWith('REJECT_DIPLO_') && typeof v === 'number')
       .map(([, v]) => v as number);
-    expect(codes.length).toBe(14);
-    expect(new Set(codes).size).toBe(14);
+    expect(codes.length).toBe(15);
+    expect(new Set(codes).size).toBe(15);
     expect(Math.min(...codes)).toBe(80);
-    expect(Math.max(...codes)).toBe(93);
+    expect(Math.max(...codes)).toBe(94);
     const others = Object.entries(intents).filter(([k, v]) => k.startsWith('REJECT_') && !k.startsWith('REJECT_DIPLO_') && typeof v === 'number').map(([, v]) => v as number);
     for (const c of codes) expect(others).not.toContain(c);
   });

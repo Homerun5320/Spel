@@ -144,6 +144,19 @@ GÖR och ACCEPTANS:
 
 Result: see the block "M20a-2" at the end of `docs/DECISIONS.md`. Main-chunk gzip cap raised to 311 000 (`tests/portable.test.ts`). No golden changed (labels and arrows are off in a test page unless `labels=1`).
 
+### M18b-2: federations part 2 of 3, the setup option "Dela upp stormakter" and the match with sub-nations (app plus a small sim and AI part; ENGINE 21, FORMAT 15; one slice in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+
+GÖR och ACCEPTANS:
+
+- [x] The setup option "Dela upp stormakter" (checkbox `setup-federation`, sv and en, stored through getPref / setPref with the setup draft, OFF by default, with an info line); a click in a split country picks the sub-nation under the pointer.
+- [x] `createMatch`: a candidate country you play or an AI nation picks becomes seats, one per sub-nation that can have a whole fair start INSIDE its own land (the rest are skipped); names "Name (Country)"; related colours per federation; the seat cap respected by limiting the AI nations of other countries.
+- [x] Alliance from tick 0 that cannot be broken: an ALLIANCE pair with `until` 1 (`bindFederation`), `REJECT_DIPLO_FEDERATION` 94 (texts sv and en), the attack ban as for any ally; the AI never breaks or proposes to a member.
+- [x] ENGINE 21 and FORMAT 15 raised once, both golden hash files recomputed once (the option OFF gives the same match: shown with ENGINE 20 first).
+- [x] Home-land discount: sub-nations get no home land (DECISIONS M18b-2).
+- [x] Tests: `tests/app/federationMatch.test.ts`, `tests/app/federationSetup.test.ts`, `tests/ai/federation.test.ts`, `e2e/federation.test.ts`; mutants in DECISIONS.
+- [ ] `npm run verify:fast` green and the e2e file green (result in the M18b-2 block of `docs/DECISIONS.md`).
+- Not done (BACKLOG "M18b-3"): shared victory, grouping in the leaderboard and result, flags and Swedish names, labels of federations on the map.
+
 ## Next
 
 - Next slices: M12b (anti-air against helicopters and raid statistics; must follow "Audit 3 downstream decisions" in `docs/DECISIONS.md`), M13a-2 (effects, the H camera), M20a-2 (nation labels and front arrows), M18b (federations), M18d (technology), M18e (more building types and a city map), M13c (travel over land, sea and air), M14 and onwards.
