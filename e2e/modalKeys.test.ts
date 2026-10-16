@@ -81,4 +81,30 @@ describe('modal key blocking', () => {
       await page.close();
     }
   });
+
+  it('__test.give refuses a gift above DEBUG_GIVE_MAX with a visible reason and accepts the maximum', async () => {
+    const { page } = await openPage(browser, baseUrl, 'test=1&seed=7&hud=1&ai=0', { width: 960, height: 540 });
+    try {
+      const over = await page.evaluate(() => {
+        try {
+          (window as any).__test.give(0, { gold: 2_000_000 });
+          return 'accepted';
+        } catch (e) {
+          return String(e);
+        }
+      });
+      expect(over).toContain('DEBUG_GIVE_MAX');
+      const ok = await page.evaluate(() => {
+        try {
+          (window as any).__test.give(0, { gold: 1_000_000 });
+          return 'accepted';
+        } catch (e) {
+          return String(e);
+        }
+      });
+      expect(ok).toBe('accepted');
+    } finally {
+      await page.close();
+    }
+  });
 });

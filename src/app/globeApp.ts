@@ -63,7 +63,7 @@ import { winInfoOfView, winSummaryText } from './winSetup';
 import { nextFlagSeed } from './setupScreen';
 import type { MatchView } from '../sim/public';
 import { PHASE_IMMUNITY, PHASE_SPAWN } from '../sim/flow';
-import { REJECT_NOT_SPAWNED } from '../sim/intents';
+import { DEBUG_GIVE_MAX, REJECT_NOT_SPAWNED } from '../sim/intents';
 import { seatToOwner } from '../sim/state';
 import type { IntentBody } from '../sim/intents';
 import { clickMeaning, resolveClickCell } from './clickTarget';
@@ -285,7 +285,7 @@ export interface GlobeTestHooks {
   setLevelOverride(id: number, level: number | null): void;
   /** Sends a raw intent body of any seat through the host (what a UI would; used to try illegal ones). Effective T + 2 ticks later. */
   submit(body: IntentBody): void;
-  /** Test-only gift: sends a DebugGive intent (valid only when the match config has debugIntents, which test mode sets). Effective T + 2 ticks later. */
+  /** Test-only gift: sends a DebugGive intent (valid only when the match config has debugIntents, which test mode sets). Effective T + 2 ticks later. At most DEBUG_GIVE_MAX (1 000 000) of each per call: more throws (the sim would drop the intent silently). */
   give(seat: number, gift: { gold?: number; troops?: number }): void;
   /** The sim state hash (through a snapshot request). */
   hash(): Promise<number>;
@@ -1532,6 +1532,8 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
         session?.submit(body);
       },
       give(seat, gift): void {
+        // Fix-3B: the sim ignores a gift above DEBUG_GIVE_MAX silently; the hook says so out loud instead
+        if ((gift.gold ?? 0) > DEBUG_GIVE_MAX || (gift.troops ?? 0) > DEBUG_GIVE_MAX) throw new Error(`__test.give: gold and troops are at most DEBUG_GIVE_MAX = ${DEBUG_GIVE_MAX} per call (the sim would drop the intent); give twice`);
         session?.submit({ kind: 'DebugGive', seat, gold: gift.gold ?? 0, troops: gift.troops ?? 0 });
       },
       hash: () => (session === null ? Promise.resolve(0) : session.hash()),
