@@ -39,7 +39,7 @@ describe('the forbidden-address scanner itself', () => {
 });
 
 /** Size caps in bytes of gzipped JavaScript (Fix-3C): measured plus about 5 %. Raise them only with a line in docs/DECISIONS.md. */
-const JS_GZ_TOTAL_MAX = 352_000; // M13b: 329_000 before; measured 335_273 + 5 %
+const JS_GZ_TOTAL_MAX = 370_000; // Fix-4 merge: 352_000 before (M13b); measured 352_096 with the diplomacy panel, the beachhead view and the deploy/helicopter UI, + 5 %
 const JS_GZ_MAIN_MAX = 294_500; // M13b: 277_000 before; measured 280_318 + 5 % (the page now carries Los, Nav, planRoute and scoreLz for the preview; before, they lived only in the sim worker)
 
 describe('portable build (relative addresses only)', () => {
