@@ -19,6 +19,11 @@ export interface DeployTarget {
   exit(): void;
   /** The mode ended (Escape, the page, a sent launch): the page clears the marker and the route. */
   ended(): void;
+  /**
+   * Whether the camera moved since the last time this was asked (true the first time). The ground under a resting cursor only changes when the camera does, so `tick` picks
+   * only then. Optional: a target without it is picked every tick.
+   */
+  cameraMoved?(): boolean;
 }
 
 export interface DeployState {
@@ -80,6 +85,8 @@ export function createDeployMode(factory: number, target: DeployTarget): DeployM
     },
     // the marker follows the camera too (a drag, a wheel notch, a flight moves the ground under a resting cursor)
     tick(): void {
+      if (!known) return;
+      if (target.cameraMoved !== undefined && !target.cameraMoved()) return; // the cursor and the camera stand still: the cell under it is the same
       refresh();
     },
     click(x: number, y: number): boolean {

@@ -74,21 +74,30 @@ export interface HeliRow {
   readonly canRecall: boolean;
 }
 
-/** The seat's helicopters that are not under production, lowest id first, at most `max` (the list is a compact one). Fills `out` (cleared first). */
+/**
+ * The seat's helicopters that are not under production, lowest id first, at most `max` (the list is a compact one). Fills `out`: the row objects already in it are
+ * REUSED (rewritten in place) and only missing ones are made, so a caller that keeps one buffer allocates nothing once it has held `max` rows (Fix-4B).
+ */
 export function ownHeliRows(view: SimView, seat: number, out: HeliRow[], max = 8): HeliRow[] {
-  out.length = 0;
   const h = view.helis;
   const owner = seatToOwner(seat);
-  for (let id = 0; id < h.highWater && out.length < max; id++) {
+  let n = 0;
+  for (let id = 0; id < h.highWater && n < max; id++) {
     if (h.owner[id] !== owner || h.state[id] === HELI_BUILDING || h.state[id] === 0) continue;
-    out.push({
-      id,
-      state: h.state[id] as number,
-      troops: h.load[id] as number,
-      fuelPct: Math.max(0, Math.min(100, Math.round(((h.fuel[id] as number) * 100) / (HELI_FUEL_CELLS * HELI_POS_ONE)))),
-      canRecall: validateRecallHeli(view, seat, id) === 0,
-    });
+    const fuelPct = Math.max(0, Math.min(100, Math.round(((h.fuel[id] as number) * 100) / (HELI_FUEL_CELLS * HELI_POS_ONE))));
+    const canRecall = validateRecallHeli(view, seat, id) === 0;
+    const row = out[n] as { -readonly [K in keyof HeliRow]: HeliRow[K] } | undefined;
+    if (row === undefined) out.push({ id, state: h.state[id] as number, troops: h.load[id] as number, fuelPct, canRecall });
+    else {
+      row.id = id;
+      row.state = h.state[id] as number;
+      row.troops = h.load[id] as number;
+      row.fuelPct = fuelPct;
+      row.canRecall = canRecall;
+    }
+    n++;
   }
+  out.length = n;
   return out;
 }
 

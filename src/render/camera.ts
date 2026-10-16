@@ -397,6 +397,25 @@ export class CameraRig {
     return Math.max(DIST_MIN_GROUND_KM, distForAgl(s, this.ground, ZOOM_MIN_AGL_M, this.viewAspect()));
   }
 
+  /**
+   * Whether the numbers that decide the pose (view, shown tilt, window) differ from the ones `out` holds (7 floats), and stores the current ones in `out`. No allocation:
+   * a caller that only needs to know "did the camera move since I looked" (the deploy mode's pick) asks this instead of building a pose.
+   */
+  poseChanged(out: Float64Array): boolean {
+    const s = this.s;
+    const tilt = this.shownTilt;
+    const same = out[0] === s.lat && out[1] === s.lon && out[2] === s.heading && out[3] === s.distKm && out[4] === tilt && out[5] === this.width && out[6] === this.height;
+    if (same) return false;
+    out[0] = s.lat;
+    out[1] = s.lon;
+    out[2] = s.heading;
+    out[3] = s.distKm;
+    out[4] = tilt;
+    out[5] = this.width;
+    out[6] = this.height;
+    return true;
+  }
+
   /** The viewport in pixels. */
   get viewport(): { width: number; height: number } {
     return { width: this.width, height: this.height };
