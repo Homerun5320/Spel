@@ -499,3 +499,9 @@ Not done in the Fix-UI slice (the sim, host and AI findings belong to Fix-Sim):
 - The diplomacy panel sorts by seat; sorting by land share or by relation would be easy (`buildDiploRows` returns plain rows).
 - An AI that is asked for a truce by the human replies after 3 to 6 s; a visible "thinking" state in the row is the `waiting` text only.
 - The cards sit top left under the top bar (wide) or top right (narrow); with three cards and a selected structure on a 540 px high window they can reach the selection panel (the e2e checks one card).
+
+## Fix-4C
+
+- Proposed CHARTER change, for the user (a builder does not edit `docs/CHARTER.md`): invariant 6 and the M15b step 1 text still describe `SimHost.query`, which M13b replaced by plain functions plus an injected async query in `LaunchPreviewer`. Suggested wording: "the page asks questions through functions that read the ViewMirror and through an injected async query; it never reaches into the sim". See "Audit 3 downstream decisions" in `docs/DECISIONS.md`.
+- Add a size guard for the other big docs: `docs/DECISIONS.md` (about 590 kB) and `docs/PROGRESS.md` (about 240 kB) are also far too large to read in one call; split them like ARCHITECTURE (an index file plus per-period files in a folder) in a docs-hygiene pass.
+- A generator that checks every file under `src` has a row in `docs/ARCHITECTURE.md` or `docs/arch/` (the rows are by module, several files per row, so it needs a path scan of the backticks); not built, the existing path-exists check only goes the other way.

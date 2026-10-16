@@ -1,0 +1,15 @@
+# Architecture detail: Data and baking
+
+Full module rows moved verbatim from `docs/ARCHITECTURE.md` (the index keeps one short row per module). Rows keep the old index order.
+
+| Path | Purpose | Public API |
+|------|---------|------------|
+| `src/data/format.ts` | Binary format of the baked packs, shared by the baker and the loader: sizes, sqrt codecs, `TerrainClass`, `NavFlag`, layer tables. Pure. | `RENDER_WIDTH`, `RENDER_HEIGHT`, `SIM_WIDTH`, `SIM_HEIGHT`, `NAV_*`, `LAND_MAX_M`, `DEPTH_MAX_M`, `MIN_LAND_CODE`, `encodeLandHeight`, `decodeLandHeight`, `encodeDepth`, `decodeDepth`, `TerrainClass`, `TERRAIN_CLASS_NAMES`, `NavFlag`, `PACK_LAYERS`, `layoutOf(pack)` |
+| `src/data/bytes.ts` | Bytes helpers (pure TS). | `fnv1a32`, `hex8`, `decodeBase64`, `decodeBase64Loop`, `hasGzipMagic`, `gunzip` |
+| `src/data/loader.ts` | Manifest loader with injected `readBytes`; raw and b64; gzip magic; fnv1a check against `public/data/checksums.json`. | `DataLoader` (`loadPack`, `loadJson`, `manifest`, `checksums`, `timings`), `DataIntegrityError`, types `ReadBytes`, `Manifest`, `Checksums` |
+| `src/data/world.ts` | Typed views and the world loader. | `createWorldLoader(opts)` (`loadSim`, `loadRender`, `loadMeta`, `loadCities`, `loadPorts`, `loadOverrides`), `simGridView`, `renderPackView`, types `SimGrid`, `RenderPack`, `WorldMeta`, `CountryMeta`, `City`, `Port`, `Overrides` |
+| `src/data/index.ts` | Barrel of the data layer. | everything above |
+| `tools/bake/` | `npm run bake` / `npm run bake:check`: `tools/bake/fetch.ts` (cached downloads, allowed hosts), `tools/bake/terrarium.ts` (tiles, spike clean, resample), `tools/bake/raster.ts` (scanline polygons), `tools/bake/classify.ts` (ALL thresholds), `tools/bake/build.ts` (pure pipeline), `tools/bake/output.ts` (deterministic gzip, checksums, manifest), `tools/bake/check.ts`, `tools/bake/synthetic.ts` (pipeline test input only), `tools/bake/index.ts` (CLI). | `buildWorld`, `fillPolygon`, `paintPolygon`, `cleanHeights`, `resampleToRender`, `prepareOutput`, `writeOutput`, `checkData`, `classifyLand`, `classifyWater` |
+| `public/data/` | Committed baked data (about 4.5 MB): `public/data/render.bin.gz`, `public/data/sim.bin.gz`, `public/data/manifest.json`, `public/data/checksums.json`, `public/data/meta.json`, `public/data/cities.json`, `public/data/ports.json`, `public/data/overrides.json`. Formats: `docs/DECISIONS.md` D22-D28. | |
+| `debug/data.html`, `src/app/debugData.ts`, `src/app/debugPalette.ts` | Data map page (class / height / country) on a 1024x512 canvas; mode from `?map=` or `#map-...` and three buttons. | `parseMapMode`, `CLASS_COLORS`, `heightColor`, `countryColor`; hooks `window.__debugData` |
+| `src/data/regions.ts` (M06) | The playable regions: the whole world or a Skirmish cut-out (Europe, East Asia, Americas, Africa and the Middle East), each a union of lat / lon rectangles in tenths of a degree. THE documentation of the cut-outs is the comment of this file (D114). | `REGIONS`, `REGION_IDS`, `RegionId`, `isRegionId`, `cellInRect`, `regionMask` |

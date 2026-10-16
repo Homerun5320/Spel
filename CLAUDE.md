@@ -15,7 +15,7 @@ Project rules for every session. Keep this file under 200 lines. Constitution: `
 ## Read order
 1. `docs/CHARTER.md`.
 2. Now / Next in `docs/PROGRESS.md`.
-3. `docs/ARCHITECTURE.md`: an INDEX of modules and public APIs that each milestone's last step keeps current.
+3. `docs/ARCHITECTURE.md`: an INDEX of modules and public APIs (one short row per module) that each milestone's last step keeps current; details per area are in `docs/arch/` (sim, ai, host, render, ui, app, data, tools, tests): add new detail there, keep the index row short.
 4. Only the source files the index points to. Never read whole directories.
 
 ## Commands

@@ -3,6 +3,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const read = (p: string): string => fs.readFileSync(p, 'utf8');
+const archFiles = fs.readdirSync('docs/arch').filter((f) => f.endsWith('.md')).map((f) => `docs/arch/${f}`);
 
 describe('CLAUDE.md', () => {
   const text = read('CLAUDE.md');
@@ -49,7 +50,7 @@ describe('docs/PROGRESS.md', () => {
 });
 
 describe('docs only mention files that exist (or are marked later)', () => {
-  const files = ['CLAUDE.md', 'README.md', 'docs/ARCHITECTURE.md', 'docs/ASSETS.md', 'docs/BACKLOG.md', 'docs/BALANCE.md', 'docs/DECISIONS.md', 'docs/LOCAL.md', 'docs/PROGRESS.md', 'docs/PROMPT_TEMPLATE.md'];
+  const files = ['CLAUDE.md', 'README.md', 'docs/ARCHITECTURE.md', 'docs/ASSETS.md', 'docs/BACKLOG.md', 'docs/BALANCE.md', 'docs/DECISIONS.md', 'docs/LOCAL.md', 'docs/PROGRESS.md', 'docs/PROMPT_TEMPLATE.md', ...archFiles];
   for (const file of files) {
     it(file, () => {
       const missing: string[] = [];
@@ -78,7 +79,7 @@ describe('docs never backtick a gitignored generated folder (a fresh checkout la
     .split('\n')
     .map((l) => l.trim().replace(/\/$/, ''))
     .filter((l) => l !== '' && !l.startsWith('#') && !l.startsWith('!') && !l.includes('*') && l !== 'node_modules');
-  const files = ['CLAUDE.md', 'README.md', 'docs/ARCHITECTURE.md', 'docs/ASSETS.md', 'docs/BACKLOG.md', 'docs/BALANCE.md', 'docs/DECISIONS.md', 'docs/LOCAL.md', 'docs/PROGRESS.md', 'docs/PROMPT_TEMPLATE.md'];
+  const files = ['CLAUDE.md', 'README.md', 'docs/ARCHITECTURE.md', 'docs/ASSETS.md', 'docs/BACKLOG.md', 'docs/BALANCE.md', 'docs/DECISIONS.md', 'docs/LOCAL.md', 'docs/PROGRESS.md', 'docs/PROMPT_TEMPLATE.md', ...archFiles];
   it('knows the generated folders', () => {
     expect(ignored).toEqual(expect.arrayContaining(['dist', '.cache', 'test-results', 'artifact']));
   });
@@ -98,4 +99,38 @@ describe('docs never backtick a gitignored generated folder (a fresh checkout la
       expect(offenders).toEqual([]);
     });
   }
+});
+
+describe('docs/ARCHITECTURE.md stays an index (Fix-4C)', () => {
+  const text = read('docs/ARCHITECTURE.md');
+  it('stays under the size cap (the detail goes to docs/arch/<area>.md)', () => {
+    expect(Buffer.byteLength(text, 'utf8')).toBeLessThan(46000);
+  });
+  it('keeps every line short enough for the Read tool', () => {
+    const long = text.split('\n').filter((l) => l.length > 1300).map((l) => l.slice(0, 60));
+    expect(long).toEqual([]);
+  });
+  it('keeps every module row under 450 characters and linked to an existing area file', () => {
+    const rows = text.split('\n').filter((l) => /^\| `/.test(l));
+    expect(rows.length).toBeGreaterThan(100);
+    const bad: string[] = [];
+    for (const row of rows) {
+      const link = /\]\(arch\/([a-z]+\.md)\)/.exec(row);
+      if (row.length > 450 || !link || !fs.existsSync(`docs/arch/${link[1]}`)) bad.push(row.slice(0, 60));
+    }
+    expect(bad).toEqual([]);
+  });
+  it('has area files that all start with a heading and are linked from the index', () => {
+    expect(archFiles.length).toBeGreaterThanOrEqual(8);
+    for (const f of archFiles) {
+      expect(read(f).startsWith('# Architecture detail'), f).toBe(true);
+      expect(text, f).toContain(`arch/${path.basename(f)}`);
+    }
+  });
+  it('names the engine and format versions of the code', () => {
+    const engine = /ENGINE_VERSION = (\d+)/.exec(read('src/sim/state.ts'))?.[1];
+    const format = /FORMAT_VERSION = (\d+)/.exec(read('src/sim/serialize.ts'))?.[1];
+    expect(text).toContain(`ENGINE_VERSION ${engine} `);
+    expect(text).toContain(`FORMAT_VERSION ${format} `);
+  });
 });

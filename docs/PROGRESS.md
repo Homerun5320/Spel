@@ -40,195 +40,34 @@ Resume: Läs CLAUDE.md och docs/PROGRESS.md, kör git log -10 och npm run verify
 | Sim-Levels2 | (set after the squash merge) | Unlimited levels (hard cap 999), one price rule (base x level), gentle level curves (`src/sim/levelCurves.ts`), ENGINE_VERSION 13, FORMAT_VERSION 11. Branch merge commit 5f49f67 |
 | Look-2 | (set after the squash merge) | Saturating level bands, capped footprint, unlimited level display, visual gold inflation (`GOLD_DISPLAY_FACTOR`). Branch merge commit e544a40 |
 | Integrations | (set after the squash merge) | Integration Sim-Growth + Look-1 and Integration Sim-Levels2 + Look-2: the UI and render follow the sim numbers, goldens re-pinned once after looking. HEAD 04eaba8 |
+| M12a-1 | (set after the squash merge) | Helicopter and beachhead tables, ProduceHeli, the fleet cap, Los / Nav inside `step` (headless). Branch merge commit c24f0e8. Previous merge SHA (origin/main at start): f29121a8d1607ca169e6675b5f22a52d76c42ef7 (nothing is merged to main; pull request #1 is a draft). |
+| M20a-lite | (set after the squash merge) | Hotkey registry, help overlay `?`, command resolver, top bar with a win meter. Branch merge commit 6b1a032. Previous merge SHA: f29121a8d1607ca169e6675b5f22a52d76c42ef7 |
+| M12a-2 | (set after the squash merge) | LaunchHeli, RecallHeli, the flight, fuel and the return (headless). Branch merge commit 6b2ab7a. Previous merge SHA: f29121a8d1607ca169e6675b5f22a52d76c42ef7 |
+| M13a-1 | (set after the squash merge) | The helicopter is visible: layer, Factory build button, fleet gauge. Branch merge commit a81d4b0. Previous merge SHA: f29121a8d1607ca169e6675b5f22a52d76c42ef7 |
+| M12a-3 | (set after the squash merge) | The landing, the beachhead and the cut-off cluster (headless). Branch merge commit 506be54. Previous merge SHA: f29121a8d1607ca169e6675b5f22a52d76c42ef7 |
+| M18c-1 | (set after the squash merge) | Diplomacy in the sim and the AI: truce, alliance, embargo. Branch merge commit 198f38a. Previous merge SHA: f29121a8d1607ca169e6675b5f22a52d76c42ef7 |
+| M13b | (set after the squash merge) | Deploy mode, landing zone preview and route preview; merged with the round 16 sim tracks, treaty landing ban. Branch merge commit 719b212. Previous merge SHA: f29121a8d1607ca169e6675b5f22a52d76c42ef7 |
+| M18c-2 | (set after the squash merge) | Diplomacy panel, proposals, badges, a livelier AI negotiator (ENGINE_VERSION 18, FORMAT_VERSION 13). Branch merge commit c672abe. Previous merge SHA: f29121a8d1607ca169e6675b5f22a52d76c42ef7 |
+| Fix-3A1 / 3A2 / 3B / 3C | (set after the squash merge) | Audit 2 fixes: sim test holes (b3e59f4), radar reach / navigation / AI limits / MatchView (8985b22), visible render, app and UI faults (b8d8503), docs and hygiene (51e30b3). Previous merge SHA: f29121a8d1607ca169e6675b5f22a52d76c42ef7 |
+| Fix-4 (pågår) | (set after the squash merge) | Audit 3 fixes, four parallel slices (4A1, 4A2, 4B, 4C: docs split into `docs/arch/`, status docs and downstream decisions); not merged yet, set when the orchestrator merges them. Previous merge SHA (origin/main at start): f29121a8d1607ca169e6675b5f22a52d76c42ef7 (nothing is merged to main; pull request #1 is a draft). |
 
 ## Now
 
-### Fix-3C: docs that lied, test holes in app and UI, hygiene (audit 2, lens fit and mutation; headless, no Chromium; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
-- [x] 1. PROGRESS.md: Done rows, finished slices moved to the Archive section, Known issues M11a, Next
-- [x] 2. ARCHITECTURE.md: stale rows corrected, "Aktuella versioner" line
-- [x] 3. BACKLOG.md and DECISIONS.md stale lines annotated, districts drop policy logged
-- [x] 4. Win path: `winForPlay` helper in `src/app/match.ts` (one-line change in `src/app/globeApp.ts`), tests for MatchSession, checkDraft, storedOf / draftFromStored
-- [x] 5. winSetup: asymmetric win flags through `winInfoOfView`
-- [x] 6. citySignature fields, resultRows, MatchWatcher, winDraftOf, presetOf, spawnPhaseBlocks, cityTotals Barracks cap (mutants in DECISIONS Fix-3C)
-- [x] 7. Hygiene: `UI_COLORS.field` in the district icons, `PLAYER_FACING` extended
-- [x] 8. Bundle size guard in `tests/portable.test.ts`
-- [x] 9. `npm run verify:fast` green (typecheck, lint, 210 unit files, 2348 tests; 3 min 08 s under load)
-- Not run here: the full `npm run verify`, Chromium, the pack (the orchestrator).
+### Fix-4C: docs that lied and were too large, downstream decisions (audit 3; docs only plus the docs test; no Chromium; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
 
-### Fix-3A1: audit 2, test holes in the sim state and rules (headless, no game change; one slice; the orchestrator owns merging, pushing and the Artifact)
-- [x] 1. Effects cache: tests that RemoveDistrict and a finished district upgrade (Market, Housing, Barracks) change gold, cap and Barracks percent through the public getters (`tests/sim/fix3a1State.test.ts`).
-- [x] 2. Housing raises the cap the regeneration grows towards (stepped test against the same state without Housing).
-- [x] 3. Win flags: all 7 combinations round trip (`tests/sim/fix3a1Match.test.ts`).
-- [x] 4. Hash covers winner, reason, endTick, holdOwner, holdCount (and every other match field) on its own; `foldMatch` already folded them, so NO ENGINE_VERSION bump and no golden change.
-- [x] 5. `readMatch` guards: one test per guard with a valid checksum (forged through serialize of a tampered state; byte patches for the win numbers and the flag word), plus FORMAT-1 / ENGINE-1.
-- [x] 6. `src/sim/win.ts`: score per City / Factory LEVEL (level 40 and 3), draw, hold restart, hold pick, match clock at the spawn-phase edge, score limit at the exact tick.
-- [x] 7. Districts: BuildDistrict / RemoveDistrict at the exact tick, conquest at readyTick, two overlapping Walls give the largest percent.
-- [x] 8. Mutant table in `docs/DECISIONS.md` (Fix-3A1); sim[6] (economy script margin) in `docs/BACKLOG.md`. `npm run verify:fast` green.
+GÖR och ACCEPTANS:
 
-### Fix-3A2: audit 2 (radar reach, navigation, AI limits, MatchView) and the M12 preparation (headless slice on HEAD 04eaba8; the orchestrator owns merging and pushing)
-- [x] LZ reason codes in their own range `LZ_REASON_BASE + n` (65..72), disjoint from REJECT_* (`tests/sim/lzCodes.test.ts`); the texts wait for M12a (BACKLOG)
-- [x] `Los.sync` memoised per (table, tick, counters), `Los.invalidate()`, perf case with highWater 820 and 480 queries per tick (`tests/los.perf.test.ts`)
-- [x] A* heuristic is a lower bound (lattice bound with excursion), proven against Dijkstra (`tests/sim/navExact.test.ts`); nav fingerprint 4680ed7e -> abb0fadd
-- [x] Nav and LZ behaviours locked with mutants (corner cut, lambda 1 vs 3, ceiling term, both OUT_OF_FUEL checks)
-- [x] LOS cache behaviours locked with mutants (`tests/sim/losCache.test.ts`)
-- [x] Packed MatchView and ViewMirror init locked (`tests/sim/matchViewPack.test.ts`)
-- [x] AI limits as fast unit scenes (`tests/ai/limits.test.ts`)
-- [x] Radar mask wording corrected to the measured numbers (rules comment, BALANCE row, DECISIONS, BACKLOG); no code or number changed
-- [x] Decision "M12 preparation: Los/Nav access inside step" written (option 1 chosen), one row in ARCHITECTURE
-- [x] `git diff e2e/goldens` empty; `npm run verify:fast` green (see the result line in the final report); not run: full `npm run verify`, Artifact, pull request (the orchestrator)
-
-### Fix-3B: visible faults of audit 2 (render, app, UI; one slice in its own worktree; the orchestrator owns merging, pushing and the Artifact)
-- [x] 1. Match keys and the reserved keys 1 to 6 are dead behind the pause menu, the elimination panel and the result screen (only Escape passes); `e2e/modalKeys.test.ts` (mutants shown to fail)
-- [x] 2. Structure layer over its allowance: the local player's structures first, then the nearest the camera (when low enough), the rest keep the far icon; a one-time toast; `tests/render/structurePriority.test.ts`; draw calls and triangles measured (DECISIONS Fix-3B)
-- [x] 3. "Oppna stad" flies high enough and looks away from the panel (`cityFitFlight`): all five districts of a level-9 City inside the free window in 960x540, 1366x768 and 540x960 (`e2e/cityOpenFit.test.ts`)
-- [x] 4. Escape (closing the view any way) cancels the open-city flight (same e2e file)
-- [x] 5. Layout: setup header buttons wrap under the title, spectator bar below the leaderboard on narrow windows (`e2e/fixLayout.test.ts`, looked at in three sizes)
-- [x] 6. Far icons: half size at most a third of the on-screen structure spacing (`src/render/iconScale.ts`, `tests/render/iconScale.test.ts`, looked at 3000, 8000 and 15000 km in `e2e/farIcons.test.ts`)
-- [x] 7. Draw-call ceilings: per-layer sum <= 16 in `tests/budgets.test.ts`, 10 for the city scene in `e2e/cityOpenFit.test.ts` (measured 7)
-- [x] 8. Unlocked Look-1 / Polish-1 formulas pinned with mutants (`tests/render/lookFormulas.test.ts`, `tests/app/inputShift.test.ts`, `tests/render/flyToFastDuration.test.ts`)
-- [x] 9. `__test.give` above DEBUG_GIVE_MAX throws with the reason (e2e in `e2e/modalKeys.test.ts`)
-- Not run here: the full `npm run verify`, the Artifact pack, the pull request (the orchestrator). Leftovers: "Fix-3B" in `docs/BACKLOG.md`.
-
-### M12a-1: helicopters in the sim, part 1 of 3 (Los/Nav inside step, the helicopter and beachhead tables, ProduceHeli, the fleet cap; headless sim; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
-Previous merge SHA (origin/main; nothing of this branch is merged, pull request #1 is a draft): f29121a8d1607ca169e6675b5f22a52d76c42ef7.
-- [x] 1. GÖR and ACCEPTANS written here first
-- [x] 2. Los/Nav inside `step`: optional `maxElev` in `SimWorldInput` / `SimWorld` (not in `mapHash`), a lazy, never hashed, never serialised Los/Nav on `GameState.env`, dropped by `deserialize`; `exposureOf` / `planRouteOf` / `scoreLzOf` take a state; a clear error when `maxElev` is missing
-- [x] 3. Helicopter table (SoA, 64) and beachhead table (64) designed for all of M12a, serialised and hashed; ENGINE_VERSION and FORMAT_VERSION bumped once, both golden hash files re-pinned once, identical in Node and worker
-- [x] 4. `ProduceHeli{factory}` with codec and reason codes (NOT_OWNER, NO_FACTORY, FACTORY_BUILDING, QUEUE_BUSY, FLEET_CAP, NO_GOLD, REJECT_PHASE); 200 gold, 12 s, fleet cap 2 + sum of Factory levels (max 12, a helicopter in production counts); ONE implementation shared with `validateProduceHeli` (pinned in `tests/ai/boundary.test.ts`); SimView read access (`helis`, `fleetCapOf`, `fleetCountOf`)
-- [x] 5. Outbox events (HeliQueued, HeliProduced; the rest declared); a Factory conquered or destroyed scraps its helicopters and its queued production (provisional)
-- [x] 6. Reject texts (the ProduceHeli codes and the eight LZ codes 65..72), sv and en
-- [x] 7. Tests: every reason code, price and time tick-exact, fleet cap, free list and reused id, round trip and snapshot equals straight run with helicopters, Los/Nav access, conquest, goldens in Node and worker, perf (12 helicopters, 300 structures, 12 players)
-- [x] 8. Docs (DECISIONS M12a-1 with its mutant table and the hooks for part 2, ARCHITECTURE, BALANCE, BACKLOG) and `npm run verify:fast` green (typecheck, lint, 226 unit files, 2484 tests + 2 expected fail; 2 min 32 s). Perf (alone): heli.perf, sim.perf, structures.perf, ai.perf green.
-- Not run here: the full `npm run verify`, Chromium, the pack, a pull request (the orchestrator).
-### M18c-1: diplomacy in the sim and the AI (truce, alliance, embargo; headless; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
-Previous merge SHA (origin/main): f29121a8d1607ca169e6675b5f22a52d76c42ef7; nothing of this branch is merged (pull request #1 is a draft); base commit a81d4b0.
-GÖR
-- [x] 1. GÖR and ACCEPTANS written here first
-- [x] 2. Model: relation per seat pair (war / truce 2400 ticks / alliance), proposal table (32, 600 ticks), betrayal cooldown, embargo owner; in state, serialize and hash (FORMAT and ENGINE raised once, goldens recomputed once)
-- [x] 3. Intents ProposeTreaty, AcceptTreaty, DeclineTreaty, BreakTreaty, ImposeEmbargo, LiftEmbargo (wire kinds 15 to 20, reason codes 80 to 93), ONE shared check each behind validate*, exports pinned, SimView.diplomacy
-- [x] 4. Rules: no Attack between treaty parties, running attacks cancelled, truce expires tick-exactly, Break gives war + cooldown + statistics, alliance trade, embargo trade, elimination clears
-- [x] 5. Statistics in MatchView (treaties made, broken, active relations)
-- [x] 6. AI: replies after a delay, proposes, breaks an alliance as a leader, never an invalid intent; memory in the AI blob
-- [x] 7. Texts sv and en for the new reasons; tests; docs; `npm run verify:fast`
-ACCEPTANS
-- [x] Every intent and reason code tested, one shared implementation, exports pinned
-- [x] Attack ban between treaty parties and cancelled running attacks tested; expiry tick-exact
-- [x] Betrayal: cooldown, statistics; embargo and alliance trade act in the economy
-- [x] Serialisation, hash, goldens in Node and worker; goldens recomputed once
-- [x] The AI replies and proposes by the rules, never an invalid intent over 20 seeds; solo script and pace test inside their bands
-- [x] `npm run verify:fast` green
-
-- Result: `npm run verify:fast` green (typecheck, lint, 238 unit files, 2625 tests; 2 min 02 s); perf alone (sim, ai, conquest) green; `npm run sim:scenario -- --solo` unchanged (10 786 cells at minute 10); the full `npm run verify`, Chromium, the pack and the pull request are the orchestrator's. The orchestrator sets the final ENGINE_VERSION / FORMAT_VERSION and regenerates `e2e/goldens/sim-hashes.json` and `e2e/goldens/match-hashes.json` when the two sim tracks are merged (here ENGINE 16, FORMAT 13). Details, measured AI behaviour and the moved test bounds in `docs/DECISIONS.md` "M18c-1".
-
-### M20a-lite: hotkey registry, help overlay `?`, command resolver, top bar with a win meter (UI and app; src/sim untouched; one slice in its own worktree; the orchestrator owns merging, pushing and the Artifact)
-GÖR
-- [x] 1. `src/app/hotkeys.ts`: `registerHotkey`-style registry (`HotkeyRegistry.register`), every game key moved in (F focus, 1 to 6, Escape via the input stack, space / `,` / `.` / `[` / `]` / `-` / `+`, F3, F2, `?`); the Fix-3B modal block and `RESERVED_KEYS` kept
-- [x] 2. Grep test: no `keydown` listener outside `src/app/input.ts`, `src/app/hotkeys.ts` and the documented exceptions (`tests/app/hotkeyGrep.test.ts`, mutant included)
-- [x] 3. Help overlay `?` (`src/ui/helpOverlay.ts`) generated from the registry, sv and en, Escape through the input stack
-- [x] 4. `src/app/commandResolver.ts`: rule table (build on own ground, selected structure against another cell, attack), `registerCommandRule` for M13b / M15b; the selection mode gets `context(cmd)`
-- [x] 5. Top bar: gold with income, troops with cap bar and 80 % warning, land %, timer, win meter and hold count-down (`src/ui/winMeter.ts`), 10 Hz write gate (`src/ui/hudGate.ts`)
-ACCEPTANS
-- [x] The registry owns every game key; the grep test goes red for a new listener (`tests/app/hotkeys.test.ts`, `tests/app/hotkeyGrep.test.ts`)
-- [x] `?` overlay == registry both ways (`e2e/m20aLite.test.ts`); the modal tests of Fix-3Bs `e2e/modalKeys.test.ts` stay green
-- [x] Resolver table test for every rule and the invalid targets, `context(cmd)` of the selection mode (`tests/app/commandResolver.test.ts`); e2e for the right click (placement mode leaves without an intent, selected structure goes to the resolver)
-- [x] Top bar: values equal the sim, 0 DOM mutations at rest, no overlap at 960x540, 1366x640 and 540x960 with the longest strings, win meter follows the MatchView (`tests/ui/topBar.test.ts`, `e2e/m20aLite.test.ts`)
-- [x] Screenshots of `?` and the top bar looked at in both languages
-- [x] `npm run verify:fast` green; the touched e2e files green. Not run here: the full `npm run verify`, the Artifact pack, the pull request (the orchestrator).
-### M13a-1: the helicopter is visible (render and UI; src/sim untouched; one slice in its own worktree; the orchestrator owns merging, pushing and the Artifact)
-Previous merge SHA (origin/main): f29121a8d1607ca169e6675b5f22a52d76c42ef7
-GÖR
-- [x] 1. `src/render/heliModel.ts` + `src/render/heliLayer.ts` + `src/render/shaders/helis.ts`: one merged model (under 150 triangles, per-vertex part id), the rotor spins in the vertex shader from the fx clock, ONE instanced draw (capacity 64), owner colour per instance, every non-empty HeliView row except under-production drawn
-- [x] 2. Build button in the Factory selection panel (price, queue, fleet gauge, dimmed with the reason), toasts for produced and scrapped
-- [x] 3. HUD line "Helikoptrar n/tak" with a data-testid
-- [x] 4. Budget row (1 draw call) in the table and `tests/budgets.test.ts`; leak test if needed
-- [x] 5. Test hook `__test.helis()`
-ACCEPTANS
-- [x] Build button works end to end (e2e: after the build time the helicopter stands at the Factory)
-- [x] Every state is drawn, position == sim position within 0.5 cell (unit test)
-- [x] The rotor alone changes pixels (e2e)
-- [x] 1 draw call measured, instances <= 64, no console errors
-- [x] Screenshots at 3 km and 800 m, day and night, looked at
-- [x] `npm run verify:fast` green; touched e2e green
-- Looked at: `test-results/shots/helis-3km-day.png`, `helis-800m-day.png`, `helis-3km-night.png`, `helis-800m-night.png`, `helis-panel.png` (written by `e2e/helis.test.ts`). Not run here: the full `npm run verify`, the Artifact pack, a pull request (the orchestrator). `e2e/helis.test.ts`, `e2e/m20aLite.test.ts`, `e2e/structuresSelect.test.ts`, `e2e/hud.test.ts` green.
-
-### M12a-2: helicopters in the sim, part 2 of 3 (LaunchHeli, the flight, fuel, RecallHeli, the return; headless sim; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
-Previous merge SHA: nothing of this branch is merged (pull request #1 is a draft); base commit 6b1a032.
-GÖR
-- [x] 1. GÖR and ACCEPTANS written here first
-- [x] 2. Intents `LaunchHeli` (wire kind 13) and `RecallHeli` (kind 14) with codec, reason codes 51 to 54, texts sv and en, ONE shared check (`checkLaunchHeli` / `checkRecallHeli`) behind `validateLaunchHeli` / `validateRecallHeli`, exports pinned
-- [x] 3. The flight in `heliPhase` (`src/sim/heliFlight.ts`): Pad, TakeOff 20, Cruise, Approach, Hover 30, placeholder, RTB, Pad; Downed; fixed point, wrapX, terrain following, fuel, Recall, home Factory lost
-- [x] 4. The landing placeholder (HELI_LANDED, no conquest, no troops created or lost) and the exact replacement point for part 3
-- [x] 5. ENGINE_VERSION once, goldens recomputed once, Node equals worker
-- [x] 6. Tests (each reason code, tick-exact TakeOff/Hover, property test over Alps / Himalaya / Andes in both modes, fuel, Recall, home lost, round trip, snapshot equals straight run, perf with 12 airborne, SimView.helis transfer measured)
-- [x] 7. Docs and `npm run verify:fast` green
-ACCEPTANS
-- [x] LaunchHeli / RecallHeli: every reason code, one shared implementation, exports pinned
-- [x] Flight: clearance, Peak, NaN, liveness, speed cap, fuel, Recall, home lost: property and unit tests
-- [x] Landing placeholder documented with the exact replacement point; no troops created or lost
-- [x] ENGINE raised once, goldens recomputed once, Node == worker; round trip and snapshot == straight run with helicopters airborne
-- [x] Perf: median <= budgetMs(0.5) per tick with 12 airborne; the SimView.helis transfer measured
-- [x] `npm run verify:fast` green
-
-- Result: `npm run verify:fast` green (typecheck, lint, 233 unit files, 2545+ tests; 2 min 58 s); perf alone: heliFlight.perf, heli.perf, sim.perf green (flight phase of 12 airborne 25.8 us on a quiet run); the full `npm run verify`, Chromium, the pack and the pull request are the orchestrator's. Details, mutant table, measured flight times and the hooks for part 3 and M13 in `docs/DECISIONS.md` "M12a-2".
-### M12a-3: helicopters in the sim, part 3 of 3 (the landing, the beachhead, the cut-off cluster; headless sim; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
-Previous merge SHA (origin/main; nothing of this branch is merged, pull request #1 is a draft): f29121a8d1607ca169e6675b5f22a52d76c42ef7; base commit a81d4b0.
-GÖR
-- [x] 1. GÖR and ACCEPTANS written here first
-- [x] 2. Landing (replaces the placeholder): HELI_UNLOAD 10 ticks, LZ cell then N,E,S,W,NE,SE,SW,NW at the Attack cell price (x2 enemy), 1 to 9 cells, a failed landing loses the load, the rest of the load is an Attack from the beachhead, beachhead table row, `landingBlockedBy` hook
-- [x] 3. Cut-off cluster: every 10 ticks a bounded BFS (80 cells), established at 80 cells or a City (post freed), else neutral exactly 450 ticks after the landing; the cluster counts for no troop cap, regeneration or gold land while cut off (cached); two beachheads that grow together merge; the enclave rule does not flip a cut-off cluster
-- [x] 4. Outbox: BEACHHEAD_FORMED, BEACHHEAD_REVERTED, HELI_LANDED (cells or failed); elimination with only a beachhead left
-- [x] 5. Tests (reasons, 1 to 9 cells, failed landing, order, tick-exact revert, no revert at 80 cells or a City, no economy from the cluster, date line, round trip, snapshot == straight run, property test over many landings, Node == worker golden), perf
-- [x] 6. Docs and `npm run verify:fast`
-ACCEPTANS
-- [x] Landing, beachhead 1 to 9 cells, failed landing, order, troop audit (no troops from nothing)
-- [x] Cut-off cluster tick-exact 45 s; an established cluster does not revert; no economy from the cluster meanwhile
-- [x] Elimination with only a beachhead left tested
-- [x] Round trip, snapshot == straight run, golden Node == worker
-- [x] Perf within budgetMs(0.5)
-- [x] `npm run verify:fast` green
-- Result: `npm run verify:fast` green (typecheck, lint, unit tests 2 min 35 s); perf alone: heliLanding.perf (tick with 12 airborne and 4 beachheads 34 us, four searches 11 us), heliFlight.perf, heli.perf green. The full `npm run verify`, Chromium, the pack and the pull request are the orchestrator's. Details, mutant table and the Alps text replay in `docs/DECISIONS.md` "M12a-3".
-### M13b: deploy mode, landing zone preview and route preview (render, UI, app; src/sim untouched; one slice in its own worktree; the orchestrator owns merging, pushing and the Artifact)
-Previous merge SHA: nothing of this branch is merged (pull request #1 is a draft); base commit a81d4b0.
-GÖR
-- [x] 1. GÖR and ACCEPTANS written here first
-- [x] 2. `src/app/launchPreview.ts`: `previewLaunch` (the verdict IS `validateLaunchHeli`), `LaunchPreviewer` (one query out, stale answers dropped, 5 Hz, answers as Promises)
-- [x] 3. Deploy mode (`src/app/deployMode.ts`, an input mode; Escape pops), `src/ui/deployBox.ts` in the Factory panel (button, troop slider 1..600, Low / High, verdict, flight time and fuel, Cancel), live marker and route (`src/render/deployLayer.ts`, 3 draw calls)
-- [x] 4. Key L (registry) and the resolver rule `factory-deploy` (a right click with a Factory selected opens the mode)
-- [x] 5. Helicopter list with Recall in the Factory panel; toasts for landed and shot down (`MissionWatcher`), sv and en
-- [ ] 6. Beachhead ring: NOT done here (the beachhead table is not in `SimView` in this branch), see BACKLOG "M13b-2"
-- [ ] 7. Exposure plan view (key E): NOT done (time), see BACKLOG "M13b-2"
-ACCEPTANS
-- [x] Parity: `previewLaunch` / `validateLaunchHeli` equal the real LaunchHeli intent for 35 cells and every reason code, BAD_TROOPS, NO_PAD, NOT_OWNER, NO_FACTORY (`tests/app/launchPreview.test.ts`), NO_GOLD for the production check
-- [x] Async and throttle with a delayed fake query (`tests/app/launchPreview.test.ts`)
-- [x] Playwright flow (`e2e/deploy.test.ts`): green and red marker, route, 300 troops, Low, launch, flight, landing toast, Escape, refused zone sends nothing (the beachhead-ownership step is `it.skip` until M12a-3 is merged)
-- [x] Draw calls: route 2 + marker 1, layer on/off by `renderer.info` (3 measured, with the helicopter layer 4); no console errors; leak test `e2e/deployLeak.serial.test.ts` (320x180, 60 renders, heap delta 0.09 MB, geometries and textures unchanged)
-- [x] Screenshots looked at: `test-results/shots/deploy-red.png`, `deploy-green.png`, `deploy-route-tilted.png`, `deploy-flying.png`, `deploy-landed.png` (the beachhead picture waits for M12a-3)
-- [x] `npm run verify:fast` green (typecheck, lint, 237 unit files, 2579 tests + 2 expected fail; 1 min 50 s); touched e2e green: deploy, deployLeak.serial, m20aLite, structuresSelect, structures, helis, modalKeys, hud, fixLayout, fixUi
-- Not run here: the full `npm run verify`, the Artifact pack, a pull request (the orchestrator). The beachhead step of `e2e/deploy.test.ts` is `it.skip` until M12a-3 is merged.
-
-### M18c-2: diplomacy in the interface and a livelier AI negotiator (UI, app and the AI temperament; one slice in its own worktree; the orchestrator owns merging, pushing and the Artifact)
-Previous merge SHA: nothing of this branch is merged (pull request #1 is a draft); base commit 719b212.
-GÖR
-- [x] 1. GÖR and ACCEPTANS written here first
-- [x] 2. AI temperament: truce answer, alliance threshold, truce proposal to the most frequent attacker; ENGINE 18, goldens recomputed once; measured in `tools/sim/diploMeasure.ts`
-- [x] 3. Pure model `src/ui/diploModel.ts` (rows, button states from validate*, confirm step) and the panel `src/ui/diploPanel.ts` (key D in the registry, a top bar button, Escape closes)
-- [x] 4. Incoming proposal cards (at most 3, countdown, Accept / Decline), toasts for new proposals and for the AI's answers (accepted, declined, expired), a "n proposals" signal in the top bar
-- [x] 5. Relation badges in the leaderboard and the panel rows; the result screen rows "Treaties made" / "Treaties broken"; an attack click on a treaty party gives a toast and sends no intent
-- [x] 6. Tests: model units, e2e flow, three window sizes without overlap in both languages, 0 DOM mutations at rest, D in the `?` overlay; mutants shown
-- [x] 7. Docs (DECISIONS M18c-2, ARCHITECTURE, BALANCE, PREVIEW, BACKLOG M18c-3) and `npm run verify:fast`
-ACCEPTANS
-- [x] Panel: every button is decided by validate*; confirm step on Break; own cooldown shown
-- [x] Incoming proposals can be accepted and declined; a toast for the AI's answer, also decline and expiry
-- [x] Badges in the leaderboard; the result screen shows the treaty statistics
-- [x] Attack click on a treaty party: an understandable toast and no needless intent
-- [x] AI temperament: measured acceptance rates logged, ENGINE raised once, goldens recomputed once, pace test inside its band
-- [x] Three window sizes without overlap, both languages; 0 DOM mutations at rest; D in the `?` overlay
-- [x] `npm run verify:fast` green; the touched e2e green
+- [x] ARCHITECTURE.md split: one short row per module (under 450 characters), full rows and the long sections moved verbatim to `docs/arch/<area>.md`; the file is about 40 kB (was 199 kB).
+- [x] `tests/docs.test.ts` checks the arch files too, caps ARCHITECTURE.md (46 000 bytes, rows 450 characters) and compares the version line with the code.
+- [x] CLAUDE.md Read order point 3 points at the index and `docs/arch/`.
+- [x] PROGRESS.md: Done rows added, finished passes moved from Now to the end of Archive word for word, Next rewritten, version line follows the code (ENGINE 18, FORMAT 13).
+- [x] DECISIONS.md: blocks "Fix-4C" and "Audit 3 downstream decisions (for M12b, M14, M17, M20b)"; BACKLOG.md: the proposed CHARTER change.
+- [x] `npm run verify:fast` green (see the result in the Fix-4C block of `docs/DECISIONS.md`).
 
 ## Next
 
-- Next slices: M12a (helicopters in the sim, headless) and M20a-lite (the HUD; the keydown rule of the M20a note in `docs/ARCHITECTURE.md` counts `src/ui/matchPanels.ts` and `src/app/debugViewshed.ts` too).
-- Audit 3 runs after five more pushes (audit 2 covered the pushes v17 to v21; its findings are worked through by Fix-3A to Fix-3C, leftovers in `docs/BACKLOG.md`).
+- Next slices: M12b (anti-air against helicopters and raid statistics; must follow "Audit 3 downstream decisions" in `docs/DECISIONS.md`), M13a-2 (effects, the H camera), M20a-2 (nation labels and front arrows), M18b (federations), M18d (technology), M18e (more building types and a city map), M13c (travel over land, sea and air), M14 and onwards.
+- Audit 4 runs after five more pushes (audit 3 covered the pushes v22 to v26; its findings are worked through by Fix-4A1, 4A2, 4B and 4C, leftovers in `docs/BACKLOG.md`).
 - Before the first CI run that matters: wire the three verify shards into `.github/workflows/ci.yml` (D156 (8)): a GitHub runner has 2 cores and `npm run verify` takes 12 minutes on 4.
 - The USER GATEs of the camera (M08, CamFix) and the real-GPU tuning are the user's, see Known issues and `docs/PREVIEW.md`.
 
@@ -1433,3 +1272,188 @@ Base aa9b996. Parallel track Sim-Levels2 owns the sim numbers.
 - [x] 2. Level display: "Nivå n" without max, "(högsta)" at the cap, next-level numbers in the panel, logarithmic far-icon arc
 - [x] 3. Visual gold inflation `GOLD_DISPLAY_FACTOR` 10 through `formatGold` / `formatGoldRate`; `tests/ui/goldDisplay.test.ts`; Dev panel hint line
 - Leftovers: "Look-2 leftovers" in `docs/BACKLOG.md`. Not run here: the full `npm run verify`, the Artifact pack.
+
+
+### Finished passes moved out of Now by Fix-4C (text kept word for word)
+
+### Fix-3C: docs that lied, test holes in app and UI, hygiene (audit 2, lens fit and mutation; headless, no Chromium; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+- [x] 1. PROGRESS.md: Done rows, finished slices moved to the Archive section, Known issues M11a, Next
+- [x] 2. ARCHITECTURE.md: stale rows corrected, "Aktuella versioner" line
+- [x] 3. BACKLOG.md and DECISIONS.md stale lines annotated, districts drop policy logged
+- [x] 4. Win path: `winForPlay` helper in `src/app/match.ts` (one-line change in `src/app/globeApp.ts`), tests for MatchSession, checkDraft, storedOf / draftFromStored
+- [x] 5. winSetup: asymmetric win flags through `winInfoOfView`
+- [x] 6. citySignature fields, resultRows, MatchWatcher, winDraftOf, presetOf, spawnPhaseBlocks, cityTotals Barracks cap (mutants in DECISIONS Fix-3C)
+- [x] 7. Hygiene: `UI_COLORS.field` in the district icons, `PLAYER_FACING` extended
+- [x] 8. Bundle size guard in `tests/portable.test.ts`
+- [x] 9. `npm run verify:fast` green (typecheck, lint, 210 unit files, 2348 tests; 3 min 08 s under load)
+- Not run here: the full `npm run verify`, Chromium, the pack (the orchestrator).
+
+### Fix-3A1: audit 2, test holes in the sim state and rules (headless, no game change; one slice; the orchestrator owns merging, pushing and the Artifact)
+- [x] 1. Effects cache: tests that RemoveDistrict and a finished district upgrade (Market, Housing, Barracks) change gold, cap and Barracks percent through the public getters (`tests/sim/fix3a1State.test.ts`).
+- [x] 2. Housing raises the cap the regeneration grows towards (stepped test against the same state without Housing).
+- [x] 3. Win flags: all 7 combinations round trip (`tests/sim/fix3a1Match.test.ts`).
+- [x] 4. Hash covers winner, reason, endTick, holdOwner, holdCount (and every other match field) on its own; `foldMatch` already folded them, so NO ENGINE_VERSION bump and no golden change.
+- [x] 5. `readMatch` guards: one test per guard with a valid checksum (forged through serialize of a tampered state; byte patches for the win numbers and the flag word), plus FORMAT-1 / ENGINE-1.
+- [x] 6. `src/sim/win.ts`: score per City / Factory LEVEL (level 40 and 3), draw, hold restart, hold pick, match clock at the spawn-phase edge, score limit at the exact tick.
+- [x] 7. Districts: BuildDistrict / RemoveDistrict at the exact tick, conquest at readyTick, two overlapping Walls give the largest percent.
+- [x] 8. Mutant table in `docs/DECISIONS.md` (Fix-3A1); sim[6] (economy script margin) in `docs/BACKLOG.md`. `npm run verify:fast` green.
+
+### Fix-3A2: audit 2 (radar reach, navigation, AI limits, MatchView) and the M12 preparation (headless slice on HEAD 04eaba8; the orchestrator owns merging and pushing)
+- [x] LZ reason codes in their own range `LZ_REASON_BASE + n` (65..72), disjoint from REJECT_* (`tests/sim/lzCodes.test.ts`); the texts wait for M12a (BACKLOG)
+- [x] `Los.sync` memoised per (table, tick, counters), `Los.invalidate()`, perf case with highWater 820 and 480 queries per tick (`tests/los.perf.test.ts`)
+- [x] A* heuristic is a lower bound (lattice bound with excursion), proven against Dijkstra (`tests/sim/navExact.test.ts`); nav fingerprint 4680ed7e -> abb0fadd
+- [x] Nav and LZ behaviours locked with mutants (corner cut, lambda 1 vs 3, ceiling term, both OUT_OF_FUEL checks)
+- [x] LOS cache behaviours locked with mutants (`tests/sim/losCache.test.ts`)
+- [x] Packed MatchView and ViewMirror init locked (`tests/sim/matchViewPack.test.ts`)
+- [x] AI limits as fast unit scenes (`tests/ai/limits.test.ts`)
+- [x] Radar mask wording corrected to the measured numbers (rules comment, BALANCE row, DECISIONS, BACKLOG); no code or number changed
+- [x] Decision "M12 preparation: Los/Nav access inside step" written (option 1 chosen), one row in ARCHITECTURE
+- [x] `git diff e2e/goldens` empty; `npm run verify:fast` green (see the result line in the final report); not run: full `npm run verify`, Artifact, pull request (the orchestrator)
+
+### Fix-3B: visible faults of audit 2 (render, app, UI; one slice in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+- [x] 1. Match keys and the reserved keys 1 to 6 are dead behind the pause menu, the elimination panel and the result screen (only Escape passes); `e2e/modalKeys.test.ts` (mutants shown to fail)
+- [x] 2. Structure layer over its allowance: the local player's structures first, then the nearest the camera (when low enough), the rest keep the far icon; a one-time toast; `tests/render/structurePriority.test.ts`; draw calls and triangles measured (DECISIONS Fix-3B)
+- [x] 3. "Oppna stad" flies high enough and looks away from the panel (`cityFitFlight`): all five districts of a level-9 City inside the free window in 960x540, 1366x768 and 540x960 (`e2e/cityOpenFit.test.ts`)
+- [x] 4. Escape (closing the view any way) cancels the open-city flight (same e2e file)
+- [x] 5. Layout: setup header buttons wrap under the title, spectator bar below the leaderboard on narrow windows (`e2e/fixLayout.test.ts`, looked at in three sizes)
+- [x] 6. Far icons: half size at most a third of the on-screen structure spacing (`src/render/iconScale.ts`, `tests/render/iconScale.test.ts`, looked at 3000, 8000 and 15000 km in `e2e/farIcons.test.ts`)
+- [x] 7. Draw-call ceilings: per-layer sum <= 16 in `tests/budgets.test.ts`, 10 for the city scene in `e2e/cityOpenFit.test.ts` (measured 7)
+- [x] 8. Unlocked Look-1 / Polish-1 formulas pinned with mutants (`tests/render/lookFormulas.test.ts`, `tests/app/inputShift.test.ts`, `tests/render/flyToFastDuration.test.ts`)
+- [x] 9. `__test.give` above DEBUG_GIVE_MAX throws with the reason (e2e in `e2e/modalKeys.test.ts`)
+- Not run here: the full `npm run verify`, the Artifact pack, the pull request (the orchestrator). Leftovers: "Fix-3B" in `docs/BACKLOG.md`.
+
+### M12a-1: helicopters in the sim, part 1 of 3 (Los/Nav inside step, the helicopter and beachhead tables, ProduceHeli, the fleet cap; headless sim; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+Previous merge SHA (origin/main; nothing of this branch is merged, pull request #1 is a draft): f29121a8d1607ca169e6675b5f22a52d76c42ef7.
+- [x] 1. GÖR and ACCEPTANS written here first
+- [x] 2. Los/Nav inside `step`: optional `maxElev` in `SimWorldInput` / `SimWorld` (not in `mapHash`), a lazy, never hashed, never serialised Los/Nav on `GameState.env`, dropped by `deserialize`; `exposureOf` / `planRouteOf` / `scoreLzOf` take a state; a clear error when `maxElev` is missing
+- [x] 3. Helicopter table (SoA, 64) and beachhead table (64) designed for all of M12a, serialised and hashed; ENGINE_VERSION and FORMAT_VERSION bumped once, both golden hash files re-pinned once, identical in Node and worker
+- [x] 4. `ProduceHeli{factory}` with codec and reason codes (NOT_OWNER, NO_FACTORY, FACTORY_BUILDING, QUEUE_BUSY, FLEET_CAP, NO_GOLD, REJECT_PHASE); 200 gold, 12 s, fleet cap 2 + sum of Factory levels (max 12, a helicopter in production counts); ONE implementation shared with `validateProduceHeli` (pinned in `tests/ai/boundary.test.ts`); SimView read access (`helis`, `fleetCapOf`, `fleetCountOf`)
+- [x] 5. Outbox events (HeliQueued, HeliProduced; the rest declared); a Factory conquered or destroyed scraps its helicopters and its queued production (provisional)
+- [x] 6. Reject texts (the ProduceHeli codes and the eight LZ codes 65..72), sv and en
+- [x] 7. Tests: every reason code, price and time tick-exact, fleet cap, free list and reused id, round trip and snapshot equals straight run with helicopters, Los/Nav access, conquest, goldens in Node and worker, perf (12 helicopters, 300 structures, 12 players)
+- [x] 8. Docs (DECISIONS M12a-1 with its mutant table and the hooks for part 2, ARCHITECTURE, BALANCE, BACKLOG) and `npm run verify:fast` green (typecheck, lint, 226 unit files, 2484 tests + 2 expected fail; 2 min 32 s). Perf (alone): heli.perf, sim.perf, structures.perf, ai.perf green.
+- Not run here: the full `npm run verify`, Chromium, the pack, a pull request (the orchestrator).
+### M18c-1: diplomacy in the sim and the AI (truce, alliance, embargo; headless; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+Previous merge SHA (origin/main): f29121a8d1607ca169e6675b5f22a52d76c42ef7; nothing of this branch is merged (pull request #1 is a draft); base commit a81d4b0.
+GÖR
+- [x] 1. GÖR and ACCEPTANS written here first
+- [x] 2. Model: relation per seat pair (war / truce 2400 ticks / alliance), proposal table (32, 600 ticks), betrayal cooldown, embargo owner; in state, serialize and hash (FORMAT and ENGINE raised once, goldens recomputed once)
+- [x] 3. Intents ProposeTreaty, AcceptTreaty, DeclineTreaty, BreakTreaty, ImposeEmbargo, LiftEmbargo (wire kinds 15 to 20, reason codes 80 to 93), ONE shared check each behind validate*, exports pinned, SimView.diplomacy
+- [x] 4. Rules: no Attack between treaty parties, running attacks cancelled, truce expires tick-exactly, Break gives war + cooldown + statistics, alliance trade, embargo trade, elimination clears
+- [x] 5. Statistics in MatchView (treaties made, broken, active relations)
+- [x] 6. AI: replies after a delay, proposes, breaks an alliance as a leader, never an invalid intent; memory in the AI blob
+- [x] 7. Texts sv and en for the new reasons; tests; docs; `npm run verify:fast`
+ACCEPTANS
+- [x] Every intent and reason code tested, one shared implementation, exports pinned
+- [x] Attack ban between treaty parties and cancelled running attacks tested; expiry tick-exact
+- [x] Betrayal: cooldown, statistics; embargo and alliance trade act in the economy
+- [x] Serialisation, hash, goldens in Node and worker; goldens recomputed once
+- [x] The AI replies and proposes by the rules, never an invalid intent over 20 seeds; solo script and pace test inside their bands
+- [x] `npm run verify:fast` green
+
+- Result: `npm run verify:fast` green (typecheck, lint, 238 unit files, 2625 tests; 2 min 02 s); perf alone (sim, ai, conquest) green; `npm run sim:scenario -- --solo` unchanged (10 786 cells at minute 10); the full `npm run verify`, Chromium, the pack and the pull request are the orchestrator's. The orchestrator sets the final ENGINE_VERSION / FORMAT_VERSION and regenerates `e2e/goldens/sim-hashes.json` and `e2e/goldens/match-hashes.json` when the two sim tracks are merged (here ENGINE 16, FORMAT 13). Details, measured AI behaviour and the moved test bounds in `docs/DECISIONS.md` "M18c-1".
+
+### M20a-lite: hotkey registry, help overlay `?`, command resolver, top bar with a win meter (UI and app; src/sim untouched; one slice in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+GÖR
+- [x] 1. `src/app/hotkeys.ts`: `registerHotkey`-style registry (`HotkeyRegistry.register`), every game key moved in (F focus, 1 to 6, Escape via the input stack, space / `,` / `.` / `[` / `]` / `-` / `+`, F3, F2, `?`); the Fix-3B modal block and `RESERVED_KEYS` kept
+- [x] 2. Grep test: no `keydown` listener outside `src/app/input.ts`, `src/app/hotkeys.ts` and the documented exceptions (`tests/app/hotkeyGrep.test.ts`, mutant included)
+- [x] 3. Help overlay `?` (`src/ui/helpOverlay.ts`) generated from the registry, sv and en, Escape through the input stack
+- [x] 4. `src/app/commandResolver.ts`: rule table (build on own ground, selected structure against another cell, attack), `registerCommandRule` for M13b / M15b; the selection mode gets `context(cmd)`
+- [x] 5. Top bar: gold with income, troops with cap bar and 80 % warning, land %, timer, win meter and hold count-down (`src/ui/winMeter.ts`), 10 Hz write gate (`src/ui/hudGate.ts`)
+ACCEPTANS
+- [x] The registry owns every game key; the grep test goes red for a new listener (`tests/app/hotkeys.test.ts`, `tests/app/hotkeyGrep.test.ts`)
+- [x] `?` overlay == registry both ways (`e2e/m20aLite.test.ts`); the modal tests of Fix-3Bs `e2e/modalKeys.test.ts` stay green
+- [x] Resolver table test for every rule and the invalid targets, `context(cmd)` of the selection mode (`tests/app/commandResolver.test.ts`); e2e for the right click (placement mode leaves without an intent, selected structure goes to the resolver)
+- [x] Top bar: values equal the sim, 0 DOM mutations at rest, no overlap at 960x540, 1366x640 and 540x960 with the longest strings, win meter follows the MatchView (`tests/ui/topBar.test.ts`, `e2e/m20aLite.test.ts`)
+- [x] Screenshots of `?` and the top bar looked at in both languages
+- [x] `npm run verify:fast` green; the touched e2e files green. Not run here: the full `npm run verify`, the Artifact pack, the pull request (the orchestrator).
+### M13a-1: the helicopter is visible (render and UI; src/sim untouched; one slice in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+Previous merge SHA (origin/main): f29121a8d1607ca169e6675b5f22a52d76c42ef7
+GÖR
+- [x] 1. `src/render/heliModel.ts` + `src/render/heliLayer.ts` + `src/render/shaders/helis.ts`: one merged model (under 150 triangles, per-vertex part id), the rotor spins in the vertex shader from the fx clock, ONE instanced draw (capacity 64), owner colour per instance, every non-empty HeliView row except under-production drawn
+- [x] 2. Build button in the Factory selection panel (price, queue, fleet gauge, dimmed with the reason), toasts for produced and scrapped
+- [x] 3. HUD line "Helikoptrar n/tak" with a data-testid
+- [x] 4. Budget row (1 draw call) in the table and `tests/budgets.test.ts`; leak test if needed
+- [x] 5. Test hook `__test.helis()`
+ACCEPTANS
+- [x] Build button works end to end (e2e: after the build time the helicopter stands at the Factory)
+- [x] Every state is drawn, position == sim position within 0.5 cell (unit test)
+- [x] The rotor alone changes pixels (e2e)
+- [x] 1 draw call measured, instances <= 64, no console errors
+- [x] Screenshots at 3 km and 800 m, day and night, looked at
+- [x] `npm run verify:fast` green; touched e2e green
+- Looked at: `test-results/shots/helis-3km-day.png`, `helis-800m-day.png`, `helis-3km-night.png`, `helis-800m-night.png`, `helis-panel.png` (written by `e2e/helis.test.ts`). Not run here: the full `npm run verify`, the Artifact pack, a pull request (the orchestrator). `e2e/helis.test.ts`, `e2e/m20aLite.test.ts`, `e2e/structuresSelect.test.ts`, `e2e/hud.test.ts` green.
+
+### M12a-2: helicopters in the sim, part 2 of 3 (LaunchHeli, the flight, fuel, RecallHeli, the return; headless sim; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+Previous merge SHA: nothing of this branch is merged (pull request #1 is a draft); base commit 6b1a032.
+GÖR
+- [x] 1. GÖR and ACCEPTANS written here first
+- [x] 2. Intents `LaunchHeli` (wire kind 13) and `RecallHeli` (kind 14) with codec, reason codes 51 to 54, texts sv and en, ONE shared check (`checkLaunchHeli` / `checkRecallHeli`) behind `validateLaunchHeli` / `validateRecallHeli`, exports pinned
+- [x] 3. The flight in `heliPhase` (`src/sim/heliFlight.ts`): Pad, TakeOff 20, Cruise, Approach, Hover 30, placeholder, RTB, Pad; Downed; fixed point, wrapX, terrain following, fuel, Recall, home Factory lost
+- [x] 4. The landing placeholder (HELI_LANDED, no conquest, no troops created or lost) and the exact replacement point for part 3
+- [x] 5. ENGINE_VERSION once, goldens recomputed once, Node equals worker
+- [x] 6. Tests (each reason code, tick-exact TakeOff/Hover, property test over Alps / Himalaya / Andes in both modes, fuel, Recall, home lost, round trip, snapshot equals straight run, perf with 12 airborne, SimView.helis transfer measured)
+- [x] 7. Docs and `npm run verify:fast` green
+ACCEPTANS
+- [x] LaunchHeli / RecallHeli: every reason code, one shared implementation, exports pinned
+- [x] Flight: clearance, Peak, NaN, liveness, speed cap, fuel, Recall, home lost: property and unit tests
+- [x] Landing placeholder documented with the exact replacement point; no troops created or lost
+- [x] ENGINE raised once, goldens recomputed once, Node == worker; round trip and snapshot == straight run with helicopters airborne
+- [x] Perf: median <= budgetMs(0.5) per tick with 12 airborne; the SimView.helis transfer measured
+- [x] `npm run verify:fast` green
+
+- Result: `npm run verify:fast` green (typecheck, lint, 233 unit files, 2545+ tests; 2 min 58 s); perf alone: heliFlight.perf, heli.perf, sim.perf green (flight phase of 12 airborne 25.8 us on a quiet run); the full `npm run verify`, Chromium, the pack and the pull request are the orchestrator's. Details, mutant table, measured flight times and the hooks for part 3 and M13 in `docs/DECISIONS.md` "M12a-2".
+### M12a-3: helicopters in the sim, part 3 of 3 (the landing, the beachhead, the cut-off cluster; headless sim; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+Previous merge SHA (origin/main; nothing of this branch is merged, pull request #1 is a draft): f29121a8d1607ca169e6675b5f22a52d76c42ef7; base commit a81d4b0.
+GÖR
+- [x] 1. GÖR and ACCEPTANS written here first
+- [x] 2. Landing (replaces the placeholder): HELI_UNLOAD 10 ticks, LZ cell then N,E,S,W,NE,SE,SW,NW at the Attack cell price (x2 enemy), 1 to 9 cells, a failed landing loses the load, the rest of the load is an Attack from the beachhead, beachhead table row, `landingBlockedBy` hook
+- [x] 3. Cut-off cluster: every 10 ticks a bounded BFS (80 cells), established at 80 cells or a City (post freed), else neutral exactly 450 ticks after the landing; the cluster counts for no troop cap, regeneration or gold land while cut off (cached); two beachheads that grow together merge; the enclave rule does not flip a cut-off cluster
+- [x] 4. Outbox: BEACHHEAD_FORMED, BEACHHEAD_REVERTED, HELI_LANDED (cells or failed); elimination with only a beachhead left
+- [x] 5. Tests (reasons, 1 to 9 cells, failed landing, order, tick-exact revert, no revert at 80 cells or a City, no economy from the cluster, date line, round trip, snapshot == straight run, property test over many landings, Node == worker golden), perf
+- [x] 6. Docs and `npm run verify:fast`
+ACCEPTANS
+- [x] Landing, beachhead 1 to 9 cells, failed landing, order, troop audit (no troops from nothing)
+- [x] Cut-off cluster tick-exact 45 s; an established cluster does not revert; no economy from the cluster meanwhile
+- [x] Elimination with only a beachhead left tested
+- [x] Round trip, snapshot == straight run, golden Node == worker
+- [x] Perf within budgetMs(0.5)
+- [x] `npm run verify:fast` green
+- Result: `npm run verify:fast` green (typecheck, lint, unit tests 2 min 35 s); perf alone: heliLanding.perf (tick with 12 airborne and 4 beachheads 34 us, four searches 11 us), heliFlight.perf, heli.perf green. The full `npm run verify`, Chromium, the pack and the pull request are the orchestrator's. Details, mutant table and the Alps text replay in `docs/DECISIONS.md` "M12a-3".
+### M13b: deploy mode, landing zone preview and route preview (render, UI, app; src/sim untouched; one slice in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+Previous merge SHA: nothing of this branch is merged (pull request #1 is a draft); base commit a81d4b0.
+GÖR
+- [x] 1. GÖR and ACCEPTANS written here first
+- [x] 2. `src/app/launchPreview.ts`: `previewLaunch` (the verdict IS `validateLaunchHeli`), `LaunchPreviewer` (one query out, stale answers dropped, 5 Hz, answers as Promises)
+- [x] 3. Deploy mode (`src/app/deployMode.ts`, an input mode; Escape pops), `src/ui/deployBox.ts` in the Factory panel (button, troop slider 1..600, Low / High, verdict, flight time and fuel, Cancel), live marker and route (`src/render/deployLayer.ts`, 3 draw calls)
+- [x] 4. Key L (registry) and the resolver rule `factory-deploy` (a right click with a Factory selected opens the mode)
+- [x] 5. Helicopter list with Recall in the Factory panel; toasts for landed and shot down (`MissionWatcher`), sv and en
+- [ ] 6. Beachhead ring: NOT done here (the beachhead table is not in `SimView` in this branch), see BACKLOG "M13b-2"
+- [ ] 7. Exposure plan view (key E): NOT done (time), see BACKLOG "M13b-2"
+ACCEPTANS
+- [x] Parity: `previewLaunch` / `validateLaunchHeli` equal the real LaunchHeli intent for 35 cells and every reason code, BAD_TROOPS, NO_PAD, NOT_OWNER, NO_FACTORY (`tests/app/launchPreview.test.ts`), NO_GOLD for the production check
+- [x] Async and throttle with a delayed fake query (`tests/app/launchPreview.test.ts`)
+- [x] Playwright flow (`e2e/deploy.test.ts`): green and red marker, route, 300 troops, Low, launch, flight, landing toast, Escape, refused zone sends nothing (the beachhead-ownership step is `it.skip` until M12a-3 is merged)
+- [x] Draw calls: route 2 + marker 1, layer on/off by `renderer.info` (3 measured, with the helicopter layer 4); no console errors; leak test `e2e/deployLeak.serial.test.ts` (320x180, 60 renders, heap delta 0.09 MB, geometries and textures unchanged)
+- [x] Screenshots looked at: `test-results/shots/deploy-red.png`, `deploy-green.png`, `deploy-route-tilted.png`, `deploy-flying.png`, `deploy-landed.png` (the beachhead picture waits for M12a-3)
+- [x] `npm run verify:fast` green (typecheck, lint, 237 unit files, 2579 tests + 2 expected fail; 1 min 50 s); touched e2e green: deploy, deployLeak.serial, m20aLite, structuresSelect, structures, helis, modalKeys, hud, fixLayout, fixUi
+- Not run here: the full `npm run verify`, the Artifact pack, a pull request (the orchestrator). The beachhead step of `e2e/deploy.test.ts` is `it.skip` until M12a-3 is merged.
+
+### M18c-2: diplomacy in the interface and a livelier AI negotiator (UI, app and the AI temperament; one slice in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+Previous merge SHA: nothing of this branch is merged (pull request #1 is a draft); base commit 719b212.
+GÖR
+- [x] 1. GÖR and ACCEPTANS written here first
+- [x] 2. AI temperament: truce answer, alliance threshold, truce proposal to the most frequent attacker; ENGINE 18, goldens recomputed once; measured in `tools/sim/diploMeasure.ts`
+- [x] 3. Pure model `src/ui/diploModel.ts` (rows, button states from validate*, confirm step) and the panel `src/ui/diploPanel.ts` (key D in the registry, a top bar button, Escape closes)
+- [x] 4. Incoming proposal cards (at most 3, countdown, Accept / Decline), toasts for new proposals and for the AI's answers (accepted, declined, expired), a "n proposals" signal in the top bar
+- [x] 5. Relation badges in the leaderboard and the panel rows; the result screen rows "Treaties made" / "Treaties broken"; an attack click on a treaty party gives a toast and sends no intent
+- [x] 6. Tests: model units, e2e flow, three window sizes without overlap in both languages, 0 DOM mutations at rest, D in the `?` overlay; mutants shown
+- [x] 7. Docs (DECISIONS M18c-2, ARCHITECTURE, BALANCE, PREVIEW, BACKLOG M18c-3) and `npm run verify:fast`
+ACCEPTANS
+- [x] Panel: every button is decided by validate*; confirm step on Break; own cooldown shown
+- [x] Incoming proposals can be accepted and declined; a toast for the AI's answer, also decline and expiry
+- [x] Badges in the leaderboard; the result screen shows the treaty statistics
+- [x] Attack click on a treaty party: an understandable toast and no needless intent
+- [x] AI temperament: measured acceptance rates logged, ENGINE raised once, goldens recomputed once, pace test inside its band
+- [x] Three window sizes without overlap, both languages; 0 DOM mutations at rest; D in the `?` overlay
+- [x] `npm run verify:fast` green; the touched e2e green
