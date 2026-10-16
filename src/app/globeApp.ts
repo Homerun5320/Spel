@@ -68,6 +68,7 @@ import { rememberCityStyle, startCityStyle } from './cityStyle';
 import type { CityStyle } from '../render/cityTiers';
 import { createMatch, type BuiltMatch, type MatchSetupConfig } from './matchSetup';
 import { countryEligibility } from './eligibility';
+import { loadFederations, type Federations } from '../data/federations';
 import { regionMask, type RegionId } from '../data/regions';
 import { prepareWorld, type PreparedWorld } from './matchWorld';
 import { mountSetupScreen, type SetupScreen } from './setupScreen';
@@ -442,15 +443,17 @@ function loadWorld(): Promise<WorldData> {
 let preparedCache: Promise<PreparedWorld> | null = null;
 function loadPrepared(world: WorldData): Promise<PreparedWorld> {
   if (!preparedCache) {
-    preparedCache = getLoader()
-      .loadOverrides()
-      .then((overrides) =>
+    // The federations pack is optional for the page ("Dela upp stormakter" does nothing without it).
+    const federations = loadFederations(getLoader().loader, world.meta.countries.length).catch((): Federations | null => null);
+    preparedCache = Promise.all([getLoader().loadOverrides(), federations])
+      .then(([overrides, fed]) =>
         prepareWorld({
           sim: { width: world.sim.width, height: world.sim.height, terrainClass: world.sim.terrainClass, meanElev: world.sim.meanElev, maxElev: world.sim.maxElev, cosQ15: world.meta.sim.cosQ15 },
           country: world.sim.country,
           coast: world.sim.coast,
           meta: world.meta,
           overrides,
+          federations: fed,
         }),
       );
     preparedCache.catch(() => {
@@ -635,8 +638,8 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   let setupScreen = null as SetupScreen | null;
   const ownerCss: string[] = [];
   /** (Re)builds the CSS colour of every owner; `own` is a custom nation's chosen colour (0xRRGGBB) or null for the magenta of the standard match. */
-  const setOwnerColors = (own: number | null): void => {
-    const palette = buildOwnerPalette(own === null ? undefined : rgbOfHex(own));
+  const setOwnerColors = (own: number | null, groups: ReadonlyArray<readonly number[]> = []): void => {
+    const palette = buildOwnerPalette(own === null ? undefined : rgbOfHex(own), groups);
     globe.setOwnerPalette(palette);
     ownerCss.length = 0;
     for (let id = 0; id < palette.length / 4; id++) ownerCss.push(`rgb(${palette[id * 4]}, ${palette[id * 4 + 1]}, ${palette[id * 4 + 2]})`);
@@ -874,7 +877,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       s.dispose();
       return;
     }
-    setOwnerColors(match.humanColor);
+    setOwnerColors(match.humanColor, match.federationGroups.map((g) => g.map(seatToOwner)));
     globe.setCountryLines(!match.config.neutral);
     globe.setSelection([]);
     neutralNames = match.config.neutral;

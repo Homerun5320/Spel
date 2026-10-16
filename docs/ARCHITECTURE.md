@@ -20,6 +20,7 @@ One short row per module; the last column links to the full row (milestone story
 | `src/data/world.ts` | Typed views and the world loader. | `createWorldLoader(opts)` (`loadSim`, `loadRender`, `loadMeta`... | [data](arch/data.md) |
 | `src/data/index.ts` | Barrel of the data layer. | everything above  | [data](arch/data.md) |
 | `src/data/federations.ts`, `tools/bake/federations.ts`, `tools/bake/federationsReport.ts` (M18b-1) | Federations pack: Natural Earth provinces and sub-nations of the seven big countries; pure parser, writer and helpers, not wired into the game yet (not in the barrel). | `loadFederations`, `parseFederations`, `federationOfCell`, `membersOfCountry`, `isFederationCandidate` | [data](arch/data.md) |
+| `src/app/federationSetup.ts`, `bindFederation` in `src/sim/diplomacy.ts` (M18b-2) | Option "Dela upp stormakter": `createMatch` splits a candidate country into sub-nation seats (fair start inside each), allied from tick 0 by a bound alliance that BreakTreaty refuses (`REJECT_DIPLO_FEDERATION`). Details: arch app and sim. | `membersOf`, `subNationName`, `bindFederation` | [app](arch/app.md) |
 | `tools/bake/` | `npm run bake` / `npm run bake:check`: `tools/bake/fetch.ts` (cached downloads, allowed hosts), `tools/bake/terrarium.ts` (tiles, spike clean... | `buildWorld`, `fillPolygon`, `paintPolygon`, `cleanHeights`... | [data](arch/data.md) |
 | `public/data/` | Committed baked data (about 4.5 MB): `public/data/render.bin.gz`, `public/data/sim.bin.gz`, `public/data/manifest.json`... |  | [data](arch/data.md) |
 | `debug/data.html`, `src/app/debugData.ts`, `src/app/debugPalette.ts` | Data map page (class / height / country) on a 1024x512 canvas; mode from `?map=` or `#map-...` and three buttons. | `parseMapMode`, `CLASS_COLORS`, `heightColor`... | [data](arch/data.md) |
@@ -181,4 +182,4 @@ See `docs/CHARTER.md` section 8. Planned modules (later): `src/ai` (M05 part C),
 
 ## Aktuella versioner
 
-ENGINE_VERSION 21 (`src/sim/state.ts`), FORMAT_VERSION 15 (`src/sim/serialize.ts`). A change bumps them and re-pins both golden hash files once (`UPDATE_GOLDENS=1`). Check the constants in the code before trusting this line.
+ENGINE_VERSION 22 (`src/sim/state.ts`), FORMAT_VERSION 16 (`src/sim/serialize.ts`). A change bumps them and re-pins both golden hash files once (`UPDATE_GOLDENS=1`). Check the constants in the code before trusting this line.

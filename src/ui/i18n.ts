@@ -489,6 +489,12 @@ const sv = {
   'reject.tech.matchEnded': 'Matchen är slut.',
   'reject.tech.eliminated': 'Du är utslagen och kan inte forska.',
   'reject.tech.notActive': 'Du forskar inte på något just nu.',
+  // M18b-2: federations (Dela upp stormakter)
+  'reject.diplo.federation': 'Delnationer i samma federation är bundna av en allians som inte kan brytas.',
+  'setup.federation': 'Dela upp stormakter',
+  'setup.federation.hint': 'Ryssland, Kanada, USA, Kina, Brasilien, Australien och Indien delas upp i allierade delnationer. Du spelar en av dem.',
+  'setup.federation.sub': '{country} delas upp. Du spelar en delnation (den du klickar på på kartan, annars den med huvudstaden eller den största). Federationen har upp till {members} delnationer (de som är för små för en rättvis start hoppas över); AI-nationer totalt högst {ai} (tak {max}).',
+  'setup.federation.none': 'Inget uppdelningsbart land valt: valet ändrar ingenting.',
 } as const;
 
 export type TextKey = keyof typeof sv;
@@ -967,6 +973,12 @@ const en: Record<TextKey, string> = {
   'reject.tech.matchEnded': 'The match is over.',
   'reject.tech.eliminated': 'You have been eliminated and cannot research.',
   'reject.tech.notActive': 'You are not researching anything right now.',
+  // M18b-2: federations (split the great powers)
+  'reject.diplo.federation': 'Sub-nations of one federation are bound by an alliance that cannot be broken.',
+  'setup.federation': 'Split the great powers',
+  'setup.federation.hint': 'Russia, Canada, the USA, China, Brazil, Australia and India are split into allied sub-nations. You play one of them.',
+  'setup.federation.sub': '{country} is split. You play one sub-nation (the one you click on the map, else the one with the capital or the largest). The federation has up to {members} sub-nations (those too small for a fair start are skipped); AI nations in total at most {ai} (cap {max}).',
+  'setup.federation.none': 'No splittable country chosen: the option changes nothing.',
 };
 
 /** The two tables, for the parity test and for tools. Treat as read-only. */

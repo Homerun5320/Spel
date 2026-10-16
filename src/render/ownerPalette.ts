@@ -61,7 +61,7 @@ function farthestFirst(pool: ReadonlyArray<{ lab: Lab; rgb: Rgb8 }>, chosen: rea
  * PLAYER_COLORS): a custom nation's chosen colour (M06). A hand-picked AI colour that is closer than OWN_SEPARATION_DE to it is
  * replaced by the pool colour farthest from all the others, so the own colour stays distinct from every other territory.
  */
-export function buildOwnerPalette(own: Rgb8 = PLAYER_COLORS[0] as Rgb8): Uint8Array {
+export function buildOwnerPalette(own: Rgb8 = PLAYER_COLORS[0] as Rgb8, groups: ReadonlyArray<readonly number[]> = []): Uint8Array {
   const out = new Uint8Array(OWNER_PALETTE_SIZE * 4);
   const chosen: Lab[] = [];
   const ownLab = rgbToLab(own[0], own[1], own[2]);
@@ -96,7 +96,43 @@ export function buildOwnerPalette(own: Rgb8 = PLAYER_COLORS[0] as Rgb8): Uint8Ar
     const from = firstTribe + ((id - firstTribe) % span);
     out.set(out.subarray(from * 4, from * 4 + 4), id * 4);
   }
+  for (const g of groups) relateGroup(out, g, ownLab);
   return out;
+}
+
+/** Lightness and hue steps of the members of a federation (M18b-2): the first member keeps its colour, the others are its close relatives (about 12 to 25 apart in CIE76, so they can be told apart). */
+export const FEDERATION_SHADES: ReadonlyArray<readonly [number, number]> = [
+  [10, 14],
+  [-10, -14],
+  [10, -14],
+  [-10, 14],
+  [18, 0],
+  [-18, 0],
+  [0, 26],
+  [0, -26],
+  [18, 26],
+  [-18, -26],
+  [18, -26],
+];
+
+/** Gives the owners of one federation (ownerIds; owner 1, the player's own colour, is left as it is) colours related to the first other member's. */
+function relateGroup(out: Uint8Array, owners: readonly number[], ownLab: Lab): void {
+  const members = owners.filter((o) => o !== 1 && o > 0 && o < OWNER_PALETTE_SIZE);
+  if (members.length < 2) return;
+  const b = members[0] as number;
+  const base = rgbToLab(out[b * 4] as number, out[b * 4 + 1] as number, out[b * 4 + 2] as number);
+  const chroma = Math.hypot(base[1], base[2]);
+  const hue = Math.atan2(base[2], base[1]);
+  for (let k = 1; k < members.length; k++) {
+    const [dl, dh] = FEDERATION_SHADES[(k - 1) % FEDERATION_SHADES.length] as readonly [number, number];
+    const h = hue + (dh * Math.PI) / 180;
+    const c = Math.max(chroma, 22);
+    const rgb = labToRgb(Math.min(88, Math.max(34, base[0] + dl)), c * Math.cos(h), c * Math.sin(h));
+    const lab = rgbToLab(rgb[0], rgb[1], rgb[2]);
+    if (deltaE76(lab, ownLab) < OWN_SEPARATION_DE) continue;
+    const o = members[k] as number;
+    out.set([rgb[0], rgb[1], rgb[2], 255], o * 4);
+  }
 }
 
 /** The palette as a NEAREST data texture, read with `texelFetch` (never blended). */

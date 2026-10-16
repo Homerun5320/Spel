@@ -3,6 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { loadFederations } from '../../src/data/federations';
 import { createWorldLoader } from '../../src/data/world';
 import { createSimWorld, type SimWorld } from '../../src/sim/world';
 import { prepareWorld, type PreparedWorld, type WorldData } from '../../src/app/matchWorld';
@@ -38,12 +39,14 @@ export function loadRealWorldData(dir: string = DATA_DIR): Promise<WorldData> {
       readBytes: async (url: string): Promise<Uint8Array> => new Uint8Array(fs.readFileSync(path.join(dir, decodeURIComponent(new URL(url).pathname.replace(/^\/data\//, ''))))),
     });
     const [sim, meta, overrides] = await Promise.all([loader.loadSim(), loader.loadMeta(), loader.loadOverrides()]);
+    const federations = await loadFederations(loader.loader, meta.countries.length);
     return {
       sim: { width: sim.width, height: sim.height, terrainClass: sim.terrainClass, meanElev: sim.meanElev, maxElev: sim.maxElev, cosQ15: meta.sim.cosQ15 },
       country: sim.country,
       coast: sim.coast,
       meta,
       overrides,
+      federations,
     };
   })();
   if (dir === DATA_DIR) cachedData = load;

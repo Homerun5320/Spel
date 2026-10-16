@@ -32,7 +32,7 @@ import { Attack, AttackTable } from './attacks';
 import { EnclaveQueues, enclaveBucket } from './enclaveQueue';
 import { TRAIT_MAX_MILLI, TRAIT_MIN_MILLI, type HomeRules } from './homeRules';
 import { foldStructures } from './structures';
-import { DiplomacyTable, RELATION_TRUCE, diplomacyCounts, foldDiplomacy } from './diplomacyTable';
+import { ALLIANCE_FEDERATION, DiplomacyTable, RELATION_ALLIANCE, RELATION_TRUCE, diplomacyCounts, foldDiplomacy } from './diplomacyTable';
 import { BEACH_STATUS_MAX, BeachheadTable, HELI_BUILDING, HELI_LIFT, HELI_PAD, HELI_RETURN, HELI_STATE_MAX, HeliTable, foldHelis } from './heliTable';
 import { SimEnv } from './env';
 import { MatchState, normalWin, winFlagsOf, type WinConfig, WIN_FLAG_LAND, WIN_FLAG_LAST, WIN_FLAG_SCORE } from './matchState';
@@ -83,8 +83,8 @@ import {
   type MatchHeader,
 } from './state';
 
-/** Bumped when the byte layout above changes. 2: owner u16 (D71). 3: players, rowCos and the per-owner economy arrays (M04). 4: attacks and the enclave queue (M04 conquest). 5: the exposure array (M04 fix pass). 6: the structure table (M09 part A). 7: the embargo flags (M09 part B). 8: the district table (Districts-1). 9: the match block (M18-1). 10: Sim-Growth (City levels up to 10, five district slots per row). 11: Sim-Levels2 (u16 levels up to 999 in the structure and district tables). 12: M12a-1 (the air block: the helicopter and beachhead tables). 13: M18c-1 (the diplomacy block after the match block; the M12a-3 landing track may raise the format on its own branch, the orchestrator sets the final value when the tracks are merged). 14: M12b (the salvo clock `salvoTick` of every structure row). 15: M18d-1 (the technology arrays at the end of the match block: researched mask, current tech + 1, finish tick). */
-export const FORMAT_VERSION = 15;
+/** Bumped when the byte layout above changes. 2: owner u16 (D71). 3: players, rowCos and the per-owner economy arrays (M04). 4: attacks and the enclave queue (M04 conquest). 5: the exposure array (M04 fix pass). 6: the structure table (M09 part A). 7: the embargo flags (M09 part B). 8: the district table (Districts-1). 9: the match block (M18-1). 10: Sim-Growth (City levels up to 10, five district slots per row). 11: Sim-Levels2 (u16 levels up to 999 in the structure and district tables). 12: M12a-1 (the air block: the helicopter and beachhead tables). 13: M18c-1 (the diplomacy block after the match block; the M12a-3 landing track may raise the format on its own branch, the orchestrator sets the final value when the tracks are merged). 14: M12b (the salvo clock `salvoTick` of every structure row). 15: M18d-1 (the technology arrays at the end of the match block: researched mask, current tech + 1, finish tick). 16: M18b-2 (an alliance pair may carry `until` 1 = bound by a federation; the layout is unchanged, deserialize accepts the value). */
+export const FORMAT_VERSION = 16;
 /** 'SPEL' as a little-endian u32. */
 export const MAGIC = 0x4c455053;
 export const HEADER_BYTES = 64;
@@ -542,7 +542,7 @@ function readDiplomacy(v: DataView, at: number, end: number, players: number, ti
     p += 16;
     if (a < 1 || b <= a || b > players || rel < 1 || rel > 2 || a * s + b <= last) return -1;
     last = a * s + b;
-    if (rel === RELATION_TRUCE ? until < tick || until > tick + TRUCE_TICKS : until !== 0) return -1;
+    if (rel === RELATION_TRUCE ? until < tick || until > tick + TRUCE_TICKS : until !== 0 && !(rel === RELATION_ALLIANCE && until === ALLIANCE_FEDERATION)) return -1;
     d.relation[a * s + b] = rel;
     d.relation[b * s + a] = rel;
     d.until[a * s + b] = until;

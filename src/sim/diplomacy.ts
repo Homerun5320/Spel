@@ -17,6 +17,7 @@ import {
   REJECT_DIPLO_ELIMINATED,
   REJECT_DIPLO_EMBARGO_NONE,
   REJECT_DIPLO_EMBARGO_SET,
+  REJECT_DIPLO_FEDERATION,
   REJECT_DIPLO_FULL,
   REJECT_DIPLO_MATCH_ENDED,
   REJECT_DIPLO_NOT_PLAYER,
@@ -28,6 +29,7 @@ import {
   REJECT_PHASE,
 } from './intents';
 import {
+  ALLIANCE_FEDERATION,
   DiplomacyReader,
   RELATION_ALLIANCE,
   RELATION_TRUCE,
@@ -99,6 +101,7 @@ export function checkAnswer(v: DiploCheckView, seat: number, from: number): numb
 export function checkBreak(v: DiploCheckView, seat: number, withSeat: number): number {
   const why = checkCommon(v, seat, withSeat);
   if (why !== REJECT_NONE) return why;
+  if (v.diplomacy.federationBound(seat, withSeat)) return REJECT_DIPLO_FEDERATION;
   return v.diplomacy.relation(seat, withSeat) === RELATION_WAR ? REJECT_DIPLO_NO_TREATY : REJECT_NONE;
 }
 
@@ -139,6 +142,19 @@ function enterTreaty(state: GameState, a: number, b: number, treaty: number): vo
   cancelAttacksBetween(state, a, b);
   state.match.treatiesMade[a] = ((state.match.treatiesMade[a] as number) + 1) >>> 0;
   state.match.treatiesMade[b] = ((state.match.treatiesMade[b] as number) + 1) >>> 0;
+  dirtyTrade(state);
+}
+
+/**
+ * Binds two player seats into one federation (M18b-2, called by the match setup at tick 0, never by an intent): an ALLIANCE that BreakTreaty refuses
+ * (REJECT_DIPLO_FEDERATION). It is stored as an alliance with `until` = ALLIANCE_FEDERATION, so it is serialised and hashed with the rest of the table and
+ * the Attack ban, the trade bonus and the AI's reading all treat it like any alliance. No treaty is counted in the statistics.
+ */
+export function bindFederation(state: GameState, seatA: number, seatB: number): void {
+  const a = seatToOwner(seatA);
+  const b = seatToOwner(seatB);
+  state.diplo.removeProposalsBetween(a, b);
+  state.diplo.setRelation(a, b, RELATION_ALLIANCE, ALLIANCE_FEDERATION);
   dirtyTrade(state);
 }
 

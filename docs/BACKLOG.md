@@ -555,3 +555,12 @@ Not done in the Fix-UI slice (the sim, host and AI findings belong to Fix-Sim):
 - Enemy helicopter hit chance against the researcher's own land (DEFENCE, optional in the prompt); the helicopter landing price (`landingCostMilli`) takes no LAND discount.
 - Retune with the balance harness (M19): gold is cheap next to land income (see DECISIONS M18d-1 point 6); the time gate does the work today.
 - Shared research between allies; techs that unlock building types or missiles (later milestones add rows to the `TECH_*` tables).
+
+## M18b-3 (from M18b-2)
+
+- Shared victory for a federation: `src/sim/win.ts` counts land share, last-alive and score per OWNER; a federation needs a group id per seat in the match header (hashed, so a format bump), the land condition on the SUM of the members' shares, "last alive" when only members of one group remain, and the score ranking by group. `MatchView` and the result rows (`resultRows`) need the group, the leaderboard (`src/ui/matchHud.ts`) a grouped row or a bracket, and the HUD win meter the group's share.
+- Procedural flags per federation and Swedish names of the sub-nations (the pack has English names only); labels of whole federations on the map (nation labels could draw one for a group).
+- Per-sub-nation home land (the discount on the sub-nation's own ground only): needs more than one byte per cell for the country map or a separate sub-nation map in the state.
+- Skipped sub-nations (USA 3 of 12, CHN 8 of 12, CAN 1 of 10, BRA 1 of 8, IND 4 of 5) could be MERGED into a neighbouring sub-nation instead of staying neutral, or the baker could size them by playable width; a start disc that is allowed to spill a few cells over a border would also keep more.
+- A federation member that has an ally under attack could help it (a defence pact); today nothing moves.
+- The info line of the option shows an upper bound; the exact seat count is known only after the build.

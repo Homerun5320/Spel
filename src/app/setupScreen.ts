@@ -5,6 +5,7 @@
 // means (`checkDraft`); it never touches the sim. The globe belongs to the page: the screen is told about clicks on it
 // (`globeClick`) and asks the page to fly the camera, outline a country and mark the start place through `SetupHooks`.
 import type { GlobePick } from '../render/describe';
+import { federationOfCell } from '../data/federations';
 import { REGION_IDS, type RegionId } from '../data/regions';
 import { SETUP_AI_NATIONS_MAX, START_DISC_CELLS } from '../sim/rules';
 import { cssOfHex, drawFlag, flagSpecText, makeFlagSpec } from '../ui/flag';
@@ -15,6 +16,7 @@ import { resolveClickCell } from './clickTarget';
 import { countryName, searchCountries } from './countrySearch';
 import { countryViews, flyDistanceKm } from './countryGeo';
 import { countryEligibility, startCellEligibility } from './eligibility';
+import { membersOf } from './federationSetup';
 import { CUSTOM_COLORS, DIFFICULTIES, maxAiNations, type Difficulty, type MatchSetupConfig, type SetupError } from './matchSetup';
 import type { CountryInfo, PreparedWorld } from './matchWorld';
 import type { CityStyle } from '../render/cityTiers';
@@ -221,6 +223,14 @@ export function mountSetupScreen(parent: HTMLElement, world: PreparedWorld, init
   const neutralText = el('span', '');
   neutralRow.append(neutral, neutralText);
   const neutralHint = el('div', 'setup-hint');
+  // M18b-2: "Dela upp stormakter" (a checkbox; off by default) and the line that says what it does for the chosen country.
+  const fedRow = el('label', 'setup-check');
+  const fed = el('input', '', 'setup-federation');
+  fed.type = 'checkbox';
+  const fedText = el('span', '');
+  fedRow.append(fed, fedText);
+  const fedHint = el('div', 'setup-hint');
+  const fedInfo = el('div', 'setup-hint', 'setup-federation-info');
   // The win conditions (M18-2): three presets, three switches (land share with a slider, last alive, points after a time) and a one-line summary.
   const winTitle = el('div', 'setup-subtitle', 'setup-win-title');
   const winPresets = el('div', 'setup-win-presets', 'setup-win-presets');
@@ -262,7 +272,7 @@ export function mountSetupScreen(parent: HTMLElement, world: PreparedWorld, init
   winMinutes.id = 'setup-win-minutes';
   const winSummary = el('div', 'setup-hint', 'setup-win-summary');
   winSummary.setAttribute('role', 'status');
-  optBox.append(optTitle, regionLabel, region, aiLabel, aiRow, tribesRow, diffLabel, diff, diffNote, winTitle, winPresets, winLandRow, winPctRow, winLastRow, winScoreRow, winMinutesLabel, winMinutes, winSummary, seedLabel, seed, seedHint, neutralRow, neutralHint);
+  optBox.append(optTitle, regionLabel, region, aiLabel, aiRow, tribesRow, diffLabel, diff, diffNote, winTitle, winPresets, winLandRow, winPctRow, winLastRow, winScoreRow, winMinutesLabel, winMinutes, winSummary, seedLabel, seed, seedHint, neutralRow, neutralHint, fedRow, fedHint, fedInfo);
 
   // The neutral disclaimer is always in view (in the footer, above the status); where the lines and names come from is at the end of the body.
   const disclaimer = el('p', 'setup-disclaimer', 'setup-disclaimer');
@@ -460,6 +470,8 @@ export function mountSetupScreen(parent: HTMLElement, world: PreparedWorld, init
     seedHint.textContent = t('setup.seedHint');
     neutralText.textContent = t('setup.neutral');
     neutralHint.textContent = t('setup.neutralHint');
+    fedText.textContent = t('setup.federation');
+    fedHint.textContent = t('setup.federation.hint');
     disclaimer.textContent = t('setup.disclaimer');
     sources.textContent = t('setup.sources');
   };
@@ -558,6 +570,10 @@ export function mountSetupScreen(parent: HTMLElement, world: PreparedWorld, init
     neutral.disabled = realTab;
     neutral.checked = !realTab && draft.neutral;
     neutralRow.dataset.disabled = realTab ? '1' : '0';
+    fed.checked = draft.federations;
+    fed.disabled = world.data.federations == null;
+    fedRow.dataset.disabled = fed.disabled ? '1' : '0';
+    federationLine();
     markSelectedRow();
     // footer
     showStatus();
@@ -567,9 +583,35 @@ export function mountSetupScreen(parent: HTMLElement, world: PreparedWorld, init
     panel.dataset.tab = draft.tab;
   }
 
-  const selectCountry = (c: CountryInfo, fly: boolean): void => {
+  /** The line under the option: which sub-nation you play and how many AI nations the match gets at most (the exact numbers come with the build). */
+  function federationLine(): void {
+    const f = world.data.federations ?? null;
+    const c = draft.tab === 'real' ? country() : null;
+    const members = f !== null && c !== null ? membersOf(f, c) : [];
+    fedInfo.hidden = !draft.federations;
+    fedInfo.dataset.members = String(members.length);
+    if (!draft.federations) {
+      fedInfo.textContent = '';
+      return;
+    }
+    if (f === null || c === null || members.length < 2) {
+      fedInfo.textContent = t('setup.federation.none');
+      fedInfo.dataset.sub = '0';
+      return;
+    }
+    const partners = members.length - 1;
+    fedInfo.dataset.sub = String(draft.subNation);
+    fedInfo.textContent = t('setup.federation.sub', {
+      country: countryName(c, getLanguage()),
+      members: members.length,
+      ai: partners + Math.min(draft.aiNations, SETUP_AI_NATIONS_MAX - partners),
+      max: SETUP_AI_NATIONS_MAX,
+    });
+  }
+
+  const selectCountry = (c: CountryInfo, fly: boolean, subNation = 0): void => {
     message = null;
-    apply({ countryId: c.id, tab: 'real' });
+    apply({ countryId: c.id, tab: 'real', subNation });
     hooks.select(outlineIds(c));
     if (fly) flyToCountry(c);
     // keep the chosen row in view inside the list
@@ -658,6 +700,7 @@ export function mountSetupScreen(parent: HTMLElement, world: PreparedWorld, init
   winMinutes.addEventListener('change', () => apply({ win: clampWinDraft({ ...draft.win, minutes: Number(winMinutes.value) }) }));
   seed.addEventListener('input', () => apply({ seed: seed.value }));
   neutral.addEventListener('change', () => apply({ neutral: neutral.checked }));
+  fed.addEventListener('change', () => apply({ federations: fed.checked, subNation: 0 }));
   langBtn.addEventListener('click', () => {
     setLanguage(getLanguage() === 'sv' ? 'en' : 'sv');
     langBtn.blur();
@@ -729,7 +772,9 @@ export function mountSetupScreen(parent: HTMLElement, world: PreparedWorld, init
           refresh();
           return;
         }
-        selectCountry(c, false);
+        // A click inside a split country picks the sub-nation under the pointer.
+        const f = world.data.federations ?? null;
+        selectCountry(c, false, draft.federations && f !== null ? federationOfCell(f, pick.cell.index) : 0);
         return;
       }
       const analysis = world.analyse(draft.region);

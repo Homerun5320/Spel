@@ -168,6 +168,13 @@ Lägen som finns registrerade i Dev-panelen (F2 eller hörnknappen) just nu:
 17bb. **Tangenten N.** **N** slår nationsetiketterna och frontpilarna av och på tillsammans (ett meddelande bekräftar), valet sparas till nästa gång och står i hjälprutan (`?`). Standard är på. I en testsida (`?test=1`) är de av om du inte lägger till `labels=1`.
 17bc. **Adresser.** Artifact: samma länk (spela som vanligt) eller `#test_seed-7_hud-1_labels-1` för en match med etiketter; lokalt / Netlify: `?test=1&hud=1&labels=1&seed=7`. Dev-panelen (F2) har ingen särskild kontroll för etiketterna; tangenten N finns i hjälprutan (`?`).
 
+### 5j. Så delar du upp stormakter (M18b-2)
+
+17bd. **Kryssrutan.** I uppsättningen (Ny match) finns längst ned bland alternativen **Dela upp stormakter**. Standard är **av**; då är allt som förut. Är den på och du väljer **USA, Ryssland, Kanada, Kina, Brasilien, Australien eller Indien** blir landet flera **delnationer** i stället för en nation. Du spelar **en** delnation; de andra är AI-nationer som är **allierade med dig från start**. Raden under kryssrutan säger vilken delnation du spelar och hur många AI-nationer matchen får som mest (taket är 24). Klickar du på kartan i det delade landet väljer du delnationen under pekaren; väljer du i listan spelar du den delnation som har huvudstaden (annars den största).
+17be. **Så ser du alliansen.** Delnationerna har egna namn som **Alaska (United States of America)** (på engelska, ingen svensk översättning) och närbesläktade färger. I topplistan har varje allierad delnation märket **Allians**. Tryck **D**: raden har **Bryt avtal** nedtonad med förklaringen att delnationer i samma federation är bundna av en allians som inte kan brytas. Ni kan inte anfalla varandra. Alla delnationer är med i topplistan och resultatskärmen som egna rader; vinstvillkoren är oförändrade (en delnation kan vinna ensam). Delad seger kommer i M18b-3.
+17bf. **Hur många delnationer?** Bara delnationer som kan få en hel rättvis start (197 rutor) inom sin egen mark är med: Ryssland 12 av 12, Kanada 9 av 10, USA 9 av 12, Kina 4 av 12, Brasilien 7 av 8, Australien 5 av 5; för Indien går bara en delnation att starta, så Indien förblir ett helt land. De som är för små hoppas över och marken blir neutral.
+17bg. **Adresser.** Artifact: samma länk, välj Ny match; för ett test `#test_menu-1_hud-1_seed-1`; lokalt / Netlify: `?test=1&menu=1&hud=1&seed=1`. Dev-panelen (F2) har inget särskilt läge för detta, kryssrutan finns i uppsättningen.
+
 ## 6. Det som inte fungerar i en Artifact
 
 18. **Ladda ner-knappar fungerar inte** (nedladdningar från sidan är blockerade). Rapporter visas i stället i en textruta som du kan markera och kopiera. Knappen "Kopiera rapport" fungerar (urklipp går bara efter ett klick).

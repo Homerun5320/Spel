@@ -16,7 +16,9 @@
 //    neutral mode; a custom nation is a match on equal footing without them (D112).
 // This file builds a sim state, so it is one of the files the front-end import rule exempts (eslint.config.js, D117).
 import { pickSpawnCell } from '../ai';
+import type { Federations, SubNation } from '../data/federations';
 import { isRegionId, type RegionId } from '../data/regions';
+import { bindFederation } from '../sim/diplomacy';
 import { traitMilli } from '../sim/homeRules';
 import { validWinConfig, type WinConfig } from '../sim/matchState';
 import { createRng, nextBelow } from '../sim/public';
@@ -38,7 +40,7 @@ import {
   WIN_LAND_SHARE_PCT,
 } from '../sim/rules';
 import { startSeats, type SeatStart } from '../sim/setup';
-import { countDisc } from '../sim/spawn';
+import { claimDisc, countDisc } from '../sim/spawn';
 import type { GameState } from '../sim/state';
 import { StateView } from '../sim/view';
 import { createWorldState } from '../sim/world';
@@ -48,6 +50,7 @@ import { createSeatLabels, type SeatIdentity, type SeatLabels } from '../ui/seat
 import { CUSTOM_NAME_MAX_CHARS } from '../ui/uiConfig';
 import { countryWithName } from './countrySearch';
 import { countryEligibility, startCellEligibility } from './eligibility';
+import { membersOf, subNationName } from './federationSetup';
 import { inventName } from './inventedNames';
 import type { CountryInfo, PreparedWorld, RegionAnalysis } from './matchWorld';
 
@@ -96,6 +99,13 @@ export interface MatchSetupConfig {
    * (all three on; this is what a real match gets); `null` = the match never ends (tests, the pace tool and the selfplay scripts pin this).
    */
   readonly win?: WinConfig | null;
+  /**
+   * M18b-2 "Dela upp stormakter": a federation candidate (src/data/federations.ts) that you play or an AI nation picks is replaced by its sub-nations,
+   * allied from tick 0 and unable to break it. Absent / false = the match of before (byte-identical).
+   */
+  readonly federations?: boolean;
+  /** The sub-nation id (the federation raster value) you play when your country is split; 0 or absent = the one holding the capital, else the largest. */
+  readonly subNation?: number;
 }
 
 /** The default win block of a region (M18-1): all three conditions on, 60 percent held for 300 ticks, the time limit of a Skirmish (12 min) or of the World (25 min). */
@@ -124,6 +134,8 @@ export function matchSetupConfig(player: PlayerChoice, options: Partial<Omit<Mat
     spawnPhase: options.spawnPhase ?? true,
     debugIntents: options.debugIntents ?? false,
     ...(options.win !== undefined ? { win: options.win } : {}),
+    ...(options.federations === true ? { federations: true } : {}),
+    ...(options.subNation !== undefined && options.subNation > 0 ? { subNation: options.subNation } : {}),
   };
 }
 
@@ -146,6 +158,8 @@ export interface SeatInfo {
   readonly capitalCell: number;
   /** The real country the seat stands for (0 = none). */
   readonly countryId: number;
+  /** M18b-2: the sub-nation id (federation raster value) the seat plays; absent for every other seat. Its country is `countryId`. */
+  readonly subNation?: number;
 }
 
 export interface BuiltMatch {
@@ -165,6 +179,8 @@ export interface BuiltMatch {
   readonly humanColor: number | null;
   /** Names and flags of the seats for the HUD and the leaderboard. */
   readonly labels: SeatLabels;
+  /** M18b-2: the seats of each federation (two or more allied sub-nations), in seat order; empty unless "Dela upp stormakter" split a country. */
+  readonly federationGroups: readonly (readonly number[])[];
 }
 
 export type CreateMatchResult = { readonly ok: true; readonly match: BuiltMatch } | { readonly ok: false; readonly error: SetupError };
@@ -209,6 +225,8 @@ function badField(c: MatchSetupConfig): string | null {
   if (typeof c.spawnPhase !== 'boolean') return 'spawnPhase';
   if (typeof c.debugIntents !== 'boolean') return 'debugIntents';
   if (c.win !== undefined && c.win !== null && !validWinConfig(c.win)) return 'win';
+  if (c.federations !== undefined && typeof c.federations !== 'boolean') return 'federations';
+  if (c.subNation !== undefined && !isInt(c.subNation, 0, 255)) return 'subNation';
   const p = c.player as PlayerChoice | null | undefined;
   if (typeof p !== 'object' || p === null) return 'player';
   if (p.kind === 'real') return isInt(p.countryId, 1, 255) ? null : 'player.countryId';
@@ -219,6 +237,56 @@ function badField(c: MatchSetupConfig): string | null {
     return isInt(p.cell, 0, Number.MAX_SAFE_INTEGER) ? null : 'player.cell';
   }
   return 'player.kind';
+}
+
+/** How many cells of a sub-nation (nearest to its centre first, inland ones only) are tried as a capital before it is given up on. */
+const START_TRIES = 400;
+const RING: ReadonlyArray<readonly [number, number]> = [[4, 0], [-4, 0], [0, 4], [0, -4], [3, 3], [-3, 3], [3, -3], [-3, -3]];
+
+/**
+ * A capital cell for a sub-nation whose Spawn disc (the K nearest contiguous unowned land cells) lies WHOLLY inside the sub-nation, or -1 when no
+ * cell near its centre gives one (the sub-nation is then left out). `prefer` (a cell, or -1) is tried first, then the cells in order of
+ * their distance to the centre. Changes nothing (dry walk).
+ */
+function subNationStart(state: GameState, f: Federations, sub: SubNation, prefer: number): number {
+  const width = f.width;
+  const raster = f.federationRaster;
+  const inside = (c: number): boolean => raster[c] === sub.id;
+  const whole = (c: number): boolean => {
+    if (state.grid.playable[c] !== 1 || state.owner[c] !== 0) return false;
+    const claimed: number[] = [];
+    if (claimDisc(state, c, 0, 0, claimed, true) !== START_DISC_CELLS) return false;
+    for (const k of claimed) if (!inside(k)) return false;
+    return true;
+  };
+  if (prefer >= 0 && inside(prefer) && whole(prefer)) return prefer;
+  const cx = sub.centroid % width;
+  const cy = Math.floor(sub.centroid / width);
+  const list: Array<{ d: number; cell: number }> = [];
+  for (let c = 0; c < raster.length; c++) {
+    if (raster[c] !== sub.id || state.grid.playable[c] !== 1) continue;
+    const dx = (c % width) - cx;
+    const dy = Math.floor(c / width) - cy;
+    list.push({ d: dx * dx + dy * dy, cell: c });
+  }
+  list.sort((a, b) => a.d - b.d || a.cell - b.cell);
+  // Nearest to the centre first. A cheap look at eight points around the cell skips the ones near the edge before the (dearer) dry walk.
+  const ring = (c: number): boolean => {
+    const x = c % width;
+    const y = Math.floor(c / width);
+    for (const [dx, dy] of RING) {
+      const yy = y + dy;
+      if (yy < 0 || yy >= f.height || raster[yy * width + ((x + dx + width) % width)] !== sub.id) return false;
+    }
+    return true;
+  };
+  let tries = 0;
+  for (const { cell } of list) {
+    if (!ring(cell)) continue;
+    if (whole(cell)) return cell;
+    if (++tries >= START_TRIES) break;
+  }
+  return -1;
 }
 
 /** Squared distance of two cells on the cylinder (x wraps). */
@@ -252,12 +320,17 @@ interface Placed {
   readonly seat: number;
   readonly cell: number;
   readonly country: CountryInfo | null;
+  /** The sub-nation this seat plays (M18b-2), or null. */
+  readonly sub: SubNation | null;
 }
 
-/** The sim rules of a seat that stands for a real country in a match with home rules. */
-function seatRules(c: CountryInfo): SeatStart['rules'] {
+/**
+ * The sim rules of a seat that stands for a real country in a match with home rules. A SUB-NATION of a federation keeps the country's coast and
+ * mountain traits but has NO home land: a discount on the whole country's ground would be twelve times the discount of one nation (DECISIONS M18b-2).
+ */
+function seatRules(c: CountryInfo, subNation = false): SeatStart['rules'] {
   return {
-    homeLand: c.homeId,
+    homeLand: subNation ? 0 : c.homeId,
     portMilli: traitMilli(c.coastPermille, TRAIT_COAST_MID_PERMILLE, TRAIT_COAST_GAIN_PCT),
     defenceMilli: traitMilli(c.mountainPermille, TRAIT_MOUNTAIN_MID_PERMILLE, TRAIT_MOUNTAIN_GAIN_PCT),
   };
@@ -281,7 +354,7 @@ function build(world: PreparedWorld, config: MatchSetupConfig, lenient: boolean)
 
   // The player's place.
   let playerCountry: CountryInfo | null = null;
-  let humanCell: number;
+  let humanCell: number;  // reassigned by the federation split below
   if (player.kind === 'real') {
     if (config.neutral) return fail('neutralNeedsCustom', 'setup.error.neutralNeedsCustom');
     playerCountry = world.byId.get(player.countryId) ?? null;
@@ -296,7 +369,34 @@ function build(world: PreparedWorld, config: MatchSetupConfig, lenient: boolean)
   }
 
   const homeRules = player.kind === 'real' && !config.neutral;
-  const players = 1 + config.aiNations;
+
+  // M18b-2: "Dela upp stormakter". The player's country, when it is a federation candidate, becomes its sub-nations: you play one, the others are AI
+  // partners (allied from tick 0). Their starts are found on an empty map first, because the number of seats depends on how many sub-nations can start.
+  const fed = config.federations === true ? (world.data.federations ?? null) : null;
+  let humanSub: SubNation | null = null;
+  let partners: Array<{ sub: SubNation; cell: number }> = [];
+  if (fed !== null && playerCountry !== null) {
+    const members = membersOf(fed, playerCountry);
+    if (members.length >= 2) {
+      const scratch = createWorldState(analysis.world, { seed: config.seed, seats: 1, players: 1, config: { debugIntents: false, spawnPhase: false, homeRules: false } });
+      const starts: Array<{ sub: SubNation; cell: number }> = [];
+      for (const m of members) {
+        const cell = subNationStart(scratch, fed, m, fed.federationRaster[playerCountry.capitalCell] === m.id ? playerCountry.capitalCell : -1);
+        if (cell >= 0) starts.push({ sub: m, cell });
+      }
+      if (starts.length >= 2) {
+        const wanted = config.subNation ?? 0;
+        let me = starts.find((x) => x.sub.id === wanted);
+        me ??= starts.find((x) => x.sub.id === fed.federationRaster[playerCountry.capitalCell]);
+        me ??= starts.reduce((a, b) => (b.sub.cells > a.sub.cells ? b : a));
+        humanSub = me.sub;
+        humanCell = me.cell;
+        partners = starts.filter((x) => x !== me);
+      }
+    }
+  }
+  const aiOthers = Math.min(config.aiNations, SETUP_AI_NATIONS_MAX - partners.length);
+  const players = 1 + partners.length + aiOthers;
   const tribeSeats = config.tribes ? MATCH_TRIBES : 0;
   const countryMap = homeRules ? new Uint8Array(world.width * world.height) : undefined;
   if (countryMap !== undefined) {
@@ -313,16 +413,17 @@ function build(world: PreparedWorld, config: MatchSetupConfig, lenient: boolean)
   });
 
   const placed: Placed[] = [];
-  const place = (seat: number, cell: number, country: CountryInfo | null): boolean => {
-    const rules = homeRules && country !== null ? seatRules(country) : undefined;
+  const groups: number[][] = [];
+  const place = (seat: number, cell: number, country: CountryInfo | null, sub: SubNation | null = null): boolean => {
+    const rules = homeRules && country !== null ? seatRules(country, sub !== null) : undefined;
     const codes = startSeats(state, [rules === undefined ? { seat, cell } : { seat, cell, rules }]);
     if (codes[0] !== 0) return false;
-    placed.push({ seat, cell, country });
+    placed.push({ seat, cell, country, sub });
     return true;
   };
 
   // You first, on an empty map: the land mass rule guarantees the whole disc.
-  if (!place(config.humanSeat, humanCell, playerCountry) || (state.agg.area[config.humanSeat + 1] as number) !== START_DISC_CELLS) {
+  if (!place(config.humanSeat, humanCell, playerCountry, humanSub) || (state.agg.area[config.humanSeat + 1] as number) !== START_DISC_CELLS) {
     return fail('startCell', 'setup.start.terrain');
   }
 
@@ -333,10 +434,41 @@ function build(world: PreparedWorld, config: MatchSetupConfig, lenient: boolean)
   for (let seat = 0; seat < players; seat++) if (seat !== config.humanSeat) aiSeats.push(seat);
   let next = 0;
   let aiPlaced = 0;
-  for (const seat of aiSeats) {
+  // The partners of your federation take the first AI seats.
+  if (humanSub !== null) {
+    const group = [config.humanSeat];
+    partners.forEach((x, i) => {
+      if (place(aiSeats[i] as number, x.cell, playerCountry, x.sub)) group.push(aiSeats[i] as number);
+    });
+    groups.push(group);
+    aiPlaced += partners.length;
+  }
+  const rest = aiSeats.slice(partners.length);
+  let si = 0;
+  while (si < rest.length) {
     let done = false;
     while (next < order.length && !done) {
       const c = order[next++] as CountryInfo;
+      // An AI candidate country is split too when all its sub-nations that can start fit in the seats that are left.
+      const members = fed === null ? [] : membersOf(fed, c);
+      if (fed !== null && members.length >= 2) {
+        const starts: Array<{ sub: SubNation; cell: number }> = [];
+        for (const m of members) {
+          const at = subNationStart(state, fed, m, fed.federationRaster[c.capitalCell] === m.id ? c.capitalCell : -1);
+          if (at >= 0) starts.push({ sub: m, cell: at });
+        }
+        if (starts.length >= 2 && starts.length <= rest.length - si) {
+          const group: number[] = [];
+          for (const x of starts) {
+            const seat = rest[si++] as number;
+            if (place(seat, x.cell, c, x.sub)) group.push(seat);
+            aiPlaced++;
+          }
+          groups.push(group);
+          done = true;
+          continue;
+        }
+      }
       const cell = c.capitalCell;
       let far = true;
       for (const p of placed) {
@@ -345,10 +477,16 @@ function build(world: PreparedWorld, config: MatchSetupConfig, lenient: boolean)
           break;
         }
       }
-      if (far && countDisc(state, cell) === START_DISC_CELLS) done = place(seat, cell, c);
+      if (far && countDisc(state, cell) === START_DISC_CELLS) done = place(rest[si] as number, cell, c);
+      if (done) {
+        si++;
+        aiPlaced++;
+      }
     }
-    if (!done && !lenient) return fail('notEnoughCountries', 'setup.error.notEnoughCountries', { available: aiPlaced, wanted: config.aiNations });
-    if (done) aiPlaced++;
+    if (!done) {
+      if (!lenient) return fail('notEnoughCountries', 'setup.error.notEnoughCountries', { available: aiPlaced, wanted: config.aiNations });
+      break;
+    }
   }
 
   // The tribes: whole discs of clear land near the player, by the AI's place search (a tribe with no place stays unplaced).
@@ -382,6 +520,11 @@ function build(world: PreparedWorld, config: MatchSetupConfig, lenient: boolean)
         seats.push({ seat, kind: 'human', identity: { kind: 'custom', name: player.name.trim() }, flag: makeFlagSpec(player.flagSeed, { primary: player.color }), capitalCell, countryId: 0 });
       } else {
         const c = playerCountry as CountryInfo;
+        if (humanSub !== null) {
+          const name = subNationName(humanSub, c);
+          seats.push({ seat, kind: 'human', identity: { kind: 'country', nameEn: name, nameSv: name }, flag: makeFlagSpec(mix(config.seed, FLAG_SALT + 3000 + humanSub.id)), capitalCell, countryId: c.id, subNation: humanSub.id });
+          continue;
+        }
         seats.push({ seat, kind: 'human', identity: { kind: 'country', nameEn: c.nameEn, nameSv: c.nameSv }, flag: makeFlagSpec(mix(config.seed, FLAG_SALT + c.id)), capitalCell, countryId: c.id });
       }
       continue;
@@ -395,9 +538,18 @@ function build(world: PreparedWorld, config: MatchSetupConfig, lenient: boolean)
       seats.push({ seat, kind: 'ai', identity: { kind: 'invented', name }, flag: makeFlagSpec(mix(config.seed, FLAG_SALT + 1000 + seat)), capitalCell, countryId: 0 });
     } else {
       const c = p.country;
+      if (p.sub !== null) {
+        const name = subNationName(p.sub, c);
+        seats.push({ seat, kind: 'ai', identity: { kind: 'country', nameEn: name, nameSv: name }, flag: makeFlagSpec(mix(config.seed, FLAG_SALT + 3000 + p.sub.id)), capitalCell, countryId: c.id, subNation: p.sub.id });
+        continue;
+      }
       seats.push({ seat, kind: 'ai', identity: { kind: 'country', nameEn: c.nameEn, nameSv: c.nameSv }, flag: makeFlagSpec(mix(config.seed, FLAG_SALT + c.id)), capitalCell, countryId: c.id });
     }
   }
+
+  // The federations are allied from tick 0, and that alliance cannot be broken (REJECT_DIPLO_FEDERATION).
+  const federationGroups = groups.filter((g) => g.length >= 2);
+  for (const g of federationGroups) for (let i = 0; i < g.length; i++) for (let j = i + 1; j < g.length; j++) bindFederation(state, g[i] as number, g[j] as number);
 
   const match: BuiltMatch = {
     state,
@@ -414,6 +566,7 @@ function build(world: PreparedWorld, config: MatchSetupConfig, lenient: boolean)
       players,
       config.humanSeat,
     ),
+    federationGroups,
   };
   return { ok: true, match };
 }
@@ -428,7 +581,7 @@ export function createMatch(world: PreparedWorld, config: MatchSetupConfig): Cre
  * the upper end of the slider. It builds the match with the most nations and counts the ones that found a country.
  */
 export function maxAiNations(world: PreparedWorld, config: MatchSetupConfig): number {
-  const r = build(world, { ...config, aiNations: SETUP_AI_NATIONS_MAX, humanSeat: 0, tribes: false }, true);
+  const r = build(world, { ...config, aiNations: SETUP_AI_NATIONS_MAX, humanSeat: 0, tribes: false, federations: false }, true);
   if (!r.ok) return 0;
   return r.match.seats.filter((s) => s.kind === 'ai' && s.capitalCell >= 0).length;
 }

@@ -13,6 +13,12 @@ export const RELATION_WAR = 0;
 export const RELATION_TRUCE = 1;
 export const RELATION_ALLIANCE = 2;
 
+/**
+ * The `until` value of an ALLIANCE that a federation binds (M18b-2): the sub-nations of one federation are allied from tick 0 and none of them can break it.
+ * An ordinary alliance has `until` 0; no proposal or acceptance ever creates the bound one, only the match setup (`bindFederation`, src/sim/diplomacy.ts).
+ */
+export const ALLIANCE_FEDERATION = 1;
+
 /** Treaty kinds of a proposal (the `treaty` field of ProposeTreaty): they equal the relation they create. */
 export const TREATY_TRUCE = 1;
 export const TREATY_ALLIANCE = 2;
@@ -238,6 +244,8 @@ export interface DiplomacyView {
   embargoFrom(a: number, b: number): boolean;
   /** How many other players the seat has a truce or an alliance with right now. */
   activeRelations(seat: number): number;
+  /** Whether the two seats are allied by one federation (M18b-2): that alliance cannot be broken. */
+  federationBound(a: number, b: number): boolean;
 }
 
 /** A `DiplomacyView` over a table and a clock (the live state's tick, or the mirror's). No allocation per call. */
@@ -307,6 +315,11 @@ export class DiplomacyReader implements DiplomacyView {
 
   embargo(a: number, b: number): boolean {
     return this.embargoFrom(a, b) || this.embargoFrom(b, a);
+  }
+
+  federationBound(a: number, b: number): boolean {
+    const k = this.pair(a, b);
+    return k >= 0 && this.table.relation[k] === RELATION_ALLIANCE && this.table.until[k] === ALLIANCE_FEDERATION;
   }
 
   embargoFrom(a: number, b: number): boolean {
