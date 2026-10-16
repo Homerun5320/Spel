@@ -5,7 +5,7 @@ import { resolveCommand, type CommandContext, type CommandSelection, type Comman
 import { InputStack } from '../../src/app/input';
 import { MISSION_LANDED, MISSION_LOST, MissionWatcher, ownHeliRows } from '../../src/ui/heliInfo';
 import { HELI_CRUISE, HELI_DOWNED, HELI_HOVER, HELI_PAD, HELI_RETURN, STRUCT_CITY, STRUCT_FACTORY } from '../../src/sim/public';
-import { HeliTable } from '../../src/sim/heliTable';
+import { HeliTable, HELI_UNLOAD } from '../../src/sim/heliTable';
 import type { SimView } from '../../src/sim/public';
 
 function target(verdict: (cell: number) => number) {
@@ -104,19 +104,28 @@ describe('the helicopter list and the mission news', () => {
     expect(rows[0]).toMatchObject({ id: b, state: HELI_CRUISE, troops: 120, fuelPct: 50 });
   });
 
-  it('a hovering helicopter that is gone from HOVER has landed; a downed one is lost; only the seat\'s own count', () => {
+  it('a helicopter that leaves HELI_UNLOAD has landed (not one that merely leaves the hover, e.g. a recall); a downed one is lost; only the seat\'s own count', () => {
     const t = new HeliTable(4);
     const mine = t.addBuilding(1, 0, 0, 0);
     const other = t.addBuilding(2, 0, 0, 0);
     t.state[mine] = HELI_HOVER;
-    t.state[other] = HELI_HOVER;
+    t.state[other] = HELI_UNLOAD;
     const w = new MissionWatcher();
     expect(w.update(view(t), 1, 0)).toBe(0); // the first look only records
-    t.state[mine] = HELI_RETURN;
+    t.state[mine] = HELI_UNLOAD; // the hover ended: the troops are being set down, the cells are not taken yet
     t.state[other] = HELI_DOWNED;
-    expect(w.update(view(t), 2, 0)).toBe(MISSION_LANDED);
+    expect(w.update(view(t), 2, 0)).toBe(0);
+    t.state[mine] = HELI_RETURN; // the unload ended: the landing is done
+    expect(w.update(view(t), 3, 0)).toBe(MISSION_LANDED);
     t.state[mine] = HELI_DOWNED;
-    expect(w.update(view(t), 2, 0)).toBe(0); // same version: nothing
-    expect(w.update(view(t), 3, 0)).toBe(MISSION_LOST);
+    expect(w.update(view(t), 3, 0)).toBe(0); // same version: nothing
+    expect(w.update(view(t), 4, 0)).toBe(MISSION_LOST);
+    const r = new HeliTable(4);
+    const recalled = r.addBuilding(1, 0, 0, 0);
+    r.state[recalled] = HELI_HOVER;
+    const w2 = new MissionWatcher();
+    w2.update(view(r), 1, 0);
+    r.state[recalled] = HELI_RETURN; // a recall from the hover is no landing
+    expect(w2.update(view(r), 2, 0)).toBe(0);
   });
 });

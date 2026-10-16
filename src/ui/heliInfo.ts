@@ -117,7 +117,7 @@ export function heliStateKey(state: number): TextKey {
 export const MISSION_LANDED = 1;
 export const MISSION_LOST = 2;
 
-/** Compares the seat's helicopters between two table versions and says which missions ended: a bit set of MISSION_LANDED (a hovering one set down) and MISSION_LOST (one was shot down or ran dry). No allocation per frame. */
+/** Compares the seat's helicopters between two table versions and says which missions ended: a bit set of MISSION_LANDED (one finished unloading: the landing is done when it leaves HELI_UNLOAD, not when it leaves the hover, M12a-3) and MISSION_LOST (one was shot down or ran dry). No allocation per frame. */
 export class MissionWatcher {
   private version = -1;
   private prev = new Uint8Array(0);
@@ -138,7 +138,7 @@ export class MissionWatcher {
       const state = owner === 0 ? 0 : (h.state[id] as number);
       if (owner === mine && this.prevOwner[id] === mine) {
         const before = this.prev[id] as number;
-        if (before === HELI_HOVER && state !== HELI_HOVER && state !== HELI_DOWNED && state !== 0) news |= MISSION_LANDED;
+        if (before === HELI_UNLOAD && state !== HELI_UNLOAD && state !== HELI_DOWNED && state !== 0) news |= MISSION_LANDED;
         if (state === HELI_DOWNED && before !== HELI_DOWNED) news |= MISSION_LOST;
       }
       this.prev[id] = state;
