@@ -577,3 +577,8 @@ Not done in the Fix-UI slice (the sim, host and AI findings belong to Fix-Sim):
 - DONE in M13a-2 (from "M13a-1 leftovers" and "M13b leftovers"): the effects (shadow, rotor wash, smoke), the H chase camera, the far icon, interpolation between tables, the SAM variant in an e2e (a leak test too: `e2e/heliFx.serial.test.ts`). Still open from there: the scenario "slice" (dropped by the user), a tilt in the turn, the Factory level at the pad corner.
 
 - H is not listed in the help overlay (the registry entry `chase` is `hidden`: `tests/app/hotkeys.test.ts` and `tests/app/appFaults.test.ts` pin H as hidden); change those two tests and drop `hidden` to list it.
+
+## M18b-3
+
+- Swedish names of the sub-nations, merging sub-nations that are too narrow for a fair start, shared research and gold inside a federation, a federation label (name and flag) on the map, diplomacy with a whole federation as ONE party (a proposal to the group), and keeping the hold timer when the lowest member of a holding group dies (today it restarts).
+- The result screen shows the group table next to the unchanged per-nation table; folding the two into one table (members only under their group) would be tidier but touches the table the tech column of M18d-2 is added to.
