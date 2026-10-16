@@ -267,6 +267,23 @@ export const DIPLO = {
   badge: { truce: '#7fd1ff', alliance: '#8ee6b0', embargo: '#ffb02e', traitor: '#ff8a80' },
 } as const;
 
+/** M18d-2: the research panel. Sizes in em of the HUD font; the colours of the statuses. */
+export const TECH_UI = {
+  /** The panel sits with the diplomacy panel: above the HUD and below the help overlay (34) and the match panels (36). */
+  z: 33,
+  panelWidthEm: 58,
+  /** A cancel asks for a second click within this many fx seconds (no refund is given). */
+  confirmSeconds: 6,
+  cardBg: 'rgba(8, 13, 24, 0.97)',
+  status: { done: '#8ee6b0', active: '#7fd1ff', available: '#ffd666', locked: '#7d8aa0', blocked: '#ffb02e' },
+  /** Branch colours (the column headers). */
+  branch: ['#ffd666', '#8ee6b0', '#7fd1ff', '#ff8a80'],
+  /** The running research in the top bar is cut at this width (em). */
+  runningMaxEm: 14,
+  /** The header keeps this many px free on the right so the Close button never sits under the round Dev-panel button (48 px, top right). */
+  devClearPx: 56,
+} as const;
+
 /**
  * M20a-2: the nation labels (src/ui/nationLabels.ts) over the globe. Sizes are fixed CSS pixels (the layout needs the box of a label without measuring the DOM); the zoom
  * thresholds are camera altitudes in Earth radii above the sea-level sphere. A label is hidden above `hideAltR` (the whole globe in view), fades in down to `fadeFullAltR`

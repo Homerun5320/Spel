@@ -35,7 +35,8 @@ import {
   districtUpgradePriceGold,
   maxLevelOf,
   seatToOwner,
-  upgradePriceGold,
+  upgradePriceNowMilli,
+  MILLI_GOLD_PER_GOLD,
   upgradeTicksOf,
   validateBuildDistrict,
   validateRemoveDistrict,
@@ -275,7 +276,7 @@ export function cityInfo(view: SimView, seat: number, id: number): CityInfo | nu
     owned: s.owner[id] === seatToOwner(seat),
     finished: view.tick >= (s.readyTick[id] as number),
     upgrading: (s.upgradeReadyTick[id] as number) !== 0,
-    upgradePrice: level >= maxLevelOf(STRUCT_CITY) ? 0 : upgradePriceGold(STRUCT_CITY, level + 1),
+    upgradePrice: level >= maxLevelOf(STRUCT_CITY) ? 0 : upgradePriceNowMilli(view, seat, STRUCT_CITY, level + 1) / MILLI_GOLD_PER_GOLD, // M18d-2: with the research discount
     upgradeSeconds: level >= maxLevelOf(STRUCT_CITY) ? 0 : upgradeTicksOf(STRUCT_CITY, level + 1) / TICK_HZ,
     upgradeReason: phaseFirst(view, upgradeReason),
     totals: cityTotals(view, id),

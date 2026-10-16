@@ -582,3 +582,10 @@ Not done in the Fix-UI slice (the sim, host and AI findings belong to Fix-Sim):
 
 - Swedish names of the sub-nations, merging sub-nations that are too narrow for a fair start, shared research and gold inside a federation, a federation label (name and flag) on the map, diplomacy with a whole federation as ONE party (a proposal to the group), and keeping the hold timer when the lowest member of a holding group dies (today it restarts).
 - The result screen shows the group table next to the unchanged per-nation table; folding the two into one table (members only under their group) would be tidier but touches the table the tech column of M18d-2 is added to.
+## M18d-3 (from M18d-2)
+
+- The research tree drawn as a graph with lines between the steps (the panel is a 4 x 4 grid).
+- Techs that unlock buildings or missiles (later milestones add their own `TECH_*` rows and a cell each; the panel reads `TECH_COUNT`, but its grid is 4 x 4).
+- Shared research between allies; showing what an AI nation has researched (the result column is the only place now).
+- District upgrade prices have no technology discount in the sim; if one is wanted it needs a rule first, then the panel follows `districtUpgradePriceGold`.
+- A tooltip on a research cell with the full effect sentence (the cell line is short).

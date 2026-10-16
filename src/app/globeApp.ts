@@ -44,6 +44,8 @@ import { createHelpOverlay, type HelpOverlay } from '../ui/helpOverlay';
 import { createDiploCards, createDiploPanel, type DiploActions, type DiploCards, type DiploPanel } from '../ui/diploPanel';
 import { attackBlock, DiploWatcher, NEWS_ACCEPTED, NEWS_DECLINED, NEWS_EXPIRED, NEWS_INCOMING } from '../ui/diploModel';
 import { diplomacyRefusalKey } from '../ui/diploReasons';
+import { createTechPanel, type TechPanel } from '../ui/techPanel';
+import { TechWatcher, techName } from '../ui/techModel';
 import { attachHotkeys, hotkeys, registerGameHotkeys } from './hotkeys';
 import { createPlacementMode, type PlacementMode, type PlacementState } from './placement';
 import { AIR_MODE_AGL_M, REJECT_HELI_NO_PAD, REJECT_HELI_NO_ROUTE, createLos, createLosTerrain, createNav, launchHeliBody, recallHeliBody, validateLaunchHeli, type Nav } from '../sim/public';
@@ -84,7 +86,7 @@ import { createSeatLabels, type SeatLabels } from '../ui/seatLabels';
 import { winInfoOfView, winSummaryText } from './winSetup';
 import { nextFlagSeed } from './setupScreen';
 import type { MatchView } from '../sim/public';
-import { TREATY_ALLIANCE, acceptTreatyBody, breakTreatyBody, declineTreatyBody, imposeEmbargoBody, liftEmbargoBody, proposeTreatyBody } from '../sim/public';
+import { TREATY_ALLIANCE, cancelResearchBody, researchBody, acceptTreatyBody, breakTreatyBody, declineTreatyBody, imposeEmbargoBody, liftEmbargoBody, proposeTreatyBody } from '../sim/public';
 import { PHASE_IMMUNITY, PHASE_SPAWN } from '../sim/flow';
 import { DEBUG_GIVE_MAX, REJECT_NOT_SPAWNED } from '../sim/intents';
 import { seatToOwner } from '../sim/state';
@@ -622,6 +624,10 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   let diploCards = null as DiploCards | null;
   let diploMode = null as InputMode | null;
   let diploWatcher = null as DiploWatcher | null;
+  // M18d-2: the research panel (an input mode while it is open) and the watcher that toasts a finished research
+  let techPanel = null as TechPanel | null;
+  let techMode = null as InputMode | null;
+  let techWatcher = null as TechWatcher | null;
   let buildBar = null as BuildBar | null;
   let buildRoot = null as HTMLElement | null;
   let buildBarWanted = false;
@@ -818,7 +824,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       if (d.fullOwner !== null) globe.ownership.setFromOwners(m.owner);
       else globe.ownership.applyCells(d.cells, d.owners);
     });
-    hud = createMatchHud(wrapper, { setCommit: (p) => s.setCommit(p), setSpeed: (sp) => s.setSpeed(sp), togglePause: () => s.togglePause(), openDiplomacy: () => toggleDiplomacy() }, { seatColor, labels: s.labels, throttle: !params.test });
+    hud = createMatchHud(wrapper, { setCommit: (p) => s.setCommit(p), setSpeed: (sp) => s.setSpeed(sp), togglePause: () => s.togglePause(), openDiplomacy: () => toggleDiplomacy(), openTech: () => toggleTech() }, { seatColor, labels: s.labels, throttle: !params.test });
     hud.setVisible(!params.test || ctx.state.raw.hud === '1'); // test mode hides it (the globe goldens), `#hud` / `?hud=1` shows it
     help = createHelpOverlay(wrapper, () => hotkeys.listed()); // generated from the registry (M20a-lite)
     nationLabels?.dispose();
@@ -870,6 +876,13 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       else if (kind === NEWS_DECLINED) showToast('toast.diplo.declined', { name }, 'warn');
       else if (kind === NEWS_EXPIRED) showToast('toast.diplo.expired', { name }, 'warn');
     });
+    // M18d-2: research. The panel only SENDS Research / CancelResearch and reads the sim; the watcher toasts the own finished research.
+    techPanel = createTechPanel(wrapper, {
+      research: (tech) => s.submit(researchBody(L0, tech)),
+      cancel: () => s.submit(cancelResearchBody(L0)),
+      close: () => closeTech(),
+    });
+    techWatcher = new TechWatcher((tech) => showToast('toast.tech.done', { name: techName(tech) }, 'info'));
     // The two link chips of the start page sit above the HUD (they are outside the wrapper); the Dev panel lists the same pages.
     setLinkChipsHidden(true);
     refreshHud(); // the HUD is filled before its first frame is drawn
@@ -969,7 +982,9 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     if ((beach & BEACH_ESTABLISHED) !== 0) showToast('toast.beach.established', {}, 'info');
     // M18c-2: the proposals (cards and toasts) and the open panel; all write only when something changed
     diploWatcher?.update(session.view, L);
+    techWatcher?.update(session.view, L);
     if (buildBarWanted) {
+      techPanel?.update(session.view, L, fxNow());
       diploCards?.update(session.view, L, session.view.diplomacyVersion);
       diploPanel?.update(session.view, L, session.view.diplomacyVersion, fxNow());
     }
@@ -1168,6 +1183,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     nationLabels?.dispose();
     help?.dispose();
     diploPanel?.dispose();
+    techPanel?.dispose();
     diploCards?.dispose();
     buildBar?.dispose();
     buildRoot?.remove();
@@ -1458,8 +1474,35 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   const closeDiplomacy = (): void => {
     if (diploMode !== null && inputStack.top === diploMode) inputStack.pop();
   };
+  // --- The research panel (key T or the top-bar button, M18d-2): the same kind of input mode; opening one panel closes the other -------------------------------
+  const closeTech = (): void => {
+    if (techMode !== null && inputStack.top === techMode) inputStack.pop();
+  };
+  const toggleTech = (): void => {
+    if (session === null || techPanel === null || setupScreen !== null || helpMode !== null) return;
+    if (techMode !== null) {
+      closeTech();
+      return;
+    }
+    closeDiplomacy();
+    const mode: InputMode = {
+      id: 'tech',
+      onPop: () => {
+        techPanel?.close();
+        techMode = null;
+      },
+      key: () => true, // the build keys do nothing behind the panel
+      click: () => (closeTech(), true),
+      context: () => (closeTech(), true),
+      longPress: () => (closeTech(), true),
+    };
+    techMode = mode;
+    techPanel.open();
+    inputStack.push(mode);
+  };
   const toggleDiplomacy = (): void => {
     if (session === null || diploPanel === null || setupScreen !== null || helpMode !== null) return;
+    if (techMode !== null) closeTech();
     if (diploMode !== null) {
       closeDiplomacy();
       return;
@@ -1675,6 +1718,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       faster: () => session?.faster(),
       toggleHelp: () => toggleHelp(),
       toggleDiplomacy: () => toggleDiplomacy(),
+      toggleTech: () => toggleTech(),
       deploy: () => (deployMode !== null ? exitDeploy() : enterDeploy(selectedId)),
       toggleLabels: () => {
         setLabelsWanted(!labelsWanted);

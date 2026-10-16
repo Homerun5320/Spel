@@ -146,6 +146,8 @@ export interface GameHotkeyActions {
   deploy?(): void;
   /** M18c-2: key D, open or close the diplomacy panel. Optional so that older callers keep compiling. */
   toggleDiplomacy?(): void;
+  /** M18d-2: key T, open or close the research panel. Optional so that older callers keep compiling. */
+  toggleTech?(): void;
   /** M20a-2: key N, nation labels and front arrows on or off. Optional so that older callers keep compiling. */
   toggleLabels?(): void;
 }
@@ -190,6 +192,7 @@ export function registerGameHotkeys(registry: HotkeyRegistry, a: GameHotkeyActio
   add({ id: 'commit-up', keys: [']', '+'], labelKey: 'hotkey.commitUp', scope: 'match', run: () => (a.commit(1), true) });
   add({ id: 'deploy', keys: ['l'], labelKey: 'hotkey.deploy', scope: 'match', noRepeat: true, run: () => (a.deploy?.(), true) });
   add({ id: 'diplomacy', keys: ['d'], labelKey: 'hotkey.diplo', scope: 'match', noRepeat: true, run: () => (a.toggleDiplomacy?.(), true) });
+  add({ id: 'tech', keys: ['t'], labelKey: 'hotkey.tech', scope: 'match', noRepeat: true, run: () => (a.toggleTech?.(), true) });
   add({ id: 'labels', keys: ['n'], labelKey: 'hotkey.labels', scope: 'match', noRepeat: true, run: () => (a.toggleLabels?.(), true) });
   add({ id: 'help', keys: ['?'], labelKey: 'hotkey.help', scope: 'match', run: () => (a.toggleHelp(), true) });
   add({ id: 'overlay', keys: ['F3'], labelKey: 'hotkey.overlay', scope: 'global', run: () => (a.toggleOverlay(), true) });

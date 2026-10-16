@@ -183,6 +183,18 @@ GOR och ACCEPTANS:
 - [x] UI: leaderboard shows a federation as ONE expandable row with a flag; win meter follows the group; result screen shows the winning group and rows per group and member.
 - [x] Tests: groups, every condition with and without federation, 40 % federation vs 40 % nation, round trip and snapshot, 20 AI seeds, UI models, e2e.
 - [x] `npm run verify:fast` green; affected e2e green (federationWin, federation).
+### M18d-2: technology, part 2 of 2 (the research panel; app, UI and the price display; one slice in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+
+GÖR och ACCEPTANS:
+
+- [x] Research panel: key T and the top-bar button "Teknik" open an input mode (Esc closes, modal block respected); 4 columns x 4 rows; name, effect line from `TECH_FX`, price through `formatGold`, time, status (Forskad / Pågår with countdown and bar / Tillgänglig / Låst with the prerequisite / Kan inte nu with the `validateResearch` reason); Forska sends Research, Avbryt (two clicks, no refund) sends CancelResearch.
+- [x] The running research in the top bar ("Forskar: Namn 0:42", written only on change); toast `toast.tech.done` for the own finished research (`TechWatcher`).
+- [x] Texts: 16 names, 12 effect channels, branches and statuses in sv and en (own block at the end of both tables).
+- [x] Discounted upgrade price: the selection panel, the city view and the AI (`src/ai/build.ts`) use `upgradePriceNowMilli` (the sim's own `upgradePriceMilliFor` with the seat's researched discount); shown == debited (unit test, e2e). Districts have no tech discount in the sim, so they keep the base price.
+- [x] Result screen: the column "Teknik" (MatchView `techCount`).
+- [x] Tests: `tests/ui/techModel.test.ts`, `tests/ai/upgradeDiscount.test.ts`, `tests/app/techKey.test.ts`, `e2e/research.test.ts`.
+- [x] `npm run verify:fast` green; the affected e2e green (result in `docs/DECISIONS.md` "M18d-2").
+
 
 ## Next
 

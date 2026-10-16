@@ -217,6 +217,11 @@ export function upgradePriceMilliFor(type: number, level: number, discountPct: n
   return discountPct === 0 ? full : Math.floor((full * (100 - discountPct)) / 100);
 }
 
+/** M18d-2: the price in milli-gold that `seat` pays NOW for an upgrade of a `type` to `level` (its researched upgrade discount applied): what the sim debits, what the page and the AI show and compare. */
+export function upgradePriceNowMilli(view: SimView, seat: number, type: number, level: number): number {
+  return upgradePriceMilliFor(type, level, view.match.techFxOfSeat(seat, TECH_FX_UPGRADE));
+}
+
 /** Upgrade rules: the structure exists and is the seat's, is finished and not upgrading, is below the top level, the seat can pay. */
 export function checkUpgrade(structures: StructureView, tick: number, goldMilli: number, seat: number, id: number, discountPct = 0): number {
   if (!Number.isInteger(id) || id < 0 || id >= structures.highWater || structures.owner[id] === 0) return REJECT_STRUCT_ID;

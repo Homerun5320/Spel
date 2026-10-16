@@ -320,4 +320,4 @@ export {
 } from './techTable';
 export { AI_TECH_GOLD_RESERVE, AI_TECH_PERIOD_TICKS, AI_TECH_START_TICKS, TECH_BRANCHES, TECH_COUNT, TECH_FX, TECH_FX_CAP, TECH_FX_CHANNELS, TECH_PRICE_GOLD, TECH_STEPS, TECH_TICKS } from './rules';
 export { heliMaxTroopsOf } from './heliRules';
-export { upgradePriceMilliFor } from './structureRules';
+export { upgradePriceMilliFor, upgradePriceNowMilli } from './structureRules';
