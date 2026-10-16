@@ -11,6 +11,7 @@
 // Troops: LaunchHeli takes them from the seat at once; they ride in `load` and go back to the seat when the helicopter sets down on a Factory pad (or is
 // scrapped). A helicopter that goes down loses its load. The landing (src/sim/heliLanding.ts) turns the load into cells, an Attack or nothing (a failed
 // landing loses it); it creates no troops.
+import { TECH_FX_FUEL, TECH_FX_SPEED } from './techTable';
 import { hasOccluders, losOf, planRouteOf, scoreLzOf } from './access';
 import { checkLaunchHeli, checkRecallHeli, emptyLaunchPlan, type LaunchProbe } from './heliRules';
 import { HELI_APPROACH, HELI_CRUISE, HELI_DOWNED, HELI_DOWN_FUEL, HELI_HOVER, HELI_LIFT, HELI_PAD, HELI_POS_ONE, HELI_RETURN, HELI_STATE_MAX, HELI_UNLOAD, cellCentreQ8 } from './heliTable';
@@ -54,6 +55,12 @@ export function heliStepQ8(mode: number): number {
   return STEP_Q8[mode] as number;
 }
 
+/** A full tank in Q8 cells for an owner: HELI_FUEL_MAX_Q8 + the AIR techs' fuel percent (M18d-1). */
+export function heliFuelMaxQ8(state: GameState, owner: number): number {
+  const pct = state.match.fx(owner, TECH_FX_FUEL);
+  return pct === 0 ? HELI_FUEL_MAX_Q8 : HELI_FUEL_MAX_Q8 + Math.floor((HELI_FUEL_MAX_Q8 * pct) / 100);
+}
+
 /** The sim's answers to the two navigation questions of LaunchHeli, from the state's own Los / Nav. */
 function probeOf(state: GameState, seat: number): LaunchProbe {
   return {
@@ -91,7 +98,7 @@ export function applyLaunchHeli(state: GameState, seat: number, factory: number,
   t.target[id] = lzCell + 1;
   t.load[id] = troops;
   t.alt[id] = 0;
-  t.fuel[id] = HELI_FUEL_MAX_Q8;
+  t.fuel[id] = heliFuelMaxQ8(state, owner);
   t.routeLen[id] = wps.length;
   t.routeIdx[id] = 1; // waypoint 0 is the Factory the helicopter stands on
   const base = id * HELI_ROUTE_CAPACITY;
@@ -206,7 +213,7 @@ function setDown(state: GameState, id: number, f: number): void {
   t.x[id] = cellCentreQ8(cx);
   t.y[id] = cellCentreQ8((c - cx) / w);
   t.alt[id] = 0;
-  t.fuel[id] = HELI_FUEL_MAX_Q8;
+  t.fuel[id] = heliFuelMaxQ8(state, owner);
   t.hp[id] = HELI_HP_TENTHS; // M12b: the pad repairs what the Posts wore down
   t.load[id] = 0;
   t.target[id] = 0;
@@ -270,6 +277,8 @@ function advance(state: GameState, id: number): number {
   const half = w256 >> 1;
   const base = id * HELI_ROUTE_CAPACITY;
   let remaining = STEP_Q8[t.mode[id] as number] as number;
+  const speedPct = state.match.fx(t.owner[id] as number, TECH_FX_SPEED);
+  if (speedPct !== 0) remaining += Math.floor((remaining * speedPct) / 100);
   let moved = 0;
   let first = true;
   HEADING[0] = 0;

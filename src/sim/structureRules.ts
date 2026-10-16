@@ -1,6 +1,7 @@
 // The structure rules that UI and AI may read (M09 part A): the type numbers, the prices and the placement checks. Pure and
 // read-only: everything here takes a read-only window (`StructureView`, `BuildSource`) and returns numbers. The sim's own Build
 // validation (src/sim/structures.ts) calls `checkBuild` below, the SAME function `validateBuild` wraps, so there is one implementation.
+import { TECH_FX_UPGRADE } from './techTable';
 import {
   BUILD_BASE_GOLD,
   BUILD_TICKS,
@@ -210,14 +211,20 @@ export function checkBuild(src: BuildSource, goldMilli: number, seat: number, ty
   return REJECT_NONE;
 }
 
+/** The upgrade price in milli-gold with a technology discount of `discountPct` percent (M18d-1; 0 = the plain `upgradePriceGold` x 1000). */
+export function upgradePriceMilliFor(type: number, level: number, discountPct: number): number {
+  const full = upgradePriceGold(type, level) * MILLI_GOLD_PER_GOLD;
+  return discountPct === 0 ? full : Math.floor((full * (100 - discountPct)) / 100);
+}
+
 /** Upgrade rules: the structure exists and is the seat's, is finished and not upgrading, is below the top level, the seat can pay. */
-export function checkUpgrade(structures: StructureView, tick: number, goldMilli: number, seat: number, id: number): number {
+export function checkUpgrade(structures: StructureView, tick: number, goldMilli: number, seat: number, id: number, discountPct = 0): number {
   if (!Number.isInteger(id) || id < 0 || id >= structures.highWater || structures.owner[id] === 0) return REJECT_STRUCT_ID;
   if (structures.owner[id] !== seatToOwner(seat)) return REJECT_STRUCT_NOT_OWNER;
   const level = structures.level[id] as number;
   if (level >= maxLevelOf(structures.type[id] as number)) return REJECT_STRUCT_MAX_LEVEL;
   if (tick < (structures.readyTick[id] as number) || (structures.upgradeReadyTick[id] as number) !== 0) return REJECT_STRUCT_BUSY;
-  if (goldMilli < upgradePriceGold(structures.type[id] as number, level + 1) * MILLI_GOLD_PER_GOLD) return REJECT_BUILD_GOLD;
+  if (goldMilli < upgradePriceMilliFor(structures.type[id] as number, level + 1, discountPct)) return REJECT_BUILD_GOLD;
   return REJECT_NONE;
 }
 
@@ -245,7 +252,7 @@ export function validateBuild(view: SimView, seat: number, type: number, cell: n
  * The sim's `applyUpgrade` runs the same `checkUpgrade`.
  */
 export function validateUpgrade(view: SimView, seat: number, structureId: number): number {
-  return checkUpgrade(view.structures, view.tick, view.stats.goldMilli[seat] as number, seat, structureId);
+  return checkUpgrade(view.structures, view.tick, view.stats.goldMilli[seat] as number, seat, structureId, view.match.techFxOfSeat(seat, TECH_FX_UPGRADE));
 }
 
 /** Why `seat` could not Delete structure `id` right now (REJECT_STRUCT_ID, REJECT_STRUCT_NOT_OWNER, REJECT_DELETE_COOLDOWN); the sim's `applyDelete` runs the same `checkDelete`. */

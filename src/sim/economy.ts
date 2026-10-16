@@ -26,6 +26,7 @@ import {
 import type { GameState } from './state';
 import { weightedSimToStdQ15 } from './units';
 import { cutOffWeightOf } from './beachheadCluster';
+import { TECH_FX_CAP_TROOPS, TECH_FX_REGEN } from './techTable';
 import { barracksPctOf, cityCountOf, cityStepQtOf, housingQtOf, structGoldMilliPerTick } from './structureEffects';
 
 /** Largest value of a Uint32 array element. */
@@ -109,9 +110,15 @@ export function addTroops(state: GameState, owner: number, amountQt: number): vo
   state.troops[owner] = sum > U32_MAX ? U32_MAX : sum;
 }
 
+/** The troop cap with the owner's researched LAND techs applied (M18d-1): + TECH_FX_CAP_TROOPS percent (one multiplication, the percent is cached in the match state). */
+function techCapQt(state: GameState, owner: number, cap: number): number {
+  const pct = state.match.fx(owner, TECH_FX_CAP_TROOPS);
+  return pct === 0 ? cap : Math.floor((cap * (100 + pct)) / 100);
+}
+
 /** The cap in QT of an owner right now. */
 export function ownerCapQt(state: GameState, owner: number): number {
-  return troopCapQt(ownedStdAreaQ15(state, owner), cityLevels(state, owner), isTribe(state, owner), housingQtOf(state, owner), cityStepQtOf(state, owner));
+  return techCapQt(state, owner, troopCapQt(ownedStdAreaQ15(state, owner), cityLevels(state, owner), isTribe(state, owner), housingQtOf(state, owner), cityStepQtOf(state, owner)));
 }
 
 /** Gives a seat that just spawned its start troops (clamped to its cap) and start gold, and clears the remainder. */
@@ -132,12 +139,14 @@ export function economyTick(state: GameState): void {
     if ((state.agg.area[owner] as number) === 0) continue;
     const nQ15 = ownedStdAreaQ15(state, owner);
     const tribe = isTribe(state, owner);
-    const cap = troopCapQt(nQ15, cityLevels(state, owner), tribe, housingQtOf(state, owner), cityStepQtOf(state, owner));
+    const cap = techCapQt(state, owner, troopCapQt(nQ15, cityLevels(state, owner), tribe, housingQtOf(state, owner), cityStepQtOf(state, owner)));
     let rate = regenMicroQtPerTick(state.troops[owner] as number, cap, tribe);
     // Barracks (Districts-1): the owner's finished Barracks raise a positive regeneration by their percent (decay is untouched).
     if (rate > 0) {
       const barracks = barracksPctOf(state, owner);
       if (barracks !== 0) rate = floorDiv(rate * (100 + barracks), 100);
+      const techRegen = state.match.fx(owner, TECH_FX_REGEN);
+      if (techRegen !== 0) rate = floorDiv(rate * (100 + techRegen), 100);
     }
     const acc = (state.troopFrac[owner] as number) + rate;
     const whole = floorDiv(acc, MICRO_QT_PER_QT);

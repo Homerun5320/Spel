@@ -1537,3 +1537,22 @@ ACCEPTANS
 - [x] AI temperament: measured acceptance rates logged, ENGINE raised once, goldens recomputed once, pace test inside its band
 - [x] Three window sizes without overlap, both languages; 0 DOM mutations at rest; D in the `?` overlay
 - [x] `npm run verify:fast` green; the touched e2e green
+
+### M18d-1: technology, part 1 of 2 (research tree and rules in the sim and the AI; headless; one slice in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+Previous merge SHA: nothing of this branch is merged (pull request #1 is a draft); base commit efec688.
+GÖR
+- [x] 1. GÖR and ACCEPTANS written here first
+- [x] 2. Tree in `src/sim/rules.ts` (16 techs, four branches, `TECH_*` tables), state per seat in the match block, `Research` / `CancelResearch` intents with codec, reason codes, `validateResearch` shared with the sim, export pinned
+- [x] 3. Effects in the cached economy code (gold, upgrade price, cell price, regeneration, cap, helicopter load / speed / fuel / fleet, SAM hit and salvo, Walls and Post), all capped
+- [x] 4. AI research (deterministic, `validateResearch`, one at a time, stateless back-off)
+- [x] 5. Statistics in `MatchView`, a research row in the scenario CLI report
+- [x] 6. Tests (reasons, price, exact finish tick, chain, steps and caps per branch, effects in real sim runs, round trip, snapshot == straight run, Node == worker, AI 20 seeds, perf)
+- [x] 7. ENGINE / FORMAT raised once, goldens recomputed once; docs; `npm run verify:fast`
+ACCEPTANS
+- [x] Tree (16 techs, table in rules.ts), Research intent, all reason codes, one shared implementation, export pinned
+- [x] Effects work in the sim, caps hold (a test per branch with all researched)
+- [x] Solo / pace inside their bands; the AI researches without an invalid intent over 20 seeds; the human share stays above the floor
+- [x] ENGINE / FORMAT raised once, goldens recomputed once, Node == worker; perf inside `budgetMs(0.5)`
+- [x] `npm run verify:fast` green
+
+verify:fast: see the last result in the final report of the slice. Not run here: the full `npm run verify`, the Artifact pack, a pull request (the orchestrator). The orchestrator sets the final ENGINE / FORMAT values and recomputes the goldens (`e2e/goldens/sim-hashes.json`, `e2e/goldens/match-hashes.json`) and the pinned replay hash in `tests/sim/airDefense.test.ts` at the merge.

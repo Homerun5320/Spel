@@ -10,6 +10,7 @@
 // ascending id, each SAM picks the lowest-id valid target, no PRNG state is advanced), and only then are the kills and the damage applied. So the order in which the
 // structures are visited cannot change the outcome (`airDefensePhase(state, true)` visits them backwards; a test compares the hashes).
 // The structures are found through a spatial hash of typed arrays (`AaIndex`, derived data on `state.env`, never hashed or serialised).
+import { TECH_FX_SAM_HIT, TECH_FX_SAM_SALVO } from './techTable';
 import { hasOccluders, losOf, navViewOf } from './access';
 import { atWar } from './diplomacy';
 import { downHeli } from './heliFlight';
@@ -186,8 +187,11 @@ export function airDefensePhase(state: GameState, reverse = false): void {
   // Fire: each SAM that picked a target spends its salvo (the clock restarts) and rolls.
   for (let k = 0; k < nFired; k++) {
     const sid = idx.fired[k] as number;
-    st.salvoTick[sid] = tick + SAM_SALVO_PERIOD_TICKS;
-    if (samRoll(seed, tick, sid) < SAM_HIT_PCT) KILLED[(idx.pick[sid] as number) - 1] = 1;
+    // The SAM owner's researched techs (M18d-1): a shorter salvo period (DEFENCE) and more percentage points of hit chance (AIR).
+    const samOwner = st.owner[sid] as number;
+    const salvoCut = state.match.fx(samOwner, TECH_FX_SAM_SALVO);
+    st.salvoTick[sid] = tick + (salvoCut === 0 ? SAM_SALVO_PERIOD_TICKS : SAM_SALVO_PERIOD_TICKS - Math.floor((SAM_SALVO_PERIOD_TICKS * salvoCut) / 100));
+    if (samRoll(seed, tick, sid) < SAM_HIT_PCT + state.match.fx(samOwner, TECH_FX_SAM_HIT)) KILLED[(idx.pick[sid] as number) - 1] = 1;
   }
   // Apply: a SAM kill wins over the wear of the Posts in the same tick; the load is lost either way.
   for (let id = 0; id < hw; id++) {

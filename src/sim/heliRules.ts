@@ -28,6 +28,8 @@ import { STRUCT_FACTORY, type StructureView } from './structureRules';
 import type { Nav } from './nav/grid';
 import { scoreLz, type LzResult } from './nav/lz';
 import { planRoute, type RouteOk, type RouteResult } from './nav/route';
+import { TECH_FX_FLEET, TECH_FX_LOAD, techFxOfMask } from './techTable';
+import type { TechMaskSource } from './techRules';
 import type { SimView } from './view';
 
 /** What the helicopter rules read: the tick, the structure table and the helicopter table (a SimView is one; so is the sim's own state through `StateHeliSource`). */
@@ -35,6 +37,19 @@ export interface HeliSource {
   readonly tick: number;
   readonly structures: StructureView;
   readonly helis: HeliView;
+  /** The researched techs (M18d-1): a MatchState or a MatchView; absent = nothing researched. */
+  readonly match?: TechMaskSource;
+}
+
+/** What the researched techs of `seat` give on an effect channel (0 when the source carries no match). */
+function techFxOf(src: HeliSource, seat: number, channel: number): number {
+  return src.match === undefined ? 0 : techFxOfMask(src.match.techMaskOfSeat(seat), channel);
+}
+
+/** The most troops one helicopter may carry for `seat`: HELI_MAX_TROOPS + the AIR techs' load percent. */
+export function heliMaxTroopsOf(src: HeliSource, seat: number): number {
+  const pct = techFxOf(src, seat, TECH_FX_LOAD);
+  return pct === 0 ? HELI_MAX_TROOPS : HELI_MAX_TROOPS + Math.floor((HELI_MAX_TROOPS * pct) / 100);
 }
 
 /** Price of a helicopter in milli-gold. */
@@ -44,14 +59,15 @@ export const HELI_PRICE_MILLI = HELI_PRICE_GOLD * MILLI_GOLD_PER_GOLD;
 export function fleetCapOf(src: HeliSource, seat: number): number {
   const s = src.structures;
   const ownerId = seatToOwner(seat);
+  const bonus = techFxOf(src, seat, TECH_FX_FLEET);
   let sum = HELI_FLEET_BASE;
   for (let i = 0; i < s.highWater; i++) {
     if (s.owner[i] === ownerId && s.type[i] === STRUCT_FACTORY && src.tick >= (s.readyTick[i] as number)) {
       sum += s.level[i] as number;
-      if (sum >= HELI_FLEET_MAX) return HELI_FLEET_MAX;
+      if (sum >= HELI_FLEET_MAX) return HELI_FLEET_MAX + bonus;
     }
   }
-  return sum;
+  return sum + bonus;
 }
 
 /** Helicopters a seat has, also those under production. */
@@ -131,7 +147,7 @@ export function checkLaunchHeli(src: HeliSource, phaseRefuses: boolean, seat: nu
   if (s.owner[factory] !== seatToOwner(seat)) return REJECT_HELI_NOT_OWNER;
   const heli = padHeliAt(src.helis, factory);
   if (heli < 0) return REJECT_HELI_NO_PAD;
-  if (!Number.isInteger(troops) || troops < 1 || troops > HELI_MAX_TROOPS || troops > probe.troops) return REJECT_HELI_BAD_TROOPS;
+  if (!Number.isInteger(troops) || troops < 1 || troops > heliMaxTroopsOf(src, seat) || troops > probe.troops) return REJECT_HELI_BAD_TROOPS;
   if (probe.beachheadFull()) return REJECT_HELI_BEACHHEAD_FULL; // before the departure: no troops are drawn
   if (!probe.canNavigate) return REJECT_HELI_NO_ROUTE;
   const mode: AltMode = altMode === 1 ? 1 : 0;

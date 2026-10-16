@@ -6,7 +6,7 @@
 // M06: which seats are human is a parameter (default: seat 0 only), the first human seat is the anchor the AI places its capitals
 // around, and each AI seat draws from its own stream, so adding or removing one AI seat does not change what the others do with
 // their random numbers (D118).
-import { MEMORY_FIXED_WORDS, buildMove, createAiMemory, diplomacyMove, diplomacyWordCount, diplomacyWords, loadDiplomacyWords, loadMemoryWords, memoryWords, think, type AiMemory } from '../ai';
+import { MEMORY_FIXED_WORDS, buildMove, createAiMemory, diplomacyMove, diplomacyWordCount, diplomacyWords, loadDiplomacyWords, loadMemoryWords, memoryWords, researchMove, think, type AiMemory } from '../ai';
 import { RNG_WORDS, createRng } from '../sim/public';
 import type { SimView } from '../sim/view';
 import type { IntentBody } from '../sim/intents';
@@ -187,9 +187,11 @@ export class AiDriver implements TickDriver {
       const out = think(view, memory, rng, cells);
       const built = this.build ? buildMove(view, memory, rng) : null;
       const talk = diplomacyMove(view, memory, rng);
-      const count = out.length + (built === null ? 0 : 1) + talk.length;
+      const studied = researchMove(view, memory);
+      const count = out.length + (built === null ? 0 : 1) + talk.length + (studied === null ? 0 : 1);
       for (let k = 0; k < count; k++) {
-        const body = k < out.length ? (out[k] as IntentBody) : built !== null && k === out.length ? built : (talk[k - out.length - (built === null ? 0 : 1)] as IntentBody);
+        const nBuilt = built === null ? 0 : 1;
+        const body = k < out.length ? (out[k] as IntentBody) : built !== null && k === out.length ? built : k < out.length + nBuilt + talk.length ? (talk[k - out.length - nBuilt] as IntentBody) : (studied as IntentBody);
         if (body.kind === 'Spawn') {
           cells.push(body.cell);
           ticks.push(view.tick);

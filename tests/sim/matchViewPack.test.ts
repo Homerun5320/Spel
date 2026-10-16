@@ -118,6 +118,10 @@ describe('the per-seat blocks', () => {
       m.conquered[o] = 100 * o + 3;
       m.districts[o] = 100 * o + 4;
     }
+    m.setTechMask(1, 0b1);
+    m.setTechMask(3, 0b1111_0011);
+    m.techCurrent[2] = 6;
+    m.techDone[2] = 777;
     const v = pack(s);
     expect(Array.from(v.eliminated)).toEqual([0, 1, 0]);
     expect(Array.from(v.capitalLost)).toEqual([0, 0, 1]);
@@ -125,10 +129,16 @@ describe('the per-seat blocks', () => {
     expect(Array.from(v.built)).toEqual([102, 202, 302]);
     expect(Array.from(v.conquered)).toEqual([103, 203, 303]);
     expect(Array.from(v.districts)).toEqual([104, 204, 304]);
+    expect(Array.from(v.techMask)).toEqual([1, 0, 0b1111_0011]); // M18d-1
+    expect(Array.from(v.techCurrent1)).toEqual([0, 6, 0]);
+    expect(Array.from(v.techDone)).toEqual([0, 777, 0]);
+    expect(Array.from(v.techCount)).toEqual([1, 0, 6]);
+    expect([v.techCurrentOfSeat(0), v.techCurrentOfSeat(1), v.techMaskOfSeat(2)]).toEqual([-1, 5, 0b1111_0011]);
+    expect(v.techFxOfSeat(0, 0)).toBe(5);
     expect(v.landStd[1]).toBeGreaterThan(v.landStd[0] as number); // 60 cells against 30
     expect(v.landStd[0]).toBeGreaterThan(v.landStd[2] as number);
     expect(v.score[1]).toBeGreaterThan(v.score[2] as number);
-    expect(matchPackedLength(3)).toBe(MATCH_HEADER_WORDS + 11 * 3); // M18c-1: + treaties, betrayals, relations
+    expect(matchPackedLength(3)).toBe(MATCH_HEADER_WORDS + 15 * 3); // M18c-1: + treaties, betrayals, relations; M18d-1: + techMask, techCurrent1, techDone, techCount
   });
 });
 

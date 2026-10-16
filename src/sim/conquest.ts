@@ -24,6 +24,7 @@
 //   the defender pays no terrain term.
 // HOME RULES (M06, D112 and D113, only when the match config has homeRules): the price is then multiplied by HOME_COST_PCT / 100 for a
 // cell of the attacker's own home country and by the defence multiplier / 1000 of the seat the cell is taken from (see homeRules.ts).
+import { TECH_FX_COST } from './techTable';
 import type { Attack } from './attacks';
 import { addTroops, deductTroops, isTribe } from './economy';
 import { isqrt } from './detmath';
@@ -231,6 +232,8 @@ export function advanceAttack(state: GameState, a: Attack, slot: number, n: numb
   const walls = target !== 0 && state.structures.districtCount !== 0 ? collectWalls(state, target) : 0;
   // Anti-snowball (M18-1): a nation above the leader thresholds is cheaper to attack; fixed for the whole call (the share moves by a few cells at most).
   const leaderPct = leaderCostPct(state, target);
+  // LAND techs (M18d-1): the attacker's own researched discount on every cell, fixed for the call (100 = none).
+  const techPct = 100 - state.match.fx(attacker, TECH_FX_COST);
   const w = grid.width;
   const colMask = grid.colMask;
   const cells = grid.cells;
@@ -292,6 +295,7 @@ export function advanceAttack(state: GameState, a: Attack, slot: number, n: numb
     } else if (posts !== 0) cost = postAdjustedCost(state.structures, w, cell, cost);
     // The attacker's discount comes AFTER the defence multipliers (home trait, Walls / Post: the largest of those applies): price = defended price x pct / 100.
     if (leaderPct !== 100) cost = Math.floor((cost * leaderPct) / 100);
+    if (techPct !== 100) cost = Math.floor((cost * techPct) / 100);
     const owed = (costFrac + cost) | 0;
     const whole = (owed / MILLI_QT) | 0;
     if (troops < whole) {

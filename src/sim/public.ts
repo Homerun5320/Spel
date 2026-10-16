@@ -274,3 +274,49 @@ export { POST_AA_DPS, POST_AA_RADIUS_CELLS, SAM_HIT_PCT, SAM_SALVO_PERIOD_TICKS 
 // M20a-2 (append-only): the read-only description of the attacks running (a front cell and a direction per attack, at most ATTACK_VIEW_CAP).
 export type { AttackView } from './view';
 export { ATTACK_VIEW_CAP } from './view';
+
+// M18d-1 (append-only block): technology. The research tree (`TECH_*` tables of rules.ts, the pure helpers of techTable.ts), the Research / CancelResearch bodies and constructors,
+// the refusal codes 110 to 117, the checks (the very functions the sim runs), the researched state per seat (`SimView.match`: `techMask`, `techCurrent1`, `techDone`, `techCount`,
+// `techMaskOfSeat`, `techCurrentOfSeat`, `techFxOfSeat`) and the effect helpers the page needs to show the numbers.
+export type { CancelResearchBody, ResearchBody } from './intents';
+export { cancelResearchBody, researchBody } from './intents';
+export {
+  REJECT_TECH_BUSY,
+  REJECT_TECH_DONE,
+  REJECT_TECH_ELIMINATED,
+  REJECT_TECH_GOLD,
+  REJECT_TECH_ID,
+  REJECT_TECH_MATCH_ENDED,
+  REJECT_TECH_NOT_ACTIVE,
+  REJECT_TECH_PREREQ,
+} from './intents';
+export { techPriceMilli, techTicksOf, validateCancelResearch, validateResearch, type TechMaskSource } from './techRules';
+export {
+  TECH_ALL_MASK,
+  TECH_BRANCH_AIR,
+  TECH_BRANCH_DEFENCE,
+  TECH_BRANCH_ECONOMY,
+  TECH_BRANCH_LAND,
+  TECH_FX_CAP_TROOPS,
+  TECH_FX_COST,
+  TECH_FX_FLEET,
+  TECH_FX_FUEL,
+  TECH_FX_GOLD,
+  TECH_FX_LOAD,
+  TECH_FX_REGEN,
+  TECH_FX_SAM_HIT,
+  TECH_FX_SAM_SALVO,
+  TECH_FX_SPEED,
+  TECH_FX_UPGRADE,
+  TECH_FX_WALLS_POST,
+  isTech,
+  techBranchFxSum,
+  techBranchOf,
+  techCountOfMask,
+  techFxOfMask,
+  techPrereqOf,
+  techStepOf,
+} from './techTable';
+export { AI_TECH_GOLD_RESERVE, AI_TECH_PERIOD_TICKS, AI_TECH_START_TICKS, TECH_BRANCHES, TECH_COUNT, TECH_FX, TECH_FX_CAP, TECH_FX_CHANNELS, TECH_PRICE_GOLD, TECH_STEPS, TECH_TICKS } from './rules';
+export { heliMaxTroopsOf } from './heliRules';
+export { upgradePriceMilliFor } from './structureRules';

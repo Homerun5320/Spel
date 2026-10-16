@@ -59,9 +59,12 @@ import {
   SAM_SALVO_PERIOD_TICKS,
   STRUCT_CAPACITY,
   STRUCT_LEVEL_HARD_CAP,
+  TECH_COUNT,
   TREATY_BREAK_COOLDOWN_TICKS,
   TRUCE_TICKS,
 } from './rules';
+import { TECH_FX_CAP } from './rules';
+import { TECH_FX_FUEL, TECH_FX_LOAD, techMaskValid, techPrereqOf } from './techTable';
 import { STRUCT_CITY, STRUCT_FACTORY, STRUCT_SAM, STRUCT_TYPE_SLOTS, maxLevelOf } from './structureRules';
 import { districtSlotsOf, isDistrictKind } from './districtRules';
 import { StructureTable } from './structures';
@@ -80,8 +83,8 @@ import {
   type MatchHeader,
 } from './state';
 
-/** Bumped when the byte layout above changes. 2: owner u16 (D71). 3: players, rowCos and the per-owner economy arrays (M04). 4: attacks and the enclave queue (M04 conquest). 5: the exposure array (M04 fix pass). 6: the structure table (M09 part A). 7: the embargo flags (M09 part B). 8: the district table (Districts-1). 9: the match block (M18-1). 10: Sim-Growth (City levels up to 10, five district slots per row). 11: Sim-Levels2 (u16 levels up to 999 in the structure and district tables). 12: M12a-1 (the air block: the helicopter and beachhead tables). 13: M18c-1 (the diplomacy block after the match block; the M12a-3 landing track may raise the format on its own branch, the orchestrator sets the final value when the tracks are merged). 14: M12b (the salvo clock `salvoTick` of every structure row). */
-export const FORMAT_VERSION = 14;
+/** Bumped when the byte layout above changes. 2: owner u16 (D71). 3: players, rowCos and the per-owner economy arrays (M04). 4: attacks and the enclave queue (M04 conquest). 5: the exposure array (M04 fix pass). 6: the structure table (M09 part A). 7: the embargo flags (M09 part B). 8: the district table (Districts-1). 9: the match block (M18-1). 10: Sim-Growth (City levels up to 10, five district slots per row). 11: Sim-Levels2 (u16 levels up to 999 in the structure and district tables). 12: M12a-1 (the air block: the helicopter and beachhead tables). 13: M18c-1 (the diplomacy block after the match block; the M12a-3 landing track may raise the format on its own branch, the orchestrator sets the final value when the tracks are merged). 14: M12b (the salvo clock `salvoTick` of every structure row). 15: M18d-1 (the technology arrays at the end of the match block: researched mask, current tech + 1, finish tick). */
+export const FORMAT_VERSION = 15;
 /** 'SPEL' as a little-endian u32. */
 export const MAGIC = 0x4c455053;
 export const HEADER_BYTES = 64;
@@ -110,9 +113,9 @@ const EMPTY_AIR_BYTES = 16;
 const BYTES_PER_HELI = 64;
 /** One live beachhead: index owner seed landTick status. */
 const BYTES_PER_BEACHHEAD = 20;
-/** The match block: ten u32 scalars and six u32 arrays of (seats + 1). */
+/** The match block: ten u32 scalars and nine u32 arrays of (seats + 1) (the last three are the technology arrays of M18d-1: researched mask, current tech + 1, finish tick). */
 function matchBytes(seats: number): number {
-  return 40 + 24 * ownerSlots(seats);
+  return 40 + 36 * ownerSlots(seats);
 }
 
 /** The diplomacy block of a state without relations: three counts, the cooldowns, the two statistics arrays and the length word. */
@@ -195,7 +198,10 @@ function foldMatch(h: number, state: GameState): number {
   x = foldU32(x, m.peakLand);
   x = foldU32(x, m.built);
   x = foldU32(x, m.conquered);
-  return foldU32(x, m.districts);
+  x = foldU32(x, m.districts);
+  x = foldU16(x, m.techMask);
+  x = foldBytes(x, m.techCurrent);
+  return foldU32(x, m.techDone);
 }
 
 /** The hash of a state: header words, scalars, the generator, then every array in fixed order. Not the outbox, not the derived parts. */
@@ -463,6 +469,11 @@ export function serialize(state: GameState): Uint8Array {
   p = putU32s(v, p, m.built);
   p = putU32s(v, p, m.conquered);
   p = putU32s(v, p, m.districts);
+  for (let o = 0; o < m.techMask.length; o++) v.setUint32(p + o * 4, m.techMask[o] as number, true);
+  p += m.techMask.length * 4;
+  for (let o = 0; o < m.techCurrent.length; o++) v.setUint32(p + o * 4, m.techCurrent[o] as number, true);
+  p += m.techCurrent.length * 4;
+  p = putU32s(v, p, m.techDone);
   p = putDiplomacy(v, p, state);
   v.setUint32(p, hashState(state), true);
   return out;
@@ -619,8 +630,22 @@ function readMatch(v: DataView, p: number, slots: number, seats: number, m: Matc
   q = getU32s(v, q, m.peakLand);
   q = getU32s(v, q, m.built);
   q = getU32s(v, q, m.conquered);
-  getU32s(v, q, m.districts);
+  q = getU32s(v, q, m.districts);
   if (m.peakLand[0] !== 0 || m.built[0] !== 0 || m.conquered[0] !== 0 || m.districts[0] !== 0) return 'bad';
+  // Technology (M18d-1): a closed mask (every step has its predecessor), a running research that is not yet researched and whose predecessor is, a finish tick
+  // that exists exactly with a running research; slot 0 stays empty.
+  for (let o = 0; o < slots; o++) {
+    const mask = v.getUint32(q + o * 4, true);
+    const cur = v.getUint32(q + (slots + o) * 4, true);
+    const done = v.getUint32(q + (2 * slots + o) * 4, true);
+    if (!techMaskValid(mask) || cur > TECH_COUNT || (cur === 0) !== (done === 0)) return 'bad';
+    if (o === 0 && (mask !== 0 || cur !== 0)) return 'bad';
+    if (cur !== 0 && ((mask & (1 << (cur - 1))) !== 0 || (techPrereqOf(cur - 1) >= 0 && (mask & (1 << techPrereqOf(cur - 1))) === 0))) return 'bad';
+    m.techMask[o] = mask;
+    m.techCurrent[o] = cur;
+    m.techDone[o] = done;
+  }
+  m.rebuildTechFx();
   return win;
 }
 
@@ -858,7 +883,7 @@ export function deserialize(bytes: Uint8Array, options?: DeserializeOptions): De
     p += BYTES_PER_HELI;
     if (id <= lastHeli || id >= helis.highWater || ownerId < 1 || ownerId > seats || hs < HELI_BUILDING || hs > HELI_STATE_MAX || factory >= STRUCT_CAPACITY) return fail('air-range');
     if (hx < 0 || hx >= width * 256 || hy < 0 || hy >= height * 256 || alt < 0 || alt > 65535) return fail('air-range');
-    if (hp > HELI_HP_TENTHS || load > HELI_MAX_TROOPS || fuel > HELI_FUEL_MAX_Q8 || mode > 1 || target > worldCells || routeLen > HELI_ROUTE_CAPACITY || routeIdx > routeLen) return fail('air-range');
+    if (hp > HELI_HP_TENTHS || load > HELI_MAX_TROOPS + Math.floor((HELI_MAX_TROOPS * (TECH_FX_CAP[TECH_FX_LOAD] as number)) / 100) || fuel > HELI_FUEL_MAX_Q8 + Math.floor((HELI_FUEL_MAX_Q8 * (TECH_FX_CAP[TECH_FX_FUEL] as number)) / 100) || mode > 1 || target > worldCells || routeLen > HELI_ROUTE_CAPACITY || routeIdx > routeLen) return fail('air-range');
     // A queued helicopter has the production time the rules set (its Factory is checked below, once the structure table is read).
     if (hs === HELI_BUILDING && readyTick !== stateTick + HELI_BUILD_TICKS) return fail('air-range');
     // Fix-4A2: a state cannot have been entered in the future, and a ready tick is at most one production time ahead (a forged future stateTick would overflow the altitude, or keep a DOWNED helicopter for ever).

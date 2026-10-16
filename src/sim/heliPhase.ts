@@ -1,13 +1,13 @@
 // The helicopter mutators (M12a-1): ProduceHeli, the production phase of `step`, and the scrapping of the helicopters of a lost Factory.
 // Part 2 (M12a-2): LaunchHeli / RecallHeli and the flight are in src/sim/heliFlight.ts and run from this phase; M12a-3 adds the landing and the beachhead (src/sim/heliLanding.ts).
 import { airDefensePhase } from './airDefense';
-import { flyHelis } from './heliFlight';
+import { flyHelis, heliFuelMaxQ8 } from './heliFlight';
 import { beachheadPhase } from './heliLanding';
 import { checkProduceHeli, HELI_PRICE_MILLI } from './heliRules';
 import { HELI_BUILDING, HELI_PAD, cellCentreQ8 } from './heliTable';
 import { REJECT_HELI_TABLE_FULL, REJECT_NONE } from './intents';
 import { OUTBOX_HELI_PRODUCED, OUTBOX_HELI_QUEUED, OUTBOX_HELI_SCRAPPED } from './outbox';
-import { HELI_BUILD_TICKS, HELI_FUEL_MAX_Q8, HELI_HP_TENTHS } from './rules';
+import { HELI_BUILD_TICKS, HELI_HP_TENTHS } from './rules';
 import { seatToOwner, type GameState } from './state';
 import { spawnPhaseRefuses } from './structures';
 
@@ -76,7 +76,7 @@ export function heliPhase(state: GameState): void {
     t.alt[id] = 0;
     t.hp[id] = HELI_HP_TENTHS;
     t.load[id] = 0;
-    t.fuel[id] = HELI_FUEL_MAX_Q8;
+    t.fuel[id] = heliFuelMaxQ8(state, t.owner[id] as number);
     state.outbox.push(OUTBOX_HELI_PRODUCED, tick, id, factory);
   }
   flyHelis(state); // M12a-2: the flight of every helicopter that is in the air or down (src/sim/heliFlight.ts)

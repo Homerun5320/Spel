@@ -6,7 +6,8 @@
 // `recycled` stack and the next Build takes the top of the stack, else the next never-used slot. That makes the id a pure function
 // of the history, and the whole free list is `highWater` plus the stack (both hashed and serialised), so a restored table
 // allocates exactly as the straight run does.
-import { BUILD_TICKS, DELETE_COOLDOWN_TICKS, DISTRICT_MAX_SLOTS, LEVEL_CONQUEST_KEEP_PCT, MILLI_GOLD_PER_GOLD, STRUCT_CAPACITY } from './rules';
+import { TECH_FX_UPGRADE } from './techTable';
+import { BUILD_TICKS, DELETE_COOLDOWN_TICKS, DISTRICT_MAX_SLOTS, LEVEL_CONQUEST_KEEP_PCT, STRUCT_CAPACITY } from './rules';
 import { DISTRICT_KIND_SLOTS, districtSlotsOf, type DistrictView } from './districtRules';
 import { foldBytes, foldU32, foldWord } from './hash';
 import { REJECT_NONE, REJECT_PHASE } from './intents';
@@ -17,7 +18,7 @@ import {
   checkBuild,
   checkDelete,
   checkUpgrade,
-  upgradePriceGold,
+  upgradePriceMilliFor,
   upgradeTicksOf,
   type BuildSource,
   type StructureView,
@@ -73,6 +74,8 @@ export class StructureTable implements StructureView, DistrictView {
   /** Scratch for the Defense Post scan of an attack (cells of the target's finished Posts). */
   readonly postCells = new Int32Array(STRUCT_CAPACITY);
   postCount = 0;
+  /** Scratch (M18d-1): the Walls / Post strength percent the target of the current attack has researched, set by `collectPosts`. Derived, never serialised or hashed. */
+  postBoostPct = 0;
   /** Derived: id + 1 of the structure on each cell, 0 = none. */
   readonly byCell: Uint16Array;
   /** Derived: structures per (ownerId, type), index ownerId * STRUCT_TYPE_SLOTS + type. */
@@ -364,10 +367,11 @@ export function applyUpgrade(state: GameState, seat: number, id: number): number
   if (spawnPhaseRefuses(state)) return REJECT_PHASE;
   const t = state.structures;
   const ownerId = seatToOwner(seat);
-  const why = checkUpgrade(t, state.tick, state.gold[ownerId] as number, seat, id);
+  const discount = state.match.fx(ownerId, TECH_FX_UPGRADE);
+  const why = checkUpgrade(t, state.tick, state.gold[ownerId] as number, seat, id, discount);
   if (why !== REJECT_NONE) return why;
   const type = t.type[id] as number;
-  state.gold[ownerId] = (state.gold[ownerId] as number) - upgradePriceGold(type, (t.level[id] as number) + 1) * MILLI_GOLD_PER_GOLD;
+  state.gold[ownerId] = (state.gold[ownerId] as number) - upgradePriceMilliFor(type, (t.level[id] as number) + 1, discount);
   t.upgradeReadyTick[id] = state.tick + upgradeTicksOf(type, (t.level[id] as number) + 1);
   return REJECT_NONE;
 }

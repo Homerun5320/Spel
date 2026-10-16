@@ -29,6 +29,7 @@ import { applyLaunchHeli, applyRecallHeli } from './heliFlight';
 import { applyProduceHeli, heliPhase } from './heliPhase';
 import { applyBuild, applyDelete, applyUpgrade, structuresPhase } from './structures';
 import { seatToOwner, type GameState } from './state';
+import { applyCancelResearch, applyResearch, techPhase } from './tech';
 import { setOwner } from './territory';
 import { winPhase } from './win';
 
@@ -90,6 +91,10 @@ export function applyIntent(state: GameState, intent: Intent): number {
       return applyImposeEmbargo(state, intent.seat, intent.target);
     case 'LiftEmbargo':
       return applyLiftEmbargo(state, intent.seat, intent.target);
+    case 'Research':
+      return applyResearch(state, intent.seat, intent.tech);
+    case 'CancelResearch':
+      return applyCancelResearch(state, intent.seat);
     default:
       return REJECT_NONE;
   }
@@ -143,7 +148,7 @@ export function step(state: GameState, turn: TurnIntents): StepResult {
       applied++;
     }
   }
-  // Phases of a tick: 0 diplomacy expiry (above, before the intents), 1 intents (above), 2 conquest, 3 enclaves, 4 economy, 5 structures (finished upgrades), 5b helicopters (finished production; M12a-1), 6 the generator, 7 the tick, 8 the match end (peak land, elimination, win conditions; M18-1).
+  // Phases of a tick: 0 diplomacy expiry (above, before the intents), 1 intents (above), 2 conquest, 3 enclaves, 4 economy, 5 structures (finished upgrades), 5b helicopters (finished production; M12a-1), 6 the generator, 7 the tick, 7b research (a finished research becomes a researched tech; M18d-1), 8 the match end (peak land, elimination, win conditions; M18-1).
   conquestPhase(state);
   enclavePhase(state);
   economyTick(state);
@@ -152,6 +157,7 @@ export function step(state: GameState, turn: TurnIntents): StepResult {
   if (rejected > 0) state.rejects = (state.rejects + rejected) >>> 0;
   nextU32(state.rng);
   state.tick = (state.tick + 1) >>> 0;
+  techPhase(state);
   winPhase(state);
   return applied === 0 && rejected === 0 ? NOTHING_TO_DO : { ok: true, applied, rejected };
 }

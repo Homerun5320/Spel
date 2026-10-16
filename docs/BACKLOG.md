@@ -547,3 +547,11 @@ Not done in the Fix-UI slice (the sim, host and AI findings belong to Fix-Sim):
 - The labels use plain AABB overlap against the placed boxes; a label that is dropped because of a HUD panel does not try another spot beside its nation. A leader line or a nudge would keep more nations labelled on a small window.
 - A test with 40 real nations (the e2e uses the 13 of the default match); `createMatch` with a larger AI count in a test page would do.
 - The label text of a custom nation is not translated (as everywhere); tribes get no label (a "Stam" label at close range would be easy).
+## M18d-1 / M18d-2
+
+- M18d-2 (the research panel): per branch four buttons with price, time and effect text (from `TECH_PRICE_GOLD`, `TECH_TICKS`, `TECH_FX`), button state from `validateResearch(view, seat, tech)`, a progress bar from `view.match.techCurrentOfSeat(seat)` and `techDone`, a cancel button from `validateCancelResearch`, refusal texts through `techRefusalKey`, a toast when a research is finished (watch `techMask` change), `techCount` on the result screen, the discounted upgrade price in the selection panel (`upgradePriceMilliFor(type, level, view.match.techFxOfSeat(seat, TECH_FX_UPGRADE))`), the load slider maximum `heliMaxTroopsOf(view, seat)` in the deploy box.
+- Faster build time (ECONOMY): the structure rows store `buildTick` and `readyTick` and `deserialize` checks `readyTick === buildTick + BUILD_TICKS[type]`; a tech discount needs the guard to accept the shortened time of the build moment.
+- SAM range (AIR): `samRadiusCells(level, onMountain)` has no owner and is read by the Los cache signature and the fire control; the owner's percent must go into the signature first.
+- Enemy helicopter hit chance against the researcher's own land (DEFENCE, optional in the prompt); the helicopter landing price (`landingCostMilli`) takes no LAND discount.
+- Retune with the balance harness (M19): gold is cheap next to land income (see DECISIONS M18d-1 point 6); the time gate does the work today.
+- Shared research between allies; techs that unlock building types or missiles (later milestones add rows to the `TECH_*` tables).
