@@ -13,6 +13,8 @@ uniform vec3 uCamLo;
 uniform float uSizeM;      // metres per model unit at true size
 uniform float uPxK;        // minimum radius as a share of the camera distance
 uniform float uMaxScale;
+uniform float uMaxLevel;   // Look-1: the top City level (cityTiers.ts); a model part of a higher band than the City's is collapsed
+uniform vec4 uClose;       // Look-1: x: the mid-range enlargement, y/z: the camera distances (m) where it rises from 1x and reaches full, w: where it is gone again (cityTiers closeMul in rings.ts)
 uniform float uKmPerUnit;  // kilometres per Earth radius
 uniform float uTime;       // fx seconds
 uniform float uTick;       // the sim tick as a fraction
@@ -23,6 +25,7 @@ uniform float uSpin;       // the angle (rad, 0..2pi) of a part flagged to turn 
 
 attribute vec3 aColor;
 attribute float aTint;
+attribute float aBand;     // Look-1: the first City band a vertex is drawn in (0 = always)
 attribute vec3 aHi;
 attribute vec3 aLo;
 attribute vec4 aParams;    // x: level scale, y: yaw (radians), z: fx time of appearing, w: level (1..3; the City lights follow it)
@@ -54,7 +57,8 @@ void main() {
   vec3 north = cross(up, east);
   vec3 rel0 = (aHi - uCamHi) + (aLo - uCamLo);
   float distM = length(rel0) * uKmPerUnit * 1000.0;
-  float k = clamp(distM * uPxK / uSizeM, 1.0, uMaxScale) * uSizeM * aParams.x / (uKmPerUnit * 1000.0);
+  float closeK = mix(1.0, uClose.x, smoothstep(uClose.y, uClose.z, distM) * (1.0 - smoothstep(uClose.z * 1.6, uClose.w, distM)));
+  float k = max(clamp(distM * uPxK / uSizeM, 1.0, uMaxScale), closeK) * uSizeM * aParams.x / (uKmPerUnit * 1000.0);
   float age = uTime - aParams.z;
   float pop = age < 0.0 ? 1.0 : clamp(age / uPopSeconds, 0.0, 1.0); // a clock set back by a test hook shows the finished model
   float popScale = pop >= 1.0 ? 1.0 : max(easeOutBack(pop), 0.0);
@@ -64,6 +68,8 @@ void main() {
   float cy = cos(aParams.y);
   float sy = sin(aParams.y);
   vec3 p = position;
+  float ib = min(4.0, floor(clamp((max(aParams.w, 1.0) - 1.0) / max(uMaxLevel - 1.0, 1.0), 0.0, 1.0) * 5.0 + 0.0001));
+  p *= step(aBand - 0.5, ib);
   // aTint = owner tint (0/1) + 2 x spinning part + 4 x city light number (1..3, M10-4): a light is lit on the night side when the city's level reaches its number
   float lightIdx = floor(aTint * 0.25 + 0.01);
   float rem = aTint - 4.0 * lightIdx;
@@ -187,6 +193,7 @@ uniform vec3 uCamLo;
 uniform float uKmPerUnit;
 uniform float uPxK;
 uniform float uMaxScale;
+uniform vec4 uClose;
 uniform float uViewH;      // drawing-buffer height in pixels
 uniform float uFadeHi;     // projected model radius (px) above which there is no icon
 uniform float uFadeLo;     // ... and below which the icon is full
@@ -194,18 +201,19 @@ uniform float uHalfPx;     // the icon's half size in pixels
 attribute vec2 corner;     // (-1..1, -1..1)
 attribute vec3 aHi;
 attribute vec3 aLo;
-attribute vec4 aInfo;      // x: type, y: model size in metres, z: level scale, w: unused
+attribute vec4 aInfo;      // x: type, y: model size in metres, z: level scale, w: level share (level / top level; Look-1: the City's progress arc)
 attribute vec3 aOwner;
 varying vec2 vUv;
 varying vec3 vOwner;
 varying float vType;
 varying float vAlpha;
+varying float vFrac;
 void main() {
   vec3 centre = aHi + aLo;
   vec3 up = normalize(centre);
   vec3 rel0 = (aHi - uCamHi) + (aLo - uCamLo);
   float distM = length(rel0) * uKmPerUnit * 1000.0;
-  float k = clamp(distM * uPxK / aInfo.y, 1.0, uMaxScale);
+  float k = max(clamp(distM * uPxK / aInfo.y, 1.0, uMaxScale), mix(1.0, uClose.x, smoothstep(uClose.y, uClose.z, distM) * (1.0 - smoothstep(uClose.z * 1.6, uClose.w, distM))));
   float pxPerRad = uViewH * 0.5 * projectionMatrix[1][1];
   float modelPx = k * aInfo.y * aInfo.z / distM * pxPerRad;
   float a = 1.0 - smoothstep(uFadeLo, uFadeHi, modelPx);
@@ -213,6 +221,7 @@ void main() {
   vUv = corner;
   vOwner = aOwner;
   vType = aInfo.x;
+  vFrac = aInfo.w;
   vec3 v = mat3(viewMatrix) * rel0;
   float worldHalf = uHalfPx * 2.0 * max(-v.z, 1e-6) / (uViewH * projectionMatrix[1][1]);
   v += mat3(viewMatrix) * up * worldHalf; // sits one half size above the ground
@@ -226,6 +235,7 @@ varying vec2 vUv;
 varying vec3 vOwner;
 varying float vType;
 varying float vAlpha;
+varying float vFrac;
 float shape(vec2 p, float t) {
   if (t < 1.5) return length(p) - 0.9;                                          // City: disc
   if (t < 2.5) return max(abs(p.x), abs(p.y)) - 0.8;                            // Factory: square
@@ -238,6 +248,11 @@ void main() {
   float d = shape(vUv, vType);
   if (d > 0.0) discard;
   vec3 rim = vec3(0.96, 0.96, 0.94);
+  // Look-1: the City's rim is a progress arc, clockwise from the top: lit up to level / top level, dim after it (the level at a glance from far away)
+  if (vType < 1.5 && d > -0.28) {
+    float fr = fract(atan(vUv.x, vUv.y) / 6.2831853 + 1.0);
+    rim = fr <= vFrac + 0.001 ? rim : vec3(0.42, 0.42, 0.44);
+  }
   vec3 c = d > -0.28 ? rim : vOwner;
   gl_FragColor = vec4(c, vAlpha);
 }

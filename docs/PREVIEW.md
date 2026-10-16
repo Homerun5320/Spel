@@ -51,6 +51,8 @@ I en Artifact når inte adressparametrar (`?x=y`) sidan, men ett rent ankare (`#
 
 Exempel: `#perf` = `?perf=1`; `#scene-perf` = `?scene=perf`; `#scenario-slice_sam-1` = `?scenario=slice&sam=1`; `#view-alps-valley` = `?view=alps-valley`; `#seed-7` = `?seed=7`.
 
+**Stadsstil (Look-1).** Städerna finns i två utseenden, "Gammal" (standard) och "Modern". Du väljer i startmenyns inställningsskärm (knappen "Stadsstil: Gammal / Modern", ändras direkt och sparas) eller med adressen `?citystyle=old` / `?citystyle=new`, i en Artifact `#citystyle-old` / `#citystyle-new`; adressen vinner över det sparade valet. I Dev-panelen (F2) heter lägena "Stadsstil: gammal" och "Stadsstil: modern". Staden växer med nivån i fem steg (by, liten stad, stad, storstad, metropol).
+
 Lägen som finns registrerade i Dev-panelen (F2 eller hörnknappen) just nu:
 
 | Lokalt (dator) | I en Artifact (länken + ankare) | Anmärkning |

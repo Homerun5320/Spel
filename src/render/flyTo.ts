@@ -38,6 +38,8 @@ export const FLY_EXTRA_S = 1.7;
 export const FLY_ARCH_FULL_DEG = 70;
 /** The distance in the middle of a full-arch flight is this many times (natural log) larger than the straight blend. */
 export const FLY_ARCH_LOG = 0.75;
+/** Look-1: the longest a `fast` ground flight takes, in fx seconds. */
+export const FLY_FAST_MAX_S = 1.8;
 
 export interface FlyOptions {
   /** Flight time in FX seconds (default: from the angle, FLY_MIN_S .. FLY_MIN_S + FLY_EXTRA_S); 0 jumps at once. */
@@ -60,6 +62,11 @@ export interface FlyOptions {
    */
   altAglM?: number;
   rts?: boolean;
+  /**
+   * Look-1: the fast profile of a flight the UI starts (open city): the ground flight takes at most `FLY_FAST_MAX_S` fx seconds for any
+   * distance (the 5 percent per frame rule of the planner does not apply), the same eased phases, the same clearance. `durationS` wins.
+   */
+  fast?: boolean;
 }
 
 /** The ground flight's plan: the camera model at the start and the end, the exact end pose, the phase heights and the clock. */
@@ -237,7 +244,7 @@ export class CameraFlight {
     const u1 = latLonToVec(m1.lat, m1.lon);
     const angle = angleBetween(u0, u1);
     const plan = planGroundFlight(m0.aglM, m1.aglM, angle);
-    const duration = options.durationS ?? plan.duration;
+    const duration = options.durationS ?? (options.fast === true ? Math.min(plan.duration, FLY_FAST_MAX_S) : plan.duration);
     this.ground = { m0, m1, endPosition: end.position, endForward: end.forward, u0, u1, a0: m0.aglM, a1: m1.aglM, plan, t0: now, duration };
     this.update(now);
   }

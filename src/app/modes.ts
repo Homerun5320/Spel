@@ -11,6 +11,9 @@ export function registerAppModes(): void {
   registerDevMode({ id: 'scene-globe', label: 'Scen: jorden', params: { scene: 'globe' } });
   // M08: the scripted flight orbit -> continent -> valley -> 300 m over the Himalaya, with the report to copy (it turns the perf overlay on itself).
   registerDevMode({ id: 'scene-perf', label: 'Prestandascen', params: { scene: 'perf' } });
+  // Look-1: the City style (live in the setup menu; here by the address, which wins over the stored choice).
+  registerDevMode({ id: 'citystyle-old', label: 'Stadsstil: gammal (standard)', params: { citystyle: 'old' } });
+  registerDevMode({ id: 'citystyle-new', label: 'Stadsstil: modern', params: { citystyle: 'new' } });
   registerDevMode({ id: 'quality-low', label: 'Kvalitet: låg', params: { quality: 'low' } });
   registerDevMode({ id: 'quality-medium', label: 'Kvalitet: medel', params: { quality: 'medium' } });
   registerDevMode({ id: 'quality-high', label: 'Kvalitet: hög', params: { quality: 'high' } });

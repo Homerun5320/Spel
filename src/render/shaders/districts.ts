@@ -19,6 +19,7 @@ uniform float uBuildMin;
 uniform float uViewH;
 uniform float uFadeLo;
 uniform float uFadeHi;
+uniform vec4 uClose;       // Look-1: the City's close-range enlargement (see shaders/structures.ts), so the districts stay in proportion
 
 attribute vec3 aColor;
 attribute float aTint;
@@ -56,7 +57,7 @@ void main() {
   vec3 north = cross(up, east);
   vec3 rel0 = (aHi - uCamHi) + (aLo - uCamLo);
   float distM = length(rel0) * uKmPerUnit * 1000.0;
-  float unitM = uSizeM * aParams.x;
+  float unitM = uSizeM * aParams.x * mix(1.0, uClose.x, smoothstep(uClose.y, uClose.z, distM) * (1.0 - smoothstep(uClose.z * 1.6, uClose.w, distM)));
   float pxPerRad = uViewH * 0.5 * projectionMatrix[1][1];
   float px = uModelUnit * aBuild.z * unitM / distM * pxPerRad;
   float t = clamp((px - uFadeLo) / (uFadeHi - uFadeLo), 0.0, 1.0);

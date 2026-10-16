@@ -1,10 +1,20 @@
 // Pure numbers of the ring and icon drawing (M10-4); no three. The shaders repeat the two scale formulas, the unit tests pin them here.
-import { STRUCT_LEVEL_SCALE, STRUCT_MAX_SCALE, STRUCT_SCREEN_FRAC } from './config';
+import { STRUCT_CLOSE_FAR_M, STRUCT_CLOSE_MUL, STRUCT_CLOSE_RISE_HI_M, STRUCT_CLOSE_RISE_LO_M, STRUCT_MAX_SCALE, STRUCT_SCREEN_FRAC } from './config';
+import { levelScale } from './cityTiers';
+
+/** Look-1: the mid-range enlargement at camera distance `distM` (see STRUCT_CLOSE_MUL); the shaders repeat it. */
+export function closeMul(distM: number): number {
+  const ss = (e0: number, e1: number, x: number): number => {
+    const t = Math.min(1, Math.max(0, (x - e0) / (e1 - e0)));
+    return t * t * (3 - 2 * t);
+  };
+  return 1 + (STRUCT_CLOSE_MUL - 1) * ss(STRUCT_CLOSE_RISE_LO_M, STRUCT_CLOSE_RISE_HI_M, distM) * (1 - ss(STRUCT_CLOSE_RISE_HI_M * 1.6, STRUCT_CLOSE_FAR_M, distM));
+}
 
 /** The model's radius in render metres at camera distance `distM`: the scale policy of shaders/structures.ts (never below STRUCT_SCREEN_FRAC of the distance, up to STRUCT_MAX_SCALE times true size). */
 export function modelRadiusM(distM: number, sizeM: number, level: number): number {
-  const k = Math.min(STRUCT_MAX_SCALE, Math.max(1, (distM * STRUCT_SCREEN_FRAC) / sizeM));
-  return k * sizeM * (STRUCT_LEVEL_SCALE[level] ?? 1);
+  const k = Math.max(closeMul(distM), Math.min(STRUCT_MAX_SCALE, Math.max(1, (distM * STRUCT_SCREEN_FRAC) / sizeM)));
+  return k * sizeM * (levelScale(level));
 }
 
 /** The projected radius of that model in pixels for a viewport `viewH` pixels high and `tanHalfFov` the tangent of half the vertical field of view. */

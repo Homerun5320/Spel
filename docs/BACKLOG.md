@@ -377,3 +377,10 @@ Not done in the Fix-UI slice (the sim, host and AI findings belong to Fix-Sim):
 - The AI only upgrades a City to level 1 + 2 * (its Cities); a smarter payback-based rule (upgrade versus new City) is not built.
 - The Silo spacing (6 cells) and the SAM spacing (5) are guesses until M14 gives them a job.
 - The attack race of the AI (REJECT_NO_CONTACT, one in about 12 Skirmish matches at some tunings) is unchanged by this slice but shows when the AI trajectory shifts: see Sim-Growth in `docs/DECISIONS.md`.
+
+## Look-1 leftovers
+- A level number as a digit on the far City icon (the arc is the stand-in); the build bar could show "Nivå 1 / max" for the City it builds.
+- The hamlet (level 1) looks bare at 800 m: a small well or a first tower in band 0.
+- At the top level two Cities 3 cells apart touch at about 3500 km camera distance (1.5x level scale); a cap on the policy radius by the spacing would fix it.
+- The e2e pixel diffs of old vs new and of level 1 vs 3 include the territory change over time; a masked diff around the City would be sharper.
+- A setting for the Dev panel that switches the style without changing the address.
