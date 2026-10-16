@@ -165,8 +165,16 @@ export const CITY_VIEW = {
   widthEm: 29,
   widthMaxVw: 46,
   sheetVh: 66,
+  /** The lowest the open-city flight ends (m over the ground); Fix-3B raises it per window (`cityFitFlight`) until the City and its district ring fit the free part of the window. */
   flyAltM: 1500,
   flyTiltDeg: 50,
+  /** Fix-3B: the City plus its district ring (level 9, five slots) reaches this far from the City (m); the fit keeps it inside `fitMargin` of the free part. */
+  ringExtentM: 2400,
+  fitMargin: 0.85,
+  /** The highest the open-city flight may end (m over the ground). */
+  flyMaxAltM: 14000,
+  /** Free part of the window starts this many px from the top (the status bar). */
+  topPx: 64,
   flyNearM: 5000,
   /** Two clicks on the selected City within this many fx milliseconds open the view. */
   doubleClickMs: 450,

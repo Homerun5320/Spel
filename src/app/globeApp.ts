@@ -34,7 +34,8 @@ import { mountToasts, showToast, tickToasts, visibleToastKeys } from '../ui/toas
 import { createPlacementMode, type PlacementMode, type PlacementState } from './placement';
 import { STRUCT_CITY, buildBody, buildDistrictBody, deleteBody, removeDistrictBody, upgradeBody, upgradeDistrictBody, validateBuild } from '../sim/public';
 import { createCityViewPanel, type CityViewPanel } from '../ui/cityViewPanel';
-import { cityFlightNeeded, createCityViewMode, isDoubleClick } from './cityViewMode';
+import { CAMERA_FOV_DEG, EARTH_RADIUS_KM } from '../render/config';
+import { cityFitFlight, cityFlightNeeded, createCityViewMode, isDoubleClick } from './cityViewMode';
 import type { InputMode } from './input';
 import { CLASS_MOUNTAIN } from '../sim/terrain';
 import { createSelectionPanel, type SelectionPanel } from '../ui/selectionPanel';
@@ -509,6 +510,8 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   let selectPanel = null as SelectionPanel | null;
   /** Districts-2a: the city view (the City id while open, -1 = closed), its input mode and panel. */
   let cityId = -1;
+  /** The open-city flight is the flight running (Escape or closing the view cancels it; a drag or the wheel already do). */
+  let cityFlightOn = false;
   let cityMode = null as InputMode | null;
   let cityPanel = null as CityViewPanel | null;
   let lastSelClickId = -1;
@@ -1007,7 +1010,10 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   const inputTarget: InputTarget = {
     camera: globe.rig,
     now: fxNow,
-    cancelFlight: () => globe.cancelFlight(),
+    cancelFlight: () => {
+      cityFlightOn = false;
+      globe.cancelFlight();
+    },
     click: (x, y) => onGlobeClick(x, y),
     pickCell: (x, y) => {
       const p = globe.pick(x, y);
@@ -1035,6 +1041,8 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     cityId = id;
     const mode = createCityViewMode({
       closed: () => {
+        if (cityFlightOn && globe.flight.active) globe.cancelFlight(); // Fix-3B: closing the view (Escape) ends the open-city flight too
+        cityFlightOn = false;
         cityId = -1;
         cityMode = null;
         cityPanel?.update(sess.view, sess.localSeat, -1);
@@ -1045,7 +1053,18 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     if (globe.terrainMode === 'chunks') {
       const at = latLonOfCell(sess.view.structures.cell[id] as number, world.sim.width, world.sim.height);
       const p = globe.project(at.lat, at.lon);
-      if (cityFlightNeeded(globe.cameraAglM(), p.facing && p.inView)) globe.flyTo(at.lat, at.lon, 0, { altAglM: CITY_VIEW.flyAltM, tilt: CITY_VIEW.flyTiltDeg, fast: true });
+      if (cityFlightNeeded(globe.cameraAglM(), p.facing && p.inView)) {
+        // Fix-3B: high enough and shifted away from the panel so that the City and its district ring fit the free part of the window
+        cityPanel?.update(sess.view, sess.localSeat, cityId); // shows the panel now so that its box can be measured
+        const box = cityPanel?.root.getBoundingClientRect();
+        const cvs = canvas.getBoundingClientRect();
+        const fit = cityFitFlight(cvs.width, cvs.height, box === undefined ? { x: cvs.width, y: cvs.height } : { x: box.left - cvs.left, y: box.top - cvs.top }, CAMERA_FOV_DEG, CITY_VIEW.flyTiltDeg);
+        const mPerDeg = (Math.PI / 180) * EARTH_RADIUS_KM * 1000;
+        const toLat = at.lat + fit.offNorthM / mPerDeg;
+        const toLon = at.lon + fit.offEastM / (mPerDeg * Math.max(0.05, Math.cos((at.lat * Math.PI) / 180)));
+        globe.flyTo(toLat, toLon, 0, { altAglM: fit.altAglM, tilt: CITY_VIEW.flyTiltDeg, heading: 0, fast: true });
+        cityFlightOn = true;
+      }
     }
     refreshHud();
   };
