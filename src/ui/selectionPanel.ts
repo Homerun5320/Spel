@@ -10,6 +10,8 @@ import type { HeliPanelInfo } from './heliInfo';
 
 export interface SelectionPanel {
   readonly root: HTMLElement;
+  /** The Factory's helicopter block (M13b: the deploy box and the helicopter list are put into it). */
+  readonly heliBox: HTMLElement;
   /** Per frame: null hides the panel. `onMountain` selects the sim's SAM radius. */
   update(info: SelectionInfo | null, onMountain: boolean, heli?: HeliPanelInfo | null): void;
   dispose(): void;
@@ -72,6 +74,7 @@ export function createSelectionPanel(parent: HTMLElement, actions: { upgrade(id:
   });
   return {
     root,
+    heliBox,
     update(info, onMountain, heli = null): void {
       if (info === null) {
         if (!root.hidden) root.hidden = true;

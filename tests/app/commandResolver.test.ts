@@ -57,20 +57,20 @@ describe('the extension point: a rule in front of the attack (what M13b and M15b
   it('a Factory-marked right click on land runs the new rule and leaves the old rows alone', () => {
     const off = registerCommandRule({
       id: 'test-launch-heli',
-      priority: 15,
+      priority: 14, // M13b: the real 'factory-deploy' rule sits at 15, so the probe goes in front of it to keep proving the extension point
       triggers: ['context'],
       applies: (_t, sel, target) => sel.structureType === STRUCT_FACTORY && target.terrainClass === CLASS_PLAINS,
       resolve: () => NO_COMMAND,
     });
     try {
-      expect(commandRules().map((r) => r.id)).toEqual(['build-own', 'test-launch-heli', 'deselect-other', 'attack']);
+      expect(commandRules().map((r) => r.id)).toEqual(['build-own', 'test-launch-heli', 'factory-deploy', 'deselect-other', 'attack']);
       expect(resolveCommand('context', selected(4, STRUCT_FACTORY), land(7), ctx)).toEqual(NO_COMMAND); // the new rule won over 'deselect-other'
       expect(resolveCommand('context', selected(4, STRUCT_CITY), land(7), ctx)).toEqual({ kind: 'deselect' });
       expect(() => registerCommandRule({ ...commandRules()[0]! })).toThrow(/twice/);
     } finally {
       off();
     }
-    expect(commandRules().map((r) => r.id)).toEqual(['build-own', 'deselect-other', 'attack']);
+    expect(commandRules().map((r) => r.id)).toEqual(['build-own', 'factory-deploy', 'deselect-other', 'attack']);
   });
 });
 
