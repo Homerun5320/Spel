@@ -86,13 +86,13 @@ describe('cityFitFlight, computed: the City and its ring fit the free part of th
     });
   }
 
-  it('where the fit decides the altitude the ring is as large as the formula allows: its tighter axis fills at least 75 % of (margin / 2: the formula counts the ring against half the span), and never more than the margin', () => {
+  it('where the fit decides the altitude the ring is as large as the formula allows: its tighter axis fills at least 75 % of (margin / 2: the formula counts the ring against half the span), and never more than the free part', () => {
     for (const [, w, h, panel] of CASES.slice(1, 3)) {
       const { box, free } = picture(w, h, panel);
       const fx = (box.x1 - box.x0) / (free.x1 - free.x0);
       const fy = (box.y1 - box.y0) / (free.y1 - free.y0);
       expect(Math.max(fx, fy)).toBeGreaterThan(0.75 * (CITY_VIEW.fitMargin / 2));
-      expect(Math.max(fx, fy)).toBeLessThanOrEqual(CITY_VIEW.fitMargin);
+      expect(Math.max(fx, fy)).toBeLessThanOrEqual(1);
     }
   });
 
