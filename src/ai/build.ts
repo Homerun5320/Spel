@@ -11,6 +11,7 @@ import {
   AI_BUILD_RETRY_TICKS,
   AI_BUILD_RICH_PCT,
   AI_BUILD_TRIES,
+  AI_CITY_UPGRADE_LEVELS_PER_CITY,
   AI_BUILD_WINDOW_CELLS,
   AI_DISTRICT_MIN_CITIES,
   AI_DISTRICT_RETRY_TICKS,
@@ -41,7 +42,8 @@ import {
   upgradeBody,
   upgradePriceGold,
   MILLI_GOLD_PER_GOLD,
-  STRUCT_MAX_LEVEL,
+  CITY_MAX_LEVEL,
+  maxLevelOf,
   nextBelow,
   seatToOwner,
   validateBuild,
@@ -64,6 +66,12 @@ function wantedType(view: SimView, owner: number): number {
   return STRUCT_CITY;
 }
 
+/** The level the AI lets its Cities rise to while it owns `cities` of them: 1 + cities * AI_CITY_UPGRADE_LEVELS_PER_CITY, at most the City's top level. A City below it may be upgraded; the limit rises with every new City. */
+function cityLevelTarget(cities: number): number {
+  const target = 1 + cities * AI_CITY_UPGRADE_LEVELS_PER_CITY;
+  return target > CITY_MAX_LEVEL ? CITY_MAX_LEVEL : target;
+}
+
 /**
  * The City to upgrade instead of building a new one: the finished, idle City of the lowest level below the top whose upgrade is cheaper
  * than the next new City (prices escalate with every City, an upgrade does not). Returns its id or -1.
@@ -71,7 +79,7 @@ function wantedType(view: SimView, owner: number): number {
 function cheaperUpgrade(view: SimView, owner: number, newCityMilli: number): number {
   const s = view.structures;
   let best = -1;
-  let bestLevel = STRUCT_MAX_LEVEL;
+  let bestLevel = cityLevelTarget(s.ownedCount(owner, STRUCT_CITY));
   for (let id = 0; id < s.highWater; id++) {
     if (s.owner[id] !== owner || s.type[id] !== STRUCT_CITY || view.tick < (s.readyTick[id] as number) || (s.upgradeReadyTick[id] as number) !== 0) continue;
     const level = s.level[id] as number;
@@ -98,7 +106,7 @@ function richUpgrade(view: SimView, owner: number, goldMilli: number): number {
     if (s.owner[id] !== owner || (type !== STRUCT_CITY && type !== STRUCT_FACTORY && type !== STRUCT_PORT)) continue;
     if (view.tick < (s.readyTick[id] as number) || (s.upgradeReadyTick[id] as number) !== 0) continue;
     const level = s.level[id] as number;
-    if (level >= STRUCT_MAX_LEVEL || upgradePriceGold(type, level + 1) * MILLI_GOLD_PER_GOLD > goldMilli) continue;
+    if (level >= (type === STRUCT_CITY ? cityLevelTarget(s.ownedCount(owner, STRUCT_CITY)) : maxLevelOf(type)) || upgradePriceGold(type, level + 1) * MILLI_GOLD_PER_GOLD > goldMilli) continue;
     const cell = s.cell[id] as number;
     if (!interior(view, owner, cell, cell % view.width, Math.floor(cell / view.width))) continue; // a border structure may change hands before the Upgrade runs
     const key = level * 8 + type; // lowest level first, then City < Factory < Port, then the lowest id (the loop order)
@@ -110,8 +118,8 @@ function richUpgrade(view: SimView, owner: number, goldMilli: number): number {
   return best;
 }
 
-/** The kind a free slot gets, by slot number: Market, Housing, Barracks, Walls. */
-const DISTRICT_ORDER = [DISTRICT_MARKET, DISTRICT_BARRACKS, DISTRICT_HOUSING, DISTRICT_WALLS];
+/** The kind a free slot gets, by slot number: Market, Barracks, Housing, Walls, Market (five slots from City level 9). */
+const DISTRICT_ORDER = [DISTRICT_MARKET, DISTRICT_BARRACKS, DISTRICT_HOUSING, DISTRICT_WALLS, DISTRICT_MARKET];
 /** The cheapest district action there can be (the cheapest base price): a purse with less spare gold does not even look. */
 const DISTRICT_CHEAPEST_MILLI = Math.min(DISTRICT_BASE_GOLD[DISTRICT_HOUSING] as number, DISTRICT_BASE_GOLD[DISTRICT_MARKET] as number, DISTRICT_BASE_GOLD[DISTRICT_BARRACKS] as number, DISTRICT_BASE_GOLD[DISTRICT_WALLS] as number) * MILLI_GOLD_PER_GOLD;
 

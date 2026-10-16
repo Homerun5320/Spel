@@ -25,7 +25,7 @@ import {
 } from './rules';
 import type { GameState } from './state';
 import { weightedSimToStdQ15 } from './units';
-import { barracksPctOf, cityLevelsOf, housingQtOf, structGoldMilliPerTick } from './structureEffects';
+import { barracksPctOf, cityCountOf, cityStepQtOf, housingQtOf, structGoldMilliPerTick } from './structureEffects';
 
 /** Largest value of a Uint32 array element. */
 const U32_MAX = 4294967295;
@@ -35,9 +35,9 @@ export function isTribe(state: GameState, owner: number): boolean {
   return owner > state.header.players;
 }
 
-/** Finished City levels of an owner (M09 part B: from the structure table; 0 without structures). */
+/** Finished Cities of an owner (Sim-Growth: each adds CAP_CITY_LEVEL_QT; the levels above 1 add cityStepQtOf; 0 without structures). */
 export function cityLevels(state: GameState, owner: number): number {
-  return cityLevelsOf(state, owner);
+  return cityCountOf(state, owner);
 }
 
 /** N in std-cells as Q15 for an owner: the Q15-weighted sim cells it owns divided by STD_CELL_AREA. */
@@ -58,10 +58,10 @@ export function pow075Q15(nQ15: number): number {
 
 /**
  * Troop cap in QT: (CAP_BASE + CAP_N_COEF * N^0.75 + CAP_CITY_LEVEL * levels) troops, a tribe's divided by TRIBE_CAP_DIV.
- * `nQ15` is N in std-cells as Q15. `housingQt` (Districts-1) is the troop cap the owner's finished Housing districts add, in QT.
+ * `nQ15` is N in std-cells as Q15. `levels` is the number of finished Cities and `cityStepQt` the cap their levels above 1 add (Sim-Growth). `housingQt` (Districts-1) is the troop cap the owner's finished Housing districts add, in QT.
  */
-export function troopCapQt(nQ15: number, levels: number, tribe: boolean, housingQt = 0): number {
-  const cap = CAP_BASE_QT + Math.floor((CAP_N_COEF_QT * pow075Q15(nQ15)) / WEIGHT_ONE) + CAP_CITY_LEVEL_QT * levels + housingQt;
+export function troopCapQt(nQ15: number, levels: number, tribe: boolean, housingQt = 0, cityStepQt = 0): number {
+  const cap = CAP_BASE_QT + Math.floor((CAP_N_COEF_QT * pow075Q15(nQ15)) / WEIGHT_ONE) + CAP_CITY_LEVEL_QT * levels + cityStepQt + housingQt;
   return tribe ? Math.floor(cap / TRIBE_CAP_DIV) : cap;
 }
 
@@ -109,7 +109,7 @@ export function addTroops(state: GameState, owner: number, amountQt: number): vo
 
 /** The cap in QT of an owner right now. */
 export function ownerCapQt(state: GameState, owner: number): number {
-  return troopCapQt(ownedStdAreaQ15(state, owner), cityLevels(state, owner), isTribe(state, owner), housingQtOf(state, owner));
+  return troopCapQt(ownedStdAreaQ15(state, owner), cityLevels(state, owner), isTribe(state, owner), housingQtOf(state, owner), cityStepQtOf(state, owner));
 }
 
 /** Gives a seat that just spawned its start troops (clamped to its cap) and start gold, and clears the remainder. */
@@ -130,7 +130,7 @@ export function economyTick(state: GameState): void {
     if ((state.agg.area[owner] as number) === 0) continue;
     const nQ15 = ownedStdAreaQ15(state, owner);
     const tribe = isTribe(state, owner);
-    const cap = troopCapQt(nQ15, cityLevels(state, owner), tribe, housingQtOf(state, owner));
+    const cap = troopCapQt(nQ15, cityLevels(state, owner), tribe, housingQtOf(state, owner), cityStepQtOf(state, owner));
     let rate = regenMicroQtPerTick(state.troops[owner] as number, cap, tribe);
     // Barracks (Districts-1): the owner's finished Barracks raise a positive regeneration by their percent (decay is untouched).
     if (rate > 0) {

@@ -54,6 +54,7 @@ describe('validateUpgrade / validateDelete', () => {
     expect(send(s, { kind: 'Upgrade', seat: 0, structure: mine })).toBe(REJECT_NONE);
     idle(s, (BUILD_TICKS[STRUCT_CITY] as number) + 1);
     expect(s.structures.level[mine]).toBe(3);
+    s.structures.level[mine] = 10; // the City's top level (CITY_MAX_LEVEL; Sim-Growth: a City goes on past 3)
     expect(validateUpgrade(new StateView(s), 0, mine)).toBe(REJECT_STRUCT_MAX_LEVEL);
     expect(send(s, { kind: 'Upgrade', seat: 0, structure: mine })).toBe(REJECT_STRUCT_MAX_LEVEL);
   });

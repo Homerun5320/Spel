@@ -27,8 +27,8 @@ import { TRAIT_MAX_MILLI, TRAIT_MIN_MILLI, type HomeRules } from './homeRules';
 import { foldStructures } from './structures';
 import { MatchState, normalWin, winFlagsOf, type WinConfig, WIN_FLAG_LAND, WIN_FLAG_LAST, WIN_FLAG_SCORE } from './matchState';
 import { FNV_OFFSET, finishHash, foldBytes, foldU16, foldU32, foldWord } from './hash';
-import { BUILD_TICKS, DISTRICT_BUILD_TICKS, DISTRICT_MAX_LEVEL, DISTRICT_MAX_SLOTS, D_MAX_CELLS, ENCLAVE_FLIP_TICKS, MICRO_CELLS_PER_CELL, MICRO_QT_PER_QT, MILLI_QT_PER_QT, PROGRESS_DEBT_MAX, STRUCT_CAPACITY, STRUCT_MAX_LEVEL } from './rules';
-import { STRUCT_CITY, STRUCT_TYPE_SLOTS } from './structureRules';
+import { BUILD_TICKS, DISTRICT_BUILD_TICKS, DISTRICT_MAX_LEVEL, DISTRICT_MAX_SLOTS, D_MAX_CELLS, ENCLAVE_FLIP_TICKS, MICRO_CELLS_PER_CELL, MICRO_QT_PER_QT, MILLI_QT_PER_QT, PROGRESS_DEBT_MAX, STRUCT_CAPACITY } from './rules';
+import { STRUCT_CITY, STRUCT_TYPE_SLOTS, maxLevelOf } from './structureRules';
 import { districtSlotsOf, isDistrictKind } from './districtRules';
 import { StructureTable } from './structures';
 import {
@@ -46,8 +46,8 @@ import {
   type MatchHeader,
 } from './state';
 
-/** Bumped when the byte layout above changes. 2: owner u16 (D71). 3: players, rowCos and the per-owner economy arrays (M04). 4: attacks and the enclave queue (M04 conquest). 5: the exposure array (M04 fix pass). 6: the structure table (M09 part A). 7: the embargo flags (M09 part B). 8: the district table (Districts-1). 9: the match block (M18-1). */
-export const FORMAT_VERSION = 9;
+/** Bumped when the byte layout above changes. 2: owner u16 (D71). 3: players, rowCos and the per-owner economy arrays (M04). 4: attacks and the enclave queue (M04 conquest). 5: the exposure array (M04 fix pass). 6: the structure table (M09 part A). 7: the embargo flags (M09 part B). 8: the district table (Districts-1). 9: the match block (M18-1). 10: Sim-Growth (City levels up to 10, five district slots per row). */
+export const FORMAT_VERSION = 10;
 /** 'SPEL' as a little-endian u32. */
 export const MAGIC = 0x4c455053;
 export const HEADER_BYTES = 64;
@@ -602,8 +602,8 @@ export function deserialize(bytes: Uint8Array): DeserializeResult {
     const upgradeReadyTick = v.getUint32(p + 28, true);
     p += BYTES_PER_STRUCTURE;
     if (id <= lastStruct || id >= structures.highWater || type < 1 || type >= STRUCT_TYPE_SLOTS || ownerId < 1 || ownerId > seats || cell >= n) return fail('structure-range');
-    if (level < 1 || level > STRUCT_MAX_LEVEL || readyTick !== buildTick + (BUILD_TICKS[type] as number) || structures.byCell[cell] !== 0) return fail('structure-range');
-    if (upgradeReadyTick !== 0 && level >= STRUCT_MAX_LEVEL) return fail('structure-range');
+    if (level < 1 || level > maxLevelOf(type) || readyTick !== buildTick + (BUILD_TICKS[type] as number) || structures.byCell[cell] !== 0) return fail('structure-range');
+    if (upgradeReadyTick !== 0 && level >= maxLevelOf(type)) return fail('structure-range');
     lastStruct = id;
     structures.type[id] = type;
     structures.owner[id] = ownerId;

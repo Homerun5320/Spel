@@ -369,3 +369,11 @@ Not done in the Fix-UI slice (the sim, host and AI findings belong to Fix-Sim):
 - Leftovers of the slice: none in the list of the prompt; the Artifact preview was not republished (orchestrator).
 
 - M18-2 follow-up (orchestrator): the plain Play match (MatchSession.create) now gets defaultWinConfig('world') outside ?test=1, so it ends like the setup matches; test mode matches never end (`options.win` absent).
+
+## Sim-Growth leftovers
+- The UI still hard-codes `CITY_GOLD_MILLI_PER_SEC_PER_LEVEL * level`, `CAP_CITY_LEVEL_TROOPS * level`, `STRUCT_MAX_LEVEL` for a City and slot counts 2/3/4 in `src/ui/structureInfo.ts`, `src/ui/cityViewModel.ts`, `src/ui/cityViewPanel.ts`, `src/ui/selectionPanel.ts` and `src/render/districts.ts` (the Look-1 track owns them): they must read `cityGoldMilli`, `cityTroopCap`, `maxLevelOf`, `upgradePriceGold`, `districtSlotsOf` and `DISTRICT_MAX_SLOTS`. The tests `tests/ui/structureInfo.test.ts`, `tests/ui/cityViewModel.test.ts`, `tests/app/structureSelect.test.ts`, `tests/render/districtLayer.test.ts` and `e2e/structuresSelect.test.ts`, `e2e/cityView.test.ts` pin those old numbers and follow that change.
+- `SCORE_CITY_LEVEL_POINTS` (25 per City level) now lets a level 10 City score 250: revisit once real matches show Cities at level 10 (the win test pins 25).
+- Conquest keeps "level minus 1, at least 1" for every level (decided; "minus 2 above level 6" would make a level 10 City worth rebuilding less, not tried).
+- The AI only upgrades a City to level 1 + 2 * (its Cities); a smarter payback-based rule (upgrade versus new City) is not built.
+- The Silo spacing (6 cells) and the SAM spacing (5) are guesses until M14 gives them a job.
+- The attack race of the AI (REJECT_NO_CONTACT, one in about 12 Skirmish matches at some tunings) is unchanged by this slice but shows when the AI trajectory shifts: see Sim-Growth in `docs/DECISIONS.md`.

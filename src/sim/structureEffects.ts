@@ -8,7 +8,7 @@ import { isqrt } from './detmath';
 import {
   BARRACKS_REGEN_PCT_BY_LEVEL,
   BARRACKS_REGEN_PCT_MAX,
-  CITY_GOLD_MILLI_PER_SEC_PER_LEVEL,
+  CITY_TROOP_STEP_TROOPS,
   DISTRICT_MAX_SLOTS,
   DISTRICT_WALLS_RADIUS_CELLS,
   HOUSING_TROOPS_PER_LEVEL,
@@ -38,7 +38,7 @@ import {
 } from './rules';
 import { DISTRICT_BARRACKS, DISTRICT_HOUSING, DISTRICT_MARKET, DISTRICT_WALLS } from './districtRules';
 import type { GameState } from './state';
-import { STRUCT_CITY, STRUCT_FACTORY, STRUCT_PORT, STRUCT_POST } from './structureRules';
+import { STRUCT_CITY, STRUCT_FACTORY, STRUCT_PORT, STRUCT_POST, cityGoldMilli } from './structureRules';
 import type { StructureTable } from './structures';
 
 const NEVER = 0xffffffff;
@@ -110,6 +110,8 @@ function recompute(state: GameState): void {
   const tick = state.tick;
   const w = state.width;
   t.effCityLevels.fill(0);
+  t.effCityCount.fill(0);
+  t.effCityStepQt.fill(0);
   t.effFixedMilli.fill(0);
   t.effPortMilli.fill(0);
   t.effHousingQt.fill(0);
@@ -132,7 +134,9 @@ function recompute(state: GameState): void {
     if (type === STRUCT_CITY) {
       const level = t.level[id] as number;
       t.effCityLevels[o] = (t.effCityLevels[o] as number) + level;
-      let income = CITY_GOLD_MILLI_PER_SEC_PER_LEVEL * level;
+      t.effCityCount[o] = (t.effCityCount[o] as number) + 1;
+      t.effCityStepQt[o] = (t.effCityStepQt[o] as number) + CITY_TROOP_STEP_TROOPS * (level - 1) * QT_PER_TROOP;
+      let income = cityGoldMilli(level);
       // The best finished Factory of the owner in reach that still has a free slot (highest level, then lowest id) boosts this City.
       const cell = t.cell[id] as number;
       let bestF = -1;
@@ -197,12 +201,28 @@ export function ensureEffects(state: GameState): void {
   if (t.effDirty || state.tick >= t.effNextTick) recompute(state);
 }
 
-/** The finished City levels of an owner (the cap bonus is CAP_CITY_LEVEL_QT per level). */
+/** The finished City levels of an owner added up (a statistic; the cap reads cityCountOf and cityStepQtOf). */
 export function cityLevelsOf(state: GameState, owner: number): number {
   const t = state.structures;
   if (t.liveCount === 0) return 0;
   ensureEffects(state);
   return t.effCityLevels[owner] as number;
+}
+
+/** The number of finished Cities of an owner (each adds CAP_CITY_LEVEL_QT to the cap at level 1). */
+export function cityCountOf(state: GameState, owner: number): number {
+  const t = state.structures;
+  if (t.liveCount === 0) return 0;
+  ensureEffects(state);
+  return t.effCityCount[owner] as number;
+}
+
+/** The troop cap in QT the owner's City levels above 1 add (CITY_TROOP_STEP_TROOPS per level; Sim-Growth). */
+export function cityStepQtOf(state: GameState, owner: number): number {
+  const t = state.structures;
+  if (t.liveCount === 0) return 0;
+  ensureEffects(state);
+  return t.effCityStepQt[owner] as number;
 }
 
 /** The troop cap in QT the owner's finished Housing districts add (Districts-1; cached with the other effects). */

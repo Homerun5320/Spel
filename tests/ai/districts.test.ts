@@ -128,12 +128,12 @@ describe('the AI district move', () => {
   });
 
   it('a think with nothing to do backs off for AI_DISTRICT_RETRY_TICKS and the back-off survives the memory round trip', () => {
-    const p = withCities(9, 3);
+    const p = withCities(9, 10);
     p.state.tick = 1000;
-    // level 3 Cities (no City upgrade to buy) with every slot full at the top level: nothing left to build or upgrade
+    // level 10 Cities (the top level, no City upgrade to buy) with every slot full at the top level: nothing left to build or upgrade
     for (const id of [0, 1, 2]) {
-      p.state.structures.level[id] = 3;
-      for (let slot = 0; slot < 4; slot++) p.state.structures.setDistrict(id, slot, 1 + slot, 3, 100, 0);
+      p.state.structures.level[id] = 10;
+      for (let slot = 0; slot < 5; slot++) p.state.structures.setDistrict(id, slot, 1 + (slot % 4), 3, 100, 0);
     }
     let move: IntentBody | null = null;
     let first = -1;

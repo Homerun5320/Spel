@@ -41,7 +41,7 @@ describe('structureSignature and the snapshot carry the districts', () => {
     t.add(STRUCT_CITY, 1, 10, 0);
     t.setDistrict(0, 1, DISTRICT_MARKET, 3, 500, 0);
     const snap = snapshotStructures(t);
-    expect(snap.districtKind.length).toBe(4);
+    expect(snap.districtKind.length).toBe(5); // DISTRICT_MAX_SLOTS: five slots per City row (Sim-Growth)
     expect([snap.districtKind[1], snap.districtLevel[1], snap.districtReadyTick[1]]).toEqual([DISTRICT_MARKET, 3, 500]);
     expect(snap.districtCounts[1 * 5 + DISTRICT_MARKET]).toBe(1);
     t.districtKind[1] = 0;

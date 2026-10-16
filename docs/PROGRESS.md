@@ -1188,3 +1188,11 @@ Plains median Low (Kansas, Iowa, Ukraine, Pampas, Australia): 21.8 %. Rounds of 
 - [x] ACCEPTANS performance (`tests/nav.perf.test.ts`): A* median 0.074 ms (budget 2), p99 0.54 ms (budget 20) over 200 routes; label rejection 0.7 us (budget 100 us); leak test 0.00 MB for 200 queries
 - [x] ACCEPTANS fingerprint equal in Node and Chromium (`4680ed7e`)
 - Not run here: the full `npm run verify`, the Artifact pack, the pull request (the orchestrator).
+
+### Sim-Growth: denser placement and City levels 1 to 10 (balance-and-rules slice after the feedback on version 20; sim and AI only, headless; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+Base: 2dd505a. ENGINE_VERSION 12, FORMAT_VERSION 10. The UI track (Look-1) reads `CITY_MAX_LEVEL`, `maxLevelOf`, `cityGoldMilli`, `cityTroopCap`, `upgradeTicksOf`, `districtSlotsOf` from `src/sim/public.ts`.
+- [x] 1. Spacing per type (`SPACING_CELLS_BY_TYPE`: City, Factory, Port, Post 3, SAM 5, Silo 6); the ghost and `validateBuild` read the same rule; `tests/sim/cityLevels.test.ts`, `tests/sim/structures.test.ts`
+- [x] 2. City levels 1 to 10 (gold +0.5/s and cap +250 per level, price 80 to 144, time 6 to 12 s), district slots 2/3/4/5 by level (`DISTRICT_MAX_SLOTS` 5), Market table lowered for the 10x cap; conquest keeps "level minus 1, at least 1"
+- [x] 3. AI upgrades Cities step by step (same validators), fifth slot is a Market; economy band retuned (see DECISIONS Sim-Growth)
+- [x] 4. Hashes: both golden files re-pinned once with `UPDATE_GOLDENS=1`; forged-blob tests for the new level range and slot layout
+- [ ] 5. Leftovers: see "Sim-Growth leftovers" in `docs/BACKLOG.md`

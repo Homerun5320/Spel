@@ -65,7 +65,7 @@ import { createState, type GameState } from '../../src/sim/state';
 import { applyIntent, step } from '../../src/sim/step';
 import { applyDelete } from '../../src/sim/structures';
 import { collectWalls, barracksPctOf, housingQtOf, cityLevelsOf, postAdjustedCost, collectPosts, structGoldMilliPerSec, wallAdjustedCost } from '../../src/sim/structureEffects';
-import { STRUCT_CITY, STRUCT_FACTORY, STRUCT_POST } from '../../src/sim/structureRules';
+import { STRUCT_CITY, STRUCT_FACTORY, STRUCT_POST, cityGoldMilli } from '../../src/sim/structureRules';
 import { setOwner } from '../../src/sim/territory';
 import { CLASS_PLAINS } from '../../src/sim/terrain';
 import { StateView } from '../../src/sim/view';
@@ -172,7 +172,7 @@ describe('the reason codes (one shared implementation: the validators equal what
     const mine = addCity(s, 1, 100);
     const factory = s.structures.add(STRUCT_FACTORY, 1, at(200), 0);
     const theirs = addCity(s, 2, 400);
-    const l3 = addCity(s, 1, 600, 3);
+    const l3 = addCity(s, 1, 600, 6); // level 6: four slots (Sim-Growth: slots 2/3/4/5 by level)
     const fresh = s.structures.add(STRUCT_CITY, 1, at(800), s.tick); // still being built
     gold(s, 1, 100000);
     return { s, mine, factory, fresh, theirs, l3 };
@@ -205,7 +205,7 @@ describe('the reason codes (one shared implementation: the validators equal what
     for (const slot of [2, 3, 4, -1, 0.5]) same(build(s, mine, slot, DISTRICT_MARKET), REJECT_DISTRICT_SLOT); // a level 1 City has slots 0 and 1
     same(build(s, fresh, 0, DISTRICT_MARKET), REJECT_DISTRICT_CITY_BUILDING);
     expect(s.gold[1]).toBe(purse); // refusals took nothing
-    same(build(s, l3, 3, DISTRICT_MARKET), REJECT_NONE); // a level 3 City has slot 3
+    same(build(s, l3, 3, DISTRICT_MARKET), REJECT_NONE); // a level 6 City has slot 3
     s.gold[1] = purse;
     same(build(s, mine, 0, DISTRICT_MARKET), REJECT_NONE);
     same(build(s, mine, 0, DISTRICT_HOUSING), REJECT_DISTRICT_OCCUPIED);
@@ -302,13 +302,13 @@ describe('the intents on the wire', () => {
     const b = intents[0] as Intent;
     expect(validateIntent({ ...b, structure: 4096 }, ctx)).toBe(REJECT_STRUCT_ID);
     expect(validateIntent({ ...b, structure: -1 }, ctx)).toBe(REJECT_STRUCT_ID);
-    expect(validateIntent({ ...b, slot: 4 }, ctx)).toBe(REJECT_DISTRICT_SLOT);
+    expect(validateIntent({ ...b, slot: DISTRICT_MAX_SLOTS }, ctx)).toBe(REJECT_DISTRICT_SLOT);
     expect(validateIntent({ ...b, slot: DISTRICT_MAX_SLOTS - 1 }, ctx)).toBe(REJECT_NONE);
     expect(validateIntent({ ...b, slot: 1.5 }, ctx)).toBe(REJECT_DISTRICT_SLOT);
     expect(validateIntent({ ...b, districtKind: 0 }, ctx)).toBe(REJECT_DISTRICT_KIND);
     expect(validateIntent({ ...b, districtKind: 5 }, ctx)).toBe(REJECT_DISTRICT_KIND);
     for (const i of intents.slice(1)) {
-      expect(validateIntent({ ...i, slot: 4 }, ctx), i.kind).toBe(REJECT_DISTRICT_SLOT);
+      expect(validateIntent({ ...i, slot: DISTRICT_MAX_SLOTS }, ctx), i.kind).toBe(REJECT_DISTRICT_SLOT);
       expect(validateIntent({ ...i, structure: 4096 }, ctx), i.kind).toBe(REJECT_STRUCT_ID);
     }
     expect(validateIntent({ ...b, seat: 2 }, ctx)).not.toBe(REJECT_NONE);
@@ -359,12 +359,12 @@ describe('the intents on the wire', () => {
 
 describe('prices and the staircase', () => {
   it('the n-th district of a kind costs base * min(12, 2 + n) / 2; kinds count separately; an upgrade to level L costs base * L', () => {
-    expect([0, 1, 2, 3, 9, 10, 11, 40].map((n) => districtBuildPriceGold(DISTRICT_MARKET, n))).toEqual([60, 90, 120, 150, 330, 360, 360, 360]);
+    expect([0, 1, 2, 3, 9, 10, 11, 40].map((n) => districtBuildPriceGold(DISTRICT_MARKET, n))).toEqual([40, 60, 80, 100, 220, 240, 240, 240]); // Market base 40 (Sim-Growth: was 60)
     expect(districtBuildPriceGold(DISTRICT_WALLS, 0)).toBe(300);
     expect(districtBuildPriceGold(DISTRICT_HOUSING, 1)).toBe(225);
     expect([2, 3].map((l) => districtUpgradePriceGold(DISTRICT_BARRACKS, l))).toEqual([500, 750]);
     const s = strip();
-    const city = addCity(s, 1, 100, 3);
+    const city = addCity(s, 1, 100, 6);
     gold(s, 1, 10000);
     const taken: number[] = [];
     for (const [slot, kind] of [[0, DISTRICT_MARKET], [1, DISTRICT_MARKET], [2, DISTRICT_HOUSING], [3, DISTRICT_MARKET]] as const) {
@@ -372,7 +372,7 @@ describe('prices and the staircase', () => {
       expect(applyBuildDistrict(s, 0, city, slot, kind)).toBe(REJECT_NONE);
       taken.push((g - (s.gold[1] as number)) / GOLD);
     }
-    expect(taken).toEqual([60, 90, 150, 120]);
+    expect(taken).toEqual([40, 60, 150, 80]);
   });
 
   it('a build is finished after the kind\'s build time and an upgrade raises the level then, not before', () => {
@@ -395,7 +395,7 @@ describe('prices and the staircase', () => {
 });
 
 describe('the effects (only finished districts, through the real economy)', () => {
-  it('Market: 0.4 / 1.3 / 1.85 gold/s per level, nothing while it is being built, and it starts by itself at the finish tick', () => {
+  it('Market: 0.3 / 0.7 / 1.1 gold/s per level, nothing while it is being built, and it starts by itself at the finish tick', () => {
     for (const level of [1, 2, 3]) {
       const s = strip();
       const city = addCity(s, 1, 100);
@@ -403,7 +403,7 @@ describe('the effects (only finished districts, through the real economy)', () =
       district(s, city, 0, DISTRICT_MARKET, level);
       expect(income(s) - base).toBe(MARKET_GOLD_MILLI_BY_LEVEL[level]);
     }
-    expect([1, 2, 3].map((l) => MARKET_GOLD_MILLI_BY_LEVEL[l])).toEqual([400, 1300, 1850]);
+    expect([1, 2, 3].map((l) => MARKET_GOLD_MILLI_BY_LEVEL[l])).toEqual([300, 700, 1100]);
     const s = strip();
     const city = addCity(s, 1, 100);
     gold(s, 1, 1000);
@@ -414,7 +414,7 @@ describe('the effects (only finished districts, through the real economy)', () =
     expect(structGoldMilliPerSec(s, 1)).toBe(base);
     step(s, { turn: s.tick, intents: [] });
     step(s, { turn: s.tick, intents: [] });
-    expect(structGoldMilliPerSec(s, 1)).toBe(base + 400);
+    expect(structGoldMilliPerSec(s, 1)).toBe(base + (MARKET_GOLD_MILLI_BY_LEVEL[1] as number));
   });
 
   it('Housing: +400 troops of cap per level, exactly, on top of the City levels; none while being built', () => {
@@ -564,15 +564,15 @@ describe('the limit of 10 level-1 Cities (15 gold/s) for ONE City with four leve
     for (let k = 0; k < markets; k++) district(s, city, k, DISTRICT_MARKET, 3);
     return income(s) - alone;
   }
-  it('stays at 13.5 gold/s, 14.8 with +10 percent, under the 15; the old per-level 1.5 gold/s would break it (so the table is not just a guess)', () => {
+  it('stays under the 15 (Sim-Growth: a level 3 City pays 2.5 gold/s now, the level 10 worst case is in tests/sim/cityLevels.test.ts); the old per-level 1.5 gold/s would break it (so the table is not just a guess)', () => {
     const noMarkets = worst(0);
-    expect(noMarkets).toBe(CITY_GOLD_MILLI_PER_SEC_PER_LEVEL * 3 + Math.floor((CITY_GOLD_MILLI_PER_SEC_PER_LEVEL * 3 * (FACTORY_CITY_BONUS_PCT_BY_LEVEL[3] as number)) / 100));
+    expect(noMarkets).toBe(cityGoldMilli(3) + Math.floor((cityGoldMilli(3) * (FACTORY_CITY_BONUS_PCT_BY_LEVEL[3] as number)) / 100));
     const total = worst(4);
     expect(total - noMarkets).toBe(4 * (MARKET_GOLD_MILLI_BY_LEVEL[3] as number));
     expect(total).toBeLessThanOrEqual(LIMIT);
     expect(Math.floor((total * 1100) / 1000)).toBeLessThanOrEqual(LIMIT); // with the +10 percent trait
     expect(noMarkets + 4 * 1500 * 3).toBeGreaterThan(LIMIT); // at 1.5 gold/s per level it would have broken the limit
-    expect(Math.floor(((noMarkets + 4 * 2200) * 1100) / 1000)).toBeGreaterThan(LIMIT); // and 2.2 gold/s at level 3 is already too much with the trait
+    expect(Math.floor(((noMarkets + 4 * 3000) * 1100) / 1000)).toBeGreaterThan(LIMIT); // and 3.0 gold/s at level 3 is too much with the trait (Sim-Growth: the level 3 City pays less now, so the mutant is larger)
   });
 });
 
@@ -610,7 +610,7 @@ describe('conquest of Cities with districts', () => {
     return s;
   }
   /** Owner 2's level 3 City at (30, 10): Market L3, Housing L2 with a running upgrade, Barracks L1 still being built, Walls L3. */
-  function fullCity(s: GameState, level = 3): number {
+  function fullCity(s: GameState, level = 6): number {
     const city = s.structures.add(STRUCT_CITY, 2, cellOf(30, 10), 0);
     s.structures.level[city] = level;
     s.structures.setDistrict(city, 0, DISTRICT_MARKET, 3, 100, 0);
@@ -620,13 +620,13 @@ describe('conquest of Cities with districts', () => {
     return city;
   }
 
-  it('a conquered level 3 City becomes level 2: slots 0 to 2 stay, slot 3 (the highest) is lost, a building district is lost, levels drop by 1 (min 1), upgrades stop', () => {
+  it('a conquered level 6 City becomes level 5: slots 0 to 2 stay, slot 3 (the highest) is lost, a building district is lost, levels drop by 1 (min 1), upgrades stop', () => {
     const s = pocket();
     const city = fullCity(s);
     const t = s.structures;
     const goldBefore = income(s, 1);
     setOwner(s, cellOf(30, 10), 1, 0);
-    expect([t.owner[city], t.level[city]]).toEqual([1, 2]);
+    expect([t.owner[city], t.level[city]]).toEqual([1, 5]);
     const k = (slot: number): number[] => [t.districtKind[districtIndex(city, slot)] as number, t.districtLevel[districtIndex(city, slot)] as number, t.districtUpgradeReadyTick[districtIndex(city, slot)] as number];
     expect(k(0)).toEqual([DISTRICT_MARKET, 2, 0]);
     expect(k(1)).toEqual([DISTRICT_HOUSING, 1, 0]); // L2 -> L1, the running upgrade is gone
@@ -640,10 +640,10 @@ describe('conquest of Cities with districts', () => {
     t.rebuildIndex();
     expect(t.districtCounts).toEqual(counts);
     // the new owner is paid by the kept Market (level 2) and the old owner loses it
-    expect(income(s, 1) - goldBefore).toBe(CITY_GOLD_MILLI_PER_SEC_PER_LEVEL * 2 + (MARKET_GOLD_MILLI_BY_LEVEL[2] as number)); // a level 2 City and its kept Market L2
+    expect(income(s, 1) - goldBefore).toBe(cityGoldMilli(5) + (MARKET_GOLD_MILLI_BY_LEVEL[2] as number)); // a level 5 City and its kept Market L2
     expect(structGoldMilliPerSec(s, 2)).toBe(0);
     expect(housingQtOf(s, 1)).toBe(HOUSING_TROOPS_PER_LEVEL * 1 * QT_PER_TROOP);
-    expect(cityLevelsOf(s, 1)).toBe(2); // the cap gets the City's two levels
+    expect(cityLevelsOf(s, 1)).toBe(5); // the statistic adds the City's five levels
   });
 
   it('a level 2 City conquered to level 1 keeps two slots; a level 1 City stays level 1 and keeps its two (levels do not fall below 1)', () => {
@@ -681,12 +681,12 @@ describe('conquest of Cities with districts', () => {
     for (let y = 4; y < 6; y++) for (let x = 5; x < 7; x++) setOwner(s, y * 14 + x, 2, 0);
     s.tick = 5000;
     const city = s.structures.add(STRUCT_CITY, 2, 4 * 14 + 5, 0);
-    s.structures.level[city] = 3;
+    s.structures.level[city] = 6; // four slots; conquered to level 5 (three slots) it loses slot 3
     s.structures.setDistrict(city, 0, DISTRICT_MARKET, 2, 100, 0);
     s.structures.setDistrict(city, 3, DISTRICT_WALLS, 3, 100, 0);
     for (let i = 0; i < ENCLAVE_FLIP_TICKS; i++) step(s, { turn: s.tick, intents: [] });
     const t = s.structures;
-    expect([t.owner[city], t.level[city]]).toEqual([1, 2]);
+    expect([t.owner[city], t.level[city]]).toEqual([1, 5]);
     expect([t.districtKind[districtIndex(city, 0)], t.districtLevel[districtIndex(city, 0)]]).toEqual([DISTRICT_MARKET, 1]);
     expect(t.districtKind[districtIndex(city, 3)]).toBe(0);
     expect([t.districtsOwned(2, DISTRICT_MARKET), t.districtsOwned(1, DISTRICT_MARKET), t.districtsOwned(1, DISTRICT_WALLS)]).toEqual([0, 1, 0]);
@@ -704,7 +704,7 @@ describe('the pure check function is the one the validators use', () => {
         expect(checkBuildDistrict(view.structures, view.districts, view.tick, view.stats.goldMilli[0] as number, 0, city, slot, kind)).toBe(validateBuildDistrict(view, 0, city, slot, kind));
       }
     }
-    expect(districtEffect(DISTRICT_MARKET, 3).goldMilliPerSec).toBe(1850);
+    expect(districtEffect(DISTRICT_MARKET, 3).goldMilliPerSec).toBe(1100);
     expect(districtEffect(DISTRICT_HOUSING, 2).capTroops).toBe(800);
     expect(districtEffect(DISTRICT_BARRACKS, 3).regenPct).toBe(15);
     expect(districtEffect(DISTRICT_WALLS, 2).wallsCostPct).toBe(180);

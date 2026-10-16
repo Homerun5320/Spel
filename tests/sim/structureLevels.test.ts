@@ -15,7 +15,7 @@ import {
 import { createState, type GameState } from '../../src/sim/state';
 import { setOwner } from '../../src/sim/territory';
 import { CLASS_PLAINS } from '../../src/sim/terrain';
-import { STRUCT_CITY, STRUCT_FACTORY, STRUCT_PORT, upgradePriceGold } from '../../src/sim/structureRules';
+import { STRUCT_CITY, STRUCT_FACTORY, STRUCT_PORT, cityGoldMilli, upgradePriceGold } from '../../src/sim/structureRules';
 import { applyPortTrait, structGoldMilliPerSec, tradeMilliPerSec } from '../../src/sim/structureEffects';
 
 const W = 1024;
@@ -111,13 +111,13 @@ describe('the limit of 10 level-1 Cities per structure (15 gold/s)', () => {
   it('the worst Factory is a level 3 Factory beside 8 level 3 Cities: its own gold plus the bonus of 3 Cities stays under 15 gold/s', () => {
     const s = strip(2);
     add(s, STRUCT_FACTORY, 1, at(100), 3);
-    const cityAll = 8 * CITY_GOLD_MILLI_PER_SEC_PER_LEVEL * 3;
+    const cityAll = 8 * cityGoldMilli(3);
     for (let k = 0; k < 8; k++) {
       const a = (k * Math.PI) / 4;
       add(s, STRUCT_CITY, 1, at(100 + Math.round(20 * Math.cos(a)), 32 + Math.round(20 * Math.sin(a))), 3);
     }
     const factoryShare = income(s) - cityAll; // own gold plus the bonuses
-    expect(factoryShare).toBe(8500 + 3 * pct(CITY_GOLD_MILLI_PER_SEC_PER_LEVEL * 3, 35));
+    expect(factoryShare).toBe(8500 + 3 * pct(cityGoldMilli(3), 35));
     expect(factoryShare).toBeLessThanOrEqual(LIMIT);
   });
 });
