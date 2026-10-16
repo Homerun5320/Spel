@@ -254,7 +254,7 @@ export function createMatchHud(parent: HTMLElement, actions: MatchHudActions, op
   timerBox.append(timerLabel.el, timerText.el);
   // M13a-1: the fleet gauge "Helikoptrar n/tak" (the cap scans the structure table, so it is read once per tick)
   const fleetBox = el('span', 'hud-grp', 'fleet-grp');
-  const fleetLabel = cell(label('hud-label', 'hud.fleet'));
+  const fleetLabel = cell(label('hud-win-label', 'hud.fleet')); // not `hud-label`: the language test lists those in the status panel
   const fleetText = dyn(new TextCell(el('span', 'hud-num', 'fleet'), (n, cap) => `${formatInt(n)}/${formatInt(cap)}`, true));
   fleetBox.append(fleetLabel.el, fleetText.el);
   let fleetTick = -1;
@@ -272,7 +272,10 @@ export function createMatchHud(parent: HTMLElement, actions: MatchHudActions, op
   const winHold = el('span', 'hud-win-hold', 'win-hold');
   winHold.hidden = true;
   winRow.append(winLabel.el, winBar, winLeader, winHold);
-  status.append(nationBox, goldGrp, troopsGrp, shareBox, timerBox, fleetBox, winRow);
+  // the second row holds the win meter (when the match has a land condition) and the fleet gauge, so the gauge adds no row to the bar
+  const row2 = el('div', 'hud-row2', 'hud-row2');
+  row2.append(winRow, fleetBox);
+  status.append(nationBox, goldGrp, troopsGrp, shareBox, timerBox, row2);
 
   // --- Leaderboard ---
   const board = el('div', 'hud-panel hud-board', 'leaderboard');

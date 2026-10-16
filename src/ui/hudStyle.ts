@@ -47,7 +47,10 @@ export function hudCss(): string {
 .hud-line { display: flex; align-items: baseline; gap: 0.4em; white-space: nowrap; }
 .hud-bar-row { display: flex; align-items: center; gap: 0.5em; min-height: 1.15em; }
 .hud-bar-row .hud-bar { flex: 1 1 auto; margin: 0; }
-.hud-win { flex: 1 1 100%; display: flex; align-items: center; gap: 0.6em; min-height: 1.4em; min-width: 0; }
+.hud-row2 { flex: 1 1 100%; display: flex; align-items: center; gap: 0.8em; min-width: 0; }
+.hud-row2 > .hud-grp { flex: none; margin-left: auto; align-items: center; min-height: 1.4em; }
+.hud-row2 .hud-num { font-size: 1em; }
+.hud-win { flex: 1 1 auto; display: flex; align-items: center; gap: 0.6em; min-height: 1.4em; min-width: 0; }
 .hud-win .hud-bar { flex: 1 1 8em; min-width: 3em; margin: 0; }
 .hud-win-text, .hud-win-hold { font-variant-numeric: tabular-nums; white-space: nowrap; flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; } /* the figures come first, so a long nation name is the part that is cut */
 .hud-win-hold { color: ${C.barWarning}; font-weight: 700; }

@@ -131,6 +131,7 @@ describe('the helicopter is visible', () => {
       expect(await gauge.textContent()).toMatch(/^1\//);
       expect(Number(await page.locator('[data-testid="gold"]').getAttribute('data-value'))).toBeLessThan(goldBefore - HELI_PRICE_GOLD + 50);
       expect(await t.helis()).toEqual([]); // under production: not drawn
+      fs.writeFileSync(path.join(SHOT_DIR, 'helis-panel.png'), await page.screenshot());
 
       // the build time runs out: the helicopter stands at the Factory, a toast says so
       await t.advance(0.1, HELI_BUILD_TICKS + 4);
