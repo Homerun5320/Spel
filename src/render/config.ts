@@ -456,7 +456,7 @@ export const ICON_FADE_PX_LO = 3;
 export const ICON_HALF_PX = 5;
 /** Fix-3B: far icons are never wider than this share of the on-screen distance between two structures (half size = share x spacing in pixels), and never smaller than ICON_HALF_PX_MIN pixels; `ICON_SPACING_LAT_FACTOR` narrows the grid spacing for the latitudes where most nations stand. */
 export const ICON_SPACING_FRAC = 1 / 3;
-export const ICON_HALF_PX_MIN = 1.5;
+export const ICON_HALF_PX_MIN = 3.5;
 export const ICON_SPACING_LAT_FACTOR = 0.65;
 /** Ring line half width: at least this many render metres, and at least this share of the camera distance (about 1.5 px at 540 px). */
 export const RING_HALF_WIDTH_M = 25;

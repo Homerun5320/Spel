@@ -398,3 +398,13 @@ Not done in the Fix-UI slice (the sim, host and AI findings belong to Fix-Sim):
 - (Done in the integration) The effect lines of Factory and Port read the generated tables of `src/sim/levelCurves.ts` (the same functions, levels 1 to 999); `tests/ui/structureInfo.test.ts` pins them against the curve functions.
 - District upgrade time is not shown (the district upgrade has no separate time in the tile model).
 - A latency check of `sel.fxNext` text length on a phone-width panel.
+
+## Fix-3B leftovers
+- feel[5] districts in the modern style, camera changes and more quality tiers stay out of scope (as the prompt said).
+- Pure formulas of Look-1 still unpinned: the `closeMul` fall-off start, `districtRadiusM` level and City-level factors, the district cut distance's `STRUCT_CLOSE_MUL`, `cityBand` / `levelScale` clamping outside the range.
+- The modelled-structure priority ranks by the camera position only; ranking by what is on screen (frustum, horizon) would be fairer.
+- Cluster icons beyond the icon switch distance (one icon per 2x2 cells with a count) would make 15000 km views of a big territory readable; the radius cap only keeps them from merging.
+- The open-city flight keeps heading 0; a heading chosen so that the district ring's largest extent faces the free part would need less altitude.
+- When the camera stands within `flyNearM` of the ground and the City is on screen, opening the city view still starts no flight, so the five districts may be partly off screen or under the panel.
+
+- Far icons: the shader limits the half size by the smallest possible spacing (3 cells), so a LONE structure shrinks too (floor 3.5 px). A per-icon nearest-neighbour spacing computed at rebuild would keep lone icons at 5 px and shrink only the crowded ones.

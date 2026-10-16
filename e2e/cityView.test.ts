@@ -257,13 +257,13 @@ describe('the city view', () => {
       await t.settle();
       expect(await view.isVisible()).toBe(false);
 
-      // far from the City the camera flies to it (about 1500 m above the ground)
+      // far from the City the camera flies to it (Fix-3B: at least 1500 m above the ground, higher in a small window)
       await t.view({ lat: 47, lon: 10, distKm: 2600, heading: 0, tilt: 0 });
       await t.settle();
       expect(await t.agl()).toBeGreaterThan(5000);
       await openByButton(page);
       await page.evaluate(() => (window as any).__test.settle(0.25, 160)); // the flight is timed by the fx clock: 40 s of it, no draws but the last
-      expect(await t.agl()).toBeLessThan(2600);
+      expect(await t.agl()).toBeLessThan(5000); // Fix-3B: the flight now ends higher (3.6 km at 960x540) so that the district ring fits the free window; it was 2600 for 1500 m
       await page.keyboard.press('Escape');
       await t.settle();
       expect(await page.evaluate(() => (window as any).__paused)).toBe(0);
