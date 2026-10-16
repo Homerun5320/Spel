@@ -257,7 +257,7 @@ describe('artifact build served from /x/y/', () => {
     expect(r.messages).toEqual([]);
     expect(served.notFound).toEqual([]);
     const manifest = JSON.parse(fs.readFileSync(path.join(outDir, 'data', 'manifest.json'), 'utf8')) as Record<string, { file: string; enc: string }>;
-    expect(manifest).toEqual({ render: { file: 'render.bin.png', enc: 'raw' }, sim: { file: 'sim.bin.png', enc: 'raw' } });
+    expect(manifest).toEqual({ render: { file: 'render.bin.png', enc: 'raw' }, sim: { file: 'sim.bin.png', enc: 'raw' }, federations: { file: 'federations.bin.png', enc: 'raw' } }); // M18b-1 added the federations pack
   });
 
   it('real packs, b64 container: debug/data.html loads and verifies the checksums, no 404', async () => {
@@ -266,7 +266,7 @@ describe('artifact build served from /x/y/', () => {
     expect(r.messages).toEqual([]);
     expect(servedB64.notFound).toEqual([]);
     const manifest = JSON.parse(fs.readFileSync(path.join(outB64, 'data', 'manifest.json'), 'utf8')) as Record<string, { file: string; enc: string }>;
-    expect(manifest).toEqual({ render: { file: 'render.bin.b64.txt', enc: 'b64' }, sim: { file: 'sim.bin.b64.txt', enc: 'b64' } });
+    expect(manifest).toEqual({ render: { file: 'render.bin.b64.txt', enc: 'b64' }, sim: { file: 'sim.bin.b64.txt', enc: 'b64' }, federations: { file: 'federations.bin.b64.txt', enc: 'b64' } }); // M18b-1 added the federations pack
   });
 
   it('M03: debug/sim.html runs from the sub-folder like an Artifact (relative script address) and reaches the committed golden hashes, no 404', async () => {
