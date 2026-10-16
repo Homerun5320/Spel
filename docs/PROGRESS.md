@@ -144,6 +144,21 @@ GÖR och ACCEPTANS:
 
 Result: see the block "M20a-2" at the end of `docs/DECISIONS.md`. Main-chunk gzip cap raised to 311 000 (`tests/portable.test.ts`). No golden changed (labels and arrows are off in a test page unless `labels=1`).
 
+### M13a-2: helicopter effects, chase camera and far icon (render, app and UI; one slice in its own worktree; the orchestrator owns merging, pushing and the Artifact; previous merge SHA f29121a8d1607ca169e6675b5f22a52d76c42ef7)
+
+GOR
+- [ ] Effects layer `src/render/heliFx.ts`: shadow blob (1 draw call), particle pool (dust, ropes, smoke, flash; 1 draw call, <= 1 200 particles), beachhead flag (1 draw call); fx clock only, local seeded render RNG, no allocation per frame; test pages have it OFF unless `fx=1`.
+- [ ] Far icon of an airborne helicopter (1 draw call), owner colour, fades when the model takes over.
+- [ ] Chase camera: key H (stack entry `chase`), mode on the InputStack, Esc / H / drag / wheel end it, terrain clearance, toast `toast.heli.noneAirborne`; button `heli-chase` per flying row in the helicopter list.
+- [ ] ETA in the list: not derivable (HeliView has no target table) -> BACKLOG.
+- [ ] Tests: caps (draw calls, particles), allocation, chase, modal keys, sim hash unchanged, leak, e2e with screenshots.
+
+ACCEPTANS
+- [ ] Six effects visible on screenshots; caps held (<= 3 + 1 draw calls, <= 1 200 particles); 0 allocation per frame.
+- [ ] Chase camera: clearance, ending, toast without helicopter, modal blocking.
+- [ ] Sim hash unchanged by the effects; goldens unchanged (fx flag).
+- [ ] Leak test green; both languages; verify:fast green; affected e2e green.
+
 ## Next
 
 - Next slices: M12b (anti-air against helicopters and raid statistics; must follow "Audit 3 downstream decisions" in `docs/DECISIONS.md`), M13a-2 (effects, the H camera), M20a-2 (nation labels and front arrows), M18b (federations), M18d (technology), M18e (more building types and a city map), M13c (travel over land, sea and air), M14 and onwards.

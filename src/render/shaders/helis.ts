@@ -14,6 +14,7 @@ uniform float uKmPerUnit;
 uniform float uModelScale; // helicopter unit in Factory units
 uniform vec3 uPad;         // where a parked helicopter stands, Factory model units (east, up, north)
 uniform float uSpin;       // main rotor angle, rad
+uniform float uTick;       // 0..1: how far between the previous table's position and this one's the picture is
 uniform float uTailMul;
 uniform vec3 uTailHub;
 
@@ -22,6 +23,7 @@ attribute float aTint;     // part: 0 neutral, 1 owner colour, 2 main rotor, 4 t
 attribute vec3 aHi;
 attribute vec3 aLo;
 attribute vec3 aOwner;
+attribute vec3 aDelta;     // previous position minus this one (Earth radii), 0 for a parked or new one
 attribute vec3 aInfo;      // x: yaw (rad, east -> north), y: 1 = parked on the pad, z: 1 = downed (rotors stand still)
 
 varying vec3 vRel;
@@ -34,13 +36,13 @@ varying vec3 vUpDir;
 varying float vLight;
 
 void main() {
-  vec3 centre = aHi + aLo;
+  vec3 centre = aHi + aLo + aDelta * (1.0 - uTick);
   vec3 up = normalize(centre);
   vec3 east = cross(vec3(0.0, 1.0, 0.0), up);
   float el = length(east);
   east = el > 1e-4 ? east / el : vec3(1.0, 0.0, 0.0);
   vec3 north = cross(up, east);
-  vec3 rel0 = (aHi - uCamHi) + (aLo - uCamLo);
+  vec3 rel0 = (aHi - uCamHi) + (aLo - uCamLo) + aDelta * (1.0 - uTick);
   float distM = length(rel0) * uKmPerUnit * 1000.0;
   float closeK = mix(1.0, uClose.x, smoothstep(uClose.y, uClose.z, distM) * (1.0 - smoothstep(uClose.z * 1.6, uClose.w, distM)));
   float k = max(clamp(distM * uPxK / uSizeM, 1.0, uMaxScale), closeK) * uSizeM / (uKmPerUnit * 1000.0);

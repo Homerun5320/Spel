@@ -181,7 +181,7 @@ export function registerGameHotkeys(registry: HotkeyRegistry, a: GameHotkeyActio
   add({ id: 'focus-capital', keys: ['f'], labelKey: 'hotkey.focus', scope: 'stack', run: toStack });
   add({ id: 'build', keys: ['1', '2', '3', '4', '5', '6'], labelKey: 'hotkey.build', scope: 'stack', run: toStack });
   add({ id: 'exposure', keys: ['e'], labelKey: 'hotkey.focus', scope: 'stack', run: toStack, hidden: true }); // reserved for M13
-  add({ id: 'chase', keys: ['h'], labelKey: 'hotkey.focus', scope: 'stack', run: toStack, hidden: true }); // reserved for M13
+  add({ id: 'chase', keys: ['h'], labelKey: 'hotkey.chase', scope: 'stack', run: toStack }); // M13a-2: the chase camera (the base mode starts it, the chase mode ends it)
   add({ id: 'escape', keys: ['Escape'], labelKey: 'hotkey.escape', scope: 'stack', run: toStack });
   add({ id: 'pause', keys: [' ', 'Spacebar'], labelKey: 'hotkey.pause', scope: 'match', noRepeat: true, run: () => (a.togglePause(), true) });
   add({ id: 'slower', keys: [','], labelKey: 'hotkey.slower', scope: 'match', run: () => (a.slower(), true) });

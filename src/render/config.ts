@@ -524,3 +524,47 @@ export const FRONT_PULSE_DEPTH = 0.22;
 export const FRONT_OTHER_EMPHASIS = 0.5;
 /** How far the arrow floats over the ground, in metres. */
 export const FRONT_LIFT_M = 60;
+
+// ---- M13a-2: the helicopter effects (src/render/heliFx.ts), the chase camera and the far icon ----
+/** The particle pool: two rings (dust, ropes and troop dots; smoke and the crash flash). Together at most HELI_FX_PARTICLES_MAX. */
+export const HELI_FX_DUST_POOL = 600;
+export const HELI_FX_SMOKE_POOL = 600;
+export const HELI_FX_PARTICLES_MAX = HELI_FX_DUST_POOL + HELI_FX_SMOKE_POOL;
+/** Shadow blobs, flags and far icons: one instance per helicopter / per beachhead row (the sim tables' sizes, pinned by a test). */
+export const HELI_FX_SHADOW_CAP = HELI_INSTANCE_CAP;
+export const HELI_FX_ICON_CAP = HELI_INSTANCE_CAP;
+export const HELI_FX_FLAG_CAP = 64;
+/** Nothing is emitted for a helicopter farther than this from the camera (metres): the particles would be a speck. */
+export const HELI_FX_EMIT_MAX_M = 150000;
+/** Below this height above the ground (metres) a flying helicopter blows dust up. */
+export const HELI_DUST_AGL_M = 160;
+/** Dust per fx second: taking off, in low flight, hovering / landing. */
+export const HELI_DUST_RATE_LIFT = 38;
+export const HELI_DUST_RATE_LOW = 9;
+export const HELI_DUST_RATE_LAND = 55;
+/** Troop drop: a dot slides down the rope every this many fx seconds; the rope itself (ROPE_DOTS dots) is refreshed every ROPE_REFRESH_S and lives a little longer. */
+export const HELI_TROOP_DOT_S = 0.18;
+export const HELI_ROPE_DOTS = 7;
+export const HELI_ROPE_REFRESH_S = 0.25;
+export const HELI_ROPE_LIFE_S = 0.32;
+/** The crash: how long smoke is emitted (fx seconds), how many puffs per second, a puff's life, and the number of flash sparks. Smoke is gone about 5 s after the hit. */
+export const HELI_SMOKE_EMIT_S = 3;
+export const HELI_SMOKE_RATE = 22;
+export const HELI_SMOKE_LIFE_S = 2;
+export const HELI_FLASH_SPARKS = 16;
+/** The flag: hoist time (fx seconds), height of the pole in metres at true size, and the policy size the scale works in. */
+export const HELI_FLAG_HOIST_S = 1.6;
+export const HELI_FLAG_POLE_M = 150;
+/** The shadow blob: half size in metres at true size, the height (metres) at which it has faded away, and the peak alpha. */
+export const HELI_SHADOW_HALF_M = 55;
+export const HELI_SHADOW_FADE_AGL_M = 900;
+export const HELI_SHADOW_ALPHA = 0.5;
+/** The far icon: half size in pixels, and the camera distance (metres) above which it is not drawn (the globe view). */
+export const HELI_ICON_HALF_PX = 5.5;
+export const HELI_ICON_MAX_M = 4_000_000;
+/** The chase camera: metres behind the helicopter, metres above it, the least height above the ground, the smoothing time constant (fx seconds) and the extra look-down in degrees. */
+export const HELI_CHASE_BACK_M = 420;
+export const HELI_CHASE_UP_M = 150;
+export const HELI_CHASE_CLEAR_M = 70;
+export const HELI_CHASE_SMOOTH_S = 0.45;
+export const HELI_CHASE_LEAN_DEG = 4;

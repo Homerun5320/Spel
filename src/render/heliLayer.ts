@@ -51,6 +51,8 @@ export interface HeliLayerOptions {
 }
 
 const TWO_PI = Math.PI * 2;
+/** Two table positions farther apart than this (Earth radii, about 130 km) are not blended: a new launch or a wrap of the map. */
+const HELI_TELEPORT_R = 0.02;
 
 const EMPTY_DRAWN: DrawnHeli[] = [];
 
@@ -89,6 +91,28 @@ export class HeliLayer {
   private drawnList: DrawnHeli[] = [];
   /** Whether `rebuild` keeps the list of what it drew (`drawn()`, read only by tests and the test hooks); the page switches it off outside test mode (Fix-4B: no garbage per table). */
   recordDrawn = true;
+  /** M13a-2: what the effects read (heliFx.ts), per slot id, written by `rebuild`: 1 when the slot is drawn, the drawn position and the ground point under it (Earth radii, float64), and the metres above the ground. */
+  readonly slotOn = new Uint8Array(HELI_INSTANCE_CAP);
+  readonly slotPos = new Float64Array(HELI_INSTANCE_CAP * 3);
+  readonly slotGround = new Float64Array(HELI_INSTANCE_CAP * 3);
+  readonly slotAgl = new Float64Array(HELI_INSTANCE_CAP);
+  readonly slotLat = new Float64Array(HELI_INSTANCE_CAP);
+  readonly slotLon = new Float64Array(HELI_INSTANCE_CAP);
+  readonly slotYaw = this.yaws;
+  /** The vector from the drawn position back to the one of the table before (Earth radii; the vertex shader draws position + delta * (1 - alpha)): zero for a parked, a new or a teleported one. */
+  readonly slotDelta = new Float64Array(HELI_INSTANCE_CAP * 3);
+  readonly slotGroundDelta = new Float64Array(HELI_INSTANCE_CAP * 3);
+  /** How far between the previous table (0) and the current one (1) the picture is: the page passes the sim's fraction of the tick, a test page 1 (no interpolation). */
+  alpha = 1;
+  /** Counts the rebuilds: the effects look at the table when it moved. */
+  rebuilds = 0;
+  private readonly refPos = new Float64Array(HELI_INSTANCE_CAP * 3);
+  private readonly refGround = new Float64Array(HELI_INSTANCE_CAP * 3);
+  private readonly refOn = new Uint8Array(HELI_INSTANCE_CAP);
+  private readonly refOwner = new Uint16Array(HELI_INSTANCE_CAP);
+  private readonly flying = new Uint8Array(HELI_INSTANCE_CAP);
+  private versionMoved = false;
+  private readonly dlt = new Float32Array(HELI_INSTANCE_CAP * 3);
 
   constructor(o: HeliLayerOptions) {
     this.gridWidth = o.gridWidth;
@@ -110,6 +134,7 @@ export class HeliLayer {
     add('aLo', this.lo, 3);
     add('aOwner', this.rgb, 3);
     add('aInfo', this.info, 3);
+    add('aDelta', this.dlt, 3);
     geometry.instanceCount = 0;
     const v3 = (rgb: readonly number[]): Vector3 => new Vector3(rgb[0], rgb[1], rgb[2]);
     this.material = new ShaderMaterial({
@@ -124,6 +149,7 @@ export class HeliLayer {
         uModelScale: { value: HELI_MODEL_SCALE },
         uPad: { value: v3(HELI_PAD_OFFSET) },
         uSpin: { value: 0 },
+        uTick: { value: 1 },
         uTailMul: { value: HELI_TAIL_ROTOR_MUL },
         uTailHub: { value: v3(HELI_TAIL_HUB) },
         uSun: { value: o.sun },
@@ -161,11 +187,12 @@ export class HeliLayer {
     if (version !== this.version) {
       this.version = version;
       this.dirty = true;
+      this.versionMoved = true;
     }
   }
 
   /** Per frame: the camera (float64, Earth radii) and the fx time. */
-  frame(camera: ArrayLike<number>, fxTime: number): void {
+  frame(camera: ArrayLike<number>, fxTime: number, alpha = 1): void {
     const x = camera[0] as number;
     const y = camera[1] as number;
     const z = camera[2] as number;
@@ -175,7 +202,14 @@ export class HeliLayer {
     this.camHi.set(hx, hy, hz);
     this.camLo.set(x - hx, y - hy, z - hz);
     (this.material.uniforms.uSpin as { value: number }).value = this.spinOverride ?? (fxTime * HELI_ROTOR_RAD_PER_SEC) % TWO_PI;
+    this.alpha = alpha;
+    (this.material.uniforms.uTick as { value: number }).value = alpha;
     if (this.dirty) this.rebuild();
+  }
+
+  /** The table the layer was handed (the effects read it). */
+  get tableView(): HeliView | null {
+    return this.table;
   }
 
   /** Switches the layer off or on (a test counts the draw calls with and without it). */
@@ -191,6 +225,22 @@ export class HeliLayer {
 
   private rebuild(): void {
     this.dirty = false;
+    this.rebuilds++;
+    if (this.versionMoved) {
+      // the table moved: what was drawn becomes the reference the new position is blended from
+      this.versionMoved = false;
+      for (let id = 0; id < HELI_INSTANCE_CAP; id++) {
+        const ok = this.slotOn[id] === 1 && this.flying[id] === 1;
+        this.refOn[id] = ok ? 1 : 0;
+        if (!ok) continue;
+        this.refOwner[id] = this.lastOwner[id] as number;
+        for (let k = 0; k < 3; k++) {
+          this.refPos[id * 3 + k] = this.slotPos[id * 3 + k] as number;
+          this.refGround[id * 3 + k] = this.slotGround[id * 3 + k] as number;
+        }
+      }
+    }
+    this.slotOn.fill(0);
     const t = this.table;
     const palette = this.palette;
     if (t === null || palette === null) return;
@@ -232,7 +282,43 @@ export class HeliLayer {
       const hx = Math.fround(px);
       const hy = Math.fround(py);
       const hz = Math.fround(pz);
+      this.slotOn[id] = 1;
+      this.slotPos[id * 3] = px;
+      this.slotPos[id * 3 + 1] = py;
+      this.slotPos[id * 3 + 2] = pz;
+      const gr = radius - aglM / (EARTH_RADIUS_KM * 1000);
+      this.slotGround[id * 3] = d[0] * gr;
+      this.slotGround[id * 3 + 1] = d[1] * gr;
+      this.slotGround[id * 3 + 2] = d[2] * gr;
+      this.slotAgl[id] = aglM;
+      this.flying[id] = parked ? 0 : 1;
+      let blend = !parked && this.refOn[id] === 1 && this.refOwner[id] === owner;
+      if (blend) {
+        const ddx = (this.refPos[id * 3] as number) - px;
+        const ddy = (this.refPos[id * 3 + 1] as number) - py;
+        const ddz = (this.refPos[id * 3 + 2] as number) - pz;
+        if (ddx * ddx + ddy * ddy + ddz * ddz > HELI_TELEPORT_R * HELI_TELEPORT_R) blend = false; // a new launch or a wrap: no streak across the map
+        else {
+          this.slotDelta[id * 3] = ddx;
+          this.slotDelta[id * 3 + 1] = ddy;
+          this.slotDelta[id * 3 + 2] = ddz;
+          this.slotGroundDelta[id * 3] = (this.refGround[id * 3] as number) - (this.slotGround[id * 3] as number);
+          this.slotGroundDelta[id * 3 + 1] = (this.refGround[id * 3 + 1] as number) - (this.slotGround[id * 3 + 1] as number);
+          this.slotGroundDelta[id * 3 + 2] = (this.refGround[id * 3 + 2] as number) - (this.slotGround[id * 3 + 2] as number);
+        }
+      }
+      if (!blend) {
+        for (let k = 0; k < 3; k++) {
+          this.slotDelta[id * 3 + k] = 0;
+          this.slotGroundDelta[id * 3 + k] = 0;
+        }
+      }
+      this.slotLat[id] = ll.lat;
+      this.slotLon[id] = ll.lon;
       const i = n++;
+      this.dlt[i * 3] = this.slotDelta[id * 3] as number;
+      this.dlt[i * 3 + 1] = this.slotDelta[id * 3 + 1] as number;
+      this.dlt[i * 3 + 2] = this.slotDelta[id * 3 + 2] as number;
       this.hi[i * 3] = hx;
       this.hi[i * 3 + 1] = hy;
       this.hi[i * 3 + 2] = hz;

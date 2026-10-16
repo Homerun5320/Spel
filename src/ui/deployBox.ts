@@ -2,7 +2,7 @@
 // verdict of the preview (valid, or the refusal in words), the flight time and fuel, and Cancel. Under it the compact list of the seat's helicopters with a
 // Recall button for one that is flying. The box only REPORTS clicks (`DeployBoxActions`); the page owns the mode, asks the sim's rules and sends the intents.
 // It writes the DOM only where the text or the state changed.
-import { HELI_MAX_TROOPS } from '../sim/public';
+import { HELI_LIFT, HELI_MAX_TROOPS, HELI_RETURN } from '../sim/public';
 import { DEPLOY } from './uiConfig';
 import { heliStateKey, type HeliRow } from './heliInfo';
 import { rejectKey } from './hudLogic';
@@ -13,6 +13,8 @@ export interface DeployBoxActions {
   open(): void;
   cancel(): void;
   recall(heli: number): void;
+  /** M13a-2: ride along with this helicopter (the chase camera). Optional so that older callers keep compiling. */
+  chase?(heli: number): void;
 }
 
 /** What the box shows this frame. */
@@ -116,6 +118,11 @@ export function createDeployBox(parent: HTMLElement, actions: DeployBoxActions):
   });
   listRows.addEventListener('click', (e) => {
     const target = e.target as HTMLElement | null;
+    const c = target?.closest?.('[data-testid="heli-chase"]') as HTMLElement | null;
+    if (c !== null && c !== undefined) {
+      actions.chase?.(Number(c.dataset.id));
+      return;
+    }
     const b = target?.closest?.('[data-testid="heli-recall"]') as HTMLElement | null;
     if (b === null || b === undefined || b.getAttribute('aria-disabled') === 'true') return;
     actions.recall(Number(b.dataset.id));
@@ -214,6 +221,13 @@ export function createDeployBox(parent: HTMLElement, actions: DeployBoxActions):
           }
           rb.hidden = !r.canRecall;
           row.appendChild(rb);
+          if (r.state >= HELI_LIFT && r.state <= HELI_RETURN) {
+            const cb = button('sel-btn heli-chase', 'heli-chase');
+            cb.dataset.id = String(r.id);
+            cb.textContent = t('heli.chase');
+            cb.title = t('heli.chaseTip');
+            row.appendChild(cb);
+          }
           listRows.appendChild(row);
         }
       }

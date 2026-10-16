@@ -480,6 +480,12 @@ const sv = {
   'hotkey.labels': 'Nationsetiketter och frontpilar av eller på',
   'toast.labels.on': 'Nationsetiketter och frontpilar på.',
   'toast.labels.off': 'Nationsetiketter och frontpilar av.',
+  // M13a-2: chase camera
+  'hotkey.chase': 'Åk med nästa egen helikopter i luften (H igen avslutar)',
+  'heli.chase': 'Åk med',
+  'heli.chaseTip': 'Kameran följer helikoptern. Esc, H, ett drag eller hjulet avslutar.',
+  'toast.heli.noneAirborne': 'Ingen helikopter i luften.',
+  'toast.heli.chaseEnded': 'Helikoptern är borta, kameran är fri igen.',
 } as const;
 
 export type TextKey = keyof typeof sv;
@@ -949,6 +955,12 @@ const en: Record<TextKey, string> = {
   'hotkey.labels': 'Nation labels and front arrows on or off',
   'toast.labels.on': 'Nation labels and front arrows on.',
   'toast.labels.off': 'Nation labels and front arrows off.',
+  // M13a-2: chase camera
+  'hotkey.chase': 'Ride along with your next helicopter in the air (H again ends it)',
+  'heli.chase': 'Ride along',
+  'heli.chaseTip': 'The camera follows the helicopter. Esc, H, a drag or the wheel ends it.',
+  'toast.heli.noneAirborne': 'No helicopter in the air.',
+  'toast.heli.chaseEnded': 'The helicopter is gone, the camera is free again.',
 };
 
 /** The two tables, for the parity test and for tools. Treat as read-only. */
