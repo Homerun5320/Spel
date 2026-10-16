@@ -453,7 +453,7 @@ export const LOS_TILE_CELLS = 64;
 export const LOS_MASK_UNIT_GM = 2;
 /** The rays of a mask are cast to the perimeter of its box at this many targets per cell (1 = one per perimeter cell). */
 export const LOS_RAY_OVERSAMPLE = 2;
-/** Every mask value is lowered by this many game metres before it is rounded down: the discretisation of the rays may err only in the radar's favour (measured: no cell hidden by the mask is visible by the exact line on the seven fixtures). */
+/** Every mask value is lowered by this many game metres before it is rounded down: the discretisation of the rays may err only in the radar's favour (measured: zero such cells on the eight fixture sites, but 47 of 786376 cells in 17 of 300 random real-world sites (5.7 % of sites) are hidden by the mask and visible by the exact line, M11a owner decision: accepted, finer grid = alternative C in docs/BACKLOG.md). */
 export const LOS_MASK_SLACK_GM = 48;
 /** Masks of a larger radius than this cast one ray per perimeter cell instead of LOS_RAY_OVERSAMPLE (the ring estimate carries the accuracy; this keeps a R=64 mask under 2 ms). The SAM radii are at most 34 cells. */
 export const LOS_RAY_OVERSAMPLE_MAX_RADIUS = 40;
@@ -481,6 +481,8 @@ export const AIR_CLIMB_COST_PCT_PER_KM_M = 25;
 export const AIR_CEILING_COST_PCT = 50;
 /** See AIR_CEILING_COST_PCT, real metres. */
 export const AIR_CEILING_MARGIN_M = 1000;
+/** Landing-zone refusal codes are LZ_REASON_BASE + n (n = 1..8), a range of their own above every REJECT_* code of the intents (Fix-3A2): one integer can never mean both. */
+export const LZ_REASON_BASE = 64;
 /** A landing zone must stand on a cell whose real mean height is at most this (real metres). */
 export const LZ_MAX_ELEV_M = 3500;
 /** A landing zone is too steep when the real mean heights of its 3x3 sim cells differ by more than this (real metres). */

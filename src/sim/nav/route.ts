@@ -157,13 +157,23 @@ export function planRoute(nav: Nav, view: NavView, seat: number, from: number, t
   const closed = nav.closedStamp;
   const parent = nav.parent;
 
+  // Heuristic (Fix-3A2): the east-west part uses the NARROWEST row width between the node's row and the goal's row (the old code used the
+  // expanded row's width, which overestimated whenever the goal lay nearer a pole). Every step costs at least its Euclid displacement, so
+  // for paths inside that band of rows this is a lower bound (Minkowski); a path may bend poleward beyond the band to a narrower row, which
+  // this bound ignores, so it is admissible up to that bend and the 1.3 weight absorbs it (tests/sim/navExact.test.ts compares with Dijkstra).
+  const wKm = nav.wKm;
+  const hKm = nav.hKm;
   const heuristic = (n: number): number => {
     const x = n % W;
     const y = (n - x) / W;
     let dx = Math.abs(x - bx);
     if (dx > W - dx) dx = W - dx;
-    const kx = dx * (nav.wKm[y] as number);
-    const ky = Math.abs(y - by) * nav.hKm;
+    const lo = y < by ? y : by;
+    const hi = y < by ? by : y;
+    let w = wKm[lo] as number;
+    for (let r = lo + 1; r <= hi; r++) if ((wKm[r] as number) < w) w = wKm[r] as number;
+    const kx = dx * w;
+    const ky = (hi - lo) * hKm;
     return hw * Math.sqrt(kx * kx + ky * ky);
   };
 

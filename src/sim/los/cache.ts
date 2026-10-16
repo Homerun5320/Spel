@@ -59,6 +59,15 @@ export class Los {
   private sigNow = new Int32Array(0);
   private sigPrev = new Int32Array(0);
   private sigPrevLen = -1;
+  // The memo of `sync` (Fix-3A2): the table object, the tick, its two counters and the extra-site version of the last full scan.
+  private memoTable: StructureView | null = null;
+  private memoTick = -1;
+  private memoHigh = -1;
+  private memoLive = -1;
+  private memoExtra = -1;
+  private extraVersion = 0;
+  /** Full scans of the structure table done by `sync` (a memoised call does none; tests assert it). */
+  syncScans = 0;
 
   constructor(terrain: LosTerrain) {
     this.terrain = terrain;
@@ -68,11 +77,13 @@ export class Los {
 
   /** Adds a sensor site for tests and for later milestones' radars: owner id, cell, radius in cells. Returns its handle (negative). */
   addSite(ownerId: number, cell: number, radius: number): number {
+    this.extraVersion++;
     this.extra.push({ owner: ownerId, cell, radius });
     return -this.extra.length;
   }
 
   clearExtraSites(): void {
+    this.extraVersion++;
     this.extra.length = 0;
   }
 
@@ -81,6 +92,26 @@ export class Los {
    * costs one scan of the table into a scratch signature (4 integers per sensor: owner * 2 + isPost, handle, cell, radius) and no allocation.
    */
   sync(src: LosSource): void {
+    const t = src.structures;
+    // One comparison when nothing can have changed: the sim mutates the structure table only inside `step`, between two ticks, so the same
+    // table object at the same tick with the same counters (and the same extra sites) is the same set. A caller that edits a table by hand
+    // within one tick calls `invalidate()`.
+    if (this.memoTable === t && this.memoTick === src.tick && this.memoHigh === t.highWater && this.memoLive === t.liveCount && this.memoExtra === this.extraVersion) return;
+    this.syncScan(src);
+    this.memoTable = t;
+    this.memoTick = src.tick;
+    this.memoHigh = t.highWater;
+    this.memoLive = t.liveCount;
+    this.memoExtra = this.extraVersion;
+  }
+
+  /** Forgets the memo of `sync`: the next call scans the table again. */
+  invalidate(): void {
+    this.memoTable = null;
+  }
+
+  private syncScan(src: LosSource): void {
+    this.syncScans++;
     const s = src.structures;
     const tick = src.tick;
     const need = (s.highWater + this.extra.length) * 4;
