@@ -1,7 +1,7 @@
 // Fix-Sim: crafted blobs with a VALID checksum (forged through serialize on a tampered state) must be refused by deserialize, one test per
 // guard of the structure block (Z01 to Z11 of the audit), and a legal full table must round trip. M24b / M26 resync depend on these guards.
 import { describe, expect, it } from 'vitest';
-import { BUILD_TICKS, STRUCT_CAPACITY, STRUCT_MAX_LEVEL } from '../../src/sim/rules';
+import { BUILD_TICKS, STRUCT_CAPACITY, STRUCT_LEVEL_HARD_CAP } from '../../src/sim/rules';
 import { deserialize, serialize } from '../../src/sim/serialize';
 import { createState, type GameState } from '../../src/sim/state';
 import { STRUCT_CITY, STRUCT_FACTORY, STRUCT_PORT } from '../../src/sim/structureRules';
@@ -38,12 +38,12 @@ describe('deserialize refuses a forged structure block', () => {
   it('Z03 two structures on one cell', () => refused((s) => (s.structures.cell[2] = s.structures.cell[0] as number)));
   it('Z04 an upgrade running at the top level', () =>
     refused((s) => {
-      s.structures.level[2] = STRUCT_MAX_LEVEL; // the Port: only a City goes past 3
+      s.structures.level[2] = STRUCT_LEVEL_HARD_CAP; // the Port: every type tops out at the hard cap
       s.structures.upgradeReadyTick[2] = 500;
     }));
   it('Z06 live + recycled does not add up to highWater', () => refused((s) => (s.structures.highWater = 4)));
   it('Z08 an owner one past the seats', () => refused((s) => (s.structures.owner[2] = 3)));
-  it('Z09 a level above the maximum', () => refused((s) => (s.structures.level[2] = STRUCT_MAX_LEVEL + 1)));
+  it('Z09 a level above the maximum', () => refused((s) => (s.structures.level[2] = STRUCT_LEVEL_HARD_CAP + 1)));
   it('Z11 a recycled id beyond highWater', () => refused((s) => (s.structures.recycled[0] = 7)));
   it('a recycled id that is also alive', () => refused((s) => (s.structures.recycled[0] = 2)));
   it('a structure type of 0 or beyond the six', () => refused((s) => (s.structures.type[0] = 7)));

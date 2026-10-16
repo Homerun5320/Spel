@@ -3,7 +3,7 @@
 // state, plus byte patches for the count and the order).
 import { describe, expect, it } from 'vitest';
 import { DISTRICT_BARRACKS, DISTRICT_HOUSING, DISTRICT_MARKET, DISTRICT_WALLS, districtIndex } from '../../src/sim/districtRules';
-import { MILLI_GOLD_PER_GOLD, STRUCT_MAX_LEVEL } from '../../src/sim/rules';
+import { MILLI_GOLD_PER_GOLD, STRUCT_LEVEL_HARD_CAP } from '../../src/sim/rules';
 import { deserialize, hashState, serialize } from '../../src/sim/serialize';
 import { createState, ENGINE_VERSION, type GameState } from '../../src/sim/state';
 import { step } from '../../src/sim/step';
@@ -42,9 +42,9 @@ function refused(tamper: (s: GameState) => void, error = 'structure-range'): voi
 }
 
 describe('versions', () => {
-  it('ENGINE_VERSION is 12 and FORMAT_VERSION is 10 (Sim-Growth: City levels to 10, five district slots)', () => {
-    expect(ENGINE_VERSION).toBe(12);
-    expect(FORMAT_VERSION).toBe(10);
+  it('ENGINE_VERSION is 13 and FORMAT_VERSION is 11 (Sim-Levels2: u16 levels up to 999; was 12 and 10 after Sim-Growth)', () => {
+    expect(ENGINE_VERSION).toBe(13);
+    expect(FORMAT_VERSION).toBe(11);
   });
 });
 
@@ -116,10 +116,18 @@ describe('deserialize refuses a forged district block', () => {
   it('D03 a kind beyond the four', () => refused((s) => (s.structures.districtKind[districtIndex(0, 0)] = 5)));
   it('D04 a level of 0 or above the maximum', () => {
     refused((s) => (s.structures.districtLevel[districtIndex(0, 0)] = 0));
-    refused((s) => (s.structures.districtLevel[districtIndex(0, 0)] = STRUCT_MAX_LEVEL + 1));
+    refused((s) => (s.structures.districtLevel[districtIndex(0, 0)] = STRUCT_LEVEL_HARD_CAP + 1));
   });
   it('D05 a ready tick earlier than the build time (no district is built before tick 0)', () => refused((s) => (s.structures.districtReadyTick[districtIndex(0, 0)] = 79)));
-  it('D06 an upgrade running at the top level', () => refused((s) => (s.structures.districtUpgradeReadyTick[districtIndex(0, 0)] = 2000)));
+  it('D06 an upgrade running at the top level (the hard cap; below it a running upgrade is legal)', () => {
+    refused((s) => {
+      s.structures.districtLevel[districtIndex(0, 0)] = STRUCT_LEVEL_HARD_CAP;
+      s.structures.districtUpgradeReadyTick[districtIndex(0, 0)] = 2000;
+    });
+    const ok = base();
+    ok.structures.districtUpgradeReadyTick[districtIndex(0, 0)] = 2000;
+    expect(deserialize(serialize(ok)).ok).toBe(true);
+  });
   it('D07 a district in the slot of a deleted (recycled) structure', () =>
     refused((s) => {
       s.structures.remove(1); // the Factory

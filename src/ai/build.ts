@@ -5,6 +5,9 @@
 // Places are sampled in a window around the capital and checked with validateBuild, the very function the sim runs on the Build.
 import {
   AI_BUILD_CITIES_PER_FACTORY,
+  AI_CITY_LEVEL_CAP,
+  AI_DISTRICT_LEVEL_CAP,
+  AI_STRUCT_LEVEL_CAP,
   AI_BUILD_CITIES_PER_PORT,
   AI_BUILD_CITIES_PER_POST,
   AI_BUILD_CITY_TROOP_PCT,
@@ -20,7 +23,6 @@ import {
   DISTRICT_BASE_GOLD,
   DISTRICT_HOUSING,
   DISTRICT_MARKET,
-  DISTRICT_MAX_LEVEL,
   DISTRICT_MAX_SLOTS,
   DISTRICT_WALLS,
   districtBuildPriceMilli,
@@ -42,8 +44,6 @@ import {
   upgradeBody,
   upgradePriceGold,
   MILLI_GOLD_PER_GOLD,
-  CITY_MAX_LEVEL,
-  maxLevelOf,
   nextBelow,
   seatToOwner,
   validateBuild,
@@ -66,10 +66,10 @@ function wantedType(view: SimView, owner: number): number {
   return STRUCT_CITY;
 }
 
-/** The level the AI lets its Cities rise to while it owns `cities` of them: 1 + cities * AI_CITY_UPGRADE_LEVELS_PER_CITY, at most the City's top level. A City below it may be upgraded; the limit rises with every new City. */
+/** The level the AI lets its Cities rise to while it owns `cities` of them: 1 + cities * AI_CITY_UPGRADE_LEVELS_PER_CITY, at most AI_CITY_LEVEL_CAP. A City below it may be upgraded; the limit rises with every new City. */
 function cityLevelTarget(cities: number): number {
   const target = 1 + cities * AI_CITY_UPGRADE_LEVELS_PER_CITY;
-  return target > CITY_MAX_LEVEL ? CITY_MAX_LEVEL : target;
+  return target > AI_CITY_LEVEL_CAP ? AI_CITY_LEVEL_CAP : target;
 }
 
 /**
@@ -106,7 +106,7 @@ function richUpgrade(view: SimView, owner: number, goldMilli: number): number {
     if (s.owner[id] !== owner || (type !== STRUCT_CITY && type !== STRUCT_FACTORY && type !== STRUCT_PORT)) continue;
     if (view.tick < (s.readyTick[id] as number) || (s.upgradeReadyTick[id] as number) !== 0) continue;
     const level = s.level[id] as number;
-    if (level >= (type === STRUCT_CITY ? cityLevelTarget(s.ownedCount(owner, STRUCT_CITY)) : maxLevelOf(type)) || upgradePriceGold(type, level + 1) * MILLI_GOLD_PER_GOLD > goldMilli) continue;
+    if (level >= (type === STRUCT_CITY ? cityLevelTarget(s.ownedCount(owner, STRUCT_CITY)) : AI_STRUCT_LEVEL_CAP) || upgradePriceGold(type, level + 1) * MILLI_GOLD_PER_GOLD > goldMilli) continue;
     const cell = s.cell[id] as number;
     if (!interior(view, owner, cell, cell % view.width, Math.floor(cell / view.width))) continue; // a border structure may change hands before the Upgrade runs
     const key = level * 8 + type; // lowest level first, then City < Factory < Port, then the lowest id (the loop order)
@@ -155,7 +155,7 @@ function districtMove(view: SimView, memory: AiMemory, spareMilli: number): Inte
       const at = districtIndex(id, slot);
       const kind = d.districtKind[at] as number;
       const level = d.districtLevel[at] as number;
-      if (kind === 0 || level >= DISTRICT_MAX_LEVEL) continue;
+      if (kind === 0 || level >= AI_DISTRICT_LEVEL_CAP) continue;
       const price = districtUpgradePriceGold(kind, level + 1) * MILLI_GOLD_PER_GOLD;
       if (price < bestPrice && spareMilli >= price && validateUpgradeDistrict(view, seat, id, slot) === REJECT_NONE) {
         best = id;

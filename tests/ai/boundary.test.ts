@@ -209,7 +209,8 @@ describe('types: what src/sim/public.ts lets the AI reach', () => {
         'ALT_MODE_HIGH', 'ALT_MODE_LOW', 'EXPOSED_DETECTED', 'EXPOSED_NONE', 'EXPOSED_POST', 'AltMode', 'Los', 'LosSource', 'exposure', 'fireControlExposed', 'isExposed',
         // M11b
         'Nav', 'createNav', 'NavSource', 'ROUTE_NO_ROUTE', 'planRoute', 'NavView', 'RouteFail', 'RouteOk', 'RouteResult', 'LZ_ENEMY_CITY_NEAR', 'LZ_NO_ROUTE', 'LZ_OK', 'LZ_OUT_OF_FUEL', 'LZ_PEAK', 'LZ_REASON_NAMES', 'LZ_STEEP', 'LZ_TERRAIN_CLASS', 'LZ_TOO_HIGH', 'LZ_WATER', 'scoreLz', 'LzReason', 'LzResult', 'AIR_EXPOSURE_LAMBDA', 'AIR_MODE_AGL_M', 'AIR_MODE_SPEED_MILLICELLS_S', 'HELI_FUEL_CELLS', 'LZ_MAX_ELEV_M', 'SERVICE_CEILING_M', 'createLos', 'createLosTerrain', 'LosTerrain', 'navFingerprint',
-        'cityGoldMilli', 'cityTroopCap', 'maxLevelOf', 'upgradeTicksOf', 'AI_CITY_UPGRADE_LEVELS_PER_CITY', 'CITY_GOLD_STEP_MILLI_PER_LEVEL', 'CITY_MAX_LEVEL', 'CITY_TROOP_STEP_TROOPS', 'SPACING_CELLS_BY_TYPE', // Sim-Growth
+        'cityGoldMilli', 'cityTroopCap', 'maxLevelOf', 'upgradeTicksOf', 'AI_CITY_UPGRADE_LEVELS_PER_CITY', 'CITY_MAX_LEVEL', 'SPACING_CELLS_BY_TYPE', // Sim-Growth (CITY_GOLD_STEP_MILLI_PER_LEVEL and CITY_TROOP_STEP_TROOPS left in Sim-Levels2)
+        'AI_CITY_LEVEL_CAP', 'AI_DISTRICT_LEVEL_CAP', 'AI_STRUCT_LEVEL_CAP', 'STRUCT_LEVEL_HARD_CAP', 'LEVEL_CONQUEST_KEEP_PCT', 'districtMaxLevel', 'levelAfterConquest', 'satPermille', // Sim-Levels2
       ].sort(),
     );
   });

@@ -384,3 +384,10 @@ Not done in the Fix-UI slice (the sim, host and AI findings belong to Fix-Sim):
 - At the top level two Cities 3 cells apart touch at about 3500 km camera distance (1.5x level scale); a cap on the policy radius by the spacing would fix it.
 - The e2e pixel diffs of old vs new and of level 1 vs 3 include the territory change over time; a masked diff around the City would be sharper.
 - A setting for the Dev panel that switches the style without changing the address.
+
+## Sim-Levels2 leftovers
+- Payback: with the price base x L for every type and gentle curves (level 10 about 1.7 times level 1) the payback of an upgrade is 1 000 to 100 000 s (a Factory to level 2: 1 600 s; see the logged `[payback]` lines of `tests/sim/structureLevels.test.ts`). The asked window of 60 s to 6 minutes for the first ten steps cannot hold together with that price and that gentleness (a City level 2 costs 800 gold and gives 0.375 gold/s). Knobs if the user wants upgrades to feel better early: raise `CITY_GOLD_EXTRA_MILLI` and the other `*_EXTRA_*` constants in `src/sim/rules.ts`, lower `LEVEL_SAT_K` (faster early gain), or give upgrades a lower base than a new structure (a separate `UPGRADE_BASE_GOLD` table).
+- The UI still reads the old reference levels in places (`DISTRICT_MAX_LEVEL` decides "top level" in `src/ui/cityViewModel.ts`, `maxLevelOf` is 999 for the render scale): the Look-2 track owns that.
+- `SCORE_CITY_LEVEL_POINTS` (25 per City level) and `SCORE_FACTORY_LEVEL_POINTS` now let a level 999 City add 25 000 points to the score win; cap the counted level (for example at 10) or make the points concave if the score win matters.
+- The AI stops at `AI_CITY_LEVEL_CAP` 10 and `AI_STRUCT_LEVEL_CAP` / `AI_DISTRICT_LEVEL_CAP` 3: a smarter AI could buy levels by payback.
+- Conquest keeps 75 percent of a level; a level 999 City falls to 749 in one capture. A gentler loss at very high levels (for example a flat cap of 25 levels) is an option.

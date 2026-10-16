@@ -6,8 +6,8 @@
 // `recycled` stack and the next Build takes the top of the stack, else the next never-used slot. That makes the id a pure function
 // of the history, and the whole free list is `highWater` plus the stack (both hashed and serialised), so a restored table
 // allocates exactly as the straight run does.
-import { BUILD_TICKS, DELETE_COOLDOWN_TICKS, DISTRICT_MAX_SLOTS, DISTRICT_SLOTS_BY_LEVEL, MILLI_GOLD_PER_GOLD, STRUCT_CAPACITY } from './rules';
-import { DISTRICT_KIND_SLOTS, type DistrictView } from './districtRules';
+import { BUILD_TICKS, DELETE_COOLDOWN_TICKS, DISTRICT_MAX_SLOTS, LEVEL_CONQUEST_KEEP_PCT, MILLI_GOLD_PER_GOLD, STRUCT_CAPACITY } from './rules';
+import { DISTRICT_KIND_SLOTS, districtSlotsOf, type DistrictView } from './districtRules';
 import { foldBytes, foldU32, foldWord } from './hash';
 import { REJECT_NONE, REJECT_PHASE } from './intents';
 import { PHASE_SPAWN, phaseAt } from './flow';
@@ -32,7 +32,7 @@ export class StructureTable implements StructureView, DistrictView {
   readonly type = new Uint8Array(STRUCT_CAPACITY);
   readonly owner = new Uint16Array(STRUCT_CAPACITY);
   readonly cell = new Int32Array(STRUCT_CAPACITY);
-  readonly level = new Uint8Array(STRUCT_CAPACITY);
+  readonly level = new Uint16Array(STRUCT_CAPACITY);
   readonly buildTick = new Uint32Array(STRUCT_CAPACITY);
   readonly readyTick = new Uint32Array(STRUCT_CAPACITY);
   readonly upgradeReadyTick = new Uint32Array(STRUCT_CAPACITY);
@@ -45,7 +45,7 @@ export class StructureTable implements StructureView, DistrictView {
   readonly embargo: Uint8Array;
   /** Game state (Districts-1): the district of slot `slot` of structure `id` is at index id * DISTRICT_MAX_SLOTS + slot; kind 0 = an empty slot. Cleared with the structure. */
   readonly districtKind = new Uint8Array(STRUCT_CAPACITY * DISTRICT_MAX_SLOTS);
-  readonly districtLevel = new Uint8Array(STRUCT_CAPACITY * DISTRICT_MAX_SLOTS);
+  readonly districtLevel = new Uint16Array(STRUCT_CAPACITY * DISTRICT_MAX_SLOTS);
   readonly districtReadyTick = new Uint32Array(STRUCT_CAPACITY * DISTRICT_MAX_SLOTS);
   readonly districtUpgradeReadyTick = new Uint32Array(STRUCT_CAPACITY * DISTRICT_MAX_SLOTS);
   /** Derived: districts alive in total, and per (ownerId, kind) at ownerId * DISTRICT_KIND_SLOTS + kind. */
@@ -134,7 +134,7 @@ export class StructureTable implements StructureView, DistrictView {
    */
   conquerDistricts(id: number, to: number, newLevel: number, tick: number): void {
     if (this.districtCount === 0) return;
-    const keep = DISTRICT_SLOTS_BY_LEVEL[newLevel] as number;
+    const keep = districtSlotsOf(newLevel);
     const from = this.owner[id] as number;
     for (let slot = 0; slot < DISTRICT_MAX_SLOTS; slot++) {
       const at = id * DISTRICT_MAX_SLOTS + slot;
@@ -145,7 +145,7 @@ export class StructureTable implements StructureView, DistrictView {
         continue;
       }
       const level = this.districtLevel[at] as number;
-      this.districtLevel[at] = level > 1 ? level - 1 : 1;
+      this.districtLevel[at] = levelAfterConquest(level);
       this.districtUpgradeReadyTick[at] = 0;
       this.districtCounts[from * DISTRICT_KIND_SLOTS + kind] = (this.districtCounts[from * DISTRICT_KIND_SLOTS + kind] as number) - 1;
       this.districtCounts[to * DISTRICT_KIND_SLOTS + kind] = (this.districtCounts[to * DISTRICT_KIND_SLOTS + kind] as number) + 1;
@@ -263,6 +263,12 @@ export class StructureTable implements StructureView, DistrictView {
     this.liveCount = live;
     this.effDirty = true;
   }
+}
+
+/** Conquest (Sim-Levels2): a conquered structure or district keeps LEVEL_CONQUEST_KEEP_PCT percent of its level, rounded down, at least level 1 (a level 2 drops to 1, 4 to 3, 10 to 7, 100 to 75, 999 to 749). */
+export function levelAfterConquest(level: number): number {
+  const kept = Math.floor((level * LEVEL_CONQUEST_KEEP_PCT) / 100);
+  return kept > 1 ? kept : 1;
 }
 
 /** Folds the stored (non-derived) part of the table into a running hash: the free list, the Delete cooldowns, then the live slots by ascending id. */
@@ -405,7 +411,7 @@ export function structureCellChanged(state: GameState, cell: number, newOwner: n
   const type = t.type[id] as number;
   if (newOwner !== 0 && (type === STRUCT_CITY || type === STRUCT_FACTORY || type === STRUCT_PORT)) {
     const level = t.level[id] as number;
-    const newLevel = level > 1 ? level - 1 : 1;
+    const newLevel = levelAfterConquest(level);
     if (type === STRUCT_CITY) t.conquerDistricts(id, newOwner, newLevel, state.tick);
     t.transfer(id, newOwner, newLevel);
   } else {

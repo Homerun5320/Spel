@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { REJECT_DELETE_COOLDOWN, REJECT_BUILD_GOLD, REJECT_NONE, REJECT_STRUCT_BUSY, REJECT_STRUCT_ID, REJECT_STRUCT_MAX_LEVEL, REJECT_STRUCT_NOT_OWNER, withId } from '../../src/sim/intents';
 import { validateDelete, validateUpgrade } from '../../src/sim/public';
-import { BUILD_TICKS, MILLI_GOLD_PER_GOLD } from '../../src/sim/rules';
+import { BUILD_TICKS, MILLI_GOLD_PER_GOLD, STRUCT_LEVEL_HARD_CAP } from '../../src/sim/rules';
 import { createState, rebuildAggregates, type GameState } from '../../src/sim/state';
 import { applyIntent, step } from '../../src/sim/step';
 import { STRUCT_CITY, STRUCT_POST } from '../../src/sim/structureRules';
@@ -54,7 +54,7 @@ describe('validateUpgrade / validateDelete', () => {
     expect(send(s, { kind: 'Upgrade', seat: 0, structure: mine })).toBe(REJECT_NONE);
     idle(s, (BUILD_TICKS[STRUCT_CITY] as number) + 1);
     expect(s.structures.level[mine]).toBe(3);
-    s.structures.level[mine] = 10; // the City's top level (CITY_MAX_LEVEL; Sim-Growth: a City goes on past 3)
+    s.structures.level[mine] = STRUCT_LEVEL_HARD_CAP; // the top level of every type (Sim-Levels2)
     expect(validateUpgrade(new StateView(s), 0, mine)).toBe(REJECT_STRUCT_MAX_LEVEL);
     expect(send(s, { kind: 'Upgrade', seat: 0, structure: mine })).toBe(REJECT_STRUCT_MAX_LEVEL);
   });

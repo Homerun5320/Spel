@@ -893,6 +893,18 @@ Base: 9c7ce89 (branch worktree-wf_359cefa4-9ed-1). Nothing is merged to main; no
 - [x] 5. ENGINE_VERSION 11, FORMAT_VERSION 9, both golden hash files re-pinned once; tests `tests/sim/win.test.ts`, `tests/host/matchEnd.test.ts` (mutants checked by hand: 14 of 14 killed after one added test).
 - [ ] Not in this slice: pause menu, result screen, setup controls, spectate choice, selfplay CLI (M18-2).
 
+
+### Sim-Levels2: unlimited levels, one price rule, gentle curves (sim and AI only, headless; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+Base: aa9b996. ENGINE_VERSION 13, FORMAT_VERSION 11. The render/UI track (Look-2) reads `STRUCT_LEVEL_HARD_CAP`, `maxLevelOf`, `districtMaxLevel`, the curve functions and the generated level tables from `src/sim/public.ts`.
+- [x] 1. Unlimited levels: u16 level tables, hard cap 999 for every type and district kind, overflow edge tested
+- [x] 2. One price rule: base x L for every structure type, the City and every district kind; upgrade time = build time of the type
+- [x] 3. Gentle power: concave integer curves with asymptotes in `src/sim/levelCurves.ts`; any single structure under 15 gold/s at levels 1, 10, 100, 999. The asked payback window of the first ten steps is not reachable together with 1 and 2 (DECISIONS Sim-Levels2 point 4)
+- [x] 4. Conquest keeps 75 percent of a level (districts likewise)
+- [x] 5. AI: same validators, caps 10 / 3 / 3, `AI_EXPAND_TROOP_PCT` 32; solo factor 1.08, pace test green
+- [x] 6. Versions bumped, both golden files re-pinned once, forged-level tests
+- [x] 7. Exports at the end of `src/sim/public.ts`, pinned list updated; tests `tests/sim/levels2.test.ts` (4 mutants shown to fail), perf with 600 structures at levels up to 999
+- Not run here: `npm run verify`, Chromium, the pack. Leftovers: "Sim-Levels2 leftovers" in `docs/BACKLOG.md`.
+
 ## Next
 
 - Audit 1 (the batch audit of versions 12 to 16, range 7018b4c..cf01c79) found no blocker and a list of majors; the fix slices 'Fix-Sim' and 'Fix-UI' work through them (see their sections under Now and docs/BACKLOG.md 'Audit 1 leftovers'). After that: the building roadmap continues (more kinds of buildings, the city detail map of M18e), then M11a radar and the air milestones M11b to M13b.

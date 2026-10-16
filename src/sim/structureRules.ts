@@ -4,23 +4,14 @@
 import {
   BUILD_BASE_GOLD,
   BUILD_TICKS,
-  CAP_CITY_LEVEL_TROOPS,
-  CITY_GOLD_MILLI_PER_SEC_PER_LEVEL,
-  CITY_GOLD_STEP_MILLI_PER_LEVEL,
-  CITY_MAX_LEVEL,
-  CITY_TROOP_STEP_TROOPS,
-  CITY_UPGRADE_BASE_GOLD,
-  CITY_UPGRADE_PRICE_STEP_PCT,
-  CITY_UPGRADE_TICKS_BASE,
-  CITY_UPGRADE_TICKS_MAX,
-  CITY_UPGRADE_TICKS_STEP,
   MILLI_GOLD_PER_GOLD,
   PRICE_ESCALATION_MAX_HALVES,
   PRICE_ESCALATION_ONE_HALVES,
   SPACING_CELLS_BY_TYPE,
   SPACING_SCOPE,
-  STRUCT_MAX_LEVEL,
+  STRUCT_LEVEL_HARD_CAP,
 } from './rules';
+import { cityGoldMilliAt, cityTroopCapAt } from './levelCurves';
 import {
   REJECT_BUILD_FALLOUT,
   REJECT_BUILD_FOREST,
@@ -114,32 +105,31 @@ export function buildPriceGold(type: number, owned: number): number {
   return Math.floor(((BUILD_BASE_GOLD[type] as number) * capped) / PRICE_ESCALATION_ONE_HALVES);
 }
 
-/** The highest level of a structure type: CITY_MAX_LEVEL for a City, STRUCT_MAX_LEVEL for the others. The one function UI and AI use, never a level count of their own. */
+/** The highest level of a structure type: STRUCT_LEVEL_HARD_CAP for every type (Sim-Levels2: unlimited in practice). The one function UI and AI use, never a level count of their own. */
 export function maxLevelOf(type: number): number {
-  return type === STRUCT_CITY ? CITY_MAX_LEVEL : STRUCT_MAX_LEVEL;
+  void type; // the same for every type
+  return STRUCT_LEVEL_HARD_CAP;
 }
 
-/** Gold per second (milli) a FINISHED City of `level` pays before the Factory bonus: 1.5 at level 1 plus 0.5 per further level. */
+/** Gold per second (milli) a FINISHED City of `level` pays before the Factory bonus: 1.5 at level 1, a concave curve towards 3.0 (levelCurves.ts). */
 export function cityGoldMilli(level: number): number {
-  return level < 1 ? 0 : CITY_GOLD_MILLI_PER_SEC_PER_LEVEL + CITY_GOLD_STEP_MILLI_PER_LEVEL * (level - 1);
+  return cityGoldMilliAt(level);
 }
 
-/** Troop cap (troops) a FINISHED City of `level` adds: CAP_CITY_LEVEL_TROOPS at level 1 plus CITY_TROOP_STEP_TROOPS per further level. */
+/** Troop cap (troops) a FINISHED City of `level` adds: CAP_CITY_LEVEL_TROOPS at level 1, a concave curve towards 2400 (levelCurves.ts). */
 export function cityTroopCap(level: number): number {
-  return level < 1 ? 0 : CAP_CITY_LEVEL_TROOPS + CITY_TROOP_STEP_TROOPS * (level - 1);
+  return cityTroopCapAt(level);
 }
 
-/** Price in gold of an upgrade to `level` (2..maxLevelOf(type)), no escalation: a City gently grows with the level, the others cost base * level. */
+/** Price in gold of an upgrade to `level` (2..maxLevelOf(type)): base * level for EVERY type, the City included, no escalation. */
 export function upgradePriceGold(type: number, level: number): number {
-  if (type === STRUCT_CITY) return Math.floor((CITY_UPGRADE_BASE_GOLD * (100 + CITY_UPGRADE_PRICE_STEP_PCT * (level - 2))) / 100);
   return (BUILD_BASE_GOLD[type] as number) * level;
 }
 
-/** Ticks an upgrade to `level` takes: the build time of the type, except a City, whose upgrades start short and grow to CITY_UPGRADE_TICKS_MAX. */
+/** Ticks an upgrade to any level takes: the build time of the type (one rule for all types). */
 export function upgradeTicksOf(type: number, level: number): number {
-  if (type !== STRUCT_CITY) return BUILD_TICKS[type] as number;
-  const ticks = CITY_UPGRADE_TICKS_BASE + CITY_UPGRADE_TICKS_STEP * (level - 2);
-  return ticks > CITY_UPGRADE_TICKS_MAX ? CITY_UPGRADE_TICKS_MAX : ticks;
+  void level; // the same for every level
+  return BUILD_TICKS[type] as number;
 }
 
 /** The price of the next structure of `type` for a seat, in milli-gold (what the purse is counted in). */

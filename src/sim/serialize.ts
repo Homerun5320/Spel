@@ -27,7 +27,7 @@ import { TRAIT_MAX_MILLI, TRAIT_MIN_MILLI, type HomeRules } from './homeRules';
 import { foldStructures } from './structures';
 import { MatchState, normalWin, winFlagsOf, type WinConfig, WIN_FLAG_LAND, WIN_FLAG_LAST, WIN_FLAG_SCORE } from './matchState';
 import { FNV_OFFSET, finishHash, foldBytes, foldU16, foldU32, foldWord } from './hash';
-import { BUILD_TICKS, DISTRICT_BUILD_TICKS, DISTRICT_MAX_LEVEL, DISTRICT_MAX_SLOTS, D_MAX_CELLS, ENCLAVE_FLIP_TICKS, MICRO_CELLS_PER_CELL, MICRO_QT_PER_QT, MILLI_QT_PER_QT, PROGRESS_DEBT_MAX, STRUCT_CAPACITY } from './rules';
+import { BUILD_TICKS, DISTRICT_BUILD_TICKS, DISTRICT_MAX_SLOTS, D_MAX_CELLS, ENCLAVE_FLIP_TICKS, MICRO_CELLS_PER_CELL, MICRO_QT_PER_QT, MILLI_QT_PER_QT, PROGRESS_DEBT_MAX, STRUCT_CAPACITY, STRUCT_LEVEL_HARD_CAP } from './rules';
 import { STRUCT_CITY, STRUCT_TYPE_SLOTS, maxLevelOf } from './structureRules';
 import { districtSlotsOf, isDistrictKind } from './districtRules';
 import { StructureTable } from './structures';
@@ -46,8 +46,8 @@ import {
   type MatchHeader,
 } from './state';
 
-/** Bumped when the byte layout above changes. 2: owner u16 (D71). 3: players, rowCos and the per-owner economy arrays (M04). 4: attacks and the enclave queue (M04 conquest). 5: the exposure array (M04 fix pass). 6: the structure table (M09 part A). 7: the embargo flags (M09 part B). 8: the district table (Districts-1). 9: the match block (M18-1). 10: Sim-Growth (City levels up to 10, five district slots per row). */
-export const FORMAT_VERSION = 10;
+/** Bumped when the byte layout above changes. 2: owner u16 (D71). 3: players, rowCos and the per-owner economy arrays (M04). 4: attacks and the enclave queue (M04 conquest). 5: the exposure array (M04 fix pass). 6: the structure table (M09 part A). 7: the embargo flags (M09 part B). 8: the district table (Districts-1). 9: the match block (M18-1). 10: Sim-Growth (City levels up to 10, five district slots per row). 11: Sim-Levels2 (u16 levels up to 999 in the structure and district tables). */
+export const FORMAT_VERSION = 11;
 /** 'SPEL' as a little-endian u32. */
 export const MAGIC = 0x4c455053;
 export const HEADER_BYTES = 64;
@@ -630,8 +630,8 @@ export function deserialize(bytes: Uint8Array): DeserializeResult {
     if (id >= structures.highWater || structures.owner[id] === 0 || structures.type[id] !== STRUCT_CITY) return fail('structure-range');
     if (slot >= DISTRICT_MAX_SLOTS || slot >= districtSlotsOf(structures.level[id] as number)) return fail('structure-range');
     const key = id * DISTRICT_MAX_SLOTS + slot;
-    if (key <= lastDistrict || !isDistrictKind(kind) || level < 1 || level > DISTRICT_MAX_LEVEL) return fail('structure-range');
-    if (readyTick < (DISTRICT_BUILD_TICKS[kind] as number) || (upgradeReadyTick !== 0 && level >= DISTRICT_MAX_LEVEL)) return fail('structure-range');
+    if (key <= lastDistrict || !isDistrictKind(kind) || level < 1 || level > STRUCT_LEVEL_HARD_CAP) return fail('structure-range');
+    if (readyTick < (DISTRICT_BUILD_TICKS[kind] as number) || (upgradeReadyTick !== 0 && level >= STRUCT_LEVEL_HARD_CAP)) return fail('structure-range');
     lastDistrict = key;
     structures.districtKind[key] = kind;
     structures.districtLevel[key] = level;

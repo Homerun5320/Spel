@@ -23,13 +23,14 @@ import {
   cityTroopCap,
   districtBuildPriceGold,
   districtEffect,
+  districtIndex,
   districtSlotsOf,
   maxLevelOf,
   upgradePriceGold,
 } from '../../src/sim/public';
 import { REJECT_PHASE } from '../../src/sim/intents';
 import { PHASE_SPAWN } from '../../src/sim/flow';
-import { MILLI_GOLD_PER_GOLD, TICK_HZ } from '../../src/sim/rules';
+import { MILLI_GOLD_PER_GOLD, STRUCT_LEVEL_HARD_CAP, TICK_HZ } from '../../src/sim/rules';
 import { createState, type GameState } from '../../src/sim/state';
 import { step } from '../../src/sim/step';
 import { structGoldMilliPerSec } from '../../src/sim/structureEffects';
@@ -163,8 +164,9 @@ describe('cityInfo: the tiles of a City', () => {
       expect(applyUpgradeDistrict(s, 0, id, 0)).toBe(REJECT_NONE);
       for (let i = 0; i <= total; i++) step(s, { turn: s.tick, intents: [] }); // the sim finishes the upgrade
     }
+    s.structures.districtLevel[districtIndex(id, 0)] = STRUCT_LEVEL_HARD_CAP; // Sim-Levels2: the top level of a district is the hard cap
     tile = tileInfo(viewOf(s), 0, id, 0);
-    expect([tile.level, tile.fxNext, tile.upgradePrice, tile.upgradeReason]).toEqual([3, null, 0, REJECT_STRUCT_MAX_LEVEL]);
+    expect([tile.level, tile.fxNext, tile.upgradePrice, tile.upgradeReason]).toEqual([STRUCT_LEVEL_HARD_CAP, null, 0, REJECT_STRUCT_MAX_LEVEL]);
   });
 
   it('the totals of the City equal the sim\'s own income, troop cap and the other effects of its FINISHED districts only', () => {
@@ -178,8 +180,8 @@ describe('cityInfo: the tiles of a City', () => {
     applyBuildDistrict(s, 0, id, 3, DISTRICT_WALLS);
     const before = cityInfo(viewOf(s), 0, id)?.totals;
     expect(before).toEqual({ goldMilliPerSec: cityGoldMilli(level), capTroops: cityTroopCap(level), regenPct: 0, wallsCostPct: 100 }); // the City alone; nothing finished
-    expect(before?.goldMilliPerSec).toBe(4000);
-    expect(before?.capTroops).toBe(2050);
+    expect(before?.goldMilliPerSec).toBe(2437); // Sim-Levels2: 1500 + 1500 * 625 / 1000
+    expect(before?.capTroops).toBe(1800);
     s.tick += 200;
     s.structures.effDirty = true;
     const done = cityInfo(viewOf(s), 0, id)?.totals;

@@ -3,18 +3,15 @@
 // The sim's own district intents (src/sim/districts.ts) call `checkBuildDistrict` / `checkUpgradeDistrict` / `checkRemoveDistrict` below, the SAME
 // functions `validateBuildDistrict` / `validateUpgradeDistrict` / `validateRemoveDistrict` wrap, so there is one implementation.
 import {
-  BARRACKS_REGEN_PCT_BY_LEVEL,
   DISTRICT_BASE_GOLD,
-  DISTRICT_MAX_LEVEL,
   DISTRICT_MAX_SLOTS,
   DISTRICT_SLOTS_BY_LEVEL,
-  HOUSING_TROOPS_PER_LEVEL,
-  MARKET_GOLD_MILLI_BY_LEVEL,
   MILLI_GOLD_PER_GOLD,
   PRICE_ESCALATION_MAX_HALVES,
   PRICE_ESCALATION_ONE_HALVES,
-  WALLS_COST_PCT_BY_LEVEL,
+  STRUCT_LEVEL_HARD_CAP,
 } from './rules';
+import { barracksRegenPctAt, housingTroopsAt, marketGoldMilliAt, wallsCostPctAt } from './levelCurves';
 import {
   REJECT_BUILD_GOLD,
   REJECT_DELETE_COOLDOWN,
@@ -66,9 +63,15 @@ export function isDistrictKind(kind: unknown): kind is number {
   return typeof kind === 'number' && Number.isInteger(kind) && kind >= DISTRICT_HOUSING && kind <= DISTRICT_WALLS;
 }
 
-/** The slots of a City of `level` (0 for a level outside 1..3). */
+/** The slots of a City of `level` (0 below level 1; the table up to level 10, DISTRICT_MAX_SLOTS above it). */
 export function districtSlotsOf(level: number): number {
-  return (DISTRICT_SLOTS_BY_LEVEL[level] as number | undefined) ?? 0;
+  if (!(level >= 1)) return 0;
+  return level >= DISTRICT_SLOTS_BY_LEVEL.length ? DISTRICT_MAX_SLOTS : ((DISTRICT_SLOTS_BY_LEVEL[level] as number | undefined) ?? 0);
+}
+
+/** The highest level of a district (the same hard cap as a structure). */
+export function districtMaxLevel(): number {
+  return STRUCT_LEVEL_HARD_CAP;
 }
 
 /** Price in gold of the next district of `kind` for an owner that owns `owned` of it: base * min(12, 2 + n) / 2, the structure escalation. */
@@ -78,7 +81,7 @@ export function districtBuildPriceGold(kind: number, owned: number): number {
   return Math.floor(((DISTRICT_BASE_GOLD[kind] as number) * capped) / PRICE_ESCALATION_ONE_HALVES);
 }
 
-/** Price in gold of an upgrade of a district of `kind` to `level` (2..DISTRICT_MAX_LEVEL): base * level. */
+/** Price in gold of an upgrade of a district of `kind` to `level` (2..the hard cap): base * level, the same rule as every structure. */
 export function districtUpgradePriceGold(kind: number, level: number): number {
   return (DISTRICT_BASE_GOLD[kind] as number) * level;
 }
@@ -101,27 +104,27 @@ export interface DistrictEffect {
 }
 
 const NO_EFFECT: DistrictEffect = Object.freeze({ goldMilliPerSec: 0, capTroops: 0, regenPct: 0, wallsCostPct: 100 });
+const EFFECT_CACHE_LEVELS = 64;
 const EFFECTS: DistrictEffect[][] = [];
+function makeEffect(kind: number, level: number): DistrictEffect {
+  return Object.freeze({
+    goldMilliPerSec: kind === DISTRICT_MARKET ? marketGoldMilliAt(level) : 0,
+    capTroops: kind === DISTRICT_HOUSING ? housingTroopsAt(level) : 0,
+    regenPct: kind === DISTRICT_BARRACKS ? barracksRegenPctAt(level) : 0,
+    wallsCostPct: kind === DISTRICT_WALLS ? wallsCostPctAt(level) : 100,
+  });
+}
 for (let kind = 0; kind < DISTRICT_KIND_SLOTS; kind++) {
-  const row: DistrictEffect[] = [];
-  row.push(NO_EFFECT); // level 0: no district
-  for (let level = 1; level <= DISTRICT_MAX_LEVEL; level++) {
-    row.push(
-      Object.freeze({
-        goldMilliPerSec: kind === DISTRICT_MARKET ? (MARKET_GOLD_MILLI_BY_LEVEL[level] as number) : 0,
-        capTroops: kind === DISTRICT_HOUSING ? HOUSING_TROOPS_PER_LEVEL * level : 0,
-        regenPct: kind === DISTRICT_BARRACKS ? (BARRACKS_REGEN_PCT_BY_LEVEL[level] as number) : 0,
-        wallsCostPct: kind === DISTRICT_WALLS ? (WALLS_COST_PCT_BY_LEVEL[level] as number) : 100,
-      }),
-    );
-  }
+  const row: DistrictEffect[] = [NO_EFFECT]; // level 0: no district
+  for (let level = 1; level < EFFECT_CACHE_LEVELS; level++) row.push(makeEffect(kind, level));
   EFFECTS.push(row);
 }
 
-/** The effect numbers of a district (a shared frozen object, no allocation); a kind or level outside the tables gives "nothing". */
+/** The effect numbers of a district; kinds and levels 1..63 are shared frozen objects (no allocation), a higher level up to the cap makes one small object; a kind or level outside the tables gives "nothing". */
 export function districtEffect(kind: number, level: number): DistrictEffect {
   const row = EFFECTS[kind];
-  return row === undefined ? NO_EFFECT : (row[level] ?? NO_EFFECT);
+  if (row === undefined || !Number.isInteger(level) || level < 1 || level > STRUCT_LEVEL_HARD_CAP) return NO_EFFECT;
+  return level < EFFECT_CACHE_LEVELS ? (row[level] as DistrictEffect) : makeEffect(kind, level);
 }
 
 /** The slot index into the table arrays. */
@@ -168,7 +171,7 @@ export function checkUpgradeDistrict(structures: StructureView, districts: Distr
   const kind = districts.districtKind[at] as number;
   if (kind === DISTRICT_NONE) return REJECT_DISTRICT_EMPTY;
   const level = districts.districtLevel[at] as number;
-  if (level >= DISTRICT_MAX_LEVEL) return REJECT_STRUCT_MAX_LEVEL;
+  if (level >= STRUCT_LEVEL_HARD_CAP) return REJECT_STRUCT_MAX_LEVEL;
   if (tick < (districts.districtReadyTick[at] as number) || (districts.districtUpgradeReadyTick[at] as number) !== 0) return REJECT_STRUCT_BUSY;
   if (goldMilli < districtUpgradePriceGold(kind, level + 1) * MILLI_GOLD_PER_GOLD) return REJECT_BUILD_GOLD;
   return REJECT_NONE;

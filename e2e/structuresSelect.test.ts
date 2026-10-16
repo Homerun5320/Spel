@@ -9,7 +9,7 @@ import { timeForSubsolarLon } from '../src/render/geo';
 import { cellToLatLon } from '../src/render/transforms';
 import { formatFixed, formatInt } from '../src/ui/i18n';
 import { REJECT_DELETE_COOLDOWN, REJECT_NONE, REJECT_STRUCT_BUSY } from '../src/sim/intents';
-import { CAP_CITY_LEVEL_TROOPS, CITY_GOLD_MILLI_PER_SEC_PER_LEVEL, POST_RADIUS_CELLS, SAM_RADIUS_CELLS } from '../src/sim/rules';
+import { CAP_CITY_LEVEL_TROOPS, CITY_GOLD_MILLI_PER_SEC_PER_LEVEL, POST_RADIUS_CELLS, SAM_RADIUS_BASE_CELLS } from '../src/sim/rules';
 import { STRUCT_CITY, STRUCT_POST, STRUCT_SAM, upgradePriceGold } from '../src/sim/structureRules';
 
 let browser: Browser;
@@ -195,7 +195,7 @@ describe('selecting a structure', () => {
       await t.settle();
       const p = await t.props();
       expect(p.selection.id).toBeGreaterThanOrEqual(0);
-      expect(p.selection.ring.rangeCells).toBe(SAM_RADIUS_CELLS[1]);
+      expect(p.selection.ring.rangeCells).toBe(SAM_RADIUS_BASE_CELLS);
       expect(p.selection.ring.drawIndices).toBe(96 * 12); // both rings
       const png = await page.screenshot({ type: 'png' });
       fs.writeFileSync(path.join(SHOT_DIR, 'structures-select-sam-ring.png'), png);
