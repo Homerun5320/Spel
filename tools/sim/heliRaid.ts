@@ -15,7 +15,7 @@ import { pathToFileURL } from 'node:url';
 import { exposureOf, planRouteOf, scoreLzOf } from '../../src/sim/access';
 import { HELI_PAD } from '../../src/sim/heliTable';
 import { launchHeliBody, withId } from '../../src/sim/intents';
-import { OUTBOX_BEACHHEAD_FORMED, OUTBOX_HELI_DOWNED, OUTBOX_HELI_LANDED, OUTBOX_HELI_LAUNCHED, OUTBOX_REJECT, type OutboxEvent } from '../../src/sim/outbox';
+import { OUTBOX_BEACHHEAD_FORMED, OUTBOX_PAINT, OUTBOX_HELI_DOWNED, OUTBOX_HELI_HOME, OUTBOX_HELI_LANDED, OUTBOX_HELI_LAUNCHED, OUTBOX_HELI_RTB, OUTBOX_REJECT, type OutboxEvent } from '../../src/sim/outbox';
 import { BUILD_TICKS, HELI_BUILD_TICKS, TICK_HZ } from '../../src/sim/rules';
 import { hashState } from '../../src/sim/serialize';
 import { hex32 } from '../../src/sim/hash';
@@ -199,15 +199,18 @@ export function flyRaid(fx: { name: FixtureName; state: GameState; factory: numb
     if (e.kind === OUTBOX_HELI_LANDED) return `landed cells=${e.b}`;
     if (e.kind === OUTBOX_BEACHHEAD_FORMED) return `beachhead formed at ${e.b}`;
     if (e.kind === OUTBOX_HELI_DOWNED) return `DOWNED cause=${CAUSE_NAMES[e.b] ?? e.b}`;
+    if (e.kind === OUTBOX_HELI_RTB) return 'turns for home';
+    if (e.kind === OUTBOX_HELI_HOME) return 'back on the pad';
     return `event ${e.kind}`;
   };
-  const line = (evs: OutboxEvent[]): void => {
+  const line = (all: OutboxEvent[]): void => {
     if (!wantLog) return;
+    const evs = all.filter((e) => e.kind !== OUTBOX_PAINT); // the cells a landing paints are not part of the story
     const st = t.state[hid] as number;
     const x = (t.x[hid] as number) / 256;
     const y = (t.y[hid] as number) / 256;
     const cell = Math.floor(y) * s.width + Math.floor(x);
-    const ex = st >= 3 && st <= 8 ? exposureOf(s, DEFENDER_SEAT, cell, mode) : 0;
+    const ex = st >= 3 && st <= 9 ? exposureOf(s, DEFENDER_SEAT, cell, mode) : 0;
     const marks = `${(ex & 1) !== 0 ? 'D' : '-'}${(ex & 2) !== 0 ? 'P' : '-'}`;
     const names = evs.map(describe);
     if (evs.length > 0 || (s.tick - launchTick) % TICK_HZ === 0) log.push(`tick ${s.tick - launchTick} ${STATE_NAMES[st] ?? st} pos=(${x.toFixed(1)},${y.toFixed(1)}) alt=${t.alt[hid]}m hp=${(t.hp[hid] as number) / 10} exp=${marks}${names.length > 0 ? ' | ' + names.join('; ') : ''}`);
