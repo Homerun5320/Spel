@@ -170,9 +170,9 @@ void main() {
   vec3 rel0 = (aHi - uCamHi) + (aLo - uCamLo);
   float dist = length(rel0);
   float hw = max(uHalfMin, dist * uHalfFrac);
-  float kind = aSideKind.y;
+  float kind = max(aSideKind.y, 0.0); // -1 marks a beachhead ring (it is placed like the range ring)
   vec3 rel = rel0 + aDir * (kind * uSelR + aSideKind.x * hw) + up * (hw * 2.0 + aLift);
-  vKind = kind;
+  vKind = aSideKind.y;
   gl_Position = projectionMatrix * vec4(mat3(viewMatrix) * rel, 1.0);
 }
 `;
@@ -180,8 +180,14 @@ void main() {
 export const ringFragmentShader = /* glsl */ `
 uniform vec3 uSelectRgb;
 uniform vec3 uRangeRgb;
+uniform vec3 uBeachRgb;    // Fix-4B: the owner colour of the pulsing beachhead rings
+uniform float uBeachAlpha;
 varying float vKind;
 void main() {
+  if (vKind < -0.5) {
+    gl_FragColor = vec4(uBeachRgb, uBeachAlpha);
+    return;
+  }
   gl_FragColor = vec4(mix(uRangeRgb, uSelectRgb, vKind), 0.92);
 }
 `;

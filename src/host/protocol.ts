@@ -90,6 +90,19 @@ export interface ViewSnapshot {
   readonly helis: HeliSnapshot | null;
   /** The diplomacy table (M18c-1): always present in the answer to `requestView`; in a frame's diff only when it changed since the last frame that carried it, else null. */
   readonly diplomacy: DiplomacySnapshot | null;
+  /** The beachhead rows (Fix-4B): always present in the answer to `requestView`; in a frame's diff only when they changed since the last frame that carried them, else null. */
+  readonly beachheads: BeachheadSnapshot | null;
+}
+
+/** The live beachhead rows as the page sees them (Fix-4B), in slot order: `count` rows, `slot[k]` the table slot of row k, `cells[k]` the cells its cluster holds now. */
+export interface BeachheadSnapshot {
+  readonly count: number;
+  readonly slot: Uint8Array;
+  readonly owner: Uint16Array;
+  readonly seed: Int32Array;
+  readonly landTick: Uint32Array;
+  readonly status: Uint8Array;
+  readonly cells: Uint16Array;
 }
 
 /** The diplomacy table as the page sees it (M18c-1): copies of the sim's arrays (indexed by ownerId, `slots` = seats + 1) and the open proposals, `propFrom.length` of them. */
@@ -182,7 +195,13 @@ export function cloneView(v: ViewSnapshot): ViewSnapshot {
     structures: v.structures === null ? null : cloneStructures(v.structures),
     helis: v.helis === null ? null : cloneHelis(v.helis),
     diplomacy: v.diplomacy === null ? null : cloneDiplomacy(v.diplomacy),
+    beachheads: v.beachheads === null ? null : cloneBeachheads(v.beachheads),
   };
+}
+
+/** A deep copy of a beachhead snapshot. */
+export function cloneBeachheads(s: BeachheadSnapshot): BeachheadSnapshot {
+  return { count: s.count, slot: s.slot.slice(), owner: s.owner.slice(), seed: s.seed.slice(), landTick: s.landTick.slice(), status: s.status.slice(), cells: s.cells.slice() };
 }
 
 /** A deep copy of a diplomacy snapshot. */

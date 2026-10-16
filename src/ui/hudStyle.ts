@@ -37,6 +37,7 @@ export function hudCss(): string {
 .hud-diplo { display: inline-flex; align-items: center; gap: 0.4em; flex: none; margin-left: auto; }
 .hud-diplo .hud-btn { position: relative; min-width: 0; min-height: 0; height: 1.4em; padding: 0 0.6em; line-height: 1; font-size: 0.95em; } /* the row keeps its 1.4em; the touch target (TARGET_MIN_PX) is the invisible ::after */
 .hud-diplo .hud-btn::after { content: ''; position: absolute; left: -0.3em; right: -0.3em; top: calc(50% - ${TARGET_MIN_PX / 2}px); height: ${TARGET_MIN_PX}px; }
+.hud-beach { color: ${C.barWarning}; font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .hud-diplo-signal { color: ${C.barWarning}; font-weight: 800; white-space: nowrap; }
 .hud-row2 > .hud-diplo { margin-left: auto; }
 .hud-flag { border-radius: 2px; border: 1px solid rgba(255, 255, 255, 0.55); display: block; }

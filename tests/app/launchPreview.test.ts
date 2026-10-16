@@ -3,14 +3,14 @@
 // most one query out, throws away an answer for a request that is no longer wanted, and sends at most once per interval.
 import { describe, expect, it } from 'vitest';
 import { LaunchPreviewer, previewLaunch, requestKey, type PreviewRequest, type PreviewResult } from '../../src/app/launchPreview';
-import { createLos, createLosTerrain, createNav, validateLaunchHeli, validateProduceHeli, type Nav } from '../../src/sim/public';
+import { createLos, createLosTerrain, createNav, planRoute, validateLaunchHeli, validateProduceHeli, type Nav } from '../../src/sim/public';
 import { launchHeliBody, produceHeliBody, REJECT_HELI_BAD_TROOPS, REJECT_HELI_NO_FACTORY, REJECT_HELI_NO_GOLD, REJECT_HELI_NO_PAD, REJECT_HELI_NOT_OWNER, withId, type IntentBody } from '../../src/sim/intents';
 import { LZ_ENEMY_CITY_NEAR, LZ_NO_ROUTE, LZ_OUT_OF_FUEL, LZ_PEAK, LZ_STEEP, LZ_TERRAIN_CLASS, LZ_TOO_HIGH, LZ_WATER } from '../../src/sim/nav/lz';
-import { BUILD_TICKS, HELI_BUILD_TICKS, HELI_FUEL_CELLS, HELI_MAX_TROOPS, MILLI_GOLD_PER_GOLD, QT_PER_TROOP } from '../../src/sim/rules';
+import { BUILD_TICKS, HELI_BUILD_TICKS, HELI_FUEL_CELLS, HELI_MAX_TROOPS, MILLI_GOLD_PER_GOLD, QT_PER_TROOP, TICK_HZ } from '../../src/sim/rules';
 import { deserialize, serialize } from '../../src/sim/serialize';
 import { step } from '../../src/sim/step';
 import { createState, rebuildAggregates, type GameState } from '../../src/sim/state';
-import { STRUCT_CITY, STRUCT_FACTORY } from '../../src/sim/structureRules';
+import { STRUCT_CITY, STRUCT_FACTORY, STRUCT_POST } from '../../src/sim/structureRules';
 import { CLASS_DEEP_SEA, CLASS_FOREST, CLASS_ICE, CLASS_MOUNTAIN, CLASS_PEAK, CLASS_PLAINS, CLASS_SHALLOWS } from '../../src/sim/terrain';
 import { StateView } from '../../src/sim/view';
 
@@ -262,5 +262,144 @@ describe('LaunchPreviewer: one query out, stale answers dropped, five per second
     expect(real.status()).toBe('pending'); // an answer is a Promise: never ready in the same call
     await flush();
     expect(real.current()?.reason).toBe(0);
+  });
+});
+
+// ---- Fix-4B: the faults an independent review found open (audit 3, 1.6): each test was shown to fail against the mutant named in its title (docs/DECISIONS.md, Fix-4B) ----
+
+describe('Fix-4B: previewLaunch details', () => {
+  it('the flight time is rounded UP to whole seconds (mutant: Math.floor)', () => {
+    const f = build();
+    let checked = 0;
+    for (let x = 60; x < 140 && checked < 3; x += 7) {
+      const req: PreviewRequest = { factory: f.factory, lzCell: at(x, 60), troops: 5, mode: 0 };
+      const route = planRoute(f.nav, f.view, 0, at(20, 60), req.lzCell, 0);
+      if (!route.ok || route.etaTicks % TICK_HZ === 0) continue;
+      expect(previewLaunch(f.nav, f.view, 0, req).etaSeconds).toBe(Math.ceil(route.etaTicks / TICK_HZ));
+      checked++;
+    }
+    expect(checked, 'a zone whose flight is not a whole number of seconds').toBeGreaterThan(0);
+  });
+
+  it('only ENEMY sensors colour the route: an own Defense Post beside it exposes nothing, an enemy one does (mutant: the own seat is not skipped)', () => {
+    const f = build();
+    const req: PreviewRequest = { factory: f.factory, lzCell: at(100, 60), troops: 5, mode: 0 };
+    expect(previewLaunch(f.nav, f.view, 0, req).exposed?.some((e) => e === 1)).toBe(false);
+    const post = f.s.structures.add(STRUCT_POST, 1, at(100, 61), f.s.tick); // OUR post beside the goal (the route has two waypoints: the Factory and the zone)
+    for (let i = 0; i < (BUILD_TICKS[STRUCT_POST] as number) + 1; i++) step(f.s, { turn: f.s.tick, intents: [] });
+    expect(previewLaunch(f.nav, f.view, 0, req).exposed?.some((e) => e === 1), 'own post').toBe(false);
+    f.s.structures.remove(post);
+    f.s.structures.add(STRUCT_POST, 2, at(100, 61), f.s.tick); // THEIR post on the same cell
+    for (let i = 0; i < (BUILD_TICKS[STRUCT_POST] as number) + 1; i++) step(f.s, { turn: f.s.tick, intents: [] });
+    expect(previewLaunch(f.nav, f.view, 0, req).exposed?.some((e) => e === 1), 'enemy post').toBe(true);
+  });
+
+  it('a Factory slot that was freed plans nothing (mutant: the owner test is dropped)', () => {
+    const f = build();
+    const req: PreviewRequest = { factory: f.second, lzCell: at(100, 60), troops: 5, mode: 0 };
+    expect(previewLaunch(f.nav, f.view, 0, req).waypoints).not.toBeNull();
+    f.s.structures.remove(f.second);
+    const gone = previewLaunch(f.nav, f.view, 0, req);
+    expect(gone.waypoints).toBeNull();
+    expect(gone.reason).not.toBe(0);
+  });
+});
+
+describe('Fix-4B: LaunchPreviewer faults', () => {
+  const req = (lz: number, troops = 1, mode: 0 | 1 = 0): PreviewRequest => ({ factory: 0, lzCell: lz, troops, mode });
+  const answer = (r: PreviewRequest): PreviewResult => ({ request: r, reason: 0, waypoints: [r.lzCell], exposed: new Uint8Array(1), etaSeconds: 1, fuelCells: 1, exposedCells: 0 });
+  const flush = async (): Promise<void> => {
+    for (let i = 0; i < 4; i++) await Promise.resolve();
+  };
+
+  it('a failed query is not an answer and does not kill the previewer: the next poll asks again (mutant: `inflight` stays true)', async () => {
+    let calls = 0;
+    const p = new LaunchPreviewer((r) => (++calls === 1 ? Promise.reject(new Error('boom')) : Promise.resolve(answer(r))), 0);
+    p.want(req(1));
+    p.poll(0);
+    await flush();
+    expect(p.status()).toBe('pending');
+    p.poll(1); // still wanted, no answer yet: it asks again
+    await flush();
+    expect(calls).toBe(2);
+    expect(p.current()?.request.lzCell).toBe(1);
+  });
+
+  it('the flight mode is part of the question: the same cell with Low flipped to High is asked again and never shows the Low answer (mutant: `mode` missing from the comparison)', async () => {
+    const asked: PreviewRequest[] = [];
+    const p = new LaunchPreviewer((r) => (asked.push(r), Promise.resolve(answer(r))), 0);
+    p.want(req(7, 5, 0));
+    p.poll(0);
+    await flush();
+    expect(p.current()?.request.mode).toBe(0);
+    p.want(req(7, 5, 1));
+    expect(p.current()).toBeNull();
+    p.poll(1);
+    await flush();
+    expect(asked.map((r) => r.mode)).toEqual([0, 1]);
+    expect(p.current()?.request.mode).toBe(1);
+    // the cell, the troops and the Factory are part of it too
+    for (const other of [req(8, 5, 1), req(7, 6, 1), { ...req(7, 5, 1), factory: 1 }]) {
+      p.want(other);
+      expect(p.current(), JSON.stringify(other)).toBeNull();
+      p.want(req(7, 5, 1));
+      expect(p.current()?.request.mode).toBe(1);
+    }
+  });
+
+  it('the same question in a NEW object keeps the answer and sends nothing (no churn per frame)', async () => {
+    const sent: PreviewRequest[] = [];
+    const p = new LaunchPreviewer((r) => (sent.push(r), Promise.resolve(answer(r))), 0);
+    p.want(req(3, 4, 1));
+    p.poll(0);
+    await flush();
+    p.want(req(3, 4, 1));
+    p.poll(1);
+    expect(sent.length).toBe(1);
+    expect(p.status()).toBe('ready');
+  });
+
+  it('clear() throws away the answer of a query that was out, forgets the throttle and the wanted request (mutants: no epoch bump, `lastSent` kept)', async () => {
+    let resolve: (() => void) | null = null;
+    const asked: number[] = [];
+    const p = new LaunchPreviewer(
+      (r) =>
+        new Promise((res) => {
+          asked.push(r.lzCell);
+          resolve = () => res(answer(r));
+        }),
+      5, // a long interval: only a cleared throttle lets the next query out at once
+    );
+    p.want(req(1));
+    p.poll(100);
+    p.clear();
+    (resolve as unknown as () => void)();
+    await flush();
+    expect(p.current()).toBeNull();
+    expect(p.status()).toBe('idle');
+    // the same request again at once: the old answer is gone, and the new query goes out although 0.1 s < 5 s have passed
+    p.want(req(1));
+    p.poll(100.1);
+    expect(asked).toEqual([1, 1]);
+    (resolve as unknown as () => void)();
+    await flush();
+    expect(p.current()?.request.lzCell).toBe(1);
+    // the answer of a query asked BEFORE the clear must not come back to life when the very same request is wanted again (mutant: no epoch bump)
+    const old: Array<() => void> = [];
+    const q = new LaunchPreviewer(
+      (r) =>
+        new Promise((res) => {
+          old.push(() => res(answer(r)));
+        }),
+      0,
+    );
+    q.want(req(2));
+    q.poll(0);
+    q.clear();
+    q.want(req(2));
+    (old[0] as () => void)();
+    await flush();
+    expect(q.current()).toBeNull();
+    expect(q.dropped).toBe(1);
   });
 });

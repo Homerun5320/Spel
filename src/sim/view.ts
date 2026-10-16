@@ -14,7 +14,8 @@ import { structGoldMilliPerSec } from './structureEffects';
 import { landShareQ15 } from './territory';
 import type { StructureView } from './structureRules';
 import type { DistrictView } from './districtRules';
-import type { HeliView } from './heliTable';
+import type { BeachheadTable, HeliView } from './heliTable';
+import { clearCluster, scanCluster } from './beachheadCluster';
 import { DiplomacyReader, type DiplomacyView } from './diplomacyTable';
 import { fillMatchView, matchPackedLength, matchViewOf, type MatchView } from './matchView';
 
@@ -98,6 +99,8 @@ export interface SimView {
   readonly districts: DistrictView;
   /** The helicopter table (M12a-1), read-only: owner, state, factory, readyTick, position, hp, load and fuel by helicopter id, and `countOf(ownerId)`. A ViewMirror carries a copy of it (the host sends it when it changed). */
   readonly helis: HeliView;
+  /** The beachhead table (Fix-4B), read-only: who landed where and when, and how many cells the cluster holds now. A ViewMirror carries a copy of it (the host sends it when it changed). */
+  readonly beachheads: BeachheadView;
   /** The tick until which a cell is fallout, 0 = not (the FALLOUT_UNTIL layer: zero until M14). */
   falloutUntilAt(cell: number): number;
   /**
@@ -209,6 +212,59 @@ export function statsViewOf(seats: number, packed: Uint32Array): SeatStatsView {
 }
 
 /**
+ * The read-only window onto the beachhead table (Fix-4B; what `SimView.beachheads` is). Arrays are indexed by slot, owner 0 = a free slot. Only the rows of
+ * landings that are not yet ordinary land exist: an established or reverted beachhead is gone from the table (the page tells the two apart by the owner of the seed cell).
+ */
+export interface BeachheadView {
+  readonly capacity: number;
+  /** Rows alive. */
+  readonly liveCount: number;
+  /** ownerId of the landing seat (0 = free slot). */
+  readonly owner: ArrayLike<number>;
+  /** The seed cell (the landing zone, moved to a neighbour when it was lost). */
+  readonly seed: ArrayLike<number>;
+  /** The tick of the landing; the row reverts BEACHHEAD_REVERT_TICKS later unless it is established first. */
+  readonly landTick: ArrayLike<number>;
+  /** BEACH_CUT_OFF or BEACH_ESTABLISHED. */
+  readonly status: ArrayLike<number>;
+  /** The cells the cluster of the row holds now, at most BEACHHEAD_ESTABLISH_CELLS (the search stops there); 0 for a free slot. */
+  cellsOf(slot: number): number;
+}
+
+/** The live form: the sim's table, with the cluster search for `cellsOf` (it leaves the scratch marks clean). */
+class BeachheadReader implements BeachheadView {
+  constructor(
+    private readonly table: BeachheadTable,
+    private readonly state: GameState,
+  ) {}
+  get capacity(): number {
+    return this.table.capacity;
+  }
+  get liveCount(): number {
+    return this.table.liveCount;
+  }
+  get owner(): ArrayLike<number> {
+    return this.table.owner;
+  }
+  get seed(): ArrayLike<number> {
+    return this.table.seed;
+  }
+  get landTick(): ArrayLike<number> {
+    return this.table.landTick;
+  }
+  get status(): ArrayLike<number> {
+    return this.table.status;
+  }
+  cellsOf(slot: number): number {
+    const o = this.table.owner[slot] as number;
+    if (o === 0) return 0;
+    const n = scanCluster(this.state, this.table.seed[slot] as number, o);
+    clearCluster(this.state, n);
+    return n;
+  }
+}
+
+/**
  * A SimView over a live state, without copying. For code that runs in the sim's own thread and reads between steps (the AI
  * driver of M09); call `refresh()` at every tick boundary before handing the view out. The owner array is the sim's own, typed
  * read-only: the type forbids writing, and nothing but the host that owns the state ever holds the writable form.
@@ -220,6 +276,7 @@ export class StateView implements SimView {
   readonly stats: SeatStatsView;
   readonly match: MatchView;
   readonly diplomacy: DiplomacyView;
+  readonly beachheads: BeachheadView;
   ownerVersion = 0;
   private lastOwnerStamp = -1;
 
@@ -231,6 +288,7 @@ export class StateView implements SimView {
     this.scoreScratch = new Uint32Array(ownerSlots(seats));
     this.match = matchViewOf(seats, this.matchPacked);
     this.diplomacy = new DiplomacyReader(state.diplo, state.header.players, () => state.tick);
+    this.beachheads = new BeachheadReader(state.beachheads, state);
     this.refresh();
   }
 

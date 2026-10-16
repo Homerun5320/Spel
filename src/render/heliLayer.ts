@@ -46,11 +46,13 @@ export interface HeliLayerOptions {
   readonly gridWidth: number;
   readonly gridHeight: number;
   readonly sun: Vector3;
-  /** Mean elevation per sim cell in metres (`world.sim.meanElev`); without it the sim altitude is taken as the height above the ground. */
+/** Mean elevation per sim cell in metres (`world.sim.meanElev`); without it the sim altitude is taken as the height above the ground. */
   readonly meanElev?: ArrayLike<number>;
 }
 
 const TWO_PI = Math.PI * 2;
+
+const EMPTY_DRAWN: DrawnHeli[] = [];
 
 export class HeliLayer {
   readonly meshes: Mesh[] = [];
@@ -85,6 +87,8 @@ export class HeliLayer {
   private readonly lastOwner = new Uint16Array(HELI_INSTANCE_CAP);
   private readonly yaws = new Float32Array(HELI_INSTANCE_CAP);
   private drawnList: DrawnHeli[] = [];
+  /** Whether `rebuild` keeps the list of what it drew (`drawn()`, read only by tests and the test hooks); the page switches it off outside test mode (Fix-4B: no garbage per table). */
+  recordDrawn = true;
 
   constructor(o: HeliLayerOptions) {
     this.gridWidth = o.gridWidth;
@@ -190,7 +194,7 @@ export class HeliLayer {
     const t = this.table;
     const palette = this.palette;
     if (t === null || palette === null) return;
-    const list: DrawnHeli[] = [];
+    const list: DrawnHeli[] = this.recordDrawn ? [] : EMPTY_DRAWN;
     let n = 0;
     const hw = t.highWater;
     for (let id = 0; id < hw && n < HELI_INSTANCE_CAP; id++) {
@@ -241,7 +245,7 @@ export class HeliLayer {
       this.info[i * 3] = this.yaws[id] as number;
       this.info[i * 3 + 1] = parked ? 1 : 0;
       this.info[i * 3 + 2] = state === HELI_DOWNED ? 1 : 0;
-      list.push({ id, owner, state, cellX: qx / 256, cellY: qy / 256, lat: ll.lat, lon: ll.lon, aglM, radius, heightM: (radius - 1) * EARTH_RADIUS_KM * 1000, yaw: this.yaws[id] as number, parked });
+      if (this.recordDrawn) list.push({ id, owner, state, cellX: qx / 256, cellY: qy / 256, lat: ll.lat, lon: ll.lon, aglM, radius, heightM: (radius - 1) * EARTH_RADIUS_KM * 1000, yaw: this.yaws[id] as number, parked });
     }
     this.count = n;
     this.drawnList = list;

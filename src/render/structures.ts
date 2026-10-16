@@ -9,7 +9,7 @@
 // palette or the exaggeration changed.
 import { BufferAttribute, BufferGeometry, DoubleSide, DynamicDrawUsage, InstancedBufferAttribute, InstancedBufferGeometry, Mesh, ShaderMaterial, Vector3, Vector4 } from 'three';
 import { STRUCT_CITY, type StructureView } from '../sim/public';
-import { EARTH_RADIUS_KM, GHOST_ALPHA, GHOST_BAD_RGB, GHOST_MIX, GHOST_OK_RGB, HEIGHT_EXAGGERATION, STRUCT_BUILD_MIN_HEIGHT, STRUCT_CLOSE_FAR_M, STRUCT_CLOSE_MUL, STRUCT_CLOSE_RISE_LO_M, STRUCT_CLOSE_RISE_HI_M, STRUCT_DISH_RAD_PER_SEC, STRUCT_APPARENT_CAP_MUL, STRUCT_MAX_SCALE, STRUCT_POP_SECONDS, STRUCT_SCREEN_FRAC, STRUCT_TRIANGLE_BUDGET, STRUCT_RANK_NEAR_ER, STRUCT_RERANK_MOVE_FRAC, STRUCT_RANK_MIN_ALT_ER, AMBIENT_DAY, AMBIENT_NIGHT, SUN_COLOR, ICON_FADE_PX_HI, ICON_FADE_PX_LO, ICON_HALF_PX, ICON_HALF_PX_MIN, ICON_SPACING_FRAC, NIGHT_LIGHT_SUN_DOT, RANGE_RING_RGB, RING_HALF_WIDTH_FRAC, RING_HALF_WIDTH_M, RING_SEGMENTS, SELECT_RING_RGB } from './config';
+import { EARTH_RADIUS_KM, GHOST_ALPHA, GHOST_BAD_RGB, GHOST_MIX, GHOST_OK_RGB, HEIGHT_EXAGGERATION, STRUCT_BUILD_MIN_HEIGHT, STRUCT_CLOSE_FAR_M, STRUCT_CLOSE_MUL, STRUCT_CLOSE_RISE_LO_M, STRUCT_CLOSE_RISE_HI_M, STRUCT_DISH_RAD_PER_SEC, STRUCT_APPARENT_CAP_MUL, STRUCT_MAX_SCALE, STRUCT_POP_SECONDS, STRUCT_SCREEN_FRAC, STRUCT_TRIANGLE_BUDGET, STRUCT_RANK_NEAR_ER, STRUCT_RERANK_MOVE_FRAC, STRUCT_RANK_MIN_ALT_ER, AMBIENT_DAY, AMBIENT_NIGHT, SUN_COLOR, ICON_FADE_PX_HI, ICON_FADE_PX_LO, ICON_HALF_PX, ICON_HALF_PX_MIN, ICON_SPACING_FRAC, NIGHT_LIGHT_SUN_DOT, BEACH_RING_ALPHA_MAX, BEACH_RING_ALPHA_MIN, BEACH_RING_MAX, BEACH_RING_PULSE_RAD_PER_SEC, BEACH_RING_RADIUS_CELLS, RANGE_RING_RGB, RING_HALF_WIDTH_FRAC, RING_HALF_WIDTH_M, RING_SEGMENTS, SELECT_RING_RGB } from './config';
 import { selectRingLiftsM, selectRingRadiusM } from './rings';
 import { latLonToVec } from './geo';
 import { iconSpacingM } from './iconScale';
@@ -170,6 +170,10 @@ export class StructureLayer {
   private selRangeCells = 0;
   private selVisible = false;
   private readonly liftScratch = new Float32Array(RING_SEGMENTS + 1);
+  // Fix-4B: the pulsing rings of the own beachheads (rings 2.. of the same mesh, the same draw call): seed cells and the owner whose colour they take
+  private readonly beachCells = new Int32Array(BEACH_RING_MAX);
+  private beachCount = 0;
+  private beachOwner = 0;
   private selX = 0;
   private selY = 0;
   private selZ = 0;
@@ -245,23 +249,30 @@ export class StructureLayer {
     }
     // The ring mesh: the selection ring first, the range ring after it (drawRange picks one or both).
     {
-      const V = RING_VERTS * 2;
+      const V = RING_VERTS * (2 + BEACH_RING_MAX);
       const hi = new Float32Array(V * 3);
       const lo = new Float32Array(V * 3);
       const dir = new Float32Array(V * 3);
       const sk = new Float32Array(V * 2);
       const lift = new Float32Array(V); // Polish-1: per vertex ground offset (Earth radii) of the selection ring
       const index: number[] = [];
-      for (let ringNo = 0; ringNo < 2; ringNo++) {
+      // vertex blocks: 0 selection, 1 range, 2.. beachheads (kind -1). Index order: the beachhead rings (highest first), then selection, then range, so ONE contiguous draw range
+      // picks "the first n beachhead rings, and the selection ring, and the range ring" in any combination.
+      const order: number[] = [];
+      for (let k = BEACH_RING_MAX - 1; k >= 0; k--) order.push(2 + k);
+      order.push(0, 1);
+      for (const ringNo of order) {
         for (let i = 0; i < RING_SEGMENTS; i++) {
           const a = ringNo * RING_VERTS + i * 2;
           index.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
         }
+      }
+      for (let ringNo = 0; ringNo < 2 + BEACH_RING_MAX; ringNo++) {
         for (let i = 0; i <= RING_SEGMENTS; i++) {
           for (let side = 0; side < 2; side++) {
             const v = ringNo * RING_VERTS + i * 2 + side;
             sk[v * 2] = side === 0 ? -1 : 1;
-            sk[v * 2 + 1] = ringNo === 0 ? 1 : 0;
+            sk[v * 2 + 1] = ringNo === 0 ? 1 : ringNo === 1 ? 0 : -1;
           }
         }
       }
@@ -285,6 +296,8 @@ export class StructureLayer {
           uHalfFrac: { value: RING_HALF_WIDTH_FRAC },
           uSelectRgb: { value: v4(SELECT_RING_RGB) },
           uRangeRgb: { value: v4(RANGE_RING_RGB) },
+          uBeachRgb: { value: v4([1, 1, 1]) },
+          uBeachAlpha: { value: BEACH_RING_ALPHA_MAX },
         },
         vertexShader: ringVertexShader,
         fragmentShader: ringFragmentShader,
@@ -392,6 +405,7 @@ export class StructureLayer {
   setOwnerPalette(rgba: Uint8Array): void {
     this.palette = rgba;
     this.dirty = true;
+    if (this.beachCount > 0) this.refreshBeach();
   }
 
   setExaggeration(x: number): void {
@@ -443,6 +457,10 @@ export class StructureLayer {
       if (alt < STRUCT_RANK_NEAR_ER && mx * mx + my * my + mz * mz > alt * alt * STRUCT_RERANK_MOVE_FRAC * STRUCT_RERANK_MOVE_FRAC) this.dirty = true;
     }
     if (this.dirty) this.rebuild();
+    if (this.beachCount > 0) {
+      const k = 0.5 + 0.5 * Math.sin(fxTime * BEACH_RING_PULSE_RAD_PER_SEC);
+      (this.ring.material.uniforms.uBeachAlpha as { value: number }).value = BEACH_RING_ALPHA_MIN + (BEACH_RING_ALPHA_MAX - BEACH_RING_ALPHA_MIN) * k;
+    }
     if (this.selVisible) {
       const dx = x - this.selX;
       const dy = y - this.selY;
@@ -603,6 +621,7 @@ export class StructureLayer {
     for (const a of this.icons.attrs) a.needsUpdate = true;
     if (this.ghost !== null && this.ghost.cell >= 0) this.writeGhost();
     if (this.selId >= 0) this.refreshRings();
+    if (this.beachCount > 0) this.refreshBeach();
   }
 
   // ---- M10-4: selection ring, range ring, icons, lights ---------------------------------------------------------------------------------
@@ -646,7 +665,7 @@ export class StructureLayer {
     const id = this.selId;
     if (t === null || id < 0 || id >= t.highWater || t.owner[id] === 0 || !this.layers.has(t.type[id] as number)) {
       this.selVisible = false;
-      r.mesh.visible = false;
+      this.applyRingDraw();
       return;
     }
     const type = t.type[id] as number;
@@ -675,17 +694,7 @@ export class StructureLayer {
     const nx = uy * ez;
     const ny = uz * ex - ux * ez;
     const nz = -uy * ex;
-    const put = (v: number, x: number, y: number, z: number, dx: number, dy: number, dz: number): void => {
-      r.hi[v * 3] = Math.fround(x);
-      r.hi[v * 3 + 1] = Math.fround(y);
-      r.hi[v * 3 + 2] = Math.fround(z);
-      r.lo[v * 3] = x - (r.hi[v * 3] as number);
-      r.lo[v * 3 + 1] = y - (r.hi[v * 3 + 1] as number);
-      r.lo[v * 3 + 2] = z - (r.hi[v * 3 + 2] as number);
-      r.dir[v * 3] = dx;
-      r.dir[v * 3 + 1] = dy;
-      r.dir[v * 3 + 2] = dz;
-    };
+    const put = (v: number, x: number, y: number, z: number, dx: number, dy: number, dz: number): void => this.putRingVertex(v, x, y, z, dx, dy, dz);
     // Polish-1: the ground under the ring's vertices (sampled here, when the selection or the structure changes; never per frame). The ring stands at the
     // radius of the true-size model; at a distance the ring is wider but then the relief under it is below a pixel.
     const lifts = this.liftScratch;
@@ -701,37 +710,96 @@ export class StructureLayer {
       const sa = Math.sin(a);
       for (let side = 0; side < 2; side++) put(i * 2 + side, c.x, c.y, c.z, ex * ca + nx * sa, ny * sa, ez * ca + nz * sa);
     }
-    if (this.selRangeCells > 0) {
-      const cx = cell % this.gridWidth;
-      const cy = (cell - cx) / this.gridWidth;
-      for (let i = 0; i <= RING_SEGMENTS; i++) {
-        const a = (i / RING_SEGMENTS) * Math.PI * 2;
-        const gx = cx + Math.cos(a) * this.selRangeCells;
-        const gy = cy + Math.sin(a) * this.selRangeCells;
-        const lat = Math.max(-89.9, Math.min(89.9, ((this.gridHeight - 2 * gy - 1) * 90) / this.gridHeight));
-        const lon = ((2 * gx + 1 - this.gridWidth) * 180) / this.gridWidth;
-        const ground = Math.max(0, groundHeightAt(lat, lon));
-        const rad = 1 + (this.exaggeration * ground) / (EARTH_RADIUS_KM * 1000);
-        const d = latLonToVec(lat, lon);
-        const px = (d[0] as number) * rad;
-        const py = (d[1] as number) * rad;
-        const pz = (d[2] as number) * rad;
-        // outward tangent at that point: (p - centre) without its radial part
-        let ox = px - c.x;
-        let oy = py - c.y;
-        let oz = pz - c.z;
-        const dot = ox * (d[0] as number) + oy * (d[1] as number) + oz * (d[2] as number);
-        ox -= (d[0] as number) * dot;
-        oy -= (d[1] as number) * dot;
-        oz -= (d[2] as number) * dot;
-        const ol = Math.hypot(ox, oy, oz) || 1;
-        for (let side = 0; side < 2; side++) put(RING_VERTS + i * 2 + side, px, py, pz, ox / ol, oy / ol, oz / ol);
-      }
+    if (this.selRangeCells > 0) this.fillGridRing(1, cell, this.selRangeCells, c.x, c.y, c.z);
+    for (const a of r.attrs) a.needsUpdate = true;
+    this.selVisible = true;
+    this.applyRingDraw();
+  }
+
+  /** Writes one vertex of the ring mesh: the position as a high and a low float32 part and the outward direction. */
+  private putRingVertex(v: number, x: number, y: number, z: number, dx: number, dy: number, dz: number): void {
+    const r = this.ring;
+    r.hi[v * 3] = Math.fround(x);
+    r.hi[v * 3 + 1] = Math.fround(y);
+    r.hi[v * 3 + 2] = Math.fround(z);
+    r.lo[v * 3] = x - (r.hi[v * 3] as number);
+    r.lo[v * 3 + 1] = y - (r.hi[v * 3 + 1] as number);
+    r.lo[v * 3 + 2] = z - (r.hi[v * 3 + 2] as number);
+    r.dir[v * 3] = dx;
+    r.dir[v * 3 + 1] = dy;
+    r.dir[v * 3 + 2] = dz;
+  }
+
+  /** A ring of `radiusCells` sim cells round `cell` as the vertex block `ringNo`, every vertex on the ground under it; (cx, cy, cz) is the centre's position. */
+  private fillGridRing(ringNo: number, cell: number, radiusCells: number, cx3: number, cy3: number, cz3: number): void {
+    const cx = cell % this.gridWidth;
+    const cy = (cell - cx) / this.gridWidth;
+    for (let i = 0; i <= RING_SEGMENTS; i++) {
+      const a = (i / RING_SEGMENTS) * Math.PI * 2;
+      const gx = cx + Math.cos(a) * radiusCells;
+      const gy = cy + Math.sin(a) * radiusCells;
+      const lat = Math.max(-89.9, Math.min(89.9, ((this.gridHeight - 2 * gy - 1) * 90) / this.gridHeight));
+      const lon = ((2 * gx + 1 - this.gridWidth) * 180) / this.gridWidth;
+      const ground = Math.max(0, groundHeightAt(lat, lon));
+      const rad = 1 + (this.exaggeration * ground) / (EARTH_RADIUS_KM * 1000);
+      const d = latLonToVec(lat, lon);
+      const px = (d[0] as number) * rad;
+      const py = (d[1] as number) * rad;
+      const pz = (d[2] as number) * rad;
+      // outward tangent at that point: (p - centre) without its radial part
+      let ox = px - cx3;
+      let oy = py - cy3;
+      let oz = pz - cz3;
+      const dot = ox * (d[0] as number) + oy * (d[1] as number) + oz * (d[2] as number);
+      ox -= (d[0] as number) * dot;
+      oy -= (d[1] as number) * dot;
+      oz -= (d[2] as number) * dot;
+      const ol = Math.hypot(ox, oy, oz) || 1;
+      for (let side = 0; side < 2; side++) this.putRingVertex(ringNo * RING_VERTS + i * 2 + side, px, py, pz, ox / ol, oy / ol, oz / ol);
+    }
+  }
+
+  /** Which part of the ring mesh is drawn: the first `beachCount` beachhead rings (they come first in the index buffer), then the selection ring, then the range ring. */
+  private applyRingDraw(): void {
+    const r = this.ring;
+    const per = RING_SEGMENTS * 6;
+    const sel = this.selVisible ? (this.selRangeCells > 0 ? 2 : 1) : 0;
+    r.geometry.setDrawRange((BEACH_RING_MAX - this.beachCount) * per, (this.beachCount + sel) * per);
+    r.mesh.visible = this.beachCount + sel > 0;
+  }
+
+  /**
+   * Fix-4B: the pulsing rings of the local seat's beachheads that are not yet ordinary land (`n` seed cells, at most BEACH_RING_MAX), in the colour of `owner`. The same mesh and the
+   * same draw call as the selection ring; nothing is drawn for n = 0. Call it when the beachhead table changes, not per frame.
+   */
+  setBeachRings(seeds: ArrayLike<number>, n: number, owner: number): void {
+    const m = Math.min(n, BEACH_RING_MAX);
+    let same = m === this.beachCount && owner === this.beachOwner;
+    for (let i = 0; same && i < m; i++) if (this.beachCells[i] !== seeds[i]) same = false;
+    if (same) return;
+    for (let i = 0; i < m; i++) this.beachCells[i] = seeds[i] as number;
+    this.beachCount = m;
+    this.beachOwner = owner;
+    this.refreshBeach();
+  }
+
+  /** What the beachhead rings show (tests, the props hook). */
+  beachRingInfo(): { count: number; cells: number[]; drawIndices: number } {
+    return { count: this.beachCount, cells: Array.from(this.beachCells.subarray(0, this.beachCount)), drawIndices: this.ring.geometry.drawRange.count };
+  }
+
+  private refreshBeach(): void {
+    const r = this.ring;
+    const pal = this.palette;
+    const rgb = (r.material.uniforms.uBeachRgb as { value: { set(x: number, y: number, z: number): void } }).value;
+    if (pal !== null && this.beachOwner * 4 + 2 < pal.length) rgb.set((pal[this.beachOwner * 4] as number) / 255, (pal[this.beachOwner * 4 + 1] as number) / 255, (pal[this.beachOwner * 4 + 2] as number) / 255);
+    else rgb.set(1, 1, 1);
+    for (let k = 0; k < this.beachCount; k++) {
+      const c = this.place(this.beachCells[k] as number);
+      this.fillGridRing(2 + k, this.beachCells[k] as number, BEACH_RING_RADIUS_CELLS, c.x, c.y, c.z);
     }
     for (const a of r.attrs) a.needsUpdate = true;
-    r.geometry.setDrawRange(0, this.selRangeCells > 0 ? RING_SEGMENTS * 12 : RING_SEGMENTS * 6);
-    this.selVisible = true;
-    r.mesh.visible = true;
+    this.applyRingDraw();
   }
 
   /** The placement preview: a see-through model of `type` on `cell`, green when `ok`, red when not. */

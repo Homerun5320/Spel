@@ -31,6 +31,7 @@ import { PerfSceneRun, type PerfSceneHost } from './perfScene';
 import { createBuildBar, type BuildBar } from '../ui/buildBar';
 import { buildRejectKey, spawnPhaseBlocks } from '../ui/buildReasons';
 import { REJECT_PHASE } from '../ui/hudCodes';
+import { BEACH_ESTABLISHED, BEACH_REVERTED, BeachheadWatcher, beachSecondsLeft, ownBeachSeeds } from '../ui/beachheadInfo';
 import { HeliWatcher, MISSION_LANDED, MISSION_LOST, MissionWatcher, heliPanelInfo, ownHeliRows, padHeliOf, type HeliRow } from '../ui/heliInfo';
 import { createDeployBox, type DeployBox } from '../ui/deployBox';
 import { createDeployMode, type DeployMode } from './deployMode';
@@ -46,7 +47,7 @@ import { createPlacementMode, type PlacementMode, type PlacementState } from './
 import { AIR_MODE_AGL_M, REJECT_HELI_NO_PAD, REJECT_HELI_NO_ROUTE, createLos, createLosTerrain, createNav, launchHeliBody, recallHeliBody, validateLaunchHeli, type Nav } from '../sim/public';
 import { STRUCT_CITY, STRUCT_FACTORY, produceHeliBody, buildBody, buildDistrictBody, deleteBody, removeDistrictBody, upgradeBody, upgradeDistrictBody, validateBuild } from '../sim/public';
 import { createCityViewPanel, type CityViewPanel } from '../ui/cityViewPanel';
-import { CAMERA_FOV_DEG, EARTH_RADIUS_KM } from '../render/config';
+import { BEACH_RING_MAX, CAMERA_FOV_DEG, EARTH_RADIUS_KM } from '../render/config';
 import { cityFitFlight, cityFlightNeeded, createCityViewMode, isDoubleClick } from './cityViewMode';
 import type { InputMode } from './input';
 import { CLASS_MOUNTAIN } from '../sim/terrain';
@@ -319,6 +320,8 @@ export interface GlobeTestHooks {
   /** M13a-1: forces the rotor angle (radians; null = the fx clock) and switches the helicopter layer on or off, so a test can tell the rotor's pixels and the layer's draw call. */
   heliSpin(angle: number | null): void;
   heliLayer(on: boolean): void;
+  /** Fix-4B: the own beachhead rows of the mirror (slot, seed cell, landing tick, cells held, seconds left) and what the ring layer draws. */
+  beach(): { rows: Array<{ slot: number; seed: number; landTick: number; cells: number; seconds: number }>; ring: { count: number; cells: number[]; drawIndices: number } };
   /** M13b: the deploy mode (active, the Factory, the hovered cell, what the layer shows, the preview's verdict and counters) and the deploy layer's switch for a draw-call count. */
   deploy(): DeployInfo;
   deployLayer(on: boolean): void;
@@ -491,6 +494,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   canvas.style.touchAction = 'none';
 
   const globe = new Globe({ canvas, width, height, dpr, quality, world, preserveDrawingBuffer: params.test, terrain: ctx.state.terrain.terrain, chunkDebug: ctx.state.terrain.chunkDebug, detail: ctx.state.raw.detail !== '0', fineDetail: ctx.state.raw.mottle !== '0' });
+  globe.helis.recordDrawn = params.test; // the list of drawn helicopters is read only by the test hooks (Fix-4B: no garbage per table otherwise)
   globe.deploy.setStyle(DEPLOY.style); // M13b: the colours of the route and the landing-zone marker (src/ui/uiConfig.ts)
   globe.setView({ ...DEFAULT_START_VIEW, distKm: fitViewDistKm(DEFAULT_START_VIEW.distKm, width / height) }); // CamFix-2: a tall window starts farther out so that the disc fits
   const groundView = ctx.state.view !== null && globe.terrainMode === 'chunks' ? GROUND_VIEWS[ctx.state.view] : null; // `?view=alps-valley` (M07a)
@@ -523,6 +527,9 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   let frames = 0;
   // the input stack's per-frame tick (the long-press timer of the touch input); set where the stack is built
   let tickInput: (now: number) => void = () => undefined;
+  // Fix-4B: the pulsing rings of the own beachheads follow the beachhead table (written only when its version moved)
+  let beachRingVersion = -1;
+  const beachSeeds = new Int32Array(BEACH_RING_MAX);
   const renderFrame = (draw = true): void => {
     tickInput(fxNow());
     tickToasts(fxNow());
@@ -532,6 +539,10 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       globe.structures.setTable(session.view.structures, session.view.structuresVersion);
       globe.districts.setTable(session.view.structures, session.view.districts, session.view.structuresVersion); // Districts-2b
       globe.helis.setTable(session.view.helis, session.view.helisVersion); // M13a-1
+      if (session.view.beachheadsVersion !== beachRingVersion) {
+        beachRingVersion = session.view.beachheadsVersion;
+        globe.structures.setBeachRings(beachSeeds, ownBeachSeeds(session.view, session.localSeat, beachSeeds), session.localOwner);
+      }
       globe.setTickFraction(session.view.tick + (params.test ? 0 : session.alpha()));
     }
     globe.render(draw);
@@ -713,6 +724,8 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     elimHandled = false;
     structToastShown = false;
     globe.structures.setLocalOwner(s.localOwner);
+    beachRingVersion = -1;
+    beachWatcher.reset();
     panels = createMatchPanels(
       wrapper,
       {
@@ -828,13 +841,19 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   let model: { -readonly [K in keyof MatchHudModel]: MatchHudModel[K] } | null = null;
   const heliWatcher = new HeliWatcher();
   const missionWatcher = new MissionWatcher();
+  const beachWatcher = new BeachheadWatcher();
   // the Factory panel's helicopter numbers are asked once per tick, not once per frame
-  let heliKey = '';
+  let heliKeyTick = -1;
+  let heliKeyVersion = -1;
+  let heliKeyFactory = -1;
+  let heliKeySeat = -1;
   let heliCache: ReturnType<typeof heliPanelInfo> | null = null;
   const heliInfoOf = (view: MatchSession['view'], seat: number, factory: number): ReturnType<typeof heliPanelInfo> => {
-    const key = `${view.tick}|${view.helisVersion}|${factory}|${seat}`;
-    if (heliCache === null || key !== heliKey) {
-      heliKey = key;
+    if (heliCache === null || view.tick !== heliKeyTick || view.helisVersion !== heliKeyVersion || factory !== heliKeyFactory || seat !== heliKeySeat) {
+      heliKeyTick = view.tick;
+      heliKeyVersion = view.helisVersion;
+      heliKeyFactory = factory;
+      heliKeySeat = seat;
       heliCache = heliPanelInfo(view, seat, factory);
     }
     return heliCache;
@@ -876,6 +895,9 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     const mission = missionWatcher.update(session.view, session.view.helisVersion, L);
     if ((mission & MISSION_LANDED) !== 0) showToast('toast.heli.landed', {}, 'info');
     if ((mission & MISSION_LOST) !== 0) showToast('toast.heli.lost', {}, 'warn');
+    const beach = beachWatcher.update(session.view, session.view.beachheadsVersion, L);
+    if ((beach & BEACH_REVERTED) !== 0) showToast('toast.beach.reverted', {}, 'warn');
+    if ((beach & BEACH_ESTABLISHED) !== 0) showToast('toast.beach.established', {}, 'info');
     // M18c-2: the proposals (cards and toasts) and the open panel; all write only when something changed
     diploWatcher?.update(session.view, L);
     if (buildBarWanted) {
@@ -1400,6 +1422,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     const box = deployBox;
     const mode = createDeployMode(factory, {
       pickCell: cellAt,
+      cameraMoved: () => globe.rig.poseChanged(deployPose),
       hover: (c) => {
         deployHover = c === null ? -1 : c;
       },
@@ -1420,7 +1443,8 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
         deployPreviewer.clear();
         deployReq = null;
         deployRouteFor = null;
-        deployMarkerKey = '';
+        deployMarkerCell = -2;
+        deployMarkerState = -1;
         globe.deploy.setRoute(null, null, 0);
         globe.deploy.setMarker(-1, 0);
       },
@@ -1430,7 +1454,10 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   };
   let deployReq = null as PreviewRequest | null;
   let deployRouteFor = null as PreviewResult | null;
-  let deployMarkerKey = '';
+  let deployMarkerCell = -2;
+  let deployMarkerState = -1;
+  /** The camera numbers the deploy mode last picked at (`CameraRig.poseChanged`): a resting cursor under a resting camera is not picked again. */
+  const deployPose = new Float64Array(7).fill(Number.NaN);
   /** Once per frame while the mode is on: the wanted request, the throttled poll, the marker and the route. Allocates only when the cell or a slider moved. */
   const deployFrame = (sess: MatchSession): void => {
     const box = deployBox;
@@ -1450,9 +1477,9 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     deployPreviewer.poll(fxNow());
     const cur = deployPreviewer.current();
     const state = cur === null ? 0 : cur.reason === 0 ? 1 : 2;
-    const key = `${deployHover}:${state}`;
-    if (key !== deployMarkerKey) {
-      deployMarkerKey = key;
+    if (deployHover !== deployMarkerCell || state !== deployMarkerState) {
+      deployMarkerCell = deployHover;
+      deployMarkerState = state;
       globe.deploy.setMarker(deployHover, state);
     }
     if (deployHover < 0) {
@@ -1466,6 +1493,11 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     }
   };
   const heliRowsBuf: HeliRow[] = [];
+  let rowsTick = -1;
+  let rowsVersion = -1;
+  let rowsFactory = -2;
+  /** The one model object of the deploy block, rewritten in place each frame (Fix-4B: no literal per frame). */
+  const boxModel = { canOpen: false, openReason: 0, active: false, status: 'idle' as 'idle' | 'pending' | 'valid' | 'invalid', reason: 0, etaSeconds: 0, fuelCells: 0, exposedCells: 0 };
   /** The deploy block and the helicopter list in the Factory panel (only while a Factory is selected). */
   const deployBoxFrame = (sess: MatchSession, factory: number): void => {
     const box = deployBox;
@@ -1475,19 +1507,22 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     const pad = padHeliOf(v, L, factory);
     const cur = deployMode === null || deployHover < 0 ? null : deployPreviewer.current();
     const status = deployMode === null || deployHover < 0 ? 'idle' : cur === null ? 'pending' : cur.reason === 0 ? 'valid' : 'invalid';
-    box.update(
-      {
-        canOpen: pad >= 0 || deployMode !== null,
-        openReason: pad >= 0 ? 0 : REJECT_HELI_NO_PAD,
-        active: deployMode !== null,
-        status,
-        reason: cur === null ? 0 : cur.reason,
-        etaSeconds: cur === null ? 0 : cur.etaSeconds,
-        fuelCells: cur === null ? 0 : cur.fuelCells,
-        exposedCells: cur === null ? 0 : cur.exposedCells,
-      },
-      ownHeliRows(v, L, heliRowsBuf),
-    );
+    boxModel.canOpen = pad >= 0 || deployMode !== null;
+    boxModel.openReason = pad >= 0 ? 0 : REJECT_HELI_NO_PAD;
+    boxModel.active = deployMode !== null;
+    boxModel.status = status;
+    boxModel.reason = cur === null ? 0 : cur.reason;
+    boxModel.etaSeconds = cur === null ? 0 : cur.etaSeconds;
+    boxModel.fuelCells = cur === null ? 0 : cur.fuelCells;
+    boxModel.exposedCells = cur === null ? 0 : cur.exposedCells;
+    // the helicopter rows only change with the table or the tick (the Recall verdict is a function of both): ask again then, not every frame
+    if (v.tick !== rowsTick || v.helisVersion !== rowsVersion || factory !== rowsFactory) {
+      rowsTick = v.tick;
+      rowsVersion = v.helisVersion;
+      rowsFactory = factory;
+      ownHeliRows(v, L, heliRowsBuf);
+    }
+    box.update(boxModel, heliRowsBuf);
   };
   // Every game key is an entry of the registry (src/app/hotkeys.ts); the reserved keys are handed to the stack while a match is on (the setup screen and the menus own the keyboard before it).
   hotkeys.context = { matchOn: () => setupScreen === null && session !== null, modalOpen: keysBlockedByModal };
@@ -1875,6 +1910,17 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
         globe.helis.spinOverride = angle;
       },
       heliLayer: (on) => globe.helis.setEnabled(on),
+      beach: () => {
+        const rows: Array<{ slot: number; seed: number; landTick: number; cells: number; seconds: number }> = [];
+        if (session !== null) {
+          const b = session.view.beachheads;
+          for (let i = 0; i < b.capacity; i++) {
+            if (b.owner[i] !== session.localOwner) continue;
+            rows.push({ slot: i, seed: b.seed[i] as number, landTick: b.landTick[i] as number, cells: b.cellsOf(i), seconds: beachSecondsLeft(b.landTick[i] as number, session.view.tick) });
+          }
+        }
+        return { rows, ring: globe.structures.beachRingInfo() };
+      },
       deploy: () => {
         const cur = deployPreviewer.current();
         const layer = globe.deploy.info();

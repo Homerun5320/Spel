@@ -83,11 +83,27 @@ export function createDeployBox(parent: HTMLElement, actions: DeployBoxActions):
   parent.appendChild(root);
 
   let mode: 0 | 1 = 0;
-  let shown = '';
-  let listShown = '';
+  // what the block shows now, as numbers: a frame compares them one by one and builds no signature string (Fix-4B)
+  let dirty = true;
+  let sCanOpen = false;
+  let sOpenReason = -1;
+  let sActive = false;
+  let sStatus = '';
+  let sReason = -1;
+  let sEta = -1;
+  let sFuel = -1;
+  let sExposed = -1;
+  let sTroops = -1;
+  let sMode = -1;
+  let sLang = -1;
+  // the list: per row id, state, troops, fuel and the recall flag, flat; `lCount` rows
+  const LIST_FIELDS = 5;
+  const lastList = new Int32Array(LIST_FIELDS * 16);
+  let lCount = -1;
+  let lLang = -1;
   const setMode = (m: 0 | 1): void => {
     mode = m;
-    shown = ''; // redraw the pressed state at once
+    dirty = true; // redraw the pressed state at once
   };
   openBtn.addEventListener('click', () => {
     if (openBtn.getAttribute('aria-disabled') !== 'true') actions.open();
@@ -96,7 +112,7 @@ export function createDeployBox(parent: HTMLElement, actions: DeployBoxActions):
   lowBtn.addEventListener('click', () => setMode(0));
   highBtn.addEventListener('click', () => setMode(1));
   slider.addEventListener('input', () => {
-    shown = '';
+    dirty = true;
   });
   listRows.addEventListener('click', (e) => {
     const target = e.target as HTMLElement | null;
@@ -111,9 +127,20 @@ export function createDeployBox(parent: HTMLElement, actions: DeployBoxActions):
     mode: () => mode,
     update(m, rows): void {
       const troops = Math.max(1, Math.min(HELI_MAX_TROOPS, Math.round(Number(slider.value))));
-      const sig = [m.canOpen ? 1 : 0, m.openReason, m.active ? 1 : 0, m.status, m.reason, m.etaSeconds, m.fuelCells, m.exposedCells, troops, mode, languageVersion()].join('|');
-      if (sig !== shown) {
-        shown = sig;
+      const lang = languageVersion();
+      if (dirty || m.canOpen !== sCanOpen || m.openReason !== sOpenReason || m.active !== sActive || m.status !== sStatus || m.reason !== sReason || m.etaSeconds !== sEta || m.fuelCells !== sFuel || m.exposedCells !== sExposed || troops !== sTroops || mode !== sMode || lang !== sLang) {
+        dirty = false;
+        sCanOpen = m.canOpen;
+        sOpenReason = m.openReason;
+        sActive = m.active;
+        sStatus = m.status;
+        sReason = m.reason;
+        sEta = m.etaSeconds;
+        sFuel = m.fuelCells;
+        sExposed = m.exposedCells;
+        sTroops = troops;
+        sMode = mode;
+        sLang = lang;
         openBtn.textContent = t('deploy.open');
         openBtn.dataset.reason = String(m.openReason);
         openBtn.dataset.active = m.active ? '1' : '0';
@@ -147,9 +174,24 @@ export function createDeployBox(parent: HTMLElement, actions: DeployBoxActions):
         info.dataset.fuel = String(m.fuelCells);
       }
       // the list of helicopters
-      const lsig = [languageVersion(), rows.map((r) => `${r.id},${r.state},${r.troops},${r.fuelPct},${r.canRecall ? 1 : 0}`).join(';')].join('|');
-      if (lsig !== listShown) {
-        listShown = lsig;
+      let listChanged = lang !== lLang || rows.length !== lCount || rows.length > 16;
+      for (let i = 0; !listChanged && i < rows.length; i++) {
+        const r = rows[i] as HeliRow;
+        const b = i * LIST_FIELDS;
+        listChanged = lastList[b] !== r.id || lastList[b + 1] !== r.state || lastList[b + 2] !== r.troops || lastList[b + 3] !== r.fuelPct || lastList[b + 4] !== (r.canRecall ? 1 : 0);
+      }
+      if (listChanged) {
+        lLang = lang;
+        lCount = rows.length;
+        for (let i = 0; i < rows.length && i < 16; i++) {
+          const r = rows[i] as HeliRow;
+          const b = i * LIST_FIELDS;
+          lastList[b] = r.id;
+          lastList[b + 1] = r.state;
+          lastList[b + 2] = r.troops;
+          lastList[b + 3] = r.fuelPct;
+          lastList[b + 4] = r.canRecall ? 1 : 0;
+        }
         list.hidden = rows.length === 0;
         listTitle.textContent = t('heli.list.title');
         listRows.textContent = '';

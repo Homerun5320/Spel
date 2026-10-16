@@ -37,7 +37,12 @@ export interface PreviewResult {
 /** Minimum clock seconds between two queries (5 Hz). */
 export const PREVIEW_MIN_INTERVAL_S = 0.2;
 
-/** The request as a string, to compare "is this answer still the wanted one". */
+/** Whether two requests ask the same thing (the four numbers; no string is built). */
+export function sameRequest(a: PreviewRequest, b: PreviewRequest): boolean {
+  return a.factory === b.factory && a.lzCell === b.lzCell && a.troops === b.troops && a.mode === b.mode;
+}
+
+/** The request as a string (kept for logs and tests; the previewer itself compares numbers). */
 export function requestKey(r: PreviewRequest): string {
   return `${r.factory}:${r.lzCell}:${r.troops}:${r.mode}`;
 }
@@ -71,12 +76,11 @@ export type PreviewStatus = 'idle' | 'pending' | 'ready';
 
 export class LaunchPreviewer {
   private wanted: PreviewRequest | null = null;
-  private wantedKey = '';
   private inflight = false;
-  private inflightKey = '';
   private lastSent = -Infinity;
   private result: PreviewResult | null = null;
-  private resultKey = '';
+  /** The request the held `result` answers (compared with the four numbers, never with a key string: nothing is built per frame). */
+  private resultReq: PreviewRequest | null = null;
   /** Bumped by `clear`, so an answer to a question asked before it is thrown away. */
   private epoch = 0;
   /** Queries sent so far (tests: the throttle). */
@@ -92,28 +96,25 @@ export class LaunchPreviewer {
   /** Says what is wanted now (the cell under the cursor, the sliders). Sends nothing by itself. */
   want(req: PreviewRequest | null): void {
     this.wanted = req;
-    this.wantedKey = req === null ? '' : requestKey(req);
   }
 
   /** Once per frame with the clock: sends the wanted request when none is out, the interval is over and the answer we hold is not already for it. */
   poll(now: number): void {
     const w = this.wanted;
-    if (w === null || this.inflight || this.wantedKey === this.resultKey || now - this.lastSent < this.minIntervalS) return;
+    if (w === null || this.inflight || (this.resultReq !== null && sameRequest(this.resultReq, w)) || now - this.lastSent < this.minIntervalS) return;
     this.inflight = true;
-    this.inflightKey = this.wantedKey;
     this.lastSent = now;
     this.sent++;
     const epoch = this.epoch;
-    const key = this.inflightKey;
     this.query(w).then(
       (res) => {
         this.inflight = false;
-        if (epoch !== this.epoch || key !== this.wantedKey) {
+        if (epoch !== this.epoch || this.wanted === null || !sameRequest(w, this.wanted)) {
           this.dropped++;
           return;
         }
         this.result = res;
-        this.resultKey = key;
+        this.resultReq = w;
       },
       () => {
         this.inflight = false; // a failed query is simply not an answer
@@ -123,7 +124,7 @@ export class LaunchPreviewer {
 
   /** The answer for the CURRENT wanted request, or null while it is pending (an answer for an earlier request is never returned). */
   current(): PreviewResult | null {
-    return this.result !== null && this.resultKey === this.wantedKey && this.wantedKey !== '' ? this.result : null;
+    return this.result !== null && this.resultReq !== null && this.wanted !== null && sameRequest(this.resultReq, this.wanted) ? this.result : null;
   }
 
   status(): PreviewStatus {
@@ -135,9 +136,8 @@ export class LaunchPreviewer {
   clear(): void {
     this.epoch++;
     this.wanted = null;
-    this.wantedKey = '';
     this.result = null;
-    this.resultKey = '';
+    this.resultReq = null;
     this.lastSent = -Infinity; // `inflight` stays: a query still out is the one outstanding query
   }
 }

@@ -118,3 +118,24 @@ describe('helicopter layer', () => {
     expect(l.drawn().find((d) => d.id === 3)?.yaw).toBeCloseTo(0, 6);
   });
 });
+
+describe('Fix-4B: the list of drawn helicopters is made only on request', () => {
+  it('with `recordDrawn` off the layer draws the same instances but keeps no list (no garbage per table version); with it on (the default, test mode) the list is there', () => {
+    const view = fixture();
+    const on = layer(view);
+    expect(on.recordDrawn).toBe(true);
+    expect(on.drawn().length).toBeGreaterThan(5);
+    const off = new HeliLayer({ gridWidth: W, gridHeight: H, sun: new Vector3(1, 0, 0) });
+    off.recordDrawn = false;
+    off.setOwnerPalette(new Uint8Array(16 * 4).fill(200));
+    off.setTable(view, 1);
+    off.frame([0, 0, 3], 0);
+    expect(off.drawn().length).toBe(0);
+    expect(off.count).toBe(on.count); // the instances are the same
+    expect(off.count).toBeGreaterThan(5);
+    off.recordDrawn = true;
+    off.setTable(view, 2);
+    off.frame([0, 0, 3], 0);
+    expect(off.drawn().length).toBe(on.drawn().length);
+  });
+});
