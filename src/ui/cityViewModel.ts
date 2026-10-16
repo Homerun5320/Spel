@@ -3,8 +3,6 @@
 // runs); nothing here is a balance value. `citySignature` is the cheap per-frame part: it writes the numbers the panel shows into a reused
 // Int32Array, so the panel rebuilds its texts only when the signature changed (no allocation in the frame loop).
 import {
-  CAP_CITY_LEVEL_TROOPS,
-  CITY_GOLD_MILLI_PER_SEC_PER_LEVEL,
   DISTRICT_BARRACKS,
   DISTRICT_BUILD_TICKS,
   DISTRICT_HOUSING,
@@ -27,15 +25,18 @@ import {
   REJECT_STRUCT_MAX_LEVEL,
   REJECT_STRUCT_NOT_OWNER,
   STRUCT_CITY,
-  STRUCT_MAX_LEVEL,
   TICK_HZ,
+  cityGoldMilli,
+  cityTroopCap,
   districtBuildPriceGold,
   districtEffect,
   districtIndex,
   districtSlotsOf,
   districtUpgradePriceGold,
+  maxLevelOf,
   seatToOwner,
   upgradePriceGold,
+  upgradeTicksOf,
   validateBuildDistrict,
   validateRemoveDistrict,
   validateUpgradeDistrict,
@@ -169,6 +170,8 @@ export interface CityInfo {
   readonly finished: boolean;
   readonly upgrading: boolean;
   readonly upgradePrice: number;
+  /** Seconds the upgrade to the next level takes (the sim's `upgradeTicksOf`), 0 at the top level. */
+  readonly upgradeSeconds: number;
   readonly upgradeReason: number;
   readonly totals: CityTotals;
   readonly tiles: readonly TileInfo[];
@@ -240,8 +243,8 @@ export function tileInfo(view: SimView, seat: number, id: number, slot: number):
 export function cityTotals(view: SimView, id: number): CityTotals {
   const s = view.structures;
   const level = s.level[id] as number;
-  let gold = CITY_GOLD_MILLI_PER_SEC_PER_LEVEL * level;
-  let cap = CAP_CITY_LEVEL_TROOPS * level;
+  let gold = cityGoldMilli(level);
+  let cap = cityTroopCap(level);
   let regen = 0;
   let walls = 100;
   const slots = Math.min(DISTRICT_MAX_SLOTS, districtSlotsOf(level));
@@ -274,7 +277,8 @@ export function cityInfo(view: SimView, seat: number, id: number): CityInfo | nu
     owned: s.owner[id] === seatToOwner(seat),
     finished: view.tick >= (s.readyTick[id] as number),
     upgrading: (s.upgradeReadyTick[id] as number) !== 0,
-    upgradePrice: level >= STRUCT_MAX_LEVEL ? 0 : upgradePriceGold(STRUCT_CITY, level + 1),
+    upgradePrice: level >= maxLevelOf(STRUCT_CITY) ? 0 : upgradePriceGold(STRUCT_CITY, level + 1),
+    upgradeSeconds: level >= maxLevelOf(STRUCT_CITY) ? 0 : upgradeTicksOf(STRUCT_CITY, level + 1) / TICK_HZ,
     upgradeReason: phaseFirst(view, upgradeReason),
     totals: cityTotals(view, id),
     tiles,

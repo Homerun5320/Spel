@@ -3,7 +3,7 @@
 // intents. Every frame `update` computes the cheap numeric signature of `cityViewModel.ts` and rebuilds texts and attributes ONLY when it changed
 // (no innerHTML, no allocation while nothing changes). Icons are inline SVG built in code.
 import { fxNow } from '../render/clock';
-import { DISTRICT_MAX_LEVEL, DISTRICT_MAX_SLOTS, STRUCT_MAX_LEVEL, type SimView } from '../sim/public';
+import { DISTRICT_MAX_LEVEL, DISTRICT_MAX_SLOTS, STRUCT_CITY, maxLevelOf, type SimView } from '../sim/public';
 import {
   CITY_SIG_MAX,
   DISTRICT_KINDS,
@@ -290,13 +290,13 @@ export function createCityViewPanel(parent: HTMLElement, actions: CityViewAction
     root.dataset.id = String(id);
     root.dataset.level = String(info.level);
     root.setAttribute('aria-label', t('sel.city.panel'));
-    title.textContent = t('sel.city.title', { level: info.level, max: STRUCT_MAX_LEVEL });
+    title.textContent = t('sel.city.title', { level: info.level, max: maxLevelOf(STRUCT_CITY) });
     close.textContent = t('sel.city.close');
     close.title = t('sel.city.close');
     upCity.textContent = info.upgradePrice > 0 ? t('sel.city.upgrade', { price: info.upgradePrice }) : t('sel.city.upgradeMax');
     upCity.dataset.price = String(info.upgradePrice);
     upCity.dataset.reason = String(info.upgradeReason);
-    setDimmed(upCity, info.upgradeReason !== 0, info.upgradeReason !== 0 ? t(districtWhyKey(info.upgradeReason)) : t('sel.city.upgradeTip', { level: info.level + 1, price: info.upgradePrice }));
+    setDimmed(upCity, info.upgradeReason !== 0, info.upgradeReason !== 0 ? t(districtWhyKey(info.upgradeReason)) : t('sel.city.upgradeTip', { level: info.level + 1, price: info.upgradePrice, seconds: info.upgradeSeconds }));
     cityState.hidden = info.finished && !info.upgrading;
     cityState.textContent = !info.finished ? t('sel.city.stateBuilding') : info.upgrading ? t('sel.city.stateUpgrading') : '';
     const tt = info.totals;

@@ -1,7 +1,8 @@
 // Districts-2b: the district models (triangle counts, bounds, owner tint), the slot placement, the distance cut and the per-layer triangle budget.
 import { Vector3 } from 'three';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { DISTRICT_FADE_PX_HI, DISTRICT_FADE_PX_LO, DISTRICT_MODEL_UNIT, DISTRICT_RING_R, DISTRICT_TRIANGLE_BUDGET } from '../../src/render/config';
+import { DISTRICT_FADE_PX_HI, DISTRICT_FADE_PX_LO, DISTRICT_MODEL_UNIT, DISTRICT_RING_R, DISTRICT_SLOT_ANGLES, DISTRICT_TRIANGLE_BUDGET } from '../../src/render/config';
+import { levelScale } from '../../src/render/cityTiers';
 import { bindHeightSource } from '../../src/render/detail';
 import { latLonToVec } from '../../src/render/geo';
 import { DistrictLayer } from '../../src/render/districts';
@@ -20,10 +21,12 @@ import {
   DISTRICT_BARRACKS,
   DISTRICT_HOUSING,
   DISTRICT_MARKET,
+  DISTRICT_MAX_SLOTS,
   DISTRICT_WALLS,
   STRUCT_CITY,
   districtIndex,
   districtSlotsOf,
+  maxLevelOf,
   type DistrictView,
   type StructureView,
 } from '../../src/sim/public';
@@ -71,34 +74,64 @@ describe('the district models', () => {
 });
 
 describe('slot placement', () => {
-  it('uses the first 2 / 3 / 4 fixed slots of the City level, on the ring, and follows the City yaw', () => {
-    expect(districtSlotsOf(1)).toBe(2);
-    expect(districtSlotsOf(3)).toBe(4);
+  it('uses the first 2 / 3 / 4 / 5 fixed slots of the City level, on the ring, and follows the City yaw', () => {
+    // Sim-Growth: 2 slots at levels 1 to 2, 3 at 3 to 5, 4 at 6 to 8, 5 at 9 to 10
+    expect([1, 2, 3, 5, 6, 8, 9, 10].map(districtSlotsOf)).toEqual([2, 2, 3, 3, 4, 4, 5, 5]);
+    expect(districtSlotsOf(maxLevelOf(STRUCT_CITY))).toBe(DISTRICT_MAX_SLOTS);
+    expect(DISTRICT_SLOT_ANGLES.length).toBe(DISTRICT_MAX_SLOTS);
     expect(districtSlotOffsetM(1, 2, 0, 700)).toBeNull();
     expect(districtSlotOffsetM(3, 2, 0, 700)).not.toBeNull();
-    for (let s = 0; s < 4; s++) {
+    expect(districtSlotOffsetM(3, 3, 0, 700)).toBeNull();
+    expect(districtSlotOffsetM(6, 3, 0, 700)).not.toBeNull();
+    expect(districtSlotOffsetM(6, 4, 0, 700)).toBeNull();
+    for (let s = 0; s < DISTRICT_MAX_SLOTS; s++) {
+      expect(districtSlotOffsetM(9, s, 0, 700)).not.toBeNull();
       const o = districtSlotModelOffset(s);
       expect(Math.hypot(o.x, o.z)).toBeCloseTo(DISTRICT_RING_R, 9);
     }
-    // a slot does not move when the City levels up (level 1 and 3 have the same unit, level 3 is 1.5 x larger)
+    expect(districtSlotOffsetM(10, DISTRICT_MAX_SLOTS, 0, 700)).toBeNull();
+    // a slot does not move when the City levels up (only the City's unit grows: level 10 is 1.5 x level 1, level 3 a small step)
     const a = districtSlotOffsetM(1, 0, 0, 700) as { east: number; north: number };
     const b = districtSlotOffsetM(3, 0, 0, 700) as { east: number; north: number };
-    expect(b.east / a.east).toBeCloseTo(1.5, 9);
-    expect(b.north / a.north).toBeCloseTo(1.5, 9);
+    const c = districtSlotOffsetM(10, 0, 0, 700) as { east: number; north: number };
+    expect(b.east / a.east).toBeCloseTo(levelScale(3) / levelScale(1), 9);
+    expect(b.north / a.north).toBeCloseTo(levelScale(3) / levelScale(1), 9);
+    expect(levelScale(3) / levelScale(1)).toBeGreaterThan(1);
+    expect(c.east / a.east).toBeCloseTo(1.5, 9);
+    expect(c.north / a.north).toBeCloseTo(1.5, 9);
     // the City's yaw turns the whole ring: the distance to the centre is kept, the direction turns by the yaw
     const yaw = 0.9;
-    const r0 = districtSlotOffsetM(2, 1, 0, 700) as { east: number; north: number };
-    const r1 = districtSlotOffsetM(2, 1, yaw, 700) as { east: number; north: number };
-    expect(Math.hypot(r1.east, r1.north)).toBeCloseTo(Math.hypot(r0.east, r0.north), 6);
-    const turn = Math.atan2(r1.north, r1.east) - Math.atan2(r0.north, r0.east);
-    expect(Math.cos(turn)).toBeCloseTo(Math.cos(yaw), 9);
-    expect(Math.sin(turn)).toBeCloseTo(Math.sin(yaw), 9);
-    // slots are apart from each other by more than a district is wide (no overlap)
-    for (let s = 1; s < 4; s++) {
-      const p = districtSlotModelOffset(0);
-      const q = districtSlotModelOffset(s);
-      expect(Math.hypot(p.x - q.x, p.z - q.z)).toBeGreaterThan(2 * DISTRICT_MODEL_UNIT * 1.4);
+    for (const slot of [1, 4]) {
+      const r0 = districtSlotOffsetM(10, slot, 0, 700) as { east: number; north: number };
+      const r1 = districtSlotOffsetM(10, slot, yaw, 700) as { east: number; north: number };
+      expect(Math.hypot(r1.east, r1.north)).toBeCloseTo(Math.hypot(r0.east, r0.north), 6);
+      const turn = Math.atan2(r1.north, r1.east) - Math.atan2(r0.north, r0.east);
+      expect(Math.cos(turn)).toBeCloseTo(Math.cos(yaw), 9);
+      expect(Math.sin(turn)).toBeCloseTo(Math.sin(yaw), 9);
     }
+    // slots are apart from each other by more than a district is wide (no overlap), for EVERY pair of the five
+    for (let s = 0; s < DISTRICT_MAX_SLOTS; s++) {
+      for (let q = s + 1; q < DISTRICT_MAX_SLOTS; q++) {
+        const p = districtSlotModelOffset(s);
+        const r = districtSlotModelOffset(q);
+        expect(Math.hypot(p.x - r.x, p.z - r.z)).toBeGreaterThan(2 * DISTRICT_MODEL_UNIT * 1.4);
+      }
+    }
+  });
+
+  it('the slot sets spread round the City: the largest empty arc is at most 144 degrees with 3 or more slots and 216 degrees with 2', () => {
+    const arc = (n: number): number => {
+      const angles = DISTRICT_SLOT_ANGLES.slice(0, n)
+        .map((x) => ((x % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI))
+        .sort((x, y) => x - y);
+      let gap = 0;
+      for (let i = 0; i < n; i++) gap = Math.max(gap, ((angles[(i + 1) % n] as number) - (angles[i] as number) + 2 * Math.PI) % (2 * Math.PI) || 2 * Math.PI);
+      return (gap * 180) / Math.PI;
+    };
+    expect(arc(2)).toBeCloseTo(216, 6);
+    expect(arc(3)).toBeCloseTo(144, 6);
+    expect(arc(4)).toBeCloseTo(144, 6);
+    expect(arc(5)).toBeCloseTo(72, 6);
   });
 });
 
@@ -121,7 +154,7 @@ describe('the distance cut', () => {
   });
 });
 
-/** `cities` Cities of level 3 with four districts each (kinds cycling), owner 1. */
+/** `cities` Cities of level 6 (four slots) with four districts each (kinds cycling), owner 1. */
 function tables(cities: number): { st: StructureView; ds: DistrictView } {
   const cells = Array.from({ length: cities }, (_, i) => (200 + (i % 40) * 7) * W + 300 + Math.floor(i / 40) * 11);
   const st: StructureView = {
@@ -131,7 +164,7 @@ function tables(cities: number): { st: StructureView; ds: DistrictView } {
     type: cells.map(() => STRUCT_CITY),
     owner: cells.map(() => 1),
     cell: cells,
-    level: cells.map(() => 3),
+    level: cells.map(() => 6),
     buildTick: cells.map(() => 0),
     readyTick: cells.map(() => 0),
     upgradeReadyTick: cells.map(() => 0),
@@ -139,15 +172,15 @@ function tables(cities: number): { st: StructureView; ds: DistrictView } {
     ownedCount: () => 0,
     deleteReadyTick: () => 0,
   };
-  const kind = new Uint8Array(cities * 4);
-  const level = new Uint8Array(cities * 4);
+  const kind = new Uint8Array(cities * DISTRICT_MAX_SLOTS);
+  const level = new Uint8Array(cities * DISTRICT_MAX_SLOTS);
   for (let id = 0; id < cities; id++) {
     for (let s = 0; s < 4; s++) {
       kind[districtIndex(id, s)] = KINDS[(id + s) % 4] as number;
       level[districtIndex(id, s)] = 1 + (s % 3);
     }
   }
-  const ds: DistrictView = { districtKind: kind, districtLevel: level, districtReadyTick: new Uint32Array(cities * 4), districtUpgradeReadyTick: new Uint32Array(cities * 4), districtsOwned: () => 0 };
+  const ds: DistrictView = { districtKind: kind, districtLevel: level, districtReadyTick: new Uint32Array(cities * DISTRICT_MAX_SLOTS), districtUpgradeReadyTick: new Uint32Array(cities * DISTRICT_MAX_SLOTS), districtsOwned: () => 0 };
   return { st, ds };
 }
 
@@ -175,9 +208,9 @@ describe('the district layer', () => {
     expect(big.trianglesDrawn).toBeLessThanOrEqual(DISTRICT_TRIANGLE_BUDGET.test);
     expect(big.total() + big.dropped).toBe(400);
     expect(big.dropped).toBeGreaterThan(0);
-    const ids = big.instances().map((d) => d.structure * 4 + d.slot);
+    const ids = big.instances().map((d) => d.structure * DISTRICT_MAX_SLOTS + d.slot);
     expect(ids).toEqual([...ids].sort((a, b) => a - b)); // the highest ids are the ones left out
-    expect(layerWith(100).instances().map((d) => d.structure * 4 + d.slot)).toEqual(ids);
+    expect(layerWith(100).instances().map((d) => d.structure * DISTRICT_MAX_SLOTS + d.slot)).toEqual(ids);
   });
 
   it('draws nothing when empty and nothing when the camera is beyond the cut distance; draws when close', () => {

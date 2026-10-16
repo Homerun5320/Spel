@@ -5,7 +5,6 @@ import { describe, expect, it } from 'vitest';
 import { withId } from '../../src/sim/intents';
 import {
   CAP_CITY_LEVEL_TROOPS,
-  CITY_GOLD_MILLI_PER_SEC_PER_LEVEL,
   DELETE_COOLDOWN_TICKS,
   FACTORY_CITY_BONUS_PCT_BY_LEVEL,
   FACTORY_GOLD_MILLI_BY_LEVEL,
@@ -27,8 +26,13 @@ import {
   STRUCT_POST,
   STRUCT_SAM,
   STRUCT_SILO,
+  TICK_HZ,
+  cityGoldMilli,
+  cityTroopCap,
+  maxLevelOf,
   samRadiusCells,
   upgradePriceGold,
+  upgradeTicksOf,
 } from '../../src/sim/public';
 import { BUILD_TICKS, MILLI_GOLD_PER_GOLD } from '../../src/sim/rules';
 import { createState, rebuildAggregates, type GameState } from '../../src/sim/state';
@@ -75,10 +79,15 @@ describe('effectLines: the numbers of the structure\'s own level, from the sim t
     expect(PORT_GOLD_MILLI_BY_LEVEL[2]).toBe(4500);
   });
 
-  it('City: gold and troop cap scale with the level (thousands grouped)', () => {
+  it('City: gold and troop cap follow the sim per level, levels 1 to 10 (thousands grouped)', () => {
     expect(effectLines(STRUCT_CITY, 1)[0]?.params).toEqual({ gold: '1,5', troops: formatInt(CAP_CITY_LEVEL_TROOPS) });
-    expect(effectLines(STRUCT_CITY, 3)[0]?.params.gold).toBe(String((CITY_GOLD_MILLI_PER_SEC_PER_LEVEL * 3) / 1000).replace('.', ','));
-    expect(effectLines(STRUCT_CITY, 3)[0]?.params.troops).toBe(formatInt(CAP_CITY_LEVEL_TROOPS * 3));
+    for (const level of [2, 3, 5, maxLevelOf(STRUCT_CITY)]) {
+      expect(effectLines(STRUCT_CITY, level)[0]?.params.gold).toBe(String(cityGoldMilli(level) / 1000).replace('.', ','));
+      expect(effectLines(STRUCT_CITY, level)[0]?.params.troops).toBe(formatInt(cityTroopCap(level)));
+    }
+    // Sim-Growth pins: +0.5 gold/s and +250 troops per level (level 3: 2,5 and 1 300; level 10: 6 and 3 050)
+    expect(effectLines(STRUCT_CITY, 3)[0]?.params).toEqual({ gold: '2,5', troops: formatInt(1300) });
+    expect(effectLines(STRUCT_CITY, 10)[0]?.params).toEqual({ gold: '6', troops: formatInt(3050) });
   });
 
   it('the Silo has no function yet (no radius, not the SAM text); the SAM takes its mountain percent from the sim; the Post says 2,5 times', () => {
@@ -153,6 +162,26 @@ describe('selectionInfo', () => {
     idle(s, (BUILD_TICKS[STRUCT_FACTORY] as number) + 1);
     info = selectionInfo(new StateView(s), 0, id);
     expect([info?.level, info?.upgradePrice, info?.upgradeReason]).toEqual([3, 0, REJECT_STRUCT_MAX_LEVEL]);
+  });
+
+  it('a City climbs to level 10: the price of the next level is the sim\'s, 0 only at the top; the other types stop at level 3', () => {
+    const s = world();
+    const city = s.structures.add(STRUCT_CITY, 1, at(10, 10), 0);
+    s.structures.readyTick[city] = 0;
+    for (const level of [1, 3, 5, 9]) {
+      s.structures.level[city] = level;
+      const info = selectionInfo(new StateView(s), 0, city);
+      expect(info?.upgradePrice).toBe(upgradePriceGold(STRUCT_CITY, level + 1));
+      expect(info?.upgradeSeconds).toBe(upgradeTicksOf(STRUCT_CITY, level + 1) / TICK_HZ);
+      expect(info?.upgradeSeconds).toBeGreaterThan(0);
+    }
+    s.structures.level[city] = maxLevelOf(STRUCT_CITY);
+    const top = selectionInfo(new StateView(s), 0, city);
+    expect([top?.level, top?.upgradePrice, top?.upgradeSeconds, top?.upgradeReason]).toEqual([10, 0, 0, REJECT_STRUCT_MAX_LEVEL]);
+    const port = s.structures.add(STRUCT_PORT, 1, at(20, 10), 0);
+    s.structures.readyTick[port] = 0;
+    s.structures.level[port] = maxLevelOf(STRUCT_PORT);
+    expect(selectionInfo(new StateView(s), 0, port)?.upgradePrice).toBe(0);
   });
 
   it('somebody else\'s structure: not owned, not-owner reasons; a gone or out-of-range id gives null', () => {

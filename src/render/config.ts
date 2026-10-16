@@ -463,9 +463,14 @@ export const NIGHT_LIGHT_SUN_DOT = 0.05;
 export const DISTRICT_TRIANGLE_BUDGET: Record<'test' | 'low' | 'medium' | 'high', number> = { test: 9000, low: 18000, medium: 36000, high: 72000 };
 /** Size factor of a district by level (index = level; 0 unused). */
 export const DISTRICT_LEVEL_SCALE: readonly number[] = [0, 1.0, 1.2, 1.4];
-/** The slots stand on a ring of this radius in City model units (the City's rim is at 1.0), at these angles (radians, model +x = 0); a City of level L uses the first 2 / 3 / 4. Fixed, so a district never moves when the City levels up. */
+/**
+ * The slots stand on a ring of this radius in City model units (the City's rim is at 1.0), at these angles (radians, model +x = 0); a City of level L uses the
+ * first `districtSlotsOf(L)` of them (2 / 3 / 4 / 5, DISTRICT_MAX_SLOTS entries). Fixed, so a district never moves when the City levels up. Integration
+ * Sim-Growth + Look-1: the five slots are the corners of a regular pentagon taken in star order (every second corner, 144 degrees apart), so that 2, 3, 4 and 5
+ * slots each spread round the City (gaps 144 / 72 + 144 + 144 / 72 + 72 + 72 + 144 / 72 x 5 degrees) and neighbouring slots are 2 x 1.55 x sin 36 = 1.82 units apart.
+ */
 export const DISTRICT_RING_R = 1.55;
-export const DISTRICT_SLOT_ANGLES: readonly number[] = [Math.PI / 4, (3 * Math.PI) / 4, (5 * Math.PI) / 4, (7 * Math.PI) / 4];
+export const DISTRICT_SLOT_ANGLES: readonly number[] = [0, 1, 2, 3, 4].map((k) => (Math.PI / 4 + (k * 4 * Math.PI) / 5) % (2 * Math.PI));
 /** Radius of a district model (City model units) at level 1: the unit model is multiplied by this. */
 export const DISTRICT_MODEL_UNIT = 0.42;
 /** A district is drawn at its true size (no scale policy). Full above DISTRICT_FADE_PX_HI projected pixels of radius, gone below DISTRICT_FADE_PX_LO. */

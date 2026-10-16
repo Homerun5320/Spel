@@ -1,8 +1,6 @@
 // What the selection panel says about a structure (M10-4): pure functions over the snapshot and the sim's numbers. Every number comes from
 // `src/sim/public.ts` (the constants of rules.ts, the validators, the price functions); nothing here is a balance value.
 import {
-  CAP_CITY_LEVEL_TROOPS,
-  CITY_GOLD_MILLI_PER_SEC_PER_LEVEL,
   DELETE_COOLDOWN_TICKS,
   FACTORY_CITY_BONUS_PCT_BY_LEVEL,
   FACTORY_GOLD_MILLI_BY_LEVEL,
@@ -21,15 +19,18 @@ import {
   REJECT_STRUCT_NOT_OWNER,
   STRUCT_CITY,
   STRUCT_FACTORY,
-  STRUCT_MAX_LEVEL,
   STRUCT_PORT,
   STRUCT_POST,
   STRUCT_SAM,
   STRUCT_SILO,
   TICK_HZ,
+  cityGoldMilli,
+  cityTroopCap,
+  maxLevelOf,
   samRadiusCells,
   seatToOwner,
   upgradePriceGold,
+  upgradeTicksOf,
   validateDelete,
   validateUpgrade,
   type SimView,
@@ -65,7 +66,7 @@ export function rangeRingCells(type: number, level: number, onMountain: boolean)
 export function effectLines(type: number, level: number, onMountain = false): EffectLine[] {
   switch (type) {
     case STRUCT_CITY:
-      return [{ key: 'sel.fx.city', params: { gold: gold(CITY_GOLD_MILLI_PER_SEC_PER_LEVEL * level), troops: formatInt(CAP_CITY_LEVEL_TROOPS * level) } }];
+      return [{ key: 'sel.fx.city', params: { gold: gold(cityGoldMilli(level)), troops: formatInt(cityTroopCap(level)) } }];
     case STRUCT_FACTORY:
       return [
         {
@@ -115,6 +116,8 @@ export interface SelectionInfo {
   readonly upgrading: boolean;
   /** Price in gold of the next level, 0 at the top level. */
   readonly upgradePrice: number;
+  /** Seconds the upgrade to the next level takes (the sim's `upgradeTicksOf`), 0 at the top level. */
+  readonly upgradeSeconds: number;
   readonly upgradeReason: number;
   readonly deleteReason: number;
   /** Seconds until the seat may Delete again (0 = now). */
@@ -143,7 +146,8 @@ export function selectionInfo(view: SimView, seat: number, id: number): Selectio
     owned: s.owner[id] === owner,
     finished: view.tick >= (s.readyTick[id] as number),
     upgrading: (s.upgradeReadyTick[id] as number) !== 0,
-    upgradePrice: level >= STRUCT_MAX_LEVEL ? 0 : upgradePriceGold(type, level + 1),
+    upgradePrice: level >= maxLevelOf(type) ? 0 : upgradePriceGold(type, level + 1),
+    upgradeSeconds: level >= maxLevelOf(type) ? 0 : upgradeTicksOf(type, level + 1) / TICK_HZ,
     upgradeReason: phaseFirst(view, validateUpgrade(view, seat, id)),
     deleteReason: phaseFirst(view, validateDelete(view, seat, id)),
     deleteSeconds: Math.ceil(wait / TICK_HZ),

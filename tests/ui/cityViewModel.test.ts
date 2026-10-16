@@ -18,8 +18,14 @@ import {
   REJECT_DISTRICT_SLOT,
   REJECT_NONE,
   REJECT_STRUCT_MAX_LEVEL,
+  DISTRICT_MAX_SLOTS,
+  cityGoldMilli,
+  cityTroopCap,
   districtBuildPriceGold,
   districtEffect,
+  districtSlotsOf,
+  maxLevelOf,
+  upgradePriceGold,
 } from '../../src/sim/public';
 import { REJECT_PHASE } from '../../src/sim/intents';
 import { PHASE_SPAWN } from '../../src/sim/flow';
@@ -45,7 +51,7 @@ import {
   removeClick,
   tileInfo,
 } from '../../src/ui/cityViewModel';
-import { t } from '../../src/ui/i18n';
+import { formatFixed, t } from '../../src/ui/i18n';
 import { DELETE_ARM_MS } from '../../src/ui/structureInfo';
 import { CITY_VIEW } from '../../src/ui/uiConfig';
 
@@ -71,16 +77,21 @@ const viewOf = (s: GameState): StateView => new StateView(s);
 const purse = (s: GameState, gold: number): void => void (s.gold[1] = gold * GOLD);
 
 describe('cityInfo: the tiles of a City', () => {
-  it('2 / 3 / 4 tiles by the City level; null for a missing id and for a structure that is not a City', () => {
+  it('2 / 3 / 4 / 5 tiles by the City level (Sim-Growth: levels 1 to 10); null for a missing id and for a structure that is not a City', () => {
     const s = world();
-    const a = city(s, 1, 100, 1);
-    const b = city(s, 1, 120, 2);
-    const c = city(s, 1, 140, 3);
+    const levels = [1, 2, 3, 6, 9, maxLevelOf(STRUCT_CITY)];
+    const ids = levels.map((level, n) => city(s, 1, 100 + 20 * n, level));
     const v = viewOf(s);
-    expect([a, b, c].map((id) => cityInfo(v, 0, id)?.tiles.length)).toEqual([2, 3, 4]);
+    expect(ids.map((id) => cityInfo(v, 0, id)?.tiles.length)).toEqual([2, 2, 3, 4, 5, 5]);
+    expect(ids.map((id) => cityInfo(v, 0, id)?.tiles.length)).toEqual(levels.map(districtSlotsOf));
+    expect(Math.max(...levels.map(districtSlotsOf))).toBe(DISTRICT_MAX_SLOTS);
+    // the top level shows no further upgrade, a lower one the sim's price of the next level
+    expect(cityInfo(v, 0, ids[5] as number)?.upgradePrice).toBe(0);
+    expect(cityInfo(v, 0, ids[0] as number)?.upgradePrice).toBe(upgradePriceGold(STRUCT_CITY, 2));
+    expect(cityInfo(v, 0, ids[4] as number)?.upgradePrice).toBe(upgradePriceGold(STRUCT_CITY, 10));
     expect(cityInfo(v, 0, 99)).toBeNull();
     expect(cityInfo(v, 0, -1)).toBeNull();
-    const f = s.structures.add(2, 1, at(160), 0); // a Factory
+    const f = s.structures.add(2, 1, at(240), 0); // a Factory
     expect(cityInfo(viewOf(s), 0, f)).toBeNull();
   });
 
@@ -136,9 +147,10 @@ describe('cityInfo: the tiles of a City', () => {
     s.tick += total;
     tile = tileInfo(viewOf(s), 0, id, 0);
     expect(tile.state).toBe('ready');
-    expect(tile.fxNow).toEqual({ key: 'sel.district.fxMarket', params: { gold: '0,4' } });
-    expect(districtEffect(DISTRICT_MARKET, 1).goldMilliPerSec).toBe(400);
-    expect(tile.fxNext?.params.gold).toBe('1,3');
+    const tenths = (level: number): string => formatFixed(districtEffect(DISTRICT_MARKET, level).goldMilliPerSec / 1000, 1);
+    expect(tile.fxNow).toEqual({ key: 'sel.district.fxMarket', params: { gold: tenths(1) } });
+    expect(districtEffect(DISTRICT_MARKET, 1).goldMilliPerSec).toBe(300); // Sim-Growth: the lowered Market table 0.3 / 0.7 / 1.1 gold/s
+    expect(tile.fxNext?.params.gold).toBe(tenths(2));
     expect(tile.upgradeReason).toBe(REJECT_NONE);
     expect(tile.removeReason).toBe(REJECT_NONE);
     expect(applyUpgradeDistrict(s, 0, id, 0)).toBe(REJECT_NONE);
@@ -157,20 +169,23 @@ describe('cityInfo: the tiles of a City', () => {
 
   it('the totals of the City equal the sim\'s own income, troop cap and the other effects of its FINISHED districts only', () => {
     const s = world();
-    const id = city(s, 1, 100, 3);
+    const level = 6; // four slots (Sim-Growth: a level 3 City has three)
+    const id = city(s, 1, 100, level);
     purse(s, 100000);
     applyBuildDistrict(s, 0, id, 0, DISTRICT_MARKET);
     applyBuildDistrict(s, 0, id, 1, DISTRICT_HOUSING);
     applyBuildDistrict(s, 0, id, 2, DISTRICT_BARRACKS);
     applyBuildDistrict(s, 0, id, 3, DISTRICT_WALLS);
     const before = cityInfo(viewOf(s), 0, id)?.totals;
-    expect(before).toEqual({ goldMilliPerSec: 4500, capTroops: 2400, regenPct: 0, wallsCostPct: 100 }); // the City alone (level 3); nothing finished
+    expect(before).toEqual({ goldMilliPerSec: cityGoldMilli(level), capTroops: cityTroopCap(level), regenPct: 0, wallsCostPct: 100 }); // the City alone; nothing finished
+    expect(before?.goldMilliPerSec).toBe(4000);
+    expect(before?.capTroops).toBe(2050);
     s.tick += 200;
     s.structures.effDirty = true;
     const done = cityInfo(viewOf(s), 0, id)?.totals;
     expect(done).toEqual({
-      goldMilliPerSec: 4500 + districtEffect(DISTRICT_MARKET, 1).goldMilliPerSec,
-      capTroops: 2400 + districtEffect(DISTRICT_HOUSING, 1).capTroops,
+      goldMilliPerSec: cityGoldMilli(level) + districtEffect(DISTRICT_MARKET, 1).goldMilliPerSec,
+      capTroops: cityTroopCap(level) + districtEffect(DISTRICT_HOUSING, 1).capTroops,
       regenPct: districtEffect(DISTRICT_BARRACKS, 1).regenPct,
       wallsCostPct: districtEffect(DISTRICT_WALLS, 1).wallsCostPct,
     });
@@ -218,7 +233,7 @@ describe('the two-step Remove', () => {
     expect(removeClick(r1.arm, 7, 2, 1000 + DELETE_ARM_MS - 1)).toEqual({ send: true, arm: null });
     expect(removeClick(r1.arm, 7, 2, 1000 + DELETE_ARM_MS).send).toBe(false);
     expect(removeClick(r1.arm, 7, 3, 1500).send).toBe(false);
-    expect(new Set([0, 1, 2, 3].map((slot) => removeArmKey(5, slot))).size).toBe(4);
+    expect(new Set(Array.from({ length: DISTRICT_MAX_SLOTS }, (_, slot) => removeArmKey(5, slot))).size).toBe(DISTRICT_MAX_SLOTS);
   });
 });
 

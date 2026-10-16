@@ -28,7 +28,7 @@ attribute float aTint;
 attribute float aBand;     // Look-1: the first City band a vertex is drawn in (0 = always)
 attribute vec3 aHi;
 attribute vec3 aLo;
-attribute vec4 aParams;    // x: level scale, y: yaw (radians), z: fx time of appearing, w: level (1..3; the City lights follow it)
+attribute vec4 aParams;    // x: level scale, y: yaw (radians), z: fx time of appearing, w: level (1..10 for a City; the City lights follow it)
 attribute vec3 aOwner;     // owner colour, sRGB 0..1
 attribute vec2 aBuild;     // buildTick, readyTick
 

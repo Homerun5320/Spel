@@ -4,7 +4,7 @@
 import { fxNow } from '../render/clock';
 import { languageVersion, t } from './i18n';
 import { deleteArmed, deleteClick, deleteWhyKey, effectLines, structureNameKey, upgradeWhyKey, type DeleteArm, type SelectionInfo } from './structureInfo';
-import { STRUCT_CITY, STRUCT_MAX_LEVEL } from '../sim/public';
+import { STRUCT_CITY, maxLevelOf } from '../sim/public';
 
 export interface SelectionPanel {
   readonly root: HTMLElement;
@@ -77,7 +77,7 @@ export function createSelectionPanel(parent: HTMLElement, actions: { upgrade(id:
       root.dataset.level = String(info.level);
       root.setAttribute('aria-label', t('sel.panel'));
       name.textContent = t(structureNameKey(info.type));
-      level.textContent = `${t('sel.level', { level: info.level, max: STRUCT_MAX_LEVEL })} · ${t(info.owned ? 'sel.owner.you' : 'sel.owner.other')}`;
+      level.textContent = `${t('sel.level', { level: info.level, max: maxLevelOf(info.type) })} · ${t(info.owned ? 'sel.owner.you' : 'sel.owner.other')}`;
       state.textContent = info.upgrading ? t('sel.state.upgrading') : info.finished ? '' : t('sel.state.building');
       state.hidden = state.textContent === '';
       fx.textContent = effectLines(info.type, info.level, onMountain)
@@ -87,7 +87,7 @@ export function createSelectionPanel(parent: HTMLElement, actions: { upgrade(id:
       up.textContent = info.upgradePrice > 0 ? t('sel.upgrade', { price: info.upgradePrice }) : t('sel.upgradeMax');
       up.dataset.price = String(info.upgradePrice);
       up.dataset.reason = String(info.upgradeReason);
-      setDimmed(up, info.upgradeReason !== 0, info.upgradeReason !== 0 ? t(upgradeWhyKey(info.upgradeReason), { price: info.upgradePrice }) : t('sel.upgradeTip', { price: info.upgradePrice, level: info.level + 1 }));
+      setDimmed(up, info.upgradeReason !== 0, info.upgradeReason !== 0 ? t(upgradeWhyKey(info.upgradeReason), { price: info.upgradePrice }) : t('sel.upgradeTip', { price: info.upgradePrice, level: info.level + 1, seconds: info.upgradeSeconds }));
       // Delete
       del.textContent = armed ? t('sel.deleteConfirm') : t('sel.delete');
       del.dataset.armed = armed ? '1' : '0';

@@ -8,13 +8,12 @@
 // shader (shaders/structures.ts). Nothing here allocates per frame: `frame` sets uniforms; the buffers are rewritten only when the table, the
 // palette or the exaggeration changed.
 import { BufferAttribute, BufferGeometry, DoubleSide, DynamicDrawUsage, InstancedBufferAttribute, InstancedBufferGeometry, Mesh, ShaderMaterial, Vector3, Vector4 } from 'three';
-import { STRUCT_CITY, type StructureView } from '../sim/public';
+import { STRUCT_CITY, maxLevelOf, type StructureView } from '../sim/public';
 import { EARTH_RADIUS_KM, GHOST_ALPHA, GHOST_BAD_RGB, GHOST_MIX, GHOST_OK_RGB, HEIGHT_EXAGGERATION, STRUCT_BUILD_MIN_HEIGHT, STRUCT_CLOSE_FAR_M, STRUCT_CLOSE_MUL, STRUCT_CLOSE_RISE_LO_M, STRUCT_CLOSE_RISE_HI_M, STRUCT_DISH_RAD_PER_SEC, STRUCT_MAX_SCALE, STRUCT_POP_SECONDS, STRUCT_SCREEN_FRAC, STRUCT_TRIANGLE_BUDGET, AMBIENT_DAY, AMBIENT_NIGHT, SUN_COLOR, ICON_FADE_PX_HI, ICON_FADE_PX_LO, ICON_HALF_PX, NIGHT_LIGHT_SUN_DOT, RANGE_RING_RGB, RING_HALF_WIDTH_FRAC, RING_HALF_WIDTH_M, RING_SEGMENTS, SELECT_RING_RGB } from './config';
 import { selectRingLiftsM, selectRingRadiusM } from './rings';
 import { latLonToVec } from './geo';
 import type { QualityTier } from './quality';
 import { DEFAULT_CITY_STYLE, levelScale, type CityStyle } from './cityTiers';
-import { STRUCT_MAX_LEVEL } from '../sim/public';
 import { CITY_LIGHT_COUNT, STRUCTURE_MODELS, cityLights, modelledTypes, type ModelData } from './structureModels';
 import { iconFragmentShader, iconVertexShader, ringFragmentShader, ringVertexShader, structureFragmentShader, structureVertexShader } from './shaders/structures';
 import { cellToLatLon, groundHeightAt } from './transforms';
@@ -164,6 +163,7 @@ export class StructureLayer {
   private selZ = 0;
   private selSizeM = 700;
   private selLevel = 1;
+  private selMaxLevel = 3;
 
   private cityStyle: CityStyle = DEFAULT_CITY_STYLE;
 
@@ -179,7 +179,7 @@ export class StructureLayer {
       uCamLo: { value: this.camLo },
       uPxK: { value: STRUCT_SCREEN_FRAC },
       uMaxScale: { value: STRUCT_MAX_SCALE },
-      uMaxLevel: { value: STRUCT_MAX_LEVEL },
+      uMaxLevel: { value: maxLevelOf(STRUCT_CITY) }, // the bands belong to the City alone (every other model part is band 0)
       uClose: { value: new Vector4(STRUCT_CLOSE_MUL, STRUCT_CLOSE_RISE_LO_M, STRUCT_CLOSE_RISE_HI_M, STRUCT_CLOSE_FAR_M) },
       uKmPerUnit: { value: EARTH_RADIUS_KM },
       uTime: { value: 0 },
@@ -416,7 +416,7 @@ export class StructureLayer {
       const dy = y - this.selY;
       const dz = z - this.selZ;
       const distM = Math.sqrt(dx * dx + dy * dy + dz * dz) * EARTH_RADIUS_KM * 1000;
-      (this.ring.material.uniforms.uSelR as { value: number }).value = selectRingRadiusM(distM, this.selSizeM, this.selLevel) / (EARTH_RADIUS_KM * 1000);
+      (this.ring.material.uniforms.uSelR as { value: number }).value = selectRingRadiusM(distM, this.selSizeM, this.selLevel, this.selMaxLevel) / (EARTH_RADIUS_KM * 1000);
     }
   }
 
@@ -469,7 +469,8 @@ export class StructureLayer {
       layer.lo[i * 3] = p.x - (layer.hi[i * 3] as number);
       layer.lo[i * 3 + 1] = p.y - (layer.hi[i * 3 + 1] as number);
       layer.lo[i * 3 + 2] = p.z - (layer.hi[i * 3 + 2] as number);
-      layer.params[i * 4] = levelScale(level);
+      const topLevel = maxLevelOf(type);
+      layer.params[i * 4] = levelScale(level, topLevel);
       let yaw = NaN;
       if (STRUCTURE_MODELS[type]?.seaward === true) yaw = seawardYaw(p.lat, p.lon, this.gridWidth, this.gridHeight, cell);
       if (Number.isNaN(yaw)) yaw = yawOf(id);
@@ -491,8 +492,8 @@ export class StructureLayer {
         }
         ic.info[j * 4] = type;
         ic.info[j * 4 + 1] = STRUCTURE_MODELS[type]?.radiusM ?? 700;
-        ic.info[j * 4 + 2] = levelScale(level);
-        ic.info[j * 4 + 3] = type === STRUCT_CITY ? Math.min(1, Math.max(0, level / Math.max(1, STRUCT_MAX_LEVEL))) : 1;
+        ic.info[j * 4 + 2] = levelScale(level, topLevel);
+        ic.info[j * 4 + 3] = type === STRUCT_CITY ? Math.min(1, Math.max(0, level / Math.max(1, topLevel))) : 1;
       }
       this.drawn.push({ id, type, owner, cell, level, lat: p.lat, lon: p.lon, radius: p.radius, heightM: p.heightM, yaw, ready: t.readyTick[id] as number });
     }
@@ -556,6 +557,7 @@ export class StructureLayer {
     const type = t.type[id] as number;
     const cell = t.cell[id] as number;
     this.selLevel = t.level[id] as number;
+    this.selMaxLevel = maxLevelOf(type);
     this.selSizeM = STRUCTURE_MODELS[type]?.radiusM ?? 700;
     const c = this.place(cell);
     this.selX = c.x;
@@ -593,7 +595,7 @@ export class StructureLayer {
     // Polish-1: the ground under the ring's vertices (sampled here, when the selection or the structure changes; never per frame). The ring stands at the
     // radius of the true-size model; at a distance the ring is wider but then the relief under it is below a pixel.
     const lifts = this.liftScratch;
-    selectRingLiftsM(c.lat, c.lon, selectRingRadiusM(0, this.selSizeM, this.selLevel), RING_SEGMENTS, this.exaggeration, EARTH_RADIUS_KM * 1000, groundHeightAt, lifts);
+    selectRingLiftsM(c.lat, c.lon, selectRingRadiusM(0, this.selSizeM, this.selLevel, this.selMaxLevel), RING_SEGMENTS, this.exaggeration, EARTH_RADIUS_KM * 1000, groundHeightAt, lifts);
     for (let i = 0; i <= RING_SEGMENTS; i++) {
       const lf = (lifts[i] as number) / (EARTH_RADIUS_KM * 1000);
       r.lift[i * 2] = lf;

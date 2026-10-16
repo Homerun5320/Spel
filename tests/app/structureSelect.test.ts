@@ -12,6 +12,8 @@ import {
   STRUCT_CITY,
   STRUCT_POST,
   STRUCT_SAM,
+  cityTroopCap,
+  maxLevelOf,
   samRadiusCells,
   type StructureView,
 } from '../../src/sim/public';
@@ -119,7 +121,9 @@ describe('rings and icons', () => {
     expect(modelRadiusM(1000, 700, 1)).toBe(700);
     expect(modelRadiusM(300000, 700, 1)).toBeCloseTo(300000 * 0.011, 6);
     expect(modelRadiusM(1e9, 700, 1)).toBe(700 * STRUCT_MAX_SCALE);
-    expect(modelRadiusM(1000, 700, 3)).toBe(700 * 1.5);
+    expect(modelRadiusM(1000, 700, 3)).toBe(700 * 1.5); // the other types: level 3 of 3 is the top (1.5x)
+    expect(modelRadiusM(1000, 700, 3, maxLevelOf(STRUCT_CITY))).toBe(700 * (1 + (0.5 * 2) / 9)); // a City: level 3 of 10 is a small step
+    expect(modelRadiusM(1000, 700, 10, maxLevelOf(STRUCT_CITY))).toBe(700 * 1.5);
     expect(selectRingRadiusM(1000, 700, 1)).toBeCloseTo(700 * SELECT_RING_FACTOR, 6);
   });
 
@@ -145,7 +149,8 @@ describe('the panel numbers', () => {
     const l1 = effectLines(STRUCT_CITY, 1)[0];
     const l3 = effectLines(STRUCT_CITY, 3)[0];
     expect(l1?.params.troops).toBe(formatInt(CAP_CITY_LEVEL_TROOPS));
-    expect(l3?.params.troops).toBe(formatInt(CAP_CITY_LEVEL_TROOPS * 3)); // 2 400, a thin-space group in Swedish
+    expect(l3?.params.troops).toBe(formatInt(cityTroopCap(3))); // Sim-Growth: 800 + 250 per further level = 1 300 (a thin-space group in Swedish)
+    expect(effectLines(STRUCT_CITY, maxLevelOf(STRUCT_CITY))[0]?.params.troops).toBe(formatInt(cityTroopCap(10))); // 3 050
     expect(upgradeWhyKey(REJECT_BUILD_GOLD)).toBe('sel.why.gold');
     expect(upgradeWhyKey(REJECT_STRUCT_BUSY)).toBe('sel.why.busy');
     expect(deleteWhyKey(REJECT_DELETE_COOLDOWN)).toBe('sel.why.cooldown');

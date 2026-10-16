@@ -1,5 +1,6 @@
 // Pure numbers of the ring and icon drawing (M10-4); no three. The shaders repeat the two scale formulas, the unit tests pin them here.
 import { STRUCT_CLOSE_FAR_M, STRUCT_CLOSE_MUL, STRUCT_CLOSE_RISE_HI_M, STRUCT_CLOSE_RISE_LO_M, STRUCT_MAX_SCALE, STRUCT_SCREEN_FRAC } from './config';
+import { STRUCT_MAX_LEVEL } from '../sim/public';
 import { levelScale } from './cityTiers';
 
 /** Look-1: the mid-range enlargement at camera distance `distM` (see STRUCT_CLOSE_MUL); the shaders repeat it. */
@@ -11,15 +12,18 @@ export function closeMul(distM: number): number {
   return 1 + (STRUCT_CLOSE_MUL - 1) * ss(STRUCT_CLOSE_RISE_LO_M, STRUCT_CLOSE_RISE_HI_M, distM) * (1 - ss(STRUCT_CLOSE_RISE_HI_M * 1.6, STRUCT_CLOSE_FAR_M, distM));
 }
 
-/** The model's radius in render metres at camera distance `distM`: the scale policy of shaders/structures.ts (never below STRUCT_SCREEN_FRAC of the distance, up to STRUCT_MAX_SCALE times true size). */
-export function modelRadiusM(distM: number, sizeM: number, level: number): number {
+/**
+ * The model's radius in render metres at camera distance `distM`: the scale policy of shaders/structures.ts (never below STRUCT_SCREEN_FRAC of the distance,
+ * up to STRUCT_MAX_SCALE times true size). `maxLevel` is the top level of the structure's type (`maxLevelOf(type)`: 10 for a City, STRUCT_MAX_LEVEL for the rest).
+ */
+export function modelRadiusM(distM: number, sizeM: number, level: number, maxLevel: number = STRUCT_MAX_LEVEL): number {
   const k = Math.max(closeMul(distM), Math.min(STRUCT_MAX_SCALE, Math.max(1, (distM * STRUCT_SCREEN_FRAC) / sizeM)));
-  return k * sizeM * (levelScale(level));
+  return k * sizeM * levelScale(level, maxLevel);
 }
 
 /** The projected radius of that model in pixels for a viewport `viewH` pixels high and `tanHalfFov` the tangent of half the vertical field of view. */
-export function modelRadiusPx(distM: number, sizeM: number, level: number, viewH: number, tanHalfFov: number): number {
-  return (modelRadiusM(distM, sizeM, level) / distM) * (viewH / 2 / tanHalfFov);
+export function modelRadiusPx(distM: number, sizeM: number, level: number, viewH: number, tanHalfFov: number, maxLevel: number = STRUCT_MAX_LEVEL): number {
+  return (modelRadiusM(distM, sizeM, level, maxLevel) / distM) * (viewH / 2 / tanHalfFov);
 }
 
 /** The camera distance (metres) beyond which a model of `sizeM` at level 1 projects to fewer than `px` pixels: the icon takes over there. Beyond the scale plateau the radius is `STRUCT_MAX_SCALE * sizeM` and shrinks as 1 / distance. */
@@ -29,8 +33,8 @@ export function iconSwitchDistanceM(sizeM: number, px: number, viewH: number, ta
 
 /** The radius (render metres) of the selection ring round a structure: a bit outside the model, whatever the zoom. */
 export const SELECT_RING_FACTOR = 1.35;
-export function selectRingRadiusM(distM: number, sizeM: number, level: number): number {
-  return modelRadiusM(distM, sizeM, level) * SELECT_RING_FACTOR;
+export function selectRingRadiusM(distM: number, sizeM: number, level: number, maxLevel: number = STRUCT_MAX_LEVEL): number {
+  return modelRadiusM(distM, sizeM, level, maxLevel) * SELECT_RING_FACTOR;
 }
 
 /**
