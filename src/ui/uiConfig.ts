@@ -272,6 +272,8 @@ export const TECH_UI = {
   branch: ['#ffd666', '#8ee6b0', '#7fd1ff', '#ff8a80'],
   /** The running research in the top bar is cut at this width (em). */
   runningMaxEm: 14,
+  /** The header keeps this many px free on the right so the Close button never sits under the round Dev-panel button (48 px, top right). */
+  devClearPx: 56,
 } as const;
 
 /**
