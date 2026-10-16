@@ -10,6 +10,8 @@ import { OUT_DIR, decodePng, launchBrowser, openPage } from '../scripts/shot.mjs
 import { timeForSubsolarLon } from '../src/render/geo';
 import { cellToLatLon } from '../src/render/transforms';
 import { STRUCT_CITY, buildBody } from '../src/sim/public';
+import { GOLD_COMPACT_FROM, formatGold } from '../src/ui/i18n';
+import { GOLD_DISPLAY_FACTOR } from '../src/ui/uiConfig';
 
 let browser: Browser;
 const baseUrl = inject('baseUrl');
@@ -51,7 +53,7 @@ function diffPixels(a: Buffer, b: Buffer): number {
   return pixelmatch(x.data, y.data, undefined, x.width, x.height, { threshold: 0.1 });
 }
 
-describe('unlimited levels: the look saturates and the gold reads x10', () => {
+describe('unlimited levels: the look saturates and the gold reads x GOLD_DISPLAY_FACTOR', () => {
   it('a City at levels 1, 10, 100 and 999 in both styles: same draw calls and triangles, the bands show, the footprint stays small; the purse and the City price are inflated, the sim is not', async () => {
     const { page, consoleMessages } = await openPage(browser, baseUrl, 'test=1&seed=7&ai=0&hud=1', { width: 960, height: 540 });
     try {
@@ -66,15 +68,18 @@ describe('unlimited levels: the look saturates and the gold reads x10', () => {
       await t.advance(0.1, 210); // past the spawn phase
       await t.settle(1);
 
-      // the visual gold inflation: the purse and the City button read the sim number times 10; the sim keeps its own number
+      // the visual gold inflation: the purse and the City button read the sim number times GOLD_DISPLAY_FACTOR through the ONE formatter (compact from a million);
+      // the sim keeps its own number. The HUD frame may be a few ticks away from the state read, so the purse text may be any amount within 6 sim gold.
       const sim = await t.state();
-      const purse = Number((await page.locator('[data-testid="gold"]').innerText()).replace(/\D/g, ''));
-      expect(Math.abs(purse - sim.local.gold * 10), `purse ${purse} vs sim gold ${sim.local.gold}`).toBeLessThan(10 * 6);
+      const purseText = (await page.locator('[data-testid="gold"]').innerText()).trim();
+      const near = Array.from({ length: 13 }, (_, i) => formatGold(Math.floor(sim.local.gold) - 6 + i));
+      expect(near, `purse "${purseText}" vs sim gold ${sim.local.gold}`).toContain(purseText);
       expect(sim.local.gold).toBeGreaterThan(50000);
-      const cityPrice = await page.locator(`[data-testid="build-bar"] [data-type="${STRUCT_CITY}"] .build-price`).innerText();
+      expect(Math.floor(sim.local.gold) * GOLD_DISPLAY_FACTOR, 'the purse is long enough to need the compact form').toBeGreaterThanOrEqual(GOLD_COMPACT_FROM);
+      const cityPrice = (await page.locator(`[data-testid="build-bar"] [data-type="${STRUCT_CITY}"] .build-price`).innerText()).trim();
       const simPrice = Number(await page.locator(`[data-testid="build-bar"] [data-type="${STRUCT_CITY}"]`).getAttribute('data-price'));
       expect(simPrice, 'the data attribute keeps the sim price').toBeGreaterThan(0);
-      expect(Number(cityPrice.replace(/\D/g, ''))).toBe(simPrice * 10);
+      expect(cityPrice).toBe(formatGold(simPrice));
 
       const cell = ((await t.cells()).capitals[0]) as number;
       const at = cellToLatLon(cell, WIDTH, HEIGHT);

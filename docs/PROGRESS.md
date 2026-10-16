@@ -905,6 +905,13 @@ Base: aa9b996. ENGINE_VERSION 13, FORMAT_VERSION 11. The render/UI track (Look-2
 - [x] 7. Exports at the end of `src/sim/public.ts`, pinned list updated; tests `tests/sim/levels2.test.ts` (4 mutants shown to fail), perf with 600 structures at levels up to 999
 - Not run here: `npm run verify`, Chromium, the pack. Leftovers: "Sim-Levels2 leftovers" in `docs/BACKLOG.md`.
 
+
+### Integration Sim-Levels2 + Look-2 (the two merged slices made to agree; one session; local commit, nothing pushed)
+- [x] 1. `npx tsc --noEmit -p .` clean, the unit project green; the UI numbers follow the Sim-Levels2 curves, gold shown through ONE formatter with `GOLD_DISPLAY_FACTOR` 100 and a compact form from a million (docs/DECISIONS.md 'Integration Sim-Levels2 + Look-2')
+- [x] 2. The e2e files that touch cities and structures run one at a time and pass; goldens `e2e/goldens/city-view.png` and `e2e/goldens/result-screen.png` re-pinned once after looking, every other golden unchanged
+- [x] 3. Looked at the result: City, Factory, Silo at real levels 1, 5, 20, 50 and drawn levels 100 and 999 in both City styles at about 3 km and 800 m (nothing wider than the Look-2 cap); `e2e/goldFit.test.ts` keeps every gold surface inside the window at 960x540, 1366x640, 540x960 in both languages
+- [x] 4. Final run: tsc, eslint on the changed files, `npm run verify:fast`; the full `npm run verify` is the orchestrator's
+
 ## Next
 
 - Audit 1 (the batch audit of versions 12 to 16, range 7018b4c..cf01c79) found no blocker and a list of majors; the fix slices 'Fix-Sim' and 'Fix-UI' work through them (see their sections under Now and docs/BACKLOG.md 'Audit 1 leftovers'). After that: the building roadmap continues (more kinds of buildings, the city detail map of M18e), then M11a radar and the air milestones M11b to M13b.

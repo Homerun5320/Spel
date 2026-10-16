@@ -36,14 +36,14 @@ import {
   upgradePriceGold,
   upgradeTicksOf,
 } from '../../src/sim/public';
-import { BUILD_TICKS, MILLI_GOLD_PER_GOLD } from '../../src/sim/rules';
+import { BUILD_BASE_GOLD, BUILD_TICKS, MILLI_GOLD_PER_GOLD } from '../../src/sim/rules';
 import { createState, rebuildAggregates, type GameState } from '../../src/sim/state';
 import { applyIntent, step } from '../../src/sim/step';
 import { CLASS_PLAINS } from '../../src/sim/terrain';
 import { StateView } from '../../src/sim/view';
 import { buildRejectKey, structureRefusalKey } from '../../src/ui/buildReasons';
 import { rejectKey } from '../../src/ui/hudLogic';
-import { formatGoldRate, formatInt, t } from '../../src/ui/i18n';
+import { formatGold, formatGoldRate, formatInt, formatShownGold, t } from '../../src/ui/i18n';
 import { GOLD_DISPLAY_FACTOR } from '../../src/ui/uiConfig';
 import {
   DELETE_ARM_MS,
@@ -204,6 +204,29 @@ describe('selectionInfo', () => {
     s.structures.readyTick[port] = 0;
     s.structures.level[port] = maxLevelOf(STRUCT_PORT);
     expect(selectionInfo(new StateView(s), 0, port)?.upgradePrice).toBe(0);
+  });
+
+  it('Integration Sim-Levels2 + Look-2: every type offers its upgrade at levels 10, 11, 100 and 998 for base x level (shown through the one formatter); only the hard cap closes it', () => {
+    const s = world();
+    let x = 10;
+    for (const type of [STRUCT_CITY, STRUCT_FACTORY, STRUCT_PORT, STRUCT_SILO, STRUCT_SAM, STRUCT_POST]) {
+      const id = s.structures.add(type, 1, at((x += 8), 10), 0);
+      s.structures.readyTick[id] = 0;
+      for (const level of [10, 11, 100, STRUCT_LEVEL_HARD_CAP - 1]) {
+        s.structures.level[id] = level;
+        const info = selectionInfo(new StateView(s), 0, id);
+        expect(info?.upgradePrice, `type ${type} level ${level}`).toBe((BUILD_BASE_GOLD[type] as number) * (level + 1));
+        expect(info?.upgradePrice).toBe(upgradePriceGold(type, level + 1));
+        expect(info?.upgradeReason).toBe(REJECT_NONE);
+        expect(info?.upgradeSeconds).toBe(upgradeTicksOf(type, level + 1) / TICK_HZ);
+        expect(t('sel.upgrade', { price: formatGold(info?.upgradePrice as number) })).toBe(`Uppgradera (${formatGold((BUILD_BASE_GOLD[type] as number) * (level + 1))})`);
+      }
+      s.structures.level[id] = STRUCT_LEVEL_HARD_CAP;
+      const top = selectionInfo(new StateView(s), 0, id);
+      expect([top?.upgradePrice, top?.upgradeSeconds, top?.upgradeReason]).toEqual([0, 0, REJECT_STRUCT_MAX_LEVEL]);
+    }
+    // the dearest price of the game: a Silo to level 999 = 1 000 x 999 gold, a compact text whatever the display factor
+    expect(formatGold(upgradePriceGold(STRUCT_SILO, STRUCT_LEVEL_HARD_CAP))).toBe(formatShownGold(999_000 * GOLD_DISPLAY_FACTOR));
   });
 
   it('somebody else\'s structure: not owned, not-owner reasons; a gone or out-of-range id gives null', () => {

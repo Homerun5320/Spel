@@ -13,7 +13,7 @@ import { DISTRICT_BARRACKS, DISTRICT_HOUSING, DISTRICT_MARKET, DISTRICT_WALLS } 
 import { REJECT_BUILD_GOLD } from '../src/sim/intents';
 import { CITY_GOLD_MILLI_PER_SEC_PER_LEVEL, DISTRICT_BUILD_TICKS } from '../src/sim/rules';
 import { barracksRegenPctAt, marketGoldMilliAt } from '../src/sim/levelCurves';
-import { STRUCT_CITY, maxLevelOf, upgradeTicksOf } from '../src/sim/structureRules';
+import { STRUCT_CITY, maxLevelOf, upgradePriceGold, upgradeTicksOf } from '../src/sim/structureRules';
 import { districtSlotsOf } from '../src/sim/districtRules';
 import { formatGoldRate } from '../src/ui/i18n';
 
@@ -79,6 +79,13 @@ async function closeUp(page: Page, lat: number, lon: number): Promise<void> {
   const d = 2.2;
   await page.evaluate(([la, lo, dd, time]) => (window as any).__test.setGroundView({ lat: la - dd / 111.2, lon: lo, heading: 0, pitchDeg: 24, aglM: 900, time }), [lat, lon, d, timeForSubsolarLon(lon + 25)] as const);
 }
+
+/** The sim gold the upgrades of a City from level 1 to `level` cost together (Sim-Levels2: base x the level reached, for every step). */
+const upgradeGoldTo = (level: number): number => {
+  let sum = 0;
+  for (let l = 2; l <= level; l++) sum += upgradePriceGold(STRUCT_CITY, l);
+  return sum;
+};
 
 /** Upgrades the selected City one step at a time (the panel's button) until it is `level`, each step waiting its own sim time (Sim-Growth: levels 1 to 10). */
 async function raiseTo(page: Page, level: number): Promise<void> {
@@ -270,9 +277,9 @@ describe('the city view', () => {
     const { page, messages } = await withCity('test=1&seed=7&ai=0&hud=1&lang=en', { width: 540, height: 960 });
     try {
       const t = T(page);
-      await t.give(8000);
-      await t.advance(0.1, 4);
       const level = 9; // Sim-Growth: five slots from level 9, the tallest panel
+      await t.give(upgradeGoldTo(level) + 5000); // Sim-Levels2: every upgrade costs base x level (400 x 2 .. 400 x 9), plus the two districts
+      await t.advance(0.1, 4);
       await raiseTo(page, level);
       expect(districtSlotsOf(level)).toBe(5);
       await openByButton(page);
@@ -302,9 +309,9 @@ describe('the city view', () => {
     const { page, messages } = await withCity('test=1&seed=7&ai=0&hud=1', { width: 960, height: 540 });
     try {
       const t = T(page);
-      await t.give(8000);
-      await t.advance(0.1, 4);
       const level = 9;
+      await t.give(upgradeGoldTo(level) + 5000); // Sim-Levels2: every upgrade costs base x level, plus the district
+      await t.advance(0.1, 4);
       await raiseTo(page, level);
       await openByButton(page);
       await tid(page, `city-build-0-${DISTRICT_MARKET}`).click();

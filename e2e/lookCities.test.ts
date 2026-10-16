@@ -8,7 +8,7 @@ import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
 import { OUT_DIR, compareGolden, decodePng, launchBrowser, openPage } from '../scripts/shot.mjs';
 import { timeForSubsolarLon } from '../src/render/geo';
 import { cellToLatLon } from '../src/render/transforms';
-import { STRUCT_CITY, buildBody, maxLevelOf, upgradeBody, upgradeTicksOf } from '../src/sim/public';
+import { CITY_MAX_LEVEL, STRUCT_CITY, buildBody, upgradeBody, upgradeTicksOf } from '../src/sim/public';
 
 let browser: Browser;
 const baseUrl = inject('baseUrl');
@@ -103,7 +103,7 @@ describe('the City styles and tiers', () => {
       expect(styleDiff).toBeGreaterThan(300);
 
       // levels 5 and 10 (Sim-Growth: the City climbs in ten small steps, five visual bands): both styles each time
-      const top = maxLevelOf(STRUCT_CITY);
+      const top = CITY_MAX_LEVEL; // Sim-Levels2: maxLevelOf is the hard cap 999 now; the goldens stay the reference top level 10 (the visual reference scale)
       let level = 1;
       const raiseTo = async (to: number): Promise<void> => {
         for (; level < to; ) {

@@ -11,6 +11,7 @@ import { REJECT_IMMUNE, REJECT_PCT, REJECT_PHASE, REJECT_SELF, REJECT_TERRAIN } 
 import { SPAWN_PHASE_TICKS, IMMUNITY_TICKS, START_DISC_CELLS } from '../src/sim/rules';
 import { CLASS_ICE, CLASS_MOUNTAIN, CLASS_PEAK } from '../src/sim/terrain';
 import { worldLoader } from '../tests/helpers/dataFiles';
+import { formatGold } from '../src/ui/i18n';
 
 interface MatchState {
   tick: number;
@@ -109,13 +110,13 @@ describe('the playable match: spawn, attack, 600 ticks', () => {
         troops: document.querySelector('[data-testid="troops"]')?.getAttribute('data-value') ?? '',
         gold: document.querySelector('[data-testid="gold"]')?.getAttribute('data-value') ?? '',
         troopsText: (document.querySelector('[data-testid="troops"]')?.textContent ?? '').replace(/\D/g, ''),
-        goldText: (document.querySelector('[data-testid="gold"]')?.textContent ?? '').replace(/\D/g, ''),
+        goldText: (document.querySelector('[data-testid="gold"]')?.textContent ?? '').trim(),
         phase: document.querySelector('[data-testid="phase"]')?.getAttribute('data-phase') ?? '',
       }));
       expect(Number(hud.troops)).toBe(r.end.local.troops);
       expect(Number(hud.gold)).toBe(r.end.local.gold);
       expect(hud.troopsText).toBe(String(r.end.local.troops));
-      expect(hud.goldText).toBe(String(r.end.local.gold));
+      expect(hud.goldText).toBe(formatGold(r.end.local.gold)); // the sim number times GOLD_DISPLAY_FACTOR through the one formatter (Look-2)
       expect(hud.phase).toBe('play');
       // the four screenshots exist, are not blank, and differ from each other
       const names = ['match-t000', 'match-t100', 'match-t300', 'match-t600'];

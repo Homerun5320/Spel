@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
 import { OUT_DIR, decodePng, launchBrowser, newTestPage, luma, openPage, waitFrames, fastClick, waitVisible, LIVE_POLL_MS } from '../scripts/shot.mjs';
 import { timeForSubsolarLon } from '../src/render/geo';
 import { CLASS_FOREST, CLASS_HILLS, CLASS_PLAINS } from '../src/sim/terrain';
-import { TABLES, placeholdersOf } from '../src/ui/i18n';
+import { TABLES, formatGold, formatGoldRate, placeholdersOf, setLanguage } from '../src/ui/i18n';
 import { TARGET_MIN_PX } from '../src/ui/uiConfig';
 import { worldLoader } from '../tests/helpers/dataFiles';
 
@@ -100,7 +100,9 @@ describe('the HUD shows the sim values (data-testid)', () => {
         expect(Number(timer?.value), `timer at ${tick}`).toBe(Math.floor(tick / 10));
         // the text shows the same digits as the number behind it
         expect((troops?.text ?? '').replace(/\D/g, '')).toBe(String(s.local.troops));
-        expect((gold?.text ?? '').replace(/\D/g, '')).toBe(String(s.local.gold));
+        // Look-2 + Integration: the purse and the income are the sim numbers times GOLD_DISPLAY_FACTOR through the one formatter (compact from a million shown)
+        expect(gold?.text, `purse text at ${tick}`).toBe(formatGold(s.local.gold));
+        expect(rate?.text, `income text at ${tick}`).toBe(`+${formatGoldRate(s.local.goldPerSecMilli)}/s`);
         expect((cap?.text ?? '').replace(/\D/g, '')).toBe(String(Math.floor(s.local.capQt / 4)));
         expect(share?.text).toBe(`${(s.local.landSharePct).toFixed(2).replace('.', ',')} %`);
         const m = Math.floor(tick / 10 / 60);
@@ -498,7 +500,13 @@ describe('i18n in the browser', () => {
         await clickAt(page, START.lat, START.lon);
         await advance(page, 0, 5);
         expect((await testid(page, 'phase-text')).text).toBe('Starting place chosen. Waiting for the phase to end');
-        expect((await testid(page, 'gold-rate')).text).toMatch(/^\+\d+\.\d\/s$/); // a decimal point, not a comma
+        // the income reads the sim milli-gold per second times GOLD_DISPLAY_FACTOR in the language of the page: a decimal point (when it has decimals), never a comma
+        const incomeMilli = (await state(page)).local.goldPerSecMilli;
+        setLanguage('en');
+        const incomeEn = `+${formatGoldRate(incomeMilli)}/s`;
+        setLanguage('sv');
+        expect((await testid(page, 'gold-rate')).text).toBe(incomeEn);
+        expect(incomeEn).toMatch(/^\+\d+(\.\d{1,2})?\/s$/);
         const row = await page.evaluate(() => document.querySelector('[data-testid="leader-row"]:not([hidden])')?.textContent);
         expect(row).toContain('You');
         const tip = await page.evaluate(([x, y]) => (window as any).__test.tooltip(x, y), [480, 270] as const);

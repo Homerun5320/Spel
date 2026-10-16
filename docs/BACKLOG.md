@@ -387,7 +387,7 @@ Not done in the Fix-UI slice (the sim, host and AI findings belong to Fix-Sim):
 
 ## Sim-Levels2 leftovers
 - Payback: with the price base x L for every type and gentle curves (level 10 about 1.7 times level 1) the payback of an upgrade is 1 000 to 100 000 s (a Factory to level 2: 1 600 s; see the logged `[payback]` lines of `tests/sim/structureLevels.test.ts`). The asked window of 60 s to 6 minutes for the first ten steps cannot hold together with that price and that gentleness (a City level 2 costs 800 gold and gives 0.375 gold/s). Knobs if the user wants upgrades to feel better early: raise `CITY_GOLD_EXTRA_MILLI` and the other `*_EXTRA_*` constants in `src/sim/rules.ts`, lower `LEVEL_SAT_K` (faster early gain), or give upgrades a lower base than a new structure (a separate `UPGRADE_BASE_GOLD` table).
-- The UI still reads the old reference levels in places (`DISTRICT_MAX_LEVEL` decides "top level" in `src/ui/cityViewModel.ts`, `maxLevelOf` is 999 for the render scale): the Look-2 track owns that.
+- (Done in the integration) The UI read the old reference level `DISTRICT_MAX_LEVEL` for the "top level" of a district; `src/ui/cityViewModel.ts` and `src/ui/cityViewPanel.ts` now ask `districtMaxLevel()`.
 - `SCORE_CITY_LEVEL_POINTS` (25 per City level) and `SCORE_FACTORY_LEVEL_POINTS` now let a level 999 City add 25 000 points to the score win; cap the counted level (for example at 10) or make the points concave if the score win matters.
 - The AI stops at `AI_CITY_LEVEL_CAP` 10 and `AI_STRUCT_LEVEL_CAP` / `AI_DISTRICT_LEVEL_CAP` 3: a smarter AI could buy levels by payback.
 - Conquest keeps 75 percent of a level; a level 999 City falls to 749 in one capture. A gentler loss at very high levels (for example a flat cap of 25 levels) is an option.
@@ -395,6 +395,6 @@ Not done in the Fix-UI slice (the sim, host and AI findings belong to Fix-Sim):
 ## Look-2 leftovers
 - Polar overlap: the cap (24.5 km radius) is fixed in metres, but cells shrink east-west with cos(lat); two Cities 3 cells apart touch from about 65 degrees of latitude. A latitude-aware cap would fix it.
 - Extra towers beyond the last band (a second City geometry with more instances up to a triangle budget); Look-2 only makes the model taller.
-- The effect lines of Factory and Port still read the Fix-UI per-level tables (`atLevel` clamps to the table's last entry); when Sim-Levels2 replaces the tables with functions, `effectLines` should call them.
+- (Done in the integration) The effect lines of Factory and Port read the generated tables of `src/sim/levelCurves.ts` (the same functions, levels 1 to 999); `tests/ui/structureInfo.test.ts` pins them against the curve functions.
 - District upgrade time is not shown (the district upgrade has no separate time in the tile model).
 - A latency check of `sel.fxNext` text length on a phone-width panel.

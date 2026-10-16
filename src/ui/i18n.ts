@@ -260,7 +260,7 @@ const sv = {
   'sel.district.fxMarket': '+{gold} guld/s',
   'sel.district.fxBarracks': '+{pct} % truppregenerering',
   'sel.district.fxWalls': 'Fiendens erövring x{mult} dyrare på stadens ruta och {radius} rutor runt',
-  'sel.district.build': '{name} ({price} guld)',
+  'sel.district.build': '{name}: {price}', // factor 100: five-digit prices; the word gold is in the tooltip, the upgrade buttons show the bare number too
   'sel.district.buildTime': 'Byggtid {seconds} s',
   'sel.district.buildTip': 'Bygg {name} för {price} guld. Byggtid {seconds} s. {fx}',
   'sel.district.level': 'Nivå {level}',
@@ -586,7 +586,7 @@ const en: Record<TextKey, string> = {
   'sel.district.fxMarket': '+{gold} gold/s',
   'sel.district.fxBarracks': '+{pct} % troop regeneration',
   'sel.district.fxWalls': 'Enemy conquest x{mult} as expensive on the city cell and {radius} cells around',
-  'sel.district.build': '{name} ({price} gold)',
+  'sel.district.build': '{name} ({price})',
   'sel.district.buildTime': 'Build time {seconds} s',
   'sel.district.buildTip': 'Build {name} for {price} gold. Build time {seconds} s. {fx}',
   'sel.district.level': 'Level {level}',
