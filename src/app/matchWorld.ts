@@ -2,6 +2,7 @@
 // per-country statistics the rules need (cells, coast share, mountain share), and, per playable region, the masked terrain with its
 // land masses. Everything here is a pure function of the data; `prepareWorld` caches the (expensive, O(cells)) analysis per region
 // inside the returned object, so the menu computes it once and `createMatch` can reuse it.
+import type { Federations } from '../data/federations';
 import type { Overrides, WorldMeta } from '../data/world';
 import { regionMask, type RegionId } from '../data/regions';
 import { CLASS_MOUNTAIN, CLASS_PEAK, CLASS_PLAINS } from '../sim/terrain';
@@ -19,6 +20,8 @@ export interface WorldData {
   /** Coast flags per sim cell: bit 0 = land next to water. */
   readonly coast: ArrayLike<number>;
   readonly meta: Pick<WorldMeta, 'countries'>;
+  /** M18b-2: the federations pack (sub-nations of the large countries); absent or null = "Dela upp stormakter" does nothing. */
+  readonly federations?: Federations | null;
   readonly overrides: Pick<Overrides, 'merged' | 'unplayable' | 'minPlayableCells' | 'neutralNames'>;
 }
 

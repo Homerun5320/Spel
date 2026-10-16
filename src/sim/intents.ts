@@ -408,6 +408,8 @@ export const REJECT_DIPLO_EMBARGO_SET = 91;
 export const REJECT_DIPLO_EMBARGO_NONE = 92;
 /** ProposeTreaty while the proposal table is full. */
 export const REJECT_DIPLO_FULL = 93;
+/** BreakTreaty on a member of the sender's own federation (M18b-2): that alliance is bound and cannot be broken. */
+export const REJECT_DIPLO_FEDERATION = 94;
 
 export interface ValidateContext {
   readonly seats: number;

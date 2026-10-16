@@ -32,6 +32,10 @@ export interface SetupDraft {
   readonly seed: string;
   /** The win conditions (M18-2). */
   readonly win: WinDraft;
+  /** M18b-2 "Dela upp stormakter": split the federation candidates into allied sub-nations. Off by default. */
+  readonly federations: boolean;
+  /** The sub-nation (federation raster id) the player clicked in a split country; 0 = automatic. Not stored. */
+  readonly subNation: number;
 }
 
 export function defaultDraft(seed: number, name: string): SetupDraft {
@@ -49,6 +53,8 @@ export function defaultDraft(seed: number, name: string): SetupDraft {
     neutral: false,
     seed: String(seed),
     win: DEFAULT_WIN_DRAFT,
+    federations: false,
+    subNation: 0,
   };
 }
 
@@ -79,7 +85,16 @@ export function checkDraft(world: PreparedWorld, draft: SetupDraft, debugIntents
   if (seed === null) return { ok: false, config: null, key: 'setup.need.seed', params: null };
   const analysis = world.analyse(draft.region);
   const win = winConfigOf(draft.win, draft.region);
-  const options = { seed, region: draft.region, aiNations: draft.aiNations, tribes: draft.tribes, difficulty: draft.difficulty, debugIntents, ...(win === undefined ? {} : { win }) };
+  const options = {
+    seed,
+    region: draft.region,
+    aiNations: draft.aiNations,
+    tribes: draft.tribes,
+    difficulty: draft.difficulty,
+    debugIntents,
+    ...(win === undefined ? {} : { win }),
+    ...(draft.federations ? { federations: true, subNation: draft.subNation } : {}),
+  };
   if (draft.tab === 'real') {
     if (draft.countryId === 0) return { ok: false, config: null, key: 'setup.need.country', params: null };
     const country = world.byId.get(draft.countryId);
@@ -116,6 +131,8 @@ export interface StoredSetup {
   readonly seed: string;
   /** M18-2; an older stored setup has none (the defaults apply). */
   readonly win?: WinDraft;
+  /** M18b-2; absent = off. */
+  readonly federations?: boolean;
 }
 
 export const SETUP_PREF_KEY = 'setup';
@@ -136,6 +153,7 @@ export function storedOf(draft: SetupDraft, world: PreparedWorld): StoredSetup {
     neutral: draft.neutral,
     seed: draft.seed,
     win: draft.win,
+    federations: draft.federations,
   };
 }
 
@@ -181,5 +199,7 @@ export function draftFromStored(stored: StoredSetup, world: PreparedWorld, base:
     neutral: stored.neutral,
     seed: parseSeed(stored.seed) === null ? base.seed : stored.seed.trim(),
     win: isWinDraft(stored.win) ? clampWinDraft(stored.win) : base.win,
+    federations: stored.federations === true,
+    subNation: 0,
   };
 }

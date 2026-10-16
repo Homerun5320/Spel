@@ -7,6 +7,7 @@ import {
   REJECT_DIPLO_ELIMINATED,
   REJECT_DIPLO_EMBARGO_NONE,
   REJECT_DIPLO_EMBARGO_SET,
+  REJECT_DIPLO_FEDERATION,
   REJECT_DIPLO_FULL,
   REJECT_DIPLO_MATCH_ENDED,
   REJECT_DIPLO_NOT_PLAYER,
@@ -47,6 +48,8 @@ export function diplomacyRefusalKey(reason: number): TextKey {
       return 'reject.diplo.embargoSet';
     case REJECT_DIPLO_EMBARGO_NONE:
       return 'reject.diplo.embargoNone';
+    case REJECT_DIPLO_FEDERATION:
+      return 'reject.diplo.federation';
     case REJECT_DIPLO_FULL:
       return 'reject.diplo.full';
     default:

@@ -480,6 +480,12 @@ const sv = {
   'hotkey.labels': 'Nationsetiketter och frontpilar av eller på',
   'toast.labels.on': 'Nationsetiketter och frontpilar på.',
   'toast.labels.off': 'Nationsetiketter och frontpilar av.',
+  // M18b-2: federations (Dela upp stormakter)
+  'reject.diplo.federation': 'Delnationer i samma federation är bundna av en allians som inte kan brytas.',
+  'setup.federation': 'Dela upp stormakter',
+  'setup.federation.hint': 'Ryssland, Kanada, USA, Kina, Brasilien, Australien och Indien delas upp i allierade delnationer. Du spelar en av dem.',
+  'setup.federation.sub': 'Du spelar {name}. Federationen har upp till {members} delnationer (de som är för små för en rättvis start hoppas över); AI-nationer totalt högst {ai} (tak {max}).',
+  'setup.federation.none': 'Inget uppdelningsbart land valt: valet ändrar ingenting.',
 } as const;
 
 export type TextKey = keyof typeof sv;
@@ -949,6 +955,12 @@ const en: Record<TextKey, string> = {
   'hotkey.labels': 'Nation labels and front arrows on or off',
   'toast.labels.on': 'Nation labels and front arrows on.',
   'toast.labels.off': 'Nation labels and front arrows off.',
+  // M18b-2: federations (split the great powers)
+  'reject.diplo.federation': 'Sub-nations of one federation are bound by an alliance that cannot be broken.',
+  'setup.federation': 'Split the great powers',
+  'setup.federation.hint': 'Russia, Canada, the USA, China, Brazil, Australia and India are split into allied sub-nations. You play one of them.',
+  'setup.federation.sub': 'You play {name}. The federation has up to {members} sub-nations (those too small for a fair start are skipped); AI nations in total at most {ai} (cap {max}).',
+  'setup.federation.none': 'No splittable country chosen: the option changes nothing.',
 };
 
 /** The two tables, for the parity test and for tools. Treat as read-only. */
