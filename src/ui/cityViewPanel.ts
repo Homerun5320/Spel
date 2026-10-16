@@ -18,7 +18,7 @@ import {
   type FxLine,
   type TileInfo,
 } from './cityViewModel';
-import { formatFixed, formatInt, languageVersion, t } from './i18n';
+import { formatFixed, formatGold, formatGoldRate, formatInt, languageVersion, t } from './i18n';
 import type { DeleteArm } from './structureInfo';
 import { CITY_VIEW } from './uiConfig';
 
@@ -228,11 +228,11 @@ export function createCityViewPanel(parent: HTMLElement, actions: CityViewAction
 
   const renderBuild = (b: BuildButton, c: BuildChoice): void => {
     const name = t(districtNameKey(c.kind));
-    b.name.textContent = t('sel.district.build', { name, price: c.price });
+    b.name.textContent = t('sel.district.build', { name, price: formatGold(c.price) });
     b.time.textContent = t('sel.district.buildTime', { seconds: c.buildSeconds });
     b.button.dataset.price = String(c.price);
     b.button.dataset.reason = String(c.reason);
-    setDimmed(b.button, c.reason !== 0, c.reason !== 0 ? t(districtWhyKey(c.reason)) : t('sel.district.buildTip', { name, price: c.price, seconds: c.buildSeconds, fx: fxText(c.fx) }));
+    setDimmed(b.button, c.reason !== 0, c.reason !== 0 ? t(districtWhyKey(c.reason)) : t('sel.district.buildTip', { name, price: formatGold(c.price), seconds: c.buildSeconds, fx: fxText(c.fx) }));
   };
 
   const renderTile = (d: TileDom, info: CityInfo, ti: TileInfo, now: number): void => {
@@ -255,7 +255,7 @@ export function createCityViewPanel(parent: HTMLElement, actions: CityViewAction
       d.iconBox.replaceChildren(districtIcon(ti.kind));
     }
     d.name.textContent = t(districtNameKey(ti.kind));
-    d.level.textContent = t('sel.district.level', { level: ti.level, max: DISTRICT_MAX_LEVEL });
+    d.level.textContent = t(ti.level >= DISTRICT_MAX_LEVEL ? 'sel.district.levelTop' : 'sel.district.level', { level: ti.level });
     const running = ti.state === 'building' || ti.state === 'upgrading';
     d.state.hidden = !running;
     d.state.textContent = ti.state === 'building' ? t('sel.district.building') : ti.state === 'upgrading' ? t('sel.district.upgrading') : '';
@@ -268,10 +268,10 @@ export function createCityViewPanel(parent: HTMLElement, actions: CityViewAction
     d.fxNext.hidden = ti.state === 'building';
     d.fxNext.textContent = ti.state === 'building' ? '' : ti.fxNext === null ? t('sel.district.maxed') : t('sel.district.next', { fx: fxText(ti.fxNext) });
     // Upgrade
-    d.upgrade.textContent = ti.upgradePrice > 0 ? t('sel.district.upgrade', { price: ti.upgradePrice }) : t('sel.district.maxed');
+    d.upgrade.textContent = ti.upgradePrice > 0 ? t('sel.district.upgrade', { price: formatGold(ti.upgradePrice) }) : t('sel.district.maxed');
     d.upgrade.dataset.price = String(ti.upgradePrice);
     d.upgrade.dataset.reason = String(ti.upgradeReason);
-    setDimmed(d.upgrade, ti.upgradeReason !== 0, ti.upgradeReason !== 0 ? t(districtWhyKey(ti.upgradeReason)) : t('sel.district.upgradeTip', { level: ti.level + 1, price: ti.upgradePrice }));
+    setDimmed(d.upgrade, ti.upgradeReason !== 0, ti.upgradeReason !== 0 ? t(districtWhyKey(ti.upgradeReason)) : t('sel.district.upgradeTip', { level: ti.level + 1, price: formatGold(ti.upgradePrice) }));
     // Remove (two steps)
     const armed = removeArmed(arm, info.id, ti.slot, now);
     d.remove.textContent = armed ? t('sel.district.removeConfirm') : t('sel.district.remove');
@@ -290,18 +290,17 @@ export function createCityViewPanel(parent: HTMLElement, actions: CityViewAction
     root.dataset.id = String(id);
     root.dataset.level = String(info.level);
     root.setAttribute('aria-label', t('sel.city.panel'));
-    title.textContent = t('sel.city.title', { level: info.level, max: maxLevelOf(STRUCT_CITY) });
+    title.textContent = t(info.level >= maxLevelOf(STRUCT_CITY) ? 'sel.city.titleTop' : 'sel.city.title', { level: info.level });
     close.textContent = t('sel.city.close');
     close.title = t('sel.city.close');
-    upCity.textContent = info.upgradePrice > 0 ? t('sel.city.upgrade', { price: info.upgradePrice }) : t('sel.city.upgradeMax');
+    upCity.textContent = info.upgradePrice > 0 ? t('sel.city.upgrade', { price: formatGold(info.upgradePrice) }) : t('sel.city.upgradeMax');
     upCity.dataset.price = String(info.upgradePrice);
     upCity.dataset.reason = String(info.upgradeReason);
-    setDimmed(upCity, info.upgradeReason !== 0, info.upgradeReason !== 0 ? t(districtWhyKey(info.upgradeReason)) : t('sel.city.upgradeTip', { level: info.level + 1, price: info.upgradePrice, seconds: info.upgradeSeconds }));
+    setDimmed(upCity, info.upgradeReason !== 0, info.upgradeReason !== 0 ? t(districtWhyKey(info.upgradeReason)) : t('sel.city.upgradeTip', { level: info.level + 1, price: formatGold(info.upgradePrice), seconds: info.upgradeSeconds }));
     cityState.hidden = info.finished && !info.upgrading;
     cityState.textContent = !info.finished ? t('sel.city.stateBuilding') : info.upgrading ? t('sel.city.stateUpgrading') : '';
     const tt = info.totals;
-    const tenths = Math.round(tt.goldMilliPerSec / 100);
-    totalGold.textContent = t('sel.city.totalsGold', { gold: tenths % 10 === 0 ? formatInt(tenths / 10) : formatFixed(tenths / 10, 1) });
+    totalGold.textContent = t('sel.city.totalsGold', { gold: formatGoldRate(tt.goldMilliPerSec) });
     totalTroops.textContent = t('sel.city.totalsTroops', { troops: `+${formatInt(tt.capTroops)}` });
     totalRegen.textContent = t('sel.city.totalsRegen', { pct: tt.regenPct });
     totalWalls.textContent = tt.wallsCostPct > 100 ? t('sel.city.totalsWalls', { mult: formatFixed(tt.wallsCostPct / 100, 1) }) : t('sel.city.totalsWallsNone');

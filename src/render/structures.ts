@@ -139,6 +139,7 @@ export class StructureLayer {
   private tableVersion = -1;
   private builtKey = '';
   private dirty = true;
+  private readonly levelOverride = new Map<number, number>();
   private drawn: DrawnStructure[] = [];
   /** The ids already shown once: a structure that appears while the layer is watching pops in, one that was there at the start does not. */
   private readonly seenKey: Int32Array;
@@ -386,6 +387,13 @@ export class StructureLayer {
     this.dirty = true;
   }
 
+  /** Look-2 test hook: draws structure `id` as if it had `level` (render only, the sim is untouched); `null` clears it. Lets the e2e look at levels the sim cannot reach quickly. */
+  setLevelOverride(id: number, level: number | null): void {
+    if (level === null) this.levelOverride.delete(id);
+    else this.levelOverride.set(id, level);
+    this.dirty = true;
+  }
+
   /** Hands the layer the snapshot's table; instances are rebuilt when `version` moved (or the palette / exaggeration changed). */
   setTable(table: StructureView, version: number): void {
     this.table = table;
@@ -461,7 +469,7 @@ export class StructureLayer {
         continue;
       }
       this.trianglesDrawn += layer.tris;
-      const level = t.level[id] as number;
+      const level = this.levelOverride.get(id) ?? (t.level[id] as number);
       const p = this.place(cell);
       const i = layer.count++;
       layer.hi[i * 3] = Math.fround(p.x);

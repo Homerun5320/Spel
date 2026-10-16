@@ -4,7 +4,7 @@
 // it still starts the placement mode (the ghost then shows the same reason in red). The bar only reports a choice: placing is `src/app/placement.ts`.
 import { STRUCT_CITY, STRUCT_FACTORY, STRUCT_PORT, STRUCT_POST, STRUCT_SAM, STRUCT_SILO, buildPriceMilli, hasFinishedFactory, seatToOwner, type SimView } from '../sim/public';
 import { spawnPhaseBlocks } from './buildReasons';
-import { languageVersion, t, type TextKey } from './i18n';
+import { formatGold, languageVersion, t, type TextKey } from './i18n';
 
 interface BuildItem {
   readonly type: number;
@@ -94,11 +94,12 @@ export function createBuildBar(parent: HTMLElement, actions: { select(type: numb
         if (poor || locked || waiting) e.b.setAttribute('aria-disabled', 'true');
         else e.b.removeAttribute('aria-disabled');
         e.name.textContent = t(e.item.nameKey);
-        e.price.textContent = t('hud.build.cityCost', { price: gp });
+        const shownPrice = formatGold(gp);
+        e.price.textContent = t('hud.build.cityCost', { price: shownPrice });
         const name = t(e.item.nameKey);
-        const tip = waiting ? t('hud.build.waitPhase') : locked ? t('hud.build.needFactory', { name }) : poor ? t(e.item.poorKey, { price: gp, name }) : t(e.item.tipKey, { price: gp });
+        const tip = waiting ? t('hud.build.waitPhase') : locked ? t('hud.build.needFactory', { name }) : poor ? t(e.item.poorKey, { price: shownPrice, name }) : t(e.item.tipKey, { price: shownPrice });
         e.b.title = tip;
-        e.b.setAttribute('aria-label', `${t(e.item.nameKey)} ${gp}`);
+        e.b.setAttribute('aria-label', `${t(e.item.nameKey)} ${shownPrice}`);
       }
       lang = l;
       const placing = active !== 0 && !root.hidden;

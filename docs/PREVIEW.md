@@ -53,6 +53,8 @@ Exempel: `#perf` = `?perf=1`; `#scene-perf` = `?scene=perf`; `#scenario-slice_sa
 
 **Stadsstil (Look-1).** Städerna finns i två utseenden, "Gammal" (standard) och "Modern". Du väljer i startmenyns inställningsskärm (knappen "Stadsstil: Gammal / Modern", ändras direkt och sparas) eller med adressen `?citystyle=old` / `?citystyle=new`, i en Artifact `#citystyle-old` / `#citystyle-new`; adressen vinner över det sparade valet. I Dev-panelen (F2) heter lägena "Stadsstil: gammal" och "Stadsstil: modern". Staden växer med nivån i fem steg (by, liten stad, stad, storstad, metropol).
 
+**Nivåer och guldvisning (Look-2).** Alla byggnader kan uppgraderas hur många gånger du vill; panelerna visar bara "Nivå n" (och "(högsta)" när taket nåtts), och uppgraderingsknappen finns alltid med pris och tid. Byggnaderna blir aldrig större än en stad: utseendet växer i fem steg (nivå 1, 3, 8, 20, 50) och därefter bara högre, aldrig bredare. Guldet visas tio gånger större än vad spelet räknar med (första staden kostar 4 000 i stället för 400 och inkomsten läses som 15/s i stället för 1,5/s); det är bara siffrorna på skärmen, tempot är oförändrat. Faktorn står som en rad i Dev-panelen (F2). I testläget kan du se en hög nivå med `__test.setLevelOverride(id, 999)`.
+
 Lägen som finns registrerade i Dev-panelen (F2 eller hörnknappen) just nu:
 
 | Lokalt (dator) | I en Artifact (länken + ankare) | Anmärkning |

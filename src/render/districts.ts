@@ -72,6 +72,7 @@ export class DistrictLayer {
   private districts: DistrictView | null = null;
   private version = -1;
   private dirty = true;
+  private readonly levelOverride = new Map<number, number>();
   private drawn: DrawnDistrict[] = [];
   private readonly kindCounts = [0, 0, 0, 0, 0];
   /** Districts left out because the layer's triangle budget was full (the highest City ids and slots go first). */
@@ -154,6 +155,13 @@ export class DistrictLayer {
     this.dirty = true;
   }
 
+  /** Look-2 test hook: draws City `id` as if it had `level` (render only, the sim is untouched); `null` clears it. Lets the e2e look at levels the sim cannot reach quickly. */
+  setLevelOverride(id: number, level: number | null): void {
+    if (level === null) this.levelOverride.delete(id);
+    else this.levelOverride.set(id, level);
+    this.dirty = true;
+  }
+
   /** Hands the layer the snapshot's tables; instances are rebuilt when `version` moved (or the palette / exaggeration changed). */
   setTable(structures: StructureView, districts: DistrictView, version: number): void {
     this.structures = structures;
@@ -218,7 +226,7 @@ export class DistrictLayer {
         for (let s = 0; s < DISTRICT_MAX_SLOTS; s++) this.seenKey[districtIndex(id, s)] = -1;
         continue;
       }
-      const cityLevel = st.level[id] as number;
+      const cityLevel = this.levelOverride.get(id) ?? (st.level[id] as number);
       const cell = st.cell[id] as number;
       const ll = cellToLatLon(cell, this.gridWidth, this.gridHeight);
       const cityGround = groundHeightAt(ll.lat, ll.lon);

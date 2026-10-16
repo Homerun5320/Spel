@@ -384,3 +384,10 @@ Not done in the Fix-UI slice (the sim, host and AI findings belong to Fix-Sim):
 - At the top level two Cities 3 cells apart touch at about 3500 km camera distance (1.5x level scale); a cap on the policy radius by the spacing would fix it.
 - The e2e pixel diffs of old vs new and of level 1 vs 3 include the territory change over time; a masked diff around the City would be sharper.
 - A setting for the Dev panel that switches the style without changing the address.
+
+## Look-2 leftovers
+- Polar overlap: the cap (24.5 km radius) is fixed in metres, but cells shrink east-west with cos(lat); two Cities 3 cells apart touch from about 65 degrees of latitude. A latitude-aware cap would fix it.
+- Extra towers beyond the last band (a second City geometry with more instances up to a triangle budget); Look-2 only makes the model taller.
+- The effect lines of Factory and Port still read the Fix-UI per-level tables (`atLevel` clamps to the table's last entry); when Sim-Levels2 replaces the tables with functions, `effectLines` should call them.
+- District upgrade time is not shown (the district upgrade has no separate time in the tile model).
+- A latency check of `sel.fxNext` text length on a phone-width panel.

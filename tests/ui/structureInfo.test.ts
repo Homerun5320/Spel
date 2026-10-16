@@ -41,7 +41,7 @@ import { CLASS_PLAINS } from '../../src/sim/terrain';
 import { StateView } from '../../src/sim/view';
 import { buildRejectKey, structureRefusalKey } from '../../src/ui/buildReasons';
 import { rejectKey } from '../../src/ui/hudLogic';
-import { formatInt, t } from '../../src/ui/i18n';
+import { formatGoldRate, formatInt, t } from '../../src/ui/i18n';
 import {
   DELETE_ARM_MS,
   deleteArmed,
@@ -61,7 +61,7 @@ describe('effectLines: the numbers of the structure\'s own level, from the sim t
       expect(l?.key).toBe('sel.fx.factory');
       expect(l?.params.pct).toBe(FACTORY_CITY_BONUS_PCT_BY_LEVEL[level]);
       expect(l?.params.radius).toBe(FACTORY_RADIUS_CELLS_BY_LEVEL[level]);
-      expect(l?.params.gold).toBe(['', '2', '4,5', '8,5'][level]);
+      expect(l?.params.gold).toBe(['', '20', '45', '85'][level]); // Look-2: shown x GOLD_DISPLAY_FACTOR (10)
       expect(FACTORY_GOLD_MILLI_BY_LEVEL[level]).toBe([0, 2000, 4500, 8500][level]);
     }
     expect(new Set([1, 2, 3].map((l) => JSON.stringify(effectLines(STRUCT_FACTORY, l)))).size).toBe(3);
@@ -73,21 +73,21 @@ describe('effectLines: the numbers of the structure\'s own level, from the sim t
       expect(l?.key).toBe('sel.fx.port');
       expect(l?.params.pct).toBe(PORT_TRADE_PCT_BY_LEVEL[level]);
     }
-    expect(effectLines(STRUCT_PORT, 1)[0]?.params.gold).toBe('2');
-    expect(effectLines(STRUCT_PORT, 2)[0]?.params.gold).toBe('4,5');
-    expect(effectLines(STRUCT_PORT, 3)[0]?.params.gold).toBe('8,5');
+    expect(effectLines(STRUCT_PORT, 1)[0]?.params.gold).toBe('20');
+    expect(effectLines(STRUCT_PORT, 2)[0]?.params.gold).toBe('45');
+    expect(effectLines(STRUCT_PORT, 3)[0]?.params.gold).toBe('85'); // Look-2: x10
     expect(PORT_GOLD_MILLI_BY_LEVEL[2]).toBe(4500);
   });
 
   it('City: gold and troop cap follow the sim per level, levels 1 to 10 (thousands grouped)', () => {
-    expect(effectLines(STRUCT_CITY, 1)[0]?.params).toEqual({ gold: '1,5', troops: formatInt(CAP_CITY_LEVEL_TROOPS) });
+    expect(effectLines(STRUCT_CITY, 1)[0]?.params).toEqual({ gold: '15', troops: formatInt(CAP_CITY_LEVEL_TROOPS) });
     for (const level of [2, 3, 5, maxLevelOf(STRUCT_CITY)]) {
-      expect(effectLines(STRUCT_CITY, level)[0]?.params.gold).toBe(String(cityGoldMilli(level) / 1000).replace('.', ','));
+      expect(effectLines(STRUCT_CITY, level)[0]?.params.gold).toBe(formatGoldRate(cityGoldMilli(level)));
       expect(effectLines(STRUCT_CITY, level)[0]?.params.troops).toBe(formatInt(cityTroopCap(level)));
     }
     // Sim-Growth pins: +0.5 gold/s and +250 troops per level (level 3: 2,5 and 1 300; level 10: 6 and 3 050)
-    expect(effectLines(STRUCT_CITY, 3)[0]?.params).toEqual({ gold: '2,5', troops: formatInt(1300) });
-    expect(effectLines(STRUCT_CITY, 10)[0]?.params).toEqual({ gold: '6', troops: formatInt(3050) });
+    expect(effectLines(STRUCT_CITY, 3)[0]?.params).toEqual({ gold: '25', troops: formatInt(1300) });
+    expect(effectLines(STRUCT_CITY, 10)[0]?.params).toEqual({ gold: '60', troops: formatInt(3050) });
   });
 
   it('the Silo has no function yet (no radius, not the SAM text); the SAM takes its mountain percent from the sim; the Post says 2,5 times', () => {
