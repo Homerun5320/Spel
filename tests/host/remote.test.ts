@@ -38,7 +38,7 @@ describe('RemoteHost over LocalTransport', () => {
         expect(snap.tick).toBe(tick + 1);
         got[String(tick + 1)] = hex32(snap.hash);
         if (tick + 1 === 6000) {
-          const r = deserialize(snap.bytes);
+          const r = deserialize(snap.bytes, { maxElev: createScenarioState().env.maxElev ?? undefined }); // Fix-4A2: helicopters in the air need the layer
           expect(r.ok && r.state.owner).toEqual(rebuilt);
         }
       }

@@ -156,4 +156,16 @@ describe('payback of an upgrade', () => {
     console.log(`[payback] ${rows.join('; ')}`);
     expect((BUILD_BASE_GOLD[STRUCT_CITY] as number) / ((CITY_GOLD_MILLI_PER_SEC_PER_LEVEL * 60) / 1000)).toBeCloseTo(4.44, 1);
   });
+
+  it('Fix-4A2: an upper bound next to the strict growth (DECISIONS Fix-4A2 item 6): the paybacks are deliberately long, but not longer than about 10 percent above today\'s values', () => {
+    // Today (logged above): Factory 1629 / 3650 / 7782 / 18182 / 108696 s, Port 1231 / 3077 / 6154 / 17391 / 52632 s for the levels 2 / 3 / 4 / 6 / 10.
+    const LIMIT: Record<string, readonly number[]> = { Factory: [1800, 4000, 8600, 20000, 120000], Port: [1400, 3400, 6800, 19200, 58000] };
+    for (const [name, type, scene] of [['Factory', STRUCT_FACTORY, factoryScene], ['Port', STRUCT_PORT, portScene]] as const) {
+      [2, 3, 4, 6, 10].forEach((level, i) => {
+        const sec = payback(type, level, scene);
+        expect(sec, `${name} -> L${level}`).toBeLessThanOrEqual((LIMIT[name] as readonly number[])[i] as number);
+        expect(sec, `${name} -> L${level} is not free money either`).toBeGreaterThan(90);
+      });
+    }
+  });
 });

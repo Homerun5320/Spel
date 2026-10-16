@@ -225,6 +225,19 @@ ACCEPTANS
 - [x] Three window sizes without overlap, both languages; 0 DOM mutations at rest; D in the `?` overlay
 - [x] `npm run verify:fast` green; the touched e2e green
 
+### Fix-4A2: audit 3, deserialize guards, curve pins, AI diplomacy tests (headless, no rule change, ENGINE_VERSION and FORMAT_VERSION unchanged; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+
+- [x] 0.3 One test per guard of the air and diplomacy blocks (`tests/sim/fix4a2Forged.test.ts`)
+- [x] 0.4 stateTick / landTick / readyTick, embargo cross check, eliminated consistency refused
+- [x] 0.5 `no-occluders` for airborne helicopters without `maxElev`
+- [x] 1.0 Exact level curve tables (`tests/sim/levelCurveTable.test.ts`)
+- [x] 1.5 AI diplomacy tests in constructed positions (`tests/ai/diplomacyPositions.test.ts`, `tests/ai/diplomacyThresholds.test.ts`)
+- [x] 1.9 Upper payback bands and the REJECT_DIPLO pin in the driver test
+- [x] 0.7 (partly) diplomacy side effects (`tests/sim/fix4a2Misc.test.ts`); heli mutants wait for Fix-4A1
+- [x] 2.10 `tests/helpers/saveLayout.ts` replaces the hard-coded tail arithmetic
+- [x] DECISIONS "Fix-4A2" with the mutant tables, BACKLOG, ARCHITECTURE row
+- [x] `npm run verify:fast` green (typecheck, lint, unit)
+
 ## Next
 
 - Next slices: M12a (helicopters in the sim, headless) and M20a-lite (the HUD; the keydown rule of the M20a note in `docs/ARCHITECTURE.md` counts `src/ui/matchPanels.ts` and `src/app/debugViewshed.ts` too).
