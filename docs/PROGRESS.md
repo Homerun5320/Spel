@@ -30,6 +30,16 @@ Resume: Läs CLAUDE.md och docs/PROGRESS.md, kör git log -10 och npm run verify
 
 ## Now
 
+### Fix-3A1: audit 2, test holes in the sim state and rules (headless, no game change; one slice; the orchestrator owns merging, pushing and the Artifact)
+- [x] 1. Effects cache: tests that RemoveDistrict and a finished district upgrade (Market, Housing, Barracks) change gold, cap and Barracks percent through the public getters (`tests/sim/fix3a1State.test.ts`).
+- [x] 2. Housing raises the cap the regeneration grows towards (stepped test against the same state without Housing).
+- [x] 3. Win flags: all 7 combinations round trip (`tests/sim/fix3a1Match.test.ts`).
+- [x] 4. Hash covers winner, reason, endTick, holdOwner, holdCount (and every other match field) on its own; `foldMatch` already folded them, so NO ENGINE_VERSION bump and no golden change.
+- [x] 5. `readMatch` guards: one test per guard with a valid checksum (forged through serialize of a tampered state; byte patches for the win numbers and the flag word), plus FORMAT-1 / ENGINE-1.
+- [x] 6. `src/sim/win.ts`: score per City / Factory LEVEL (level 40 and 3), draw, hold restart, hold pick, match clock at the spawn-phase edge, score limit at the exact tick.
+- [x] 7. Districts: BuildDistrict / RemoveDistrict at the exact tick, conquest at readyTick, two overlapping Walls give the largest percent.
+- [x] 8. Mutant table in `docs/DECISIONS.md` (Fix-3A1); sim[6] (economy script margin) in `docs/BACKLOG.md`. `npm run verify:fast` green.
+
 ### Integration Sim-Growth + Look-1: the UI and render read the ten City levels and five district slots (one session on HEAD 7cfad4b; the orchestrator owns merging, pushing and the Artifact)
 - [x] 1. `structureInfo`, `cityViewModel`, `cityViewPanel`, `selectionPanel`, `src/render/structures.ts`, `src/render/rings.ts`, `src/render/cityTiers.ts` read `cityGoldMilli`, `cityTroopCap`, `maxLevelOf`, `upgradePriceGold`, `upgradeTicksOf`; five fixed district slots on a pentagon (`DISTRICT_SLOT_ANGLES`); the five failing unit tests follow the sim numbers (details in `docs/DECISIONS.md`, Integration Sim-Growth + Look-1)
 - [x] 2. e2e: `cityView`, `districtsLayer`, `lookCities`, `structures` follow the new numbers and the 3-cell spacing; goldens `city-view` and `districts-layer` re-pinned once after looking, `city-old` / `city-new` unchanged

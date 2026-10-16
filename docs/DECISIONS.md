@@ -1121,3 +1121,56 @@ Base aa9b996. The sim half (unlimited levels, one price rule, gentle effects) is
 8. **Goldens.** Only two images changed, each looked at before the single re-pin with `UPDATE_GOLDENS=1`: `e2e/goldens/city-view.png` (panel text: factor 100 and the concave numbers, the upgrade buttons dimmed by the dearer price 80 000, the shorter build buttons; the whole panel now fits, the old image cut the footer) and `e2e/goldens/result-screen.png` (the match of the AI at seed and 5 minutes plays differently after Sim-Levels2: scores 842 / 742 became 342 / 342, built 4 / 4 became 4 / 5, conquered 1115 / 1242 became 1111 / 1349; no gold text and no layout change). `city-old.png`, `city-new.png`, `districts-layer.png`, `structures-city.png`, `structures-factory-port.png`, `structures-military.png`, `structures-select.png` and `spike-test-view.png` still match, so the integration does not alter the 3D look.
 9. **Looked at, with real levels.** A City, a Factory and a Silo were upgraded in a test match through real Upgrade intents to levels 5, 20 and 50 (about 13 000 ticks, inside the match time limit of 15 000; the sim cannot reach 100 or 999 in one match: 998 upgrades of 15 to 25 s each) and drawn at 100 and 999 through the render-only `__test.setLevelOverride`, at about 3 km and 800 m in both City styles. The footprint grew by about 1.3 x from level 1 to 999 at most (the plate of the City), the towers only got taller (the City tower leaves the picture at 999); at 800 m the camera stands inside the plate, as before. The panels read the concave numbers times the factor (City level 1: 150 gold/s, level 5: 235,6, level 20: 279,4, level 50: 291,3; a Factory level 20: 372,6; upgrade prices base x level: 2,04 mn for the City to level 51, 5,1 mn for the Silo to level 51), and in every case the HUD purse and income texts were exactly `formatGold` / `formatGoldRate` of the sim state while the state kept its own sim numbers (for example 998 828 gold and 5 505 milli-gold per second at tick 699).
 10. **Not changed, noted.** The upgrade TIME of a district is still not shown in the tile model (`docs/BACKLOG.md` "Look-2 leftovers"); the sim gives it the build time of the kind. `docs/DECISIONS.md` point 6 of Look-2 (factor 10) and `docs/PROGRESS.md` Look-2 are history; this section supersedes the factor.
+
+
+## Fix-3A1 (audit 2: test holes in the sim state and rules)
+
+1. **Checked against HEAD 04eaba8 first.** `foldMatch` already folds winner, reason, endTick, holdOwner and holdCount (the audit's mutation only survived for lack of a test), so there is NO `ENGINE_VERSION` bump and no golden changed. "Level 1 to 10" in the audit is meaningless after Sim-Levels2 (levels go to `STRUCT_LEVEL_HARD_CAP`); the score test uses City level 40 and Factory level 3. The score rule on HEAD is still linear per level (`SCORE_CITY_LEVEL_POINTS` 25, `SCORE_FACTORY_LEVEL_POINTS` 10).
+2. **Forged blobs.** The checksum is `hashState` of the rebuilt state, so a forged match block with a VALID checksum is made by tampering the in-memory state and calling `serialize` (like `tests/sim/districtsState.test.ts`). Fields that `serialize` derives (the flag word, the win numbers) are byte-patched instead: `readMatch` answers `match-range` before the checksum is read, so the expected error `match-range` (not `checksum`) tells the guard from the checksum; an in-range patched control proves `checksum` otherwise. Files: `tests/sim/fix3a1Match.test.ts`, `tests/sim/fix3a1State.test.ts`. No existing test was changed.
+3. **Not done, noted.** The app part of mutation[2] (`src/app/winSetup.ts`) is Fix-3C; the `match.districts` recount (mutation[12]) and the audit's per-tick "cache equals fresh recompute" property (sim[1]) are in the BACKLOG.
+4. **Mutants** (each applied alone to `src`, the named test file run, the line restored; every mutant failed the test shown):
+
+| Mutant | Change | Killed by (first failing test) |
+|---|---|---|
+| eff-upgrade-dirty | delete `t.effDirty = true` in the district upgrade loop of `structuresPhase` | Market: a district upgrade that finishes through step() raises the effect to the next le |
+| eff-clear-dirty | delete `this.effDirty = true` in `clearDistrict` | Market: removing a finished district through a step lowers the effect at once |
+| eco-housing-zero | `housingQtOf(state, owner)` -> 0 in the `troopCapQt` call of `economyTick` | troops sitting at the old cap grow past it with a level 3 Housing and do not without 18m |
+| flags-swap | swap `WIN_FLAG_LAST` / `WIN_FLAG_SCORE` in `winFlagsOf` | flags 2: land=0 last=1 score=0 |
+| hash-winner | fold a constant 0 for `m.winner` in `foldMatch` | winner alone changes the hash |
+| hash-reason | fold a constant 0 for `m.reason` in `foldMatch` | reason alone changes the hash |
+| hash-endTick | fold a constant 0 for `m.endTick` in `foldMatch` | endTick alone changes the hash |
+| hash-holdOwner | fold a constant 0 for `m.holdOwner` in `foldMatch` | holdOwner alone changes the hash |
+| hash-holdCount | fold a constant 0 for `m.holdCount` in `foldMatch` | holdCount alone changes the hash |
+| hash-ended | fold a constant 0 for `m.ended` in `foldMatch` | ended alone changes the hash |
+| hash-districts | drop the `m.districts` fold in `foldMatch` | districts alone changes the hash |
+| hash-capitalLost | fold a constant 0 for `m.capitalLost` in `foldMatch` | capitalLost alone changes the hash |
+| ser-flags-range | delete or narrow the `readMatch` guard `flags-range` | a flag word above 7 in the bytes is refused by the guard, not by the checksum |
+| ser-nowin-zero | delete or narrow the `readMatch` guard `nowin-zero` | the win numbers must be in range when a flag is on, and zero when none is (byte patches: |
+| ser-win-range | delete or narrow the `readMatch` guard `win-range` | the win numbers must be in range when a flag is on, and zero when none is (byte patches: |
+| ser-ended-range | delete or narrow the `readMatch` guard `ended-range` | ended must be 0 or 1 |
+| ser-winner-range | delete or narrow the `readMatch` guard `winner-range` | the winner must be a seat |
+| ser-reason-range | delete or narrow the `readMatch` guard `reason-range` | the reason must be 0 to 3 |
+| ser-holdowner-range | delete or narrow the `readMatch` guard `holdowner-range` | the hold owner must be a seat |
+| ser-not-ended-zero | delete or narrow the `readMatch` guard `not-ended-zero` | a match that has not ended has no winner, no reason and no end tick (each alone) |
+| ser-not-ended-endTick | delete or narrow the `readMatch` guard `not-ended-endTick` | a match that has not ended has no winner, no reason and no end tick (each alone) |
+| ser-ended-consistent | delete or narrow the `readMatch` guard `ended-consistent` | an ended match has a winner exactly when it has a reason (both directions) |
+| ser-hold-consistent | delete or narrow the `readMatch` guard `hold-consistent` | the hold owner and the hold count agree: owner 0 means count 0, an owner means count >= |
+| ser-hold-max | delete or narrow the `readMatch` guard `hold-max` | the hold count never exceeds holdTicks, and a match without a win block has no hold |
+| ser-hold-nowin | delete or narrow the `readMatch` guard `hold-nowin` | the hold count never exceeds holdTicks, and a match without a win block has no hold |
+| ser-flag01 | delete or narrow the `readMatch` guard `flag01` | the per-seat flags are 0 or 1 |
+| ser-slot0-flags | delete or narrow the `readMatch` guard `slot0-flags` | slot 0 of every per-owner array is empty (each array alone) |
+| ser-slot0-stats | delete or narrow the `readMatch` guard `slot0-stats` | slot 0 of every per-owner array is empty (each array alone) |
+| ser-slot0-peak | delete or narrow the `readMatch` guard `slot0-peak` | slot 0 of every per-owner array is empty (each array alone) |
+| ser-slot0-districts | delete or narrow the `readMatch` guard `slot0-districts` | slot 0 of every per-owner array is empty (each array alone) |
+| win-city-flat | City score `25 * level` -> flat 25 | score = land + 25 per City level + 10 per Factory level (levels above 1 count, not a fla |
+| win-factory-flat | Factory score `10 * level` -> flat 10 | score = land + 25 per City level + 10 per Factory level (levels above 1 count, not a fla |
+| win-unfinished-counts | drop the finished check in `fillScores` | score = land + 25 per City level + 10 per Factory level (levels above 1 count, not a fla |
+| win-draw | draw -> `endMatch(who, LAST)` | everybody eliminated in the same tick is a draw (ended, winner 0, reason NONE) and the s |
+| win-holdcount-reset | `holdCount` restart -> `holdCount + 1` | when the holder drops out and another nation qualifies in the same tick the hold count r |
+| win-pick-first | drop the larger-share rule of the hold pick | with no holder and two nations above the share the larger one becomes the holder |
+| win-clock-start | `state.tick <= start` -> `<` | the match clock starts after the spawn phase: a last-alive end that is true AT the first |
+| win-score-limit | `elapsed >= timeLimit` -> `>` | the score condition decides at exactly timeLimitTicks of play after the spawn phase |
+| dr-city-boundary | `tick < readyTick` -> `readyTick - 1` in `checkBuildDistrict` | BuildDistrict is refused one tick before the City is finished and accepted on the ready |
+| dr-remove-boundary | `tick < deleteReadyTick` -> `- 1` | RemoveDistrict is refused one tick before the Delete cooldown ends and accepted when it |
+| conquer-boundary | `conquerDistricts` `<` -> `<=` readyTick | a district that is ready exactly on the tick of the conquest is kept (one level lower), |
+| walls-best | drop `pct > best` in `wallAdjustedCost` | two overlapping Walls: the largest percent applies, not the last one found and not the s |
