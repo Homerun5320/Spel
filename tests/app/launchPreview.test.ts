@@ -285,11 +285,11 @@ describe('Fix-4B: previewLaunch details', () => {
     const f = build();
     const req: PreviewRequest = { factory: f.factory, lzCell: at(100, 60), troops: 5, mode: 0 };
     expect(previewLaunch(f.nav, f.view, 0, req).exposed?.some((e) => e === 1)).toBe(false);
-    const post = f.s.structures.add(STRUCT_POST, 1, at(60, 61), f.s.tick); // OUR post on the line
+    const post = f.s.structures.add(STRUCT_POST, 1, at(100, 61), f.s.tick); // OUR post beside the goal (the route has two waypoints: the Factory and the zone)
     for (let i = 0; i < (BUILD_TICKS[STRUCT_POST] as number) + 1; i++) step(f.s, { turn: f.s.tick, intents: [] });
     expect(previewLaunch(f.nav, f.view, 0, req).exposed?.some((e) => e === 1), 'own post').toBe(false);
     f.s.structures.remove(post);
-    f.s.structures.add(STRUCT_POST, 2, at(60, 61), f.s.tick); // THEIR post on the same cell
+    f.s.structures.add(STRUCT_POST, 2, at(100, 61), f.s.tick); // THEIR post on the same cell
     for (let i = 0; i < (BUILD_TICKS[STRUCT_POST] as number) + 1; i++) step(f.s, { turn: f.s.tick, intents: [] });
     expect(previewLaunch(f.nav, f.view, 0, req).exposed?.some((e) => e === 1), 'enemy post').toBe(true);
   });
@@ -384,5 +384,22 @@ describe('Fix-4B: LaunchPreviewer faults', () => {
     (resolve as unknown as () => void)();
     await flush();
     expect(p.current()?.request.lzCell).toBe(1);
+    // the answer of a query asked BEFORE the clear must not come back to life when the very same request is wanted again (mutant: no epoch bump)
+    const old: Array<() => void> = [];
+    const q = new LaunchPreviewer(
+      (r) =>
+        new Promise((res) => {
+          old.push(() => res(answer(r)));
+        }),
+      0,
+    );
+    q.want(req(2));
+    q.poll(0);
+    q.clear();
+    q.want(req(2));
+    (old[0] as () => void)();
+    await flush();
+    expect(q.current()).toBeNull();
+    expect(q.dropped).toBe(1);
   });
 });

@@ -51,9 +51,9 @@ describe('attachHotkeys (the one keydown listener of the game)', () => {
     attachHotkeys(t1, a.reg);
     attachHotkeys(t1, a.reg); // the same target again: still one listener
     attachHotkeys(t2, b.reg);
-    press(t1, 'x');
+    press(t1, 'y'); // a quiet key: the first listener does not prevent it, so a second listener on the same target would run it again
     press(t2, 'x');
-    expect(a.runs).toEqual(['x']);
+    expect(a.runs).toEqual(['y']);
     expect(b.runs).toEqual(['x']);
   });
 
