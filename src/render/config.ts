@@ -487,3 +487,19 @@ export const DISTRICT_MODEL_UNIT = 0.42;
 /** A district is drawn at its true size (no scale policy). Full above DISTRICT_FADE_PX_HI projected pixels of radius, gone below DISTRICT_FADE_PX_LO. */
 export const DISTRICT_FADE_PX_LO = 3;
 export const DISTRICT_FADE_PX_HI = 5;
+
+// ---- M13a-1: the helicopter layer (src/render/heliLayer.ts) ----
+/** Capacity of the helicopter instance buffer: the sim table's HELI_CAPACITY (a test pins the equality). */
+export const HELI_INSTANCE_CAP = 64;
+/** The helicopter model is built in a unit disc; this is that unit in FACTORY units (one factory unit = 700 m at true size), so a helicopter keeps a fixed share of its Factory under the scale policy. 0.11 = 77 m. */
+export const HELI_MODEL_SCALE = 0.11;
+/** Metres of the unit the scale policy works in (the Factory's `radiusM`): the helicopter shares the structures' policy so the pad offset below stays beside the Factory at every zoom. */
+export const HELI_POLICY_SIZE_M = 700;
+/** Where a parked helicopter stands, in Factory model units: east, up (the plate top), north. A free corner of the plate beside the hall. */
+export const HELI_PAD_OFFSET: readonly [number, number, number] = [0.52, 0.055, -0.5];
+/** Rotor speed in radians per fx second (the angle is wrapped on the CPU, the rest is vertex-shader maths). */
+export const HELI_ROTOR_RAD_PER_SEC = 24;
+/** The tail rotor turns this many times faster than the main rotor. */
+export const HELI_TAIL_ROTOR_MUL = 1.7;
+/** Triangle ceiling of the merged model (the prompt asks for under 150). */
+export const HELI_MODEL_MAX_TRIANGLES = 150;

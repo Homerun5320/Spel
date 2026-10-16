@@ -375,6 +375,14 @@ const sv = {
   'hud.win.noLeader': 'Ingen ledare än',
   'hud.win.hold': '{secs} s kvar ({name})',
   'hud.win.aria': 'Ledarens andel av vinstgränsen',
+  // M13a-1: helicopters (build button, fleet gauge, toasts)
+  'hud.fleet': 'Helikoptrar',
+  'sel.heli.build': 'Bygg helikopter ({price})',
+  'sel.heli.tip': 'En helikopter kostar {price} guld och tar {seconds} s att bygga.',
+  'sel.heli.fleet': 'Helikoptrar {n}/{cap}',
+  'sel.heli.queue': 'Bygger helikopter, {s} s kvar',
+  'toast.heli.produced': 'En helikopter är klar.',
+  'toast.heli.scrapped': 'Helikopterbygget skrotades.',
 } as const;
 
 export type TextKey = keyof typeof sv;
@@ -739,6 +747,14 @@ const en: Record<TextKey, string> = {
   'hud.win.noLeader': 'No leader yet',
   'hud.win.hold': '{secs} s left ({name})',
   'hud.win.aria': "The leader's share of the win limit",
+  // M13a-1: helicopters (build button, fleet gauge, toasts)
+  'hud.fleet': 'Helicopters',
+  'sel.heli.build': 'Build helicopter ({price})',
+  'sel.heli.tip': 'A helicopter costs {price} gold and takes {seconds} s to build.',
+  'sel.heli.fleet': 'Helicopters {n}/{cap}',
+  'sel.heli.queue': 'Building a helicopter, {s} s left',
+  'toast.heli.produced': 'A helicopter is ready.',
+  'toast.heli.scrapped': 'The helicopter under construction was scrapped.',
 };
 
 /** The two tables, for the parity test and for tools. Treat as read-only. */

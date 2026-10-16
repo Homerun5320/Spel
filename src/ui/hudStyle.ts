@@ -47,7 +47,10 @@ export function hudCss(): string {
 .hud-line { display: flex; align-items: baseline; gap: 0.4em; white-space: nowrap; }
 .hud-bar-row { display: flex; align-items: center; gap: 0.5em; min-height: 1.15em; }
 .hud-bar-row .hud-bar { flex: 1 1 auto; margin: 0; }
-.hud-win { flex: 1 1 100%; display: flex; align-items: center; gap: 0.6em; min-height: 1.4em; min-width: 0; }
+.hud-row2 { flex: 1 1 100%; display: flex; align-items: center; gap: 0.8em; min-width: 0; }
+.hud-row2 > .hud-grp { flex: none; margin-left: auto; align-items: center; min-height: 1.4em; }
+.hud-row2 .hud-num { font-size: 1em; }
+.hud-win { flex: 1 1 auto; display: flex; align-items: center; gap: 0.6em; min-height: 1.4em; min-width: 0; }
 .hud-win .hud-bar { flex: 1 1 8em; min-width: 3em; margin: 0; }
 .hud-win-text, .hud-win-hold { font-variant-numeric: tabular-nums; white-space: nowrap; flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; } /* the figures come first, so a long nation name is the part that is cut */
 .hud-win-hold { color: ${C.barWarning}; font-weight: 700; }
@@ -102,6 +105,9 @@ export function hudCss(): string {
 .sel-btn { min-height: ${target}; padding: 0 0.8em; border-radius: 0.5em; border: 1px solid ${C.buttonBorder}; background: ${C.button}; color: ${C.text}; font: inherit; font-weight: 700; cursor: pointer; touch-action: manipulation; }
 .sel-btn:hover { background: ${C.buttonActive}; }
 .sel-btn[data-state="dim"] { opacity: 0.5; border-style: dashed; cursor: not-allowed; }
+.sel-heli { display: flex; flex-direction: column; gap: 0.2em; margin-top: 0.3em; }
+.sel-heli[hidden] { display: none !important; }
+.sel-heli-fleet[data-full="1"] { color: ${C.barWarning}; }
 
 /* Narrow screens (a phone held upright, D107): the banner takes the whole top row left of the Dev button, with the countdown beside the
    text; the leaderboard sits below it, so nothing overlaps the banner, the board or the Dev button (48 px + 8 px margins). */

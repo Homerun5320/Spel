@@ -4,16 +4,18 @@
 import { fxNow } from '../render/clock';
 import { formatGold, languageVersion, t } from './i18n';
 import { deleteArmed, deleteClick, deleteWhyKey, effectLines, structureNameKey, upgradeWhyKey, type DeleteArm, type SelectionInfo } from './structureInfo';
-import { STRUCT_CITY, maxLevelOf } from '../sim/public';
+import { STRUCT_CITY, STRUCT_FACTORY, maxLevelOf } from '../sim/public';
+import { rejectKey } from './hudLogic';
+import type { HeliPanelInfo } from './heliInfo';
 
 export interface SelectionPanel {
   readonly root: HTMLElement;
   /** Per frame: null hides the panel. `onMountain` selects the sim's SAM radius. */
-  update(info: SelectionInfo | null, onMountain: boolean): void;
+  update(info: SelectionInfo | null, onMountain: boolean, heli?: HeliPanelInfo | null): void;
   dispose(): void;
 }
 
-export function createSelectionPanel(parent: HTMLElement, actions: { upgrade(id: number): void; remove(id: number): void; openCity?(id: number): void }): SelectionPanel {
+export function createSelectionPanel(parent: HTMLElement, actions: { upgrade(id: number): void; remove(id: number): void; openCity?(id: number): void; produceHeli?(id: number): void }): SelectionPanel {
   const root = document.createElement('div');
   root.className = 'sel-panel hud-panel';
   root.dataset.testid = 'sel-panel';
@@ -30,12 +32,25 @@ export function createSelectionPanel(parent: HTMLElement, actions: { upgrade(id:
   const openCity = button('sel-open-city'); // Districts-2a: only for an own City
   row.append(up, del, openCity);
   const note = el('div', 'sel-note', 'sel-note');
-  root.append(name, level, state, fx, row, note);
+  // M13a-1: the helicopter block of an own Factory: the build button, the queue line, the fleet gauge and (dimmed) the reason in text
+  const heliBox = document.createElement('div');
+  heliBox.className = 'sel-heli';
+  heliBox.dataset.testid = 'sel-heli-box';
+  const heliBtn = button('sel-heli');
+  const heliQueue = el('div', 'sel-state', 'sel-heli-queue');
+  const heliFleet = el('div', 'sel-note sel-heli-fleet', 'sel-heli-fleet');
+  const heliWhy = el('div', 'sel-note', 'sel-heli-why');
+  heliBox.append(heliBtn, heliQueue, heliFleet, heliWhy);
+  heliBox.hidden = true;
+  root.append(name, level, state, fx, row, heliBox, note);
   parent.appendChild(root);
   let shown = '';
   let current = -1;
   up.addEventListener('click', () => {
     if (current >= 0 && up.getAttribute('aria-disabled') !== 'true') actions.upgrade(current);
+  });
+  heliBtn.addEventListener('click', () => {
+    if (current >= 0 && heliBtn.getAttribute('aria-disabled') !== 'true') actions.produceHeli?.(current);
   });
   openCity.addEventListener('click', () => {
     if (current >= 0) actions.openCity?.(current);
@@ -57,7 +72,7 @@ export function createSelectionPanel(parent: HTMLElement, actions: { upgrade(id:
   });
   return {
     root,
-    update(info, onMountain): void {
+    update(info, onMountain, heli = null): void {
       if (info === null) {
         if (!root.hidden) root.hidden = true;
         current = -1;
@@ -68,7 +83,7 @@ export function createSelectionPanel(parent: HTMLElement, actions: { upgrade(id:
       current = info.id;
       const armed = deleteArmed(arm, info.id, clock());
       if (!armed) arm = null;
-      const sig = [armed ? 1 : 0, info.id, info.type, info.level, info.owned ? 1 : 0, info.finished ? 1 : 0, info.upgrading ? 1 : 0, info.upgradePrice, info.upgradeReason, info.deleteReason, info.deleteSeconds, onMountain ? 1 : 0, languageVersion()].join('|');
+      const sig = [armed ? 1 : 0, info.id, info.type, info.level, info.owned ? 1 : 0, info.finished ? 1 : 0, info.upgrading ? 1 : 0, info.upgradePrice, info.upgradeReason, info.deleteReason, info.deleteSeconds, onMountain ? 1 : 0, languageVersion(), heli === null ? 'x' : [heli.reason, heli.fleet, heli.cap, heli.queueSeconds].join(',')].join('|');
       if (sig === shown && !root.hidden) return;
       shown = sig;
       root.hidden = false;
@@ -105,6 +120,23 @@ export function createSelectionPanel(parent: HTMLElement, actions: { upgrade(id:
       openCity.textContent = t('sel.city.open');
       openCity.title = t('sel.city.openTip');
       note.textContent = t('sel.hint');
+      const showHeli = info.type === STRUCT_FACTORY && info.owned && heli !== null && actions.produceHeli !== undefined;
+      heliBox.hidden = !showHeli;
+      if (showHeli && heli !== null) {
+        heliBtn.textContent = t('sel.heli.build', { price: formatGold(heli.price) });
+        heliBtn.dataset.reason = String(heli.reason);
+        const why = heli.reason !== 0 ? t(rejectKey(heli.reason), { code: heli.reason }) : '';
+        setDimmed(heliBtn, heli.reason !== 0, heli.reason !== 0 ? why : t('sel.heli.tip', { price: formatGold(heli.price), seconds: heli.buildSeconds }));
+        heliWhy.textContent = why;
+        heliWhy.hidden = why === '';
+        heliQueue.textContent = heli.queueSeconds > 0 ? t('sel.heli.queue', { s: heli.queueSeconds }) : '';
+        heliQueue.hidden = heli.queueSeconds === 0;
+        heliQueue.dataset.value = String(heli.queueSeconds);
+        heliFleet.textContent = t('sel.heli.fleet', { n: heli.fleet, cap: heli.cap });
+        heliFleet.dataset.n = String(heli.fleet);
+        heliFleet.dataset.cap = String(heli.cap);
+        heliFleet.dataset.full = heli.fleet >= heli.cap ? '1' : '0';
+      }
     },
     dispose(): void {
       root.remove();

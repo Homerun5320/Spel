@@ -8,6 +8,7 @@
 // bar moves with a transform, the leaderboard is re-ranked once per tick into a preallocated array. `data-testid` ids are the
 // hooks of the e2e tests and `data-value` carries the raw number behind a formatted text.
 import type { SimView } from '../sim/view';
+import { fleetCapOf, fleetCountOf } from '../sim/public';
 import { drawFlag, type FlagSpec } from './flag';
 import type { SeatLabels } from './seatLabels';
 import { TICK_HZ } from './hudCodes';
@@ -251,6 +252,12 @@ export function createMatchHud(parent: HTMLElement, actions: MatchHudActions, op
   const timerLabel = cell(label('hud-label', 'hud.timer'));
   const timerText = dyn(new TextCell(el('span', 'hud-num', 'timer'), (s) => formatClock(s), true));
   timerBox.append(timerLabel.el, timerText.el);
+  // M13a-1: the fleet gauge "Helikoptrar n/tak" (the cap scans the structure table, so it is read once per tick)
+  const fleetBox = el('span', 'hud-grp', 'fleet-grp');
+  const fleetLabel = cell(label('hud-win-label', 'hud.fleet')); // not `hud-label`: the language test lists those in the status panel
+  const fleetText = dyn(new TextCell(el('span', 'hud-num', 'fleet'), (n, cap) => `${formatInt(n)}/${formatInt(cap)}`, true));
+  fleetBox.append(fleetLabel.el, fleetText.el);
+  let fleetTick = -1;
   // The win meter: the leader's share against the land condition now (MatchView), and the hold count-down. Hidden when the match has no land condition.
   const winRow = el('div', 'hud-win', 'win');
   winRow.hidden = true;
@@ -265,7 +272,10 @@ export function createMatchHud(parent: HTMLElement, actions: MatchHudActions, op
   const winHold = el('span', 'hud-win-hold', 'win-hold');
   winHold.hidden = true;
   winRow.append(winLabel.el, winBar, winLeader, winHold);
-  status.append(nationBox, goldGrp, troopsGrp, shareBox, timerBox, winRow);
+  // the second row holds the win meter (when the match has a land condition) and the fleet gauge, so the gauge adds no row to the bar
+  const row2 = el('div', 'hud-row2', 'hud-row2');
+  row2.append(winRow, fleetBox);
+  status.append(nationBox, goldGrp, troopsGrp, shareBox, timerBox, row2);
 
   // --- Leaderboard ---
   const board = el('div', 'hud-panel hud-board', 'leaderboard');
@@ -412,6 +422,10 @@ export function createMatchHud(parent: HTMLElement, actions: MatchHudActions, op
       capText.set(capTroops);
       shareText.set(st.landShareQ15[L] as number);
       timerText.set(Math.floor(v.tick / TICK_HZ));
+      if (v.tick !== fleetTick) {
+        fleetTick = v.tick;
+        fleetText.set(fleetCountOf(v, L), fleetCapOf(v, L));
+      }
       const tb = troopBar(m.troops, capTroops);
       const q = Math.round(tb.fraction * 400);
       if (q !== lastBarQ) {

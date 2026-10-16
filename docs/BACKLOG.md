@@ -453,3 +453,12 @@ Not done in the Fix-UI slice (the sim, host and AI findings belong to Fix-Sim):
 - The golden scenario contains refused launches and one accepted launch (seed 1, tick 5998): the fixture world has few valid zones. A dedicated flight scenario (fixed Factory and zone) would pin more of the flight in the hash.
 - A troop count returned to a seat that is over its cap decays like any other surplus; no special handling.
 - UI: the launch needs a zone picker with `validateLaunchHeli` (M13b), a recall button and a fuel bar; the hover and the way home are visible in `SimView.helis` (`state`, `alt`, `load`, `fuel`).
+## M13a-1 leftovers (-> "M13a-2")
+- Effects: rotor wash and dust on the pad, a shadow blob on the ground, a smoke trail for a downed helicopter, a tilt in the turn (the vertex shader has the yaw only).
+- The H chase camera (key H is reserved), the cinematic scenario slice (a launch, a flight over mountains, a landing), the fleet list with a click-to-select helicopter.
+- A far icon / dot for helicopters at orbit zoom (the layer shares the structures' scale cap and is a few pixels from 3000 km).
+- Interpolate the position between snapshots with the fx clock (today it hops tick to tick; invisible for a parked one, visible for a fast flight at 800 m). The layer already keeps the last position per slot for the heading.
+- The pad corner assumes level 1 of the Factory model (a high-level Factory model grows round it); read the Factory level into the layer if a level-10 plate ever reaches the corner.
+- A leak test (320x180, 60 renders, heapDelta) was not added: the layer creates one geometry, one material and four instanced buffers once and nothing per frame or per table change; `Globe.dispose` frees them.
+- `HeliLayer` takes the altitude above ground as `alt - GAMEPLAY_HEIGHT_EXAG * meanElev(cell)`; if M12a-2 defines `alt` differently for flight, change that one line (`aglM` in `rebuild`).
+
