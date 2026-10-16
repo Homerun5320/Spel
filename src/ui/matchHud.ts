@@ -11,7 +11,8 @@ import type { SimView } from '../sim/view';
 import { BEACHHEAD_ESTABLISH_CELLS, fleetCapOf, fleetCountOf } from '../sim/public';
 import { ownBeachChip, type BeachChip } from './beachheadInfo';
 import { drawFlag, type FlagSpec } from './flag';
-import type { SeatLabels } from './seatLabels';
+import { sideName, type SeatLabels } from './seatLabels';
+import { boardEntries, sideShareQ15, type BoardEntry } from './groupModel';
 import { TICK_HZ } from './hudCodes';
 import { bannerState, phaseName, rankOf, rankTop, rejectKey, seatName, shareHundredths, troopBar } from './hudLogic';
 import { formatClock, formatFixed, formatGold, formatGoldRate, formatInt, languageVersion, t, type TextKey } from './i18n';
@@ -19,7 +20,7 @@ import { mountHudStyle } from './hudStyle';
 import { HudGate } from './hudGate';
 import { newWinMeterState, winMeterInto } from './winMeter';
 import { BADGE_ALLIANCE, BADGE_EMBARGO, BADGE_TRUCE, incomingCount, relationBadges } from './diploModel';
-import { DIPLO, HUD_MIN_INTERVAL_S, COMMIT_MAX_PCT, COMMIT_MIN_PCT, COMMIT_STEP_PCT, FLAG_ROW_H, FLAG_ROW_W, LEADERBOARD_INCLUDES_TRIBES, LEADERBOARD_ROWS, PLAY_HINT_SECONDS, TOAST_SECONDS, TROOP_WARNING_FRACTION } from './uiConfig';
+import { DIPLO, FED_BOARD, HUD_MIN_INTERVAL_S, COMMIT_MAX_PCT, COMMIT_MIN_PCT, COMMIT_STEP_PCT, FLAG_ROW_H, FLAG_ROW_W, LEADERBOARD_INCLUDES_TRIBES, LEADERBOARD_ROWS, PLAY_HINT_SECONDS, TOAST_SECONDS, TROOP_WARNING_FRACTION } from './uiConfig';
 
 export interface MatchHudActions {
   setCommit(pct: number): void;
@@ -148,6 +149,9 @@ class BoardRow {
   private readonly relAlliance = el('span', 'hud-rel', 'rel-alliance');
   private readonly relEmbargo = el('span', 'hud-rel', 'rel-embargo');
   private badges = -1;
+  /** M18b-3: set by the leaderboard; a click on a federation row (`data-group` 1) reports its index. */
+  onGroupClick: ((fed: number) => void) | null = null;
+  private fed = -1;
   private seat = -2;
   private rankNo = -2;
   private shareQ15 = -2;
@@ -162,15 +166,67 @@ class BoardRow {
     if (this.flag !== null) this.root.append(this.rank, this.swatch, this.flag, this.name, this.rels, this.share);
     else this.root.append(this.rank, this.swatch, this.name, this.rels, this.share);
     this.root.hidden = true;
+    this.root.addEventListener('click', () => {
+      if (this.fed >= 0 && this.onGroupClick !== null) this.onGroupClick(this.fed);
+    });
   }
   hide(): void {
     if (!this.root.hidden) this.root.hidden = true;
     this.seat = -2;
   }
-  set(seat: number, rankNo: number, shareQ15: number, players: number, localSeat: number, color: string, labels: SeatLabels | null, badges = 0): void {
+  /** M18b-3: shows a whole federation as one row (its flag, its name with the living members, the summed share); `localIn` marks your own federation. */
+  setGroup(e: BoardEntry, rankNo: number, shareQ15: number, color: string, labels: SeatLabels, localIn: boolean, expanded: boolean): void {
+    const lv = languageVersion();
+    if (this.root.hidden) this.root.hidden = false;
+    const id = -100 - e.fed;
+    if (id !== this.seat || lv !== this.lang) {
+      this.name.textContent = t('hud.fed.row', { name: labels.federationName(e.fed), alive: e.alive, total: e.total });
+      if (this.flag !== null) {
+        if (id !== this.seat) paintFlag(this.flag, (labels.federations[e.fed] as { flag: FlagSpec }).flag);
+        this.root.dataset.flag = this.flag.hidden ? '0' : '1';
+      }
+      this.swatch.style.background = color;
+      this.root.dataset.seat = String(e.seat);
+      this.root.dataset.group = '1';
+      this.root.dataset.sub = '0';
+      this.root.dataset.fed = String(e.fed);
+      this.root.title = t('hud.fed.tip');
+      this.root.dataset.you = localIn ? '1' : '0';
+      this.seat = id;
+      this.fed = e.fed;
+      this.badges = -1;
+      this.rels.hidden = true;
+    }
+    this.root.dataset.members = String(e.alive);
+    this.root.dataset.expanded = expanded ? '1' : '0';
+    if (rankNo !== this.rankNo || lv !== this.lang) {
+      this.rank.textContent = rankNo > 0 ? t('hud.rank', { n: rankNo }) : '-';
+      this.root.dataset.rank = String(rankNo);
+      this.rankNo = rankNo;
+    }
+    if (shareQ15 !== this.shareQ15 || lv !== this.lang) {
+      this.share.textContent = percentText(shareHundredths(shareQ15));
+      this.root.dataset.share = String(shareQ15);
+      this.shareQ15 = shareQ15;
+    }
+    this.lang = lv;
+  }
+  set(seat: number, rankNo: number, shareQ15: number, players: number, localSeat: number, color: string, labels: SeatLabels | null, badges = 0, sub = false): void {
     const lv = languageVersion();
     if (this.root.hidden) this.root.hidden = false;
     if (seat !== this.seat || lv !== this.lang) {
+      if (this.fed >= 0) {
+        // This row showed a federation before: take the group marks and the relation column back.
+        this.fed = -1;
+        this.rels.hidden = false;
+        this.root.title = '';
+        this.root.dataset.group = '0';
+        delete this.root.dataset.expanded;
+        delete this.root.dataset.members;
+        delete this.root.dataset.fed;
+        this.badges = -1;
+      }
+      this.root.dataset.sub = sub ? '1' : '0';
       if (labels !== null) {
         this.name.textContent = labels.name(seat);
         if (this.flag !== null) {
@@ -187,7 +243,7 @@ class BoardRow {
       this.seat = seat;
     }
     if (rankNo !== this.rankNo || lv !== this.lang) {
-      this.rank.textContent = rankNo > 0 ? t('hud.rank', { n: rankNo }) : '-';
+      this.rank.textContent = rankNo > 0 ? t('hud.rank', { n: rankNo }) : sub ? '' : '-';
       this.root.dataset.rank = String(rankNo);
       this.rankNo = rankNo;
     }
@@ -333,8 +389,16 @@ export function createMatchHud(parent: HTMLElement, actions: MatchHudActions, op
   const boardEmpty = cell(new TextCell(el('div', 'hud-empty', 'leaderboard-empty'), () => t('hud.leaderboardEmpty')));
   const rows: BoardRow[] = [];
   board.append(boardTitle.el, boardEmpty.el);
-  for (let i = 0; i <= LEADERBOARD_ROWS; i++) {
+  const hasFed = labels !== null && labels.federations.length > 0;
+  // M18b-3: which federations are expanded (their members listed under the row); a click on the row flips it and redraws the board at once.
+  const expanded: boolean[] = [];
+  let boardDirty = false;
+  for (let i = 0; i <= LEADERBOARD_ROWS + (hasFed ? FED_BOARD.subRowsMax : 0); i++) {
     const r = new BoardRow(labels !== null);
+    r.onGroupClick = (fed) => {
+      expanded[fed] = expanded[fed] !== true;
+      boardDirty = true;
+    };
     rows.push(r);
     board.append(r.root);
   }
@@ -415,7 +479,7 @@ export function createMatchHud(parent: HTMLElement, actions: MatchHudActions, op
   let lastHoldSecs = -1;
   let lastHoldLang = -1;
   const nameOf = (seat: number, players: number, localSeat: number): string => {
-    if (labels !== null) return labels.name(seat);
+    if (labels !== null) return sideName(labels, seat);
     const nm = seatName(seat, players, localSeat);
     return t(nm.key, { n: nm.n });
   };
@@ -513,7 +577,7 @@ export function createMatchHud(parent: HTMLElement, actions: MatchHudActions, op
       }
       // Win meter
       const wm = v.match;
-      winMeterInto(winState, wm, wm.leaderSeat >= 0 ? (st.landShareQ15[wm.leaderSeat] as number) : 0);
+      winMeterInto(winState, wm, wm.leaderSeat < 0 ? 0 : labels !== null && hasFed ? sideShareQ15(st, labels, wm.leaderSeat) : (st.landShareQ15[wm.leaderSeat] as number));
       if (winRow.hidden === winState.active) winRow.hidden = !winState.active;
       if (winState.active) {
         if (winState.fillQ !== lastWinQ) {
@@ -550,25 +614,50 @@ export function createMatchHud(parent: HTMLElement, actions: MatchHudActions, op
       // Leaderboard: once per tick (and when the language or your own start changed)
       const lv = languageVersion();
       const localCells = st.cells[L] as number;
-      if (v.tick !== boardTick || lv !== boardLang || (localCells > 0 ? 1 : 0) !== boardLocalCells) {
+      if (v.tick !== boardTick || lv !== boardLang || boardDirty || (localCells > 0 ? 1 : 0) !== boardLocalCells) {
+        boardDirty = false;
         boardTick = v.tick;
         boardLang = lv;
         boardLocalCells = localCells > 0 ? 1 : 0;
         const seatCount = LEADERBOARD_INCLUDES_TRIBES ? v.seats : v.players;
-        const n = rankTop(st, seatCount, top);
         let used = 0;
         let youShown = false;
-        for (let i = 0; i < n; i++) {
-          const seat = top[i] as number;
-          if (seat === L) youShown = true;
-          (rows[used++] as BoardRow).set(seat, i + 1, st.landShareQ15[seat] as number, v.players, L, seatColor(seat), labels, relationBadges(v, L, seat));
+        if (labels !== null && hasFed) {
+          // M18b-3: a federation is ONE row (summed share, living members, its flag); expanded, its members follow indented.
+          const entries = boardEntries(st, seatCount, labels);
+          const place = (e: BoardEntry, rankNo: number): void => {
+            if (used >= rows.length) return;
+            const you = e.seats.includes(L);
+            if (you) youShown = true;
+            if (e.fed < 0) {
+              (rows[used++] as BoardRow).set(e.seat, rankNo, e.shareQ15, v.players, L, seatColor(e.seat), labels, relationBadges(v, L, e.seat));
+              return;
+            }
+            (rows[used++] as BoardRow).setGroup(e, rankNo, e.shareQ15, seatColor(e.seat), labels, you, expanded[e.fed] === true);
+            if (expanded[e.fed] === true) for (const s of e.seats) if (used < rows.length) (rows[used++] as BoardRow).set(s, 0, st.landShareQ15[s] as number, v.players, L, seatColor(s), labels, relationBadges(v, L, s), true);
+          };
+          for (let i = 0; i < entries.length && i < LEADERBOARD_ROWS; i++) place(entries[i] as BoardEntry, i + 1);
+          if (!youShown && localCells > 0) {
+            const at = entries.findIndex((e) => e.seats.includes(L));
+            if (at >= 0) place(entries[at] as BoardEntry, at + 1);
+          }
+          for (let i = used; i < rows.length; i++) (rows[i] as BoardRow).hide();
+          const noRows = used === 0;
+          if (boardEmpty.el.hidden !== !noRows) boardEmpty.el.hidden = !noRows;
+        } else {
+          const n = rankTop(st, seatCount, top);
+          for (let i = 0; i < n; i++) {
+            const seat = top[i] as number;
+            if (seat === L) youShown = true;
+            (rows[used++] as BoardRow).set(seat, i + 1, st.landShareQ15[seat] as number, v.players, L, seatColor(seat), labels, relationBadges(v, L, seat));
+          }
+          if (!youShown && localCells > 0) {
+            (rows[used++] as BoardRow).set(L, rankOf(st, seatCount, L), st.landShareQ15[L] as number, v.players, L, seatColor(L), labels);
+          }
+          for (let i = used; i < rows.length; i++) (rows[i] as BoardRow).hide();
+          const empty = used === 0;
+          if (boardEmpty.el.hidden !== !empty) boardEmpty.el.hidden = !empty;
         }
-        if (!youShown && localCells > 0) {
-          (rows[used++] as BoardRow).set(L, rankOf(st, seatCount, L), st.landShareQ15[L] as number, v.players, L, seatColor(L), labels);
-        }
-        for (let i = used; i < rows.length; i++) (rows[i] as BoardRow).hide();
-        const empty = used === 0;
-        if (boardEmpty.el.hidden !== !empty) boardEmpty.el.hidden = !empty;
       }
 
       // Controls

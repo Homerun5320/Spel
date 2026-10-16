@@ -28,6 +28,14 @@ export const LEADERBOARD_ROWS = 5;
 /** True: tribes (neutral extras) take part in the ranking; false (default): only the players, i.e. you and the AI nations. */
 export const LEADERBOARD_INCLUDES_TRIBES = false;
 
+/** M18b-3: federations in the leaderboard. A federation is ONE row (summed land, living members, its flag); expanded, its members follow as indented rows (at most this many extra rows). */
+export const FED_BOARD = {
+  subRowsMax: 12,
+  subIndentEm: 1.2,
+  /** The accent of a federation row (its left edge) and of the group rows of the result screen. */
+  accent: '#8ee6b0',
+} as const;
+
 /** The "click an enemy to attack" hint stays this many FX seconds after the protection ends. */
 export const PLAY_HINT_SECONDS = 12;
 

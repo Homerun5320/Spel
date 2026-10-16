@@ -1,7 +1,7 @@
 // The style sheet of the match HUD and the start screen, built from the tokens in uiConfig.ts. One <style> element per root; the
 // classes are prefixed `hud-` / `start-`. No transitions or animations (CSS time is not the fx clock; tests/fxClock.test.ts
 // forbids them): every visible change is a state change driven from JS.
-import { CITY_VIEW, GPU_TIP, HELP_OVERLAY, MATCH_PANELS, NARROW_MAX_PX, TOPBAR, HUD_FONT_BIAS_PX, HUD_FONT_MAX_PX, HUD_FONT_MIN_PX, HUD_FONT_VW, SETUP_PANEL_EM, SETUP_SHEET_VH, TARGET_MIN_PX, DIPLO, UI_COLORS as C, Z_HUD, Z_SETUP, Z_START_SCREEN } from './uiConfig';
+import { CITY_VIEW, GPU_TIP, HELP_OVERLAY, MATCH_PANELS, NARROW_MAX_PX, TOPBAR, HUD_FONT_BIAS_PX, HUD_FONT_MAX_PX, HUD_FONT_MIN_PX, HUD_FONT_VW, SETUP_PANEL_EM, SETUP_SHEET_VH, TARGET_MIN_PX, DIPLO, FED_BOARD, UI_COLORS as C, Z_HUD, Z_SETUP, Z_START_SCREEN } from './uiConfig';
 
 export function hudCss(): string {
   const fontSize = `clamp(${HUD_FONT_MIN_PX}px, calc(${HUD_FONT_VW}vw + ${HUD_FONT_BIAS_PX}px), ${HUD_FONT_MAX_PX}px)`;
@@ -28,6 +28,14 @@ export function hudCss(): string {
 .hud-board-title { color: ${C.textDim}; font-size: 0.8em; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.2em; }
 .hud-row { display: grid; grid-template-columns: 1.6em 0.9em 1fr auto auto; align-items: center; column-gap: 0.4em; min-height: 1.7em; padding: 0 0.3em; border-radius: 0.3em; }
 .hud-row[data-you="1"] { background: ${C.youRow}; font-weight: 700; }
+.hud-row[data-group="1"] { cursor: pointer; border-left: 3px solid ${FED_BOARD.accent}; }
+.hud-row[data-group="1"]:hover { background: rgba(255, 255, 255, 0.07); }
+.hud-row[data-sub="1"] { padding-left: ${FED_BOARD.subIndentEm}em; font-size: 0.92em; opacity: 0.9; }
+.mp-table tr[data-group="1"] td { border-top: 2px solid ${FED_BOARD.accent}; font-weight: 700; }
+.mp-table tr[data-sub="1"] td { font-size: 0.92em; opacity: 0.9; }
+.mp-table tr[data-sub="1"] td.mp-name { padding-left: ${FED_BOARD.subIndentEm}em; }
+.mp-subtitle { margin: 0.7em 0 0.3em; font-size: 0.95em; color: ${C.textDim}; }
+.mp-flag { flex: none; display: block; border-radius: 2px; border: 1px solid rgba(255, 255, 255, 0.55); }
 .hud-rank { color: ${C.textDim}; text-align: right; font-variant-numeric: tabular-nums; }
 .hud-swatch { width: 0.9em; height: 0.9em; border-radius: 0.2em; border: 1px solid rgba(255, 255, 255, 0.7); }
 .hud-row[data-flag="1"] { grid-template-columns: 1.6em 0.9em auto 1fr auto auto; }
