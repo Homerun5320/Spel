@@ -271,3 +271,6 @@ export { BEACHHEAD_ESTABLISH_CELLS, BEACHHEAD_LANDING_CELLS, BEACHHEAD_REVERT_TI
 export { hostileOwners, hostileSeats, type HostileSource } from './hostile';
 export { HELI_DOWN_FUEL, HELI_DOWN_POST, HELI_DOWN_SAM } from './heliTable';
 export { POST_AA_DPS, POST_AA_RADIUS_CELLS, SAM_HIT_PCT, SAM_SALVO_PERIOD_TICKS } from './rules';
+// M20a-2 (append-only): the read-only description of the attacks running (a front cell and a direction per attack, at most ATTACK_VIEW_CAP).
+export type { AttackView } from './view';
+export { ATTACK_VIEW_CAP } from './view';

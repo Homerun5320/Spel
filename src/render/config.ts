@@ -509,3 +509,18 @@ export const HELI_ROTOR_RAD_PER_SEC = 24;
 export const HELI_TAIL_ROTOR_MUL = 1.7;
 /** Triangle ceiling of the merged model (the prompt asks for under 150). */
 export const HELI_MODEL_MAX_TRIANGLES = 150;
+
+// ---- M20a-2: the front arrows (src/render/frontLayer.ts) ----
+/** The arrows are fully drawn when the camera is lower than FRONT_FADE_FULL_ALT_R Earth radii above the sea-level sphere and gone from FRONT_FADE_GONE_ALT_R (the globe distance). */
+export const FRONT_FADE_FULL_ALT_R = 0.35;
+export const FRONT_FADE_GONE_ALT_R = 1.0;
+/** An arrow is this share of the camera distance long, but never shorter than FRONT_ARROW_MIN_M metres. */
+export const FRONT_ARROW_SCREEN_FRAC = 0.07;
+export const FRONT_ARROW_MIN_M = 30000;
+/** The pulse: radians per fx second, and the share of the alpha it swings (0.22 = between 0.78 and 1.0 of the base). */
+export const FRONT_PULSE_RAD_PER_S = 5;
+export const FRONT_PULSE_DEPTH = 0.22;
+/** The alpha (and width) of an arrow of an attack the local player is not part of, against 1 for the own ones. */
+export const FRONT_OTHER_EMPHASIS = 0.5;
+/** How far the arrow floats over the ground, in metres. */
+export const FRONT_LIFT_M = 60;

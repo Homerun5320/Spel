@@ -48,6 +48,10 @@ import { AIR_MODE_AGL_M, REJECT_HELI_NO_PAD, REJECT_HELI_NO_ROUTE, createLos, cr
 import { STRUCT_CITY, STRUCT_FACTORY, produceHeliBody, buildBody, buildDistrictBody, deleteBody, removeDistrictBody, upgradeBody, upgradeDistrictBody, validateBuild } from '../sim/public';
 import { createCityViewPanel, type CityViewPanel } from '../ui/cityViewPanel';
 import { BEACH_RING_MAX, CAMERA_FOV_DEG, EARTH_RADIUS_KM } from '../render/config';
+import type { DrawnFront } from '../render/frontLayer';
+import type { SimView } from '../sim/public';
+import { NationLabels, type LabelCamera, type LabelInfo, type LabelSource } from '../ui/nationLabels';
+import { LABELS } from '../ui/uiConfig';
 import { cityFitFlight, cityFlightNeeded, createCityViewMode, isDoubleClick } from './cityViewMode';
 import type { InputMode } from './input';
 import { CLASS_MOUNTAIN } from '../sim/terrain';
@@ -320,6 +324,12 @@ export interface GlobeTestHooks {
   /** M13a-1: forces the rotor angle (radians; null = the fx clock) and switches the helicopter layer on or off, so a test can tell the rotor's pixels and the layer's draw call. */
   heliSpin(angle: number | null): void;
   heliLayer(on: boolean): void;
+  /** M20a-2: the front arrows the layer drew, the layer's state (arrows, fade, whether its draw call is made) and a switch for a draw-call count. */
+  fronts(): { arrows: readonly DrawnFront[]; count: number; fade: number; visible: boolean };
+  frontLayer(on: boolean): void;
+  /** M20a-2: the nation labels shown now (boxes in window pixels), their DOM write count and whether the labels are switched on; `labelsOn` switches labels and arrows together (key N). */
+  labels(): { shown: LabelInfo[]; writes: number; on: boolean };
+  labelsOn(on: boolean): void;
   /** Fix-4B: the own beachhead rows of the mirror (slot, seed cell, landing tick, cells held, seconds left) and what the ring layer draws. */
   beach(): { rows: Array<{ slot: number; seed: number; landTick: number; cells: number; seconds: number }>; ring: { count: number; cells: number[]; drawIndices: number } };
   /** M13b: the deploy mode (active, the Factory, the hovered cell, what the layer shows, the preview's verdict and counters) and the deploy layer's switch for a draw-call count. */
@@ -530,6 +540,21 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   // Fix-4B: the pulsing rings of the own beachheads follow the beachhead table (written only when its version moved)
   let beachRingVersion = -1;
   const beachSeeds = new Int32Array(BEACH_RING_MAX);
+  /** M20a-2: the nation labels follow the camera every frame (they return at once when neither the picture nor the data moved). */
+  const updateLabels = (force: boolean): void => {
+    if (session === null || nationLabels === null) return;
+    const v = globe.rig.view;
+    const vw = globe.viewWidth;
+    const vh = globe.viewHeight;
+    labelCam.altR = v.distKm / EARTH_RADIUS_KM;
+    labelCam.viewW = vw;
+    labelCam.viewH = vh;
+    labelCam.pxPerKm = vh / 2 / Math.tan((CAMERA_FOV_DEG * Math.PI) / 360) / Math.max(1, v.distKm);
+    labelCam.poseKey = v.lat * 3.1 + v.lon * 1.7 + v.distKm * 0.013 + v.heading * 0.37 + v.tilt * 0.91 + vw * 0.0011 + vh * 0.0013;
+    labelSource.view = session.view;
+    labelSource.localSeat = session.localSeat;
+    nationLabels.update(labelSource as LabelSource, labelCam, fxNow(), force);
+  };
   const renderFrame = (draw = true): void => {
     tickInput(fxNow());
     tickToasts(fxNow());
@@ -543,9 +568,11 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
         beachRingVersion = session.view.beachheadsVersion;
         globe.structures.setBeachRings(beachSeeds, ownBeachSeeds(session.view, session.localSeat, beachSeeds), session.localOwner);
       }
+      globe.fronts.setTable(session.view.fronts, session.view.frontsVersion); // M20a-2
       globe.setTickFraction(session.view.tick + (params.test ? 0 : session.alpha()));
     }
     globe.render(draw);
+    if (session !== null && nationLabels !== null && labelsWanted) updateLabels(draw && params.test);
     frames++;
     if (draw && firstFrameMs === null) firstFrameMs = performance.now();
   };
@@ -556,6 +583,23 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   // screen's Start has built a match with `createMatch`. The UI below only sends intents (`session.submit`) and reads `session.view`.
   let session = null as MatchSession | null;
   let hud = null as MatchHud | null;
+  // M20a-2: the nation labels and the front arrows share one switch (key N, remembered in the preference LABELS.prefKey); a test page starts with them off unless `labels=1` (the goldens)
+  let nationLabels = null as NationLabels | null;
+  let labelsWanted = params.test ? ctx.state.raw.labels === '1' : getPref<boolean>(LABELS.prefKey, true, (v): v is boolean => typeof v === 'boolean');
+  const labelCam: { -readonly [K in keyof LabelCamera]: LabelCamera[K] } = { project: (la, lo) => globe.project(la, lo), altR: 0, viewW: 0, viewH: 0, poseKey: 0, pxPerKm: 0 };
+  const labelSource: { view: SimView; localSeat: number; nameOf(seat: number): string; colorOf(seat: number): string } = {
+    view: null as unknown as SimView,
+    localSeat: 0,
+    nameOf: (seat) => (flowLabels ?? createSeatLabels([], 1, 0)).name(seat),
+    colorOf: (seat) => seatColor(seat),
+  };
+  const setLabelsWanted = (on: boolean): void => {
+    labelsWanted = on;
+    nationLabels?.setEnabled(on);
+    globe.fronts.setEnabled(on);
+    if (!params.test) setPref(LABELS.prefKey, on);
+  };
+  globe.fronts.setEnabled(labelsWanted);
   let help = null as HelpOverlay | null;
   let helpMode = null as InputMode | null;
   // M18c-2: the diplomacy panel (an input mode while it is open), the proposal cards and the watcher that turns the proposal table into toasts
@@ -757,6 +801,10 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     hud = createMatchHud(wrapper, { setCommit: (p) => s.setCommit(p), setSpeed: (sp) => s.setSpeed(sp), togglePause: () => s.togglePause(), openDiplomacy: () => toggleDiplomacy() }, { seatColor, labels: s.labels, throttle: !params.test });
     hud.setVisible(!params.test || ctx.state.raw.hud === '1'); // test mode hides it (the globe goldens), `#hud` / `?hud=1` shows it
     help = createHelpOverlay(wrapper, () => hotkeys.listed()); // generated from the registry (M20a-lite)
+    nationLabels?.dispose();
+    nationLabels = new NationLabels(wrapper);
+    nationLabels.setEnabled(labelsWanted);
+    globe.fronts.setLocalOwner(s.localOwner);
     // The build bar (M10): its own layer over the canvas, shown with the HUD and once you have spawned.
     buildRoot = document.createElement('div');
     buildRoot.className = 'hud-root';
@@ -1096,6 +1144,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     abort.abort();
     perf?.dispose();
     hud?.dispose();
+    nationLabels?.dispose();
     help?.dispose();
     diploPanel?.dispose();
     diploCards?.dispose();
@@ -1541,6 +1590,10 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       toggleHelp: () => toggleHelp(),
       toggleDiplomacy: () => toggleDiplomacy(),
       deploy: () => (deployMode !== null ? exitDeploy() : enterDeploy(selectedId)),
+      toggleLabels: () => {
+        setLabelsWanted(!labelsWanted);
+        showToast(labelsWanted ? 'toast.labels.on' : 'toast.labels.off', {}, 'info');
+      },
     },
     signal,
   );
@@ -1910,6 +1963,10 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
         globe.helis.spinOverride = angle;
       },
       heliLayer: (on) => globe.helis.setEnabled(on),
+      fronts: () => ({ arrows: globe.fronts.info().map((d) => ({ ...d })), count: globe.fronts.count, fade: globe.fronts.fade, visible: globe.fronts.visible }),
+      frontLayer: (on) => globe.fronts.setEnabled(on && labelsWanted),
+      labels: () => ({ shown: nationLabels?.info() ?? [], writes: nationLabels?.writes ?? 0, on: labelsWanted }),
+      labelsOn: (on) => setLabelsWanted(on),
       beach: () => {
         const rows: Array<{ slot: number; seed: number; landTick: number; cells: number; seconds: number }> = [];
         if (session !== null) {

@@ -130,6 +130,19 @@ GÖR och ACCEPTANS:
 - [x] Tests `tests/bake/federations.test.ts` (round trip, corrupt packs, raster invariants, candidates, min size, determinism, old hashes pinned), mutants shown in DECISIONS.
 - [x] Picture looked at (RUS, USA, CHN, IND, BRA); report in DECISIONS block M18b-1.
 - [x] `npm run verify:fast` green (see DECISIONS M18b-1).
+### M20a-2: nation labels and front arrows (host snapshot, render and UI; one slice in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+
+GÖR och ACCEPTANS:
+
+- [x] AttackView in SimView (`SimView.fronts`, read-only, at most 16 attacks: id, attacker, target, a front cell and a direction), a host snapshot sent only when it changed (signature, refreshed every 10 ticks while an attack runs) and a ViewMirror copy; the new export in `src/sim/public.ts` and the pinned list of `tests/ai/boundary.test.ts`.
+- [x] Nation labels: a pool of at most 32 DOM elements (name, troops, relation badge, owner colour), placed at the nation's centroid, faded by zoom, no overlap, never outside the screen, never behind the horizon, cleared when a nation dies; DOM written only on change.
+- [x] Front arrows: one instanced draw call, at most 16 arrows, pulsing with the fx clock, own attacks brightest, faded out at globe distance.
+- [x] Hotkey N (`Nationsetiketter`) in the registry, saved with getPref / setPref, default on; listed in the `?` overlay.
+- [x] Tests: layout (40 candidates), arrows (count, gone when the attack ends, draw calls <= 1, no allocation), three window sizes, both languages.
+- [x] Screenshots looked at (three zoom levels, arrows during an attack, both languages).
+- [x] `npm run verify:fast` green; the touched e2e files green.
+
+Result: see the block "M20a-2" at the end of `docs/DECISIONS.md`. Main-chunk gzip cap raised to 311 000 (`tests/portable.test.ts`). No golden changed (labels and arrows are off in a test page unless `labels=1`).
 
 ## Next
 

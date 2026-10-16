@@ -101,6 +101,8 @@ export interface SimView {
   readonly helis: HeliView;
   /** The beachhead table (Fix-4B), read-only: who landed where and when, and how many cells the cluster holds now. A ViewMirror carries a copy of it (the host sends it when it changed). */
   readonly beachheads: BeachheadView;
+  /** The fronts of the attacks running (M20a-2), read-only, at most `ATTACK_VIEW_CAP`: enough for an arrow per attack. A ViewMirror carries a copy of it (the host sends it when it changed). */
+  readonly fronts: AttackView;
   /** The tick until which a cell is fallout, 0 = not (the FALLOUT_UNTIL layer: zero until M14). */
   falloutUntilAt(cell: number): number;
   /**
@@ -264,6 +266,176 @@ class BeachheadReader implements BeachheadView {
   }
 }
 
+/** The most attacks an `AttackView` describes (the page draws one arrow each). */
+export const ATTACK_VIEW_CAP = 16;
+/** How many front cells of one attack are sampled to describe its front, and how many bag entries are looked at to find them. */
+const FRONT_SAMPLES = 24;
+const FRONT_SCAN = 96;
+
+/**
+ * The read-only description of the attacks running (M20a-2; what `SimView.fronts` is): per attack its id, the owners and ONE cell of the front plus the direction the
+ * attack pushes in (from the attacker's land into the target's, east and south as -100 .. 100; both 0 when the sample found no direction). Row i of the arrays is the i-th
+ * attack in creation order; only `count` rows exist. The front is sampled from the attack's frontier bags (a superset of the true front, so stale entries are skipped).
+ */
+export interface AttackView {
+  readonly count: number;
+  readonly id: ArrayLike<number>;
+  /** ownerId of the attacker and of the target (0 = unowned land). */
+  readonly attacker: ArrayLike<number>;
+  readonly target: ArrayLike<number>;
+  /** A cell of the front near the middle of the sampled ones. */
+  readonly cell: ArrayLike<number>;
+  readonly dirX: ArrayLike<number>;
+  readonly dirY: ArrayLike<number>;
+}
+
+/** The writable form of an `AttackView` (typed arrays of ATTACK_VIEW_CAP rows); the host's snapshot and the mirror's copy are built from it. */
+export interface AttackFrontData {
+  count: number;
+  readonly id: Uint32Array;
+  readonly attacker: Uint16Array;
+  readonly target: Uint16Array;
+  readonly cell: Int32Array;
+  readonly dirX: Int8Array;
+  readonly dirY: Int8Array;
+}
+
+export function createAttackFrontData(): AttackFrontData {
+  return {
+    count: 0,
+    id: new Uint32Array(ATTACK_VIEW_CAP),
+    attacker: new Uint16Array(ATTACK_VIEW_CAP),
+    target: new Uint16Array(ATTACK_VIEW_CAP),
+    cell: new Int32Array(ATTACK_VIEW_CAP),
+    dirX: new Int8Array(ATTACK_VIEW_CAP),
+    dirY: new Int8Array(ATTACK_VIEW_CAP),
+  };
+}
+
+const sampleCells = new Int32Array(FRONT_SAMPLES);
+
+/**
+ * Describes the attacks of a state into `out` (no allocation). An attack with no usable front cell (its frontier holds only stale entries) is left out.
+ * Pure read; the sim is not touched.
+ */
+export function fillAttackFronts(state: GameState, out: AttackFrontData): void {
+  const w = state.width;
+  const h = state.height;
+  const owner = state.owner;
+  const list = state.attacks.list;
+  let rows = 0;
+  for (let i = 0; i < list.length && rows < ATTACK_VIEW_CAP; i++) {
+    const a = list[i] as (typeof list)[number];
+    let n = 0;
+    let scanned = 0;
+    let dx = 0;
+    let dy = 0;
+    let x0 = 0;
+    let relX = 0;
+    let sumY = 0;
+    for (let d = a.low; d < a.counts.length && n < FRONT_SAMPLES && scanned < FRONT_SCAN; d++) {
+      const bag = a.bags[d];
+      const cnt = a.counts[d] as number;
+      if (bag === null || bag === undefined) continue;
+      for (let k = 0; k < cnt && n < FRONT_SAMPLES && scanned < FRONT_SCAN; k++, scanned++) {
+        const c = bag[k] as number;
+        if (owner[c] !== a.target) continue;
+        const x = c % w;
+        const y = (c - x) / w;
+        const left = x === 0 ? c + w - 1 : c - 1;
+        const right = x === w - 1 ? c - w + 1 : c + 1;
+        let touched = false;
+        if (owner[left] === a.attacker) {
+          dx += 1;
+          touched = true;
+        }
+        if (owner[right] === a.attacker) {
+          dx -= 1;
+          touched = true;
+        }
+        if (y > 0 && owner[c - w] === a.attacker) {
+          dy += 1;
+          touched = true;
+        }
+        if (y + 1 < h && owner[c + w] === a.attacker) {
+          dy -= 1;
+          touched = true;
+        }
+        if (!touched) continue;
+        if (n === 0) x0 = x;
+        let rx = x - x0;
+        if (rx > w / 2) rx -= w;
+        else if (rx < -w / 2) rx += w;
+        relX += rx;
+        sumY += y;
+        sampleCells[n++] = c;
+      }
+    }
+    if (n === 0) continue;
+    // the sampled cell nearest to the mean position (the mean itself may lie off the front)
+    const mx = x0 + relX / n;
+    const my = sumY / n;
+    let best = sampleCells[0] as number;
+    let bestD = Infinity;
+    for (let k = 0; k < n; k++) {
+      const c = sampleCells[k] as number;
+      const x = c % w;
+      let rx = x - mx;
+      rx -= w * Math.round(rx / w);
+      const ry = (c - x) / w - my;
+      const dist = rx * rx + ry * ry;
+      if (dist < bestD) {
+        bestD = dist;
+        best = c;
+      }
+    }
+    const m = Math.max(Math.abs(dx), Math.abs(dy));
+    out.id[rows] = a.id;
+    out.attacker[rows] = a.attacker;
+    out.target[rows] = a.target;
+    out.cell[rows] = best;
+    out.dirX[rows] = m === 0 ? 0 : Math.round((dx * 100) / m);
+    out.dirY[rows] = m === 0 ? 0 : Math.round((dy * 100) / m);
+    rows++;
+  }
+  out.count = rows;
+}
+
+/** The live form: describes the attacks of the state at the time of the first read in a tick. */
+class AttackFrontReader implements AttackView {
+  private readonly data = createAttackFrontData();
+  private stamp = -1;
+  constructor(private readonly state: GameState) {}
+  private fresh(): AttackFrontData {
+    if (this.stamp !== this.state.tick) {
+      this.stamp = this.state.tick;
+      fillAttackFronts(this.state, this.data);
+    }
+    return this.data;
+  }
+  get count(): number {
+    return this.fresh().count;
+  }
+  get id(): ArrayLike<number> {
+    return this.fresh().id;
+  }
+  get attacker(): ArrayLike<number> {
+    return this.fresh().attacker;
+  }
+  get target(): ArrayLike<number> {
+    return this.fresh().target;
+  }
+  get cell(): ArrayLike<number> {
+    return this.fresh().cell;
+  }
+  get dirX(): ArrayLike<number> {
+    return this.fresh().dirX;
+  }
+  get dirY(): ArrayLike<number> {
+    return this.fresh().dirY;
+  }
+}
+
 /**
  * A SimView over a live state, without copying. For code that runs in the sim's own thread and reads between steps (the AI
  * driver of M09); call `refresh()` at every tick boundary before handing the view out. The owner array is the sim's own, typed
@@ -277,6 +449,7 @@ export class StateView implements SimView {
   readonly match: MatchView;
   readonly diplomacy: DiplomacyView;
   readonly beachheads: BeachheadView;
+  readonly fronts: AttackView;
   ownerVersion = 0;
   private lastOwnerStamp = -1;
 
@@ -289,6 +462,7 @@ export class StateView implements SimView {
     this.match = matchViewOf(seats, this.matchPacked);
     this.diplomacy = new DiplomacyReader(state.diplo, state.header.players, () => state.tick);
     this.beachheads = new BeachheadReader(state.beachheads, state);
+    this.fronts = new AttackFrontReader(state);
     this.refresh();
   }
 

@@ -539,3 +539,11 @@ Not done in the Fix-UI slice (the sim, host and AI findings belong to Fix-Sim):
 - Better names for merged sub-nations (the province nearest the group centre, or a hand-written region table) and Swedish names.
 - Sub-nations are unbalanced (Sakha 4978 cells against Yamalo-Nenets 1158); a balancing pass is out of scope.
 - A synthetic test for the minimum-size merge that also runs without the bake cache (today only the real-data rebuild catches it).
+## M20a-2
+
+- Flags on the nation labels (procedural flag rendering in the UI comes with federations); a legend for the colour of an arrow; an own-nation outline or glow for the arrows of the attacks the local player is part of.
+- A wide front gets one arrow today (the cell nearest the mean of 24 sampled front cells); one arrow per front segment (cluster the sample) would show a pincer.
+- The arrows hop once a second with the host's snapshot; moving them with the front between snapshots (or sending every 5 ticks) is cheap if it looks jerky on a real GPU.
+- The labels use plain AABB overlap against the placed boxes; a label that is dropped because of a HUD panel does not try another spot beside its nation. A leader line or a nudge would keep more nations labelled on a small window.
+- A test with 40 real nations (the e2e uses the 13 of the default match); `createMatch` with a larger AI count in a test page would do.
+- The label text of a custom nation is not translated (as everywhere); tribes get no label (a "Stam" label at close range would be easy).

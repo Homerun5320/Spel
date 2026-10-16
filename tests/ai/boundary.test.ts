@@ -224,6 +224,8 @@ describe('types: what src/sim/public.ts lets the AI reach', () => {
         'BeachheadView', 'BEACHHEAD_ESTABLISH_CELLS', 'BEACHHEAD_LANDING_CELLS', 'BEACHHEAD_REVERT_TICKS',
         // M12b
         'hostileOwners', 'hostileSeats', 'HostileSource', 'HELI_DOWN_FUEL', 'HELI_DOWN_POST', 'HELI_DOWN_SAM', 'POST_AA_DPS', 'POST_AA_RADIUS_CELLS', 'SAM_HIT_PCT', 'SAM_SALVO_PERIOD_TICKS',
+        // M20a-2
+        'AttackView', 'ATTACK_VIEW_CAP',
       ].sort(),
     );
   });
