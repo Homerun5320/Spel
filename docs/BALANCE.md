@@ -36,11 +36,14 @@ Truces, alliances, proposals and the AI's answers (`src/sim/diplomacy.ts`, `src/
 | `DIPLOMACY_REPLY_MAX_TICKS` | 60 | ticks | plan | M18c-1: and after this many at the latest (6 s); the delay is drawn from the AI's own stream. |
 | `AI_TRUCE_ACCEPT_WARS` | 2 | parties | plan | M18c-1: the AI accepts a truce when an attack runs between it and at least this many other players (either way). |
 | `AI_ALLY_PROPOSER_MAX_PCT` | 25 | percent of land | plan | M18c-1: the AI accepts an alliance only from a proposer holding at most this share. |
-| `AI_ALLY_LEADER_MIN_PCT` | 30 | percent of land | plan | M18c-1: and only while a leader above this share is at war with both. |
+| `AI_ALLY_LEADER_MIN_PCT` | 25 | percent of land | plan | M18c-1: and only while a leader above this share is at war with both (30 in M18c-1, 25 since M18c-2, ENGINE 18). |
 | `AI_GRUDGE_TICKS` | 3000 | ticks | plan | M18c-1: the AI makes no treaty with a seat that broke one against it in the last 5 minutes. |
 | `AI_WEAK_MEDIAN_PCT` | 50 | percent of the median share | plan | M18c-1: an AI below this share of the median land share of the living players proposes a truce to the strongest neighbour that attacked it. |
 | `AI_PROPOSE_COOLDOWN_TICKS` | 600 | ticks | plan | M18c-1: at most one proposal per AI per 60 s. |
 | `AI_LEADER_PCT` | 40 | percent of land | plan | M18c-1: the AIs propose an alliance against a leader above this share; an AI that gets above it itself breaks its alliances. |
+| `AI_TRUCE_OTHER_WARS` | 1 | parties | plan | M18c-2: the AI accepts a truce when it is at war with at least this many players OTHER than the proposer and the proposer is not the leader. |
+| `AI_TRUCE_MEDIAN_PCT` | 100 | percent of the median share | plan | M18c-2: the AI accepts a truce when its land share is below this percent of the median share of the living players. |
+| `AI_TRUCE_MIN_HITS` | 2 | think rounds | plan | M18c-2: an AI proposes a truce (when weak or fighting on two fronts) to the seat whose attacks it has seen in the most think rounds, once that is at least this many. |
 
 ## Units (M04)
 

@@ -125,14 +125,19 @@ describe('answering proposals', () => {
     // AI seat 1 sits between seats 0 and 2; seat 3 (the weakest) asks. Two attacks on the AI (from 0 and 2) make it accept.
     expect(answer([30, 40, 20, 10], 1, 3, 1)).toBe('DeclineTreaty');
     expect(answer([30, 40, 20, 10], 1, 3, 1, (s) => { attack(s, 0, 2); attack(s, 2, 2); })).toBe('AcceptTreaty');
-    expect(answer([30, 40, 20, 10], 1, 3, 1, (s) => attack(s, 0, 2))).toBe('DeclineTreaty'); // one war is not enough
+    // M18c-2: one war with another party is enough when the proposer is not the leader; a leader asking while the AI holds the median is still declined; below the median accepts
+    expect(answer([30, 40, 20, 10], 1, 3, 1, (s) => attack(s, 0, 2))).toBe('AcceptTreaty');
+    expect(answer([30, 40, 20, 10], 0, 1, 1, (s) => attack(s, 3, 1)), 'the proposer is the leader').toBe('DeclineTreaty');
+    expect(answer([30, 40, 20, 10], 2, 1, 1), 'below the median, no war at all').toBe('AcceptTreaty');
+    expect(answer([30, 40, 20, 10], 0, 3, 1), 'at the median, no war').toBe('DeclineTreaty');
   });
 
-  it('an alliance: only from a proposer of at most 25 percent and against a leader above 30 percent that is at war with both', () => {
+  it('an alliance: only from a proposer of at most 25 percent and against a leader above 25 percent that is at war with both', () => {
     expect(answer([50, 20, 20, 10], 1, 2, 2)).toBe('AcceptTreaty');
     expect(answer([45, 20, 25, 10], 1, 2, 2), 'exactly 25 percent is still allowed').toBe('AcceptTreaty');
     expect(answer([45, 20, 26, 9], 1, 2, 2), 'the proposer is too strong').toBe('DeclineTreaty');
-    expect(answer([30, 25, 25, 20], 1, 2, 2), 'a leader at exactly 30 percent is no leader').toBe('DeclineTreaty');
+    expect(answer([25, 25, 25, 25], 1, 2, 2), 'a leader at exactly 25 percent is no leader').toBe('DeclineTreaty');
+    expect(answer([30, 25, 25, 20], 1, 2, 2), 'a leader at 30 percent is one since M18c-2').toBe('AcceptTreaty');
     expect(answer([50, 20, 20, 10], 1, 2, 2, (s) => {
       send(s, { kind: 'ProposeTreaty', seat: 0, to: 2, treaty: 2 });
       send(s, { kind: 'AcceptTreaty', seat: 2, from: 0 });
@@ -165,13 +170,13 @@ describe('answering proposals', () => {
     send(s, { kind: 'ProposeTreaty', seat: 1, to: 0, treaty: 1 });
     send(s, { kind: 'Attack', seat: 0, target: 3, pct: 10 }); // fights seat 2 ... and seat 1 is not at war with it: no effect on the decision
     expect(waitForWord(s, view, memory, rng, 100)[1][0]?.kind).toBe('DeclineTreaty');
-    // after AI_GRUDGE_TICKS the same proposal is judged on its merits again (seat 1 holds 30 against the AI's 40: declined by the merits, so use a stronger proposer)
-    const s2 = arena([30, 40, 30]);
+    // after AI_GRUDGE_TICKS the same proposal is judged on its merits again (the AI is below the median and the proposer is stronger: accepted by the merits)
+    const s2 = arena([20, 40, 40]);
     const m2 = mind(s2, 0);
     m2.memory.betrayedAt[1] = s2.tick - AI_GRUDGE_TICKS + 200; // 200 ticks of grudge left
     send(s2, { kind: 'ProposeTreaty', seat: 1, to: 0, treaty: 1 });
     expect(waitForWord(s2, m2.view, m2.memory, createRng(4), 100)[1][0]?.kind, 'inside the grudge').toBe('DeclineTreaty');
-    const s3 = arena([30, 40, 30]);
+    const s3 = arena([20, 40, 40]);
     const m3 = mind(s3, 0);
     m3.memory.betrayedAt[1] = s3.tick - AI_GRUDGE_TICKS - 1;
     send(s3, { kind: 'ProposeTreaty', seat: 1, to: 0, treaty: 1 });
@@ -225,6 +230,24 @@ describe('proposing and breaking', () => {
     expect(diplomacyMove(view, memory, rng), 'inside the 60 seconds').toEqual([]);
     s.tick = first + AI_PROPOSE_COOLDOWN_TICKS;
     expect(diplomacyMove(view, memory, rng).length, 'after them').toBe(1);
+  });
+
+  it('M18c-2: the truce goes to the neighbour that attacked most often (not the strongest), and only after AI_TRUCE_MIN_HITS rounds', () => {
+    const s = arena([10, 25, 10, 35]);
+    const { memory, view, rng } = mind(s, 2); // weak (10 percent against a median of 25), between seats 1 and 3
+    s.tick = AI_WAR_START_TICKS + 100;
+    toRhythm(s, memory);
+    expect(send(s, { kind: 'Attack', seat: 1, target: 3, pct: 20 })).toBe(0); // seat 1 attacks the AI
+    view.refresh();
+    expect(diplomacyMove(view, memory, rng), 'one round is not enough').toEqual([]);
+    expect(memory.hits[1]).toBe(1);
+    // seat 3 (the stronger) attacks too, but only from the second round on: seat 1 has the higher count, so it gets the proposal although seat 3 is stronger
+    expect(send(s, { kind: 'Attack', seat: 3, target: 3, pct: 20 })).toBe(0);
+    s.tick += AI_THINK_PERIOD_TICKS;
+    view.refresh();
+    expect(diplomacyMove(view, memory, rng)).toEqual([{ kind: 'ProposeTreaty', seat: 2, to: 1, treaty: 1 }]);
+    expect(memory.hits[1]).toBe(2);
+    expect(memory.hits[3]).toBe(1);
   });
 
   it('an AI that is not weak, or was not attacked, proposes no truce', () => {
@@ -320,11 +343,12 @@ describe('the memory', () => {
     memory.betrayedAt[1] = 99;
     memory.lastRel[1] = 2;
     memory.lastUntil[1] = 4242;
+    memory.hits[1] = 7;
     const words = diplomacyWords(memory);
     expect(words.length).toBe(diplomacyWordCount(memory));
     const other = mind(s, 0).memory;
     expect(loadDiplomacyWords(other, words)).toBe(true);
-    expect([other.proposeAt, other.lastBreakAt, other.replyAt[1], other.betrayedAt[1], other.lastRel[1], other.lastUntil[1]]).toEqual([777, 555, 123, 99, 2, 4242]);
+    expect([other.proposeAt, other.lastBreakAt, other.replyAt[1], other.betrayedAt[1], other.lastRel[1], other.lastUntil[1], other.hits[1]]).toEqual([777, 555, 123, 99, 2, 4242, 7]);
     expect(loadDiplomacyWords(other, words.slice(1))).toBe(false);
   });
 

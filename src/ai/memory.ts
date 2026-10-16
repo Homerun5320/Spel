@@ -36,6 +36,8 @@ export interface AiMemory {
   /** Per seat: the relation to it and the end tick of the truce as of the last look (to tell a broken treaty from one that ran out). */
   readonly lastRel: Int32Array;
   readonly lastUntil: Int32Array;
+  /** Per seat: how many think rounds (M18c-2) an attack of that seat on this one was running; the neighbour with the highest count is the one the AI asks for a truce. */
+  readonly hits: Int32Array;
   /** 1 per seat that a human plays (index = seat): a nation starts no war on such a seat before AI_WAR_HUMAN_START_TICKS (D143). */
   readonly human: Uint8Array;
 }
@@ -76,6 +78,7 @@ export function createAiMemory(view: SimView, seat: number, options: AiMemoryOpt
     betrayedAt: new Int32Array(view.seats).fill(-1),
     lastRel: new Int32Array(view.seats),
     lastUntil: new Int32Array(view.seats),
+    hits: new Int32Array(view.seats),
     human,
   };
 }
@@ -96,9 +99,9 @@ export function memoryWords(m: AiMemory): Int32Array {
   return out;
 }
 
-/** Words of the diplomacy part of a memory (M18c-1): proposeAt, lastBreakAt, then replyAt, betrayedAt, lastRel and lastUntil (`seats` words each). Kept apart from `memoryWords` so that part keeps its layout. */
+/** Words of the diplomacy part of a memory (M18c-1): proposeAt, lastBreakAt, then replyAt, betrayedAt, lastRel and lastUntil (`seats` words each) and hits (M18c-2). Kept apart from `memoryWords` so that part keeps its layout. */
 export function diplomacyWordCount(m: AiMemory): number {
-  return 2 + 4 * m.replyAt.length;
+  return 2 + 5 * m.replyAt.length;
 }
 
 export function diplomacyWords(m: AiMemory): Int32Array {
@@ -110,6 +113,7 @@ export function diplomacyWords(m: AiMemory): Int32Array {
   out.set(m.betrayedAt, 2 + n);
   out.set(m.lastRel, 2 + 2 * n);
   out.set(m.lastUntil, 2 + 3 * n);
+  out.set(m.hits, 2 + 4 * n);
   return out;
 }
 
@@ -124,6 +128,7 @@ export function loadDiplomacyWords(m: AiMemory, words: ArrayLike<number>): boole
     m.betrayedAt[i] = words[2 + n + i] as number;
     m.lastRel[i] = words[2 + 2 * n + i] as number;
     m.lastUntil[i] = words[2 + 3 * n + i] as number;
+    m.hits[i] = words[2 + 4 * n + i] as number;
   }
   return true;
 }
