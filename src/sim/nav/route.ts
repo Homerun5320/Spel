@@ -157,14 +157,45 @@ export function planRoute(nav: Nav, view: NavView, seat: number, from: number, t
   const closed = nav.closedStamp;
   const parent = nav.parent;
 
+  // ADMISSIBLE heuristic (Fix-3A2). On the 8-neighbour lattice a path that must cover D columns and V rows takes at least min(D, V) diagonal
+  // steps' worth of both, so its cost is at least min * sqrt(w^2 + h^2) + (D - min) * w + (V - min) * h at the narrowest row width w it
+  // visits (the cost factor is >= 1; a diagonal step is cheaper than its two legs, so using as many diagonals as possible is the lower bound).
+  // A path may leave the rows between the node and the goal to fly a narrower row nearer a pole (the great-circle bend); that excursion is
+  // priced in (rows walked twice), so the bound holds for EVERY path. The scan stops as soon as more rows can only cost more than the best
+  // bound found, so it touches a few rows. The old code measured D with the expanded row's width and was not a bound.
+  const wKm = nav.wKm;
+  const hKm = nav.hKm;
+  const lattice = (d: number, v: number, w: number): number => {
+    if (d >= v) return v * Math.sqrt(w * w + hKm * hKm) + (d - v) * w;
+    return d * Math.sqrt(w * w + hKm * hKm) + (v - d) * hKm;
+  };
   const heuristic = (n: number): number => {
     const x = n % W;
     const y = (n - x) / W;
     let dx = Math.abs(x - bx);
     if (dx > W - dx) dx = W - dx;
-    const kx = dx * (nav.wKm[y] as number);
-    const ky = Math.abs(y - by) * nav.hKm;
-    return hw * Math.sqrt(kx * kx + ky * ky);
+    const lo = y < by ? y : by;
+    const hi = y < by ? by : y;
+    const span = hi - lo;
+    if (dx === 0) return hw * span * hKm;
+    let wI = wKm[lo] as number;
+    for (let r = lo + 1; r <= hi; r++) if ((wKm[r] as number) < wI) wI = wKm[r] as number;
+    let best = lattice(dx, span, wI);
+    let wMin = wI;
+    for (let r = lo - 1; r >= 0; r--) {
+      if ((span + 2 * (lo - r)) * hKm >= best) break;
+      if ((wKm[r] as number) < wMin) wMin = wKm[r] as number;
+      const v = lattice(dx, span + 2 * (lo - r), wMin);
+      if (v < best) best = v;
+    }
+    wMin = wI;
+    for (let r = hi + 1; r < H; r++) {
+      if ((span + 2 * (r - hi)) * hKm >= best) break;
+      if ((wKm[r] as number) < wMin) wMin = wKm[r] as number;
+      const v = lattice(dx, span + 2 * (r - hi), wMin);
+      if (v < best) best = v;
+    }
+    return hw * best;
   };
 
   let size = 0;

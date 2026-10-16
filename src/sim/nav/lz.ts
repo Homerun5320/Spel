@@ -1,24 +1,36 @@
 // scoreLz (M11b): can a helicopter set troops down on a cell, and how good is the spot? The reason codes are checked in this priority
 // order and the first that applies wins. A pure query over a SimView and the nav grid; nothing here is hashed state.
 import { ALT_MODE_LOW, type AltMode } from '../los/cache';
-import { HELI_FUEL_CELLS, LZ_ENEMY_CITY_CELLS, LZ_MAX_ELEV_M, LZ_SCORE_BASE, LZ_SCORE_EXPOSED_PER_CELL, LZ_SCORE_SPREAD_PER_M, LZ_STEEP_SPREAD_M } from '../rules';
+import { HELI_FUEL_CELLS, LZ_REASON_BASE, LZ_ENEMY_CITY_CELLS, LZ_MAX_ELEV_M, LZ_SCORE_BASE, LZ_SCORE_EXPOSED_PER_CELL, LZ_SCORE_SPREAD_PER_M, LZ_STEEP_SPREAD_M } from '../rules';
 import { seatToOwner } from '../state';
 import { CLASS_DEEP_SEA, CLASS_HILLS, CLASS_PEAK, CLASS_PLAINS, CLASS_SHALLOWS } from '../terrain';
 import { STRUCT_CITY } from '../structureRules';
 import type { Nav } from './grid';
 import { cellDistance, planRoute, type NavView } from './route';
 
+export type LzReason = 0 | 65 | 66 | 67 | 68 | 69 | 70 | 71 | 72;
 export const LZ_OK = 0;
-export const LZ_WATER = 1;
-export const LZ_PEAK = 2;
-export const LZ_TERRAIN_CLASS = 3;
-export const LZ_STEEP = 4;
-export const LZ_ENEMY_CITY_NEAR = 5;
-export const LZ_TOO_HIGH = 6;
-export const LZ_OUT_OF_FUEL = 7;
-export const LZ_NO_ROUTE = 8;
-export type LzReason = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
-export const LZ_REASON_NAMES = ['OK', 'WATER', 'PEAK', 'TERRAIN_CLASS', 'STEEP', 'ENEMY_CITY_NEAR', 'TOO_HIGH', 'OUT_OF_FUEL', 'NO_ROUTE'] as const;
+// Own range (Fix-3A2): LZ_REASON_BASE + n, never equal to a REJECT_* code of src/sim/intents.ts.
+export const LZ_WATER = (LZ_REASON_BASE + 1) as LzReason;
+export const LZ_PEAK = (LZ_REASON_BASE + 2) as LzReason;
+export const LZ_TERRAIN_CLASS = (LZ_REASON_BASE + 3) as LzReason;
+export const LZ_STEEP = (LZ_REASON_BASE + 4) as LzReason;
+export const LZ_ENEMY_CITY_NEAR = (LZ_REASON_BASE + 5) as LzReason;
+export const LZ_TOO_HIGH = (LZ_REASON_BASE + 6) as LzReason;
+export const LZ_OUT_OF_FUEL = (LZ_REASON_BASE + 7) as LzReason;
+export const LZ_NO_ROUTE = (LZ_REASON_BASE + 8) as LzReason;
+/** Name of a reason code (indexed by the code itself: 0 and 65..72). */
+export const LZ_REASON_NAMES: Readonly<Record<LzReason, string>> = {
+  0: 'OK',
+  65: 'WATER',
+  66: 'PEAK',
+  67: 'TERRAIN_CLASS',
+  68: 'STEEP',
+  69: 'ENEMY_CITY_NEAR',
+  70: 'TOO_HIGH',
+  71: 'OUT_OF_FUEL',
+  72: 'NO_ROUTE',
+};
 
 export interface LzResult {
   readonly reason: LzReason;

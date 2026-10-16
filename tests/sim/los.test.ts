@@ -107,10 +107,12 @@ describe('M11a mask on synthetic terrain', () => {
     // upgrade: radius 24 -> 26, a cell at 25 becomes covered
     expect(exposure(los, src, 0, at(40 + 25, 30), ALT_MODE_HIGH)).toBe(EXPOSED_NONE);
     state.structures.level[id] = 2;
+    los.invalidate(); // Fix-3A2: sync is memoised per (table, tick, counters); a hand edit inside one tick says so (the sim itself only edits between ticks)
     expect(exposure(los, src, 0, at(40 + 25, 30), ALT_MODE_HIGH)).toBe(EXPOSED_DETECTED);
     expect(los.compositeBuilds).toBe(2);
     // conquest: the owner changes, the coverage moves to the other seat
     state.structures.transfer(id, 2, 1);
+    los.invalidate();
     expect(exposure(los, src, 0, at(40, 40), ALT_MODE_LOW)).toBe(EXPOSED_NONE);
     expect(exposure(los, src, 1, at(40, 40), ALT_MODE_LOW)).toBe(EXPOSED_DETECTED);
     // delete: the coverage is gone

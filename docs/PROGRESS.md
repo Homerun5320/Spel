@@ -39,6 +39,17 @@ Resume: Läs CLAUDE.md och docs/PROGRESS.md, kör git log -10 och npm run verify
 - [x] 6. `src/sim/win.ts`: score per City / Factory LEVEL (level 40 and 3), draw, hold restart, hold pick, match clock at the spawn-phase edge, score limit at the exact tick.
 - [x] 7. Districts: BuildDistrict / RemoveDistrict at the exact tick, conquest at readyTick, two overlapping Walls give the largest percent.
 - [x] 8. Mutant table in `docs/DECISIONS.md` (Fix-3A1); sim[6] (economy script margin) in `docs/BACKLOG.md`. `npm run verify:fast` green.
+### Fix-3A2: audit 2 (radar reach, navigation, AI limits, MatchView) and the M12 preparation (headless slice on HEAD 04eaba8; the orchestrator owns merging and pushing)
+- [x] LZ reason codes in their own range `LZ_REASON_BASE + n` (65..72), disjoint from REJECT_* (`tests/sim/lzCodes.test.ts`); the texts wait for M12a (BACKLOG)
+- [x] `Los.sync` memoised per (table, tick, counters), `Los.invalidate()`, perf case with highWater 820 and 480 queries per tick (`tests/los.perf.test.ts`)
+- [x] A* heuristic is a lower bound (lattice bound with excursion), proven against Dijkstra (`tests/sim/navExact.test.ts`); nav fingerprint 4680ed7e -> abb0fadd
+- [x] Nav and LZ behaviours locked with mutants (corner cut, lambda 1 vs 3, ceiling term, both OUT_OF_FUEL checks)
+- [x] LOS cache behaviours locked with mutants (`tests/sim/losCache.test.ts`)
+- [x] Packed MatchView and ViewMirror init locked (`tests/sim/matchViewPack.test.ts`)
+- [x] AI limits as fast unit scenes (`tests/ai/limits.test.ts`)
+- [x] Radar mask wording corrected to the measured numbers (rules comment, BALANCE row, DECISIONS, BACKLOG); no code or number changed
+- [x] Decision "M12 preparation: Los/Nav access inside step" written (option 1 chosen), one row in ARCHITECTURE
+- [x] `git diff e2e/goldens` empty; `npm run verify:fast` green (see the result line in the final report); not run: full `npm run verify`, Artifact, pull request (the orchestrator)
 
 ### Integration Sim-Growth + Look-1: the UI and render read the ten City levels and five district slots (one session on HEAD 7cfad4b; the orchestrator owns merging, pushing and the Artifact)
 - [x] 1. `structureInfo`, `cityViewModel`, `cityViewPanel`, `selectionPanel`, `src/render/structures.ts`, `src/render/rings.ts`, `src/render/cityTiers.ts` read `cityGoldMilli`, `cityTroopCap`, `maxLevelOf`, `upgradePriceGold`, `upgradeTicksOf`; five fixed district slots on a pentagon (`DISTRICT_SLOT_ANGLES`); the five failing unit tests follow the sim numbers (details in `docs/DECISIONS.md`, Integration Sim-Growth + Look-1)

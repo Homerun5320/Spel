@@ -2,6 +2,8 @@
 // The masks are built lazily inside a query, never in a tick: the tick cost of this module is zero (a test in tests/sim/los.test.ts counts the rebuilds).
 import { beforeAll, describe, expect, it } from 'vitest';
 import { createLos } from '../src/sim/los/cache';
+import { exposure } from '../src/sim/los/exposure';
+import { STRUCT_CITY, STRUCT_SAM } from '../src/sim/structureRules';
 import { buildMask, maskSide } from '../src/sim/los/mask';
 import { createEmptyState } from '../src/sim/state';
 import { cellAtLatLon, loadRealLos, type RealLos } from '../tools/sim/losWorld';
@@ -60,5 +62,29 @@ describe('LOS performance', () => {
     console.log(`[los perf] 1000 synced queries with 100 sites: median ${ms.toFixed(3)} ms (budget ${budgetMs(5).toFixed(3)})`);
     expect(los.maskBuilds).toBe(builds);
     expect(ms).toBeLessThanOrEqual(budgetMs(5));
+  });
+  it('Fix-3A2: 480 exposure queries per tick over a structure table with highWater >= 800 take at most budgetMs(0.5) (statistic: median of 9 ticks after 2 warm-ups; the sync is memoised per tick)', () => {
+    // M12b asks per (helicopter, site): 12 helicopters x 40 SAMs. Without the memo every call scanned all 800+ slots (about 3 ms a tick).
+    const state = createEmptyState(1024, 512, 1, 2);
+    const sams: number[] = [];
+    for (let i = 0; i < 40; i++) {
+      const cell = cellAtLatLon(40 + (i % 8) * 2.5, 5 + Math.floor(i / 8) * 15);
+      state.structures.add(STRUCT_SAM, 1 + (i % 2), cell, 0);
+      sams.push(cell);
+    }
+    for (let i = 0; i < 780; i++) state.structures.add(STRUCT_CITY, 1 + (i % 2), (20 + (i % 150)) * 1024 + 10 + Math.floor(i / 150) * 150 + (i % 7), 0);
+    expect(state.structures.highWater).toBeGreaterThanOrEqual(800);
+    const src = { tick: 1_000_000, structures: state.structures, terrainClass: real.terrainClass }; // far past every ready tick
+    const los = createLos(real.terrain);
+    let sink = 0;
+    const oneTick = (): void => {
+      src.tick++;
+      for (let i = 0; i < 480; i++) sink += exposure(los, src, i & 1, (sams[i % 40] as number) + 2 * 1024 + 2, i % 3 === 0 ? 1 : 0);
+    };
+    const ms = measureMedianMs(oneTick, { runs: 9, warmups: 2 });
+    console.log(`[los perf] 480 exposure queries on a table of ${state.structures.highWater} slots: median ${ms.toFixed(3)} ms per tick (budget ${budgetMs(0.5).toFixed(3)}), ${los.syncScans} scans, sink ${sink}`);
+    expect(sink).toBeGreaterThan(0); // the probes lie 3 cells from the SAMs, so the queries do real work
+    expect(los.syncScans).toBeLessThanOrEqual(12); // one scan per tick (11 ticks), not one per query
+    expect(ms).toBeLessThanOrEqual(budgetMs(0.5));
   });
 });

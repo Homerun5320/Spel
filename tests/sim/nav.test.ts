@@ -349,4 +349,4 @@ describe('the real world', () => {
   });
 });
 
-const PINNED_HASH = '4680ed7e';
+const PINNED_HASH = 'abb0fadd'; // Fix-3A2: was 4680ed7e before the admissible A* heuristic (docs/DECISIONS.md, Fix-3A2)
