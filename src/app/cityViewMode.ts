@@ -57,5 +57,8 @@ export function cityFitFlight(width: number, height: number, panel: { x: number;
   const D = altAglM / cosT;
   const sx = ((x0 + x1) / 2 - width / 2) / (width / 2);
   const sy = (height / 2 - (y0 + y1) / 2) / (height / 2);
-  return { altAglM, offEastM: -sx * D * tanHalf * aspect, offNorthM: (-sy * D * tanHalf) / cosT };
+  // the City must project at sy (up is positive): with the look-at point `l` m north of it the City is at -l cosT / ((D - l sinT) tanHalf) of the half window, so
+  // l = -sy D tanHalf / (cosT - sy tanHalf sinT); the first-order -sy D tanHalf / cosT left it 5 % of the window off the middle on a phone with a bottom sheet (Fix-4B)
+  const sinT = Math.sin((tiltDeg * Math.PI) / 180);
+  return { altAglM, offEastM: -sx * D * tanHalf * aspect, offNorthM: (-sy * D * tanHalf) / (cosT - sy * tanHalf * sinT) };
 }
