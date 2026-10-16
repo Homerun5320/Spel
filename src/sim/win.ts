@@ -6,6 +6,8 @@
 //   (b) last alive: at most one player is not eliminated (needs at least two players at the start);
 //   (a) land: a player holds at least `requiredLandPct` of all playable weighted land for `holdTicks` evaluations in a row;
 //   (c) score: `timeLimitTicks` of play have passed (counted from the end of the spawn phase); the highest score wins, then more land, then the lower seat.
+// M18b-3: every condition counts GROUPS (src/sim/groups.ts): a federation's land and score are summed, it holds the land timer and wins together; `winner` is
+// the group's root (lowest ownerId). A match without a federation takes the plain per-seat path.
 // When several are true in one step the order of that list wins: last, land, score. Once a match has ended `step` only counts ticks.
 import { floorDiv } from './detmath';
 import { SPAWN_PHASE_TICKS } from './rules';
@@ -25,6 +27,7 @@ import {
 } from './rules';
 import { WIN_REASON_LAND, WIN_REASON_LAST, WIN_REASON_NONE, WIN_REASON_SCORE } from './matchState';
 import { clearDiplomacyOf } from './diplomacyClear';
+import { federationRoots, groupSumScratch } from './groups';
 import { scrapOwnerHelis } from './heliPhase';
 import { OUTBOX_CAPITAL_LOST, OUTBOX_ELIMINATED, OUTBOX_MATCH_END } from './outbox';
 import { ownerSlots, type GameState } from './state';
@@ -69,7 +72,15 @@ export function landStdOf(state: GameState, owner: number): number {
  */
 export function leaderCostPct(state: GameState, target: number): number {
   if (state.header.config.win === undefined || target < 1 || target > state.header.players) return 100;
-  const share100 = (state.agg.warea[target] as number) * 100;
+  let held = state.agg.warea[target] as number;
+  // M18b-3: the members of one federation are priced by the share of the WHOLE group (a federation with 40 % is as dear or cheap as one nation with 40 %).
+  const roots = federationRoots(state);
+  if (roots !== null) {
+    const root = roots[target] as number;
+    held = 0;
+    for (let o = 1; o <= state.header.players; o++) if (roots[o] === root) held += state.agg.warea[o] as number;
+  }
+  const share100 = held * 100;
   const total = state.grid.totalWeight;
   if (share100 > LEADER_LAND_PCT_HIGH * total) return LEADER_COST_PCT_HIGH;
   if (share100 > LEADER_LAND_PCT_MID * total) return LEADER_COST_PCT_MID;
@@ -105,21 +116,32 @@ function endMatch(state: GameState, winner: number, reason: number): void {
   state.outbox.push(OUTBOX_MATCH_END, state.tick - 1, winner, reason);
 }
 
-/** The player with the highest score (then land, then the lower ownerId). 0 when the match has no player. */
+/** The player (or, with federations, the group root) with the highest score (then land, then the lower ownerId). 0 when the match has no player. */
 function scoreWinner(state: GameState): number {
   const players = state.header.players;
-  const scores = new Uint32Array(ownerSlots(state.header.seats));
+  const slots = ownerSlots(state.header.seats);
+  const scores = new Uint32Array(slots);
   fillScores(state, scores);
+  const roots = federationRoots(state);
+  // Group totals (score, land) at the root index; without a federation every seat is its own root and the totals are the plain values.
+  const gScore = new Uint32Array(slots);
+  const gLand = new Uint32Array(slots);
+  for (let o = 1; o <= players; o++) {
+    const r = roots === null ? o : (roots[o] as number);
+    gScore[r] = (gScore[r] as number) + (scores[o] as number);
+    gLand[r] = (gLand[r] as number) + landStdOf(state, o);
+  }
   let best = 0;
   for (let o = 1; o <= players; o++) {
+    if (roots !== null && roots[o] !== o) continue;
     if (best === 0) {
       best = o;
       continue;
     }
-    const a = scores[o] as number;
-    const b = scores[best] as number;
+    const a = gScore[o] as number;
+    const b = gScore[best] as number;
     // Tiebreak: the higher land in the unit the score uses (weighted std-cells), then the lower seat (the loop is ascending, so only a strict gain replaces).
-    if (a > b || (a === b && landStdOf(state, o) > landStdOf(state, best))) best = o;
+    if (a > b || (a === b && (gLand[o] as number) > (gLand[best] as number))) best = o;
   }
   return best;
 }
@@ -162,14 +184,21 @@ export function winPhase(state: GameState): void {
   if (cfg.last && players >= 2) {
     let alive = 0;
     let who = 0;
+    const roots = federationRoots(state);
     for (let o = 1; o <= players; o++) {
       if (m.eliminated[o] === 0) {
-        alive++;
-        who = o;
+        // Alive seats of ONE group count as one (a shared victory); `who` is then the first alive member.
+        if (roots === null) {
+          alive++;
+          who = o;
+        } else if (alive === 0 || roots[o] !== roots[who]) {
+          alive++;
+          if (who === 0) who = o;
+        }
       }
     }
     if (alive <= 1) {
-      endMatch(state, alive === 1 ? who : 0, alive === 1 ? WIN_REASON_LAST : WIN_REASON_NONE);
+      endMatch(state, alive === 1 ? (roots === null ? who : (roots[who] as number)) : 0, alive === 1 ? WIN_REASON_LAST : WIN_REASON_NONE);
       return;
     }
   }
@@ -179,12 +208,21 @@ export function winPhase(state: GameState): void {
     const need = requiredLandPct(cfg.landSharePct, elapsed) * total;
     let pick = 0;
     if (total > 0) {
+      // A group's land is the sum over its members (a plain seat is a group of one); only roots are candidates.
+      const roots = federationRoots(state);
+      let sums: number[] | null = null;
+      if (roots !== null) {
+        sums = groupSumScratch(roots.length);
+        for (let o = 1; o <= players; o++) sums[roots[o] as number] = (sums[roots[o] as number] as number) + (warea[o] as number);
+      }
+      const landOf = (o: number): number => (sums === null ? (warea[o] as number) : (sums[o] as number));
       const holder = m.holdOwner;
-      if (holder !== 0 && (warea[holder] as number) * 100 >= need) {
+      if (holder !== 0 && landOf(holder) * 100 >= need) {
         pick = holder;
       } else {
         for (let o = 1; o <= players; o++) {
-          if ((warea[o] as number) * 100 >= need && (pick === 0 || (warea[o] as number) > (warea[pick] as number))) pick = o;
+          if (roots !== null && roots[o] !== o) continue;
+          if (landOf(o) * 100 >= need && (pick === 0 || landOf(o) > landOf(pick))) pick = o;
         }
       }
     }
