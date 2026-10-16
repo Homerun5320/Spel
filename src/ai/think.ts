@@ -59,6 +59,11 @@ function jittered(base: number, rng: Uint32Array): number {
   return Math.max(5, Math.min(100, base + 5 * (nextBelow(rng, 5) - 2)));
 }
 
+/** Is a proposal open between the two seats, in either direction? An acceptance on its way would end an attack between them (or refuse a new one), so the AI neither starts nor cancels one meanwhile (M18c-1). */
+function negotiating(view: SimView, seat: number, other: number): boolean {
+  return view.diplomacy.proposalKind(seat, other) !== 0 || view.diplomacy.proposalKind(other, seat) !== 0;
+}
+
 function coolingDown(memory: AiMemory, target: number, tick: number, cooldown: number): boolean {
   const last = memory.lastAttack[target] as number;
   return last >= 0 && tick - last < cooldown;
@@ -101,7 +106,8 @@ export function think(view: SimView, memory: AiMemory, rng: Uint32Array, inFligh
     let cancels: IntentBody[] | null = null;
     if (atWarCap) {
       for (let o = 1; o <= view.seats; o++) {
-        if (o === owner || (memory.lastAttack[o] as number) < 0) continue;
+        // An open proposal between the two (M18c-1) may be accepted any tick, and that calls the attack off: the Cancel would then be refused, so it waits.
+        if (o === owner || (memory.lastAttack[o] as number) < 0 || negotiating(view, seat, o - 1)) continue;
         memory.lastAttack[o] = -1;
         if (view.attackRunning(owner, o)) (cancels ??= []).push(cancelAttackBody(seat, o));
       }
@@ -120,7 +126,7 @@ export function think(view: SimView, memory: AiMemory, rng: Uint32Array, inFligh
       // Retaliation: a nation at the war cap starts no war, but it answers the first neighbour that attacks it. The sim sets the
       // two forces against each other (a mutual attack, D85: both lose the smaller one), so the answer holds the aggressor's troops back.
       for (let o = 1; o <= view.seats; o++) {
-        if (o === owner || !view.attackRunning(o, owner) || view.diplomacy.relation(seat, o - 1) !== RELATION_WAR || coolingDown(memory, o, tick, AI_ATTACK_COOLDOWN_TICKS)) continue;
+        if (o === owner || !view.attackRunning(o, owner) || view.diplomacy.relation(seat, o - 1) !== RELATION_WAR || negotiating(view, seat, o - 1) || coolingDown(memory, o, tick, AI_ATTACK_COOLDOWN_TICKS)) continue;
         memory.lastAttack[o] = tick;
         return [attackBody(seat, o, jittered(AI_WAR_COMMIT_PCT, rng))];
       }
@@ -133,7 +139,7 @@ export function think(view: SimView, memory: AiMemory, rng: Uint32Array, inFligh
       for (let o = 1; o <= view.seats; o++) {
         // A sliver (a single cell of contact, or a target left with fewer cells than AI_MIN_CONTACT_LENGTH) is gone before the intent runs, 2 ticks later.
         // A truce or an alliance (M18c-1) is respected: the sim refuses an Attack on a treaty party, and the AI never sends a refused one.
-        if (o === owner || view.diplomacy.relation(seat, o - 1) !== RELATION_WAR || view.contactLength(owner, o) < AI_WAR_MIN_CONTACT_LENGTH || (stats.cells[o - 1] as number) < AI_MIN_CONTACT_LENGTH || coolingDown(memory, o, tick, AI_ATTACK_COOLDOWN_TICKS)) continue;
+        if (o === owner || view.diplomacy.relation(seat, o - 1) !== RELATION_WAR || negotiating(view, seat, o - 1) || view.contactLength(owner, o) < AI_WAR_MIN_CONTACT_LENGTH || (stats.cells[o - 1] as number) < AI_MIN_CONTACT_LENGTH || coolingDown(memory, o, tick, AI_ATTACK_COOLDOWN_TICKS)) continue;
         if (tick < AI_WAR_HUMAN_START_TICKS && memory.human[o - 1] === 1 && !view.attackRunning(o, owner)) continue;
         const theirs = stats.troopsQt[o - 1] as number;
         if (best === NO_OWNER || theirs < bestTroops) {

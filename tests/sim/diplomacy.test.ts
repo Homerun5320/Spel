@@ -389,7 +389,7 @@ describe('embargo and alliance trade', () => {
     truce(s, 0, 1);
     expect(structGoldMilliPerSec(s, 1)).toBe(own + full);
     send(s, { kind: 'BreakTreaty', seat: 0, with: 1 });
-    s.tick = 6000;
+    expect(structGoldMilliPerSec(s, 1)).toBe(own + full); // warm again: only the alliance itself may dirty the cache now
     alliance(s, 1, 0);
     expect([structGoldMilliPerSec(s, 1), structGoldMilliPerSec(s, 2)]).toEqual([own + allied, own + allied]);
     send(s, { kind: 'ImposeEmbargo', seat: 1, target: 0 });

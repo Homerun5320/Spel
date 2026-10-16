@@ -298,8 +298,10 @@ describe('the AI driver in the host', () => {
         for (let t = 0; t < 6000; t++) host.runTicks(1);
         cancels += log.length;
         expect(reasons.filter((r) => r === REJECT_NO_ATTACK), `${setup} seed ${seed}: refused Cancels`).toEqual([]);
-        // Skirmish: not one refusal. Play: at most one (a target the sim flips whole in the 2 ticks between the AI's look and the intent, e.g. an enclave).
-        expect(built.match.state.rejects, `${setup} seed ${seed}`).toBeLessThanOrEqual(setup === 'skirmish' ? 0 : 1);
+        // At most one refusal (a target the sim flips whole in the 2 ticks between the AI's look and the intent, e.g. an enclave or a third nation's conquest). It was 0 for Skirmish
+        // and 1 for Play until M18c-1; treaties change who fights whom, so the Skirmish trajectories moved and seed 3 now meets that rare race once (a NO_CONTACT Attack,
+        // not a diplomacy refusal; the REJECT_NO_ATTACK check above stays strict). DECISIONS "M18c-1" 9.
+        expect(built.match.state.rejects, `${setup} seed ${seed}`).toBeLessThanOrEqual(1);
         host.dispose();
       }
     }

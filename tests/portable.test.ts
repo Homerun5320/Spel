@@ -39,7 +39,7 @@ describe('the forbidden-address scanner itself', () => {
 });
 
 /** Size caps in bytes of gzipped JavaScript (Fix-3C): measured plus about 5 %. Raise them only with a line in docs/DECISIONS.md. */
-const JS_GZ_TOTAL_MAX = 329_000;
+const JS_GZ_TOTAL_MAX = 338_000; // M18c-1: 328 174 B measured at the base commit (cap 329 000), 334 052 B with the diplomacy code, texts and AI; see docs/DECISIONS.md "M18c-1"
 const JS_GZ_MAIN_MAX = 277_000;
 
 describe('portable build (relative addresses only)', () => {

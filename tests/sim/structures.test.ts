@@ -378,7 +378,9 @@ describe('the table', () => {
     expect(deserialize(bytes).ok).toBe(true);
     // the first live record starts after highWater, recycledCount, recycled[], deleteReady[], liveCount: flip its type to 0
     const view = new DataView(bytes.buffer);
-    const live = bytes.length - 4 - s.structures.liveCount * 32;
+    // M18c-1: the diplomacy block (16 + 12 per ownerId) and the match block (40 + 24 per ownerId) and the district count (4, no districts here) sit between the records and the checksum
+    const slots = s.header.seats + 1;
+    const live = bytes.length - 4 - (16 + 12 * slots) - (40 + 24 * slots) - 4 - s.structures.liveCount * 32;
     view.setUint32(live + 4, 0, true);
     const bad = deserialize(bytes);
     expect(bad.ok).toBe(false);
