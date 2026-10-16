@@ -6,12 +6,15 @@ import { describe, expect, it } from 'vitest';
 import { airLayout, diploLayout, saveLayout } from '../helpers/saveLayout';
 import { RELATION_ALLIANCE, RELATION_TRUCE, TREATY_ALLIANCE, TREATY_TRUCE } from '../../src/sim/diplomacyTable';
 import { HELI_BUILDING, HELI_CRUISE, HELI_DOWNED, HELI_LIFT, HELI_PAD } from '../../src/sim/heliTable';
-import { BEACHHEAD_CAPACITY, BUILD_TICKS, HELI_BUILD_TICKS, HELI_CAPACITY, HELI_FUEL_MAX_Q8, HELI_HP_TENTHS, HELI_MAX_TROOPS, HELI_ROUTE_CAPACITY, PROPOSAL_CAPACITY, PROPOSAL_TTL_TICKS, STRUCT_CAPACITY, TRUCE_TICKS, TREATY_BREAK_COOLDOWN_TICKS } from '../../src/sim/rules';
+import { BEACHHEAD_CAPACITY, BUILD_TICKS, HELI_BUILD_TICKS, HELI_CAPACITY, HELI_FUEL_MAX_Q8, HELI_HP_TENTHS, HELI_MAX_TROOPS, HELI_ROUTE_CAPACITY, PROPOSAL_CAPACITY, PROPOSAL_TTL_TICKS, STRUCT_CAPACITY, TECH_FX_CAP, TRUCE_TICKS, TREATY_BREAK_COOLDOWN_TICKS } from '../../src/sim/rules';
 import { deserialize, serialize } from '../../src/sim/serialize';
 import { createState, rebuildAggregates, type GameState } from '../../src/sim/state';
 import { STRUCT_CITY, STRUCT_FACTORY } from '../../src/sim/structureRules';
 import { CLASS_PLAINS } from '../../src/sim/terrain';
 
+/** The largest load and tank a helicopter can have in a match where its owner has researched every AIR tech (M18d-1). */
+const TECH_LOAD_MAX = HELI_MAX_TROOPS + Math.floor((HELI_MAX_TROOPS * (TECH_FX_CAP[5] as number)) / 100);
+const TECH_FUEL_MAX = HELI_FUEL_MAX_Q8 + Math.floor((HELI_FUEL_MAX_Q8 * (TECH_FX_CAP[7] as number)) / 100);
 const W = 64;
 const H = 32;
 const CELLS = W * H;
@@ -122,6 +125,8 @@ describe('the untouched blob loads, and one byte more or less does not (controls
       ['hp = max', HR(2, 36), HELI_HP_TENTHS],
       ['load = max', HR(2, 40), HELI_MAX_TROOPS],
       ['fuel = max', HR(2, 44), HELI_FUEL_MAX_Q8],
+      ['load = max with every AIR tech (M18d-1)', HR(2, 40), TECH_LOAD_MAX],
+      ['fuel = tank with every AIR tech (M18d-1)', HR(2, 44), TECH_FUEL_MAX],
       ['alt = 65535', HR(2, 32), 65535, true],
       ['truce end = tick', DIPLO.pairAt(0) + 12, TICK],
       ['truce end = tick + TRUCE_TICKS', DIPLO.pairAt(0) + 12, TICK + TRUCE_TICKS],
@@ -155,8 +160,8 @@ describe('the air block: every guard refuses its own first illegal value (air-ra
     ['altitude below 0', HR(2, 32), -1, true],
     ['altitude above 65535', HR(2, 32), 65536, true],
     ['hp above the maximum', HR(2, 36), HELI_HP_TENTHS + 1],
-    ['load above the maximum', HR(2, 40), HELI_MAX_TROOPS + 1],
-    ['fuel above the tank', HR(2, 44), HELI_FUEL_MAX_Q8 + 1],
+    ['load above the maximum', HR(2, 40), TECH_LOAD_MAX + 1], // M18d-1: the AIR techs lift the maximum by TECH_FX_CAP percent (750)
+    ['fuel above the tank', HR(2, 44), TECH_FUEL_MAX + 1], // M18d-1: and the tank (57600)
     ['mode 2', HR(2, 48), 2],
     ['target above the cells', HR(2, 52), CELLS + 1],
     ['route longer than the capacity', HR(2, 56), HELI_ROUTE_CAPACITY + 1],
