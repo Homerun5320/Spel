@@ -156,6 +156,22 @@ GÖR och ACCEPTANS:
 - [x] Tests: `tests/app/federationMatch.test.ts`, `tests/app/federationSetup.test.ts`, `tests/ai/federation.test.ts`, `e2e/federation.test.ts`; mutants in DECISIONS.
 - [x] `npm run verify:fast` green and `e2e/federation.test.ts`, `e2e/setup.test.ts`, `e2e/diplomacy.test.ts` green (result in the M18b-2 block of `docs/DECISIONS.md`).
 - Not done (BACKLOG "M18b-3"): shared victory, grouping in the leaderboard and result, flags and Swedish names, labels of federations on the map.
+### M13a-2: helicopter effects, chase camera and far icon (render, app and UI; one slice in its own worktree; the orchestrator owns merging, pushing and the Artifact; previous merge SHA f29121a8d1607ca169e6675b5f22a52d76c42ef7)
+
+GOR
+- [x] Effects layer `src/render/heliFx.ts`: shadow blob (1 draw call), particle pool (dust, ropes, smoke, flash; 1 draw call, <= 1 200 particles), beachhead flag (1 draw call); fx clock only, local seeded render RNG, no allocation per frame; test pages have it OFF unless `fx=1`.
+- [x] Far icon of an airborne helicopter (1 draw call), owner colour, fades when the model takes over.
+- [x] Chase camera: key H (stack entry `chase`), mode on the InputStack, Esc / H / drag / wheel end it, terrain clearance, toast `toast.heli.noneAirborne`; button `heli-chase` per flying row in the helicopter list.
+- [x] ETA in the list: not derivable (HeliView has no target table): left in BACKLOG, as the prompt allowed.
+- [x] Tests: caps (draw calls, particles), allocation, chase, modal keys, sim hash unchanged, leak, e2e with screenshots.
+
+ACCEPTANS
+- [x] Six effects visible on screenshots; caps held (<= 3 + 1 draw calls, <= 1 200 particles); 0 allocation per frame.
+- [x] Chase camera: clearance, ending, toast without helicopter, modal blocking.
+- [x] Sim hash unchanged by the effects; goldens unchanged (fx flag).
+- [x] Leak test green; both languages; verify:fast green; affected e2e green.
+
+Result (details and numbers in `docs/DECISIONS.md` "M13a-2"): effects, chase camera, far icon and the glide between tables are in; `e2e/heliFx.test.ts` (4 tests: pictures, enemy SAM crash, chase, sim hash with and without the layer) and `e2e/heliFx.serial.test.ts` (leak and allocation) pass; unit tests `tests/render/heliFx.test.ts` and `tests/app/chaseMode.test.ts`. Not done: ETA per list row, the cause colour of a downing, H in the help overlay (BACKLOG "M13a-2"). The full `npm run verify` was NOT run here (the orchestrator runs it after the merge).
 
 ## Next
 

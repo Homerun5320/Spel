@@ -564,3 +564,16 @@ Not done in the Fix-UI slice (the sim, host and AI findings belong to Fix-Sim):
 - Skipped sub-nations (USA 3 of 12, CHN 8 of 12, CAN 1 of 10, BRA 1 of 8, IND 4 of 5) could be MERGED into a neighbouring sub-nation instead of staying neutral, or the baker could size them by playable width; a start disc that is allowed to spill a few cells over a border would also keep more.
 - A federation member that has an ally under attack could help it (a defence pact); today nothing moves.
 - The info line of the option shows an upper bound; the exact seat count is known only after the build.
+## M13a-2
+- The cause of a downing (SAM or Post) is not in `HeliView` (only the outbox event carries it): the flash has one colour. Give the view a `downCause` per slot, or mirror the outbox event, to colour it.
+- ETA / time left per row of the helicopter list: `HeliView` has no target cell or route. Add `target`, `routeIdx` and the route to the view (or the preview's `etaSeconds` of the stored route) and show the seconds left.
+- The glide shows a flying helicopter one tick (100 ms) behind the sim; the effects at the hop (dust, ropes) follow the glide, but an event of the sim (a hit) is shown at the hop. Extrapolating instead of delaying is possible if the one-tick delay is noticed.
+- A helicopter that is DOWNED stays in the air at its altitude for `HELI_DOWNED_TICKS`: the sim does not drop it. A fall (the shader sinks it and tilts it) belongs here once the sim gives it a ground time.
+- The chase camera follows the place exactly and eases only heading and height; it has no switch to the next helicopter while riding (press H twice, or use the list button), no free orbit round the helicopter and no roll.
+- Smoke is dark grey whatever the light; a night version (dimmer, no flash glow) and soft particles against the ground (depth fade) are cheap if the quads cut hard into a slope.
+- The effects of other seats' helicopters are drawn for every owner (no per-viewer visibility, as the helicopters themselves); out of scope until M15 / fog of war.
+- Icons: a helicopter that is parked has none (the Factory's own icon is there); a downed one has none. A small arrow on the icon for the heading, and a cluster merge when many helicopters meet, are not done.
+- Dust is a plain tan disc: no wind, no colour from the ground under it (snow, sand, grass would be a lookup of the terrain colour at spawn).
+- DONE in M13a-2 (from "M13a-1 leftovers" and "M13b leftovers"): the effects (shadow, rotor wash, smoke), the H chase camera, the far icon, interpolation between tables, the SAM variant in an e2e (a leak test too: `e2e/heliFx.serial.test.ts`). Still open from there: the scenario "slice" (dropped by the user), a tilt in the turn, the Factory level at the pad corner.
+
+- H is not listed in the help overlay (the registry entry `chase` is `hidden`: `tests/app/hotkeys.test.ts` and `tests/app/appFaults.test.ts` pin H as hidden); change those two tests and drop `hidden` to list it.

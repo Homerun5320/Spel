@@ -95,6 +95,8 @@ export interface InputTarget {
   hoverEnd(): void;
   /** F: fly to your own capital. */
   focusCapital(): void;
+  /** H (M13a-2): ride along with the next own helicopter in the air (the page pushes the chase mode, or shows a toast when none is flying). */
+  chase?(): void;
   /** The build keys 1 to 6 (M10): the number is the structure type (1 City ... 6 Post). Without it the digit keys do nothing. */
   build?(type: number): void;
 }
@@ -545,6 +547,10 @@ export function createBaseMode(target: InputTarget, clickThresholdPx?: number): 
       if (e.ctrlKey || e.altKey) return false;
       if (e.key === 'f' || e.key === 'F') {
         if (e.repeat !== true) target.focusCapital();
+        return true;
+      }
+      if ((e.key === 'h' || e.key === 'H') && target.chase !== undefined) {
+        if (e.repeat !== true) target.chase();
         return true;
       }
       if (e.key.length === 1 && e.key >= '1' && e.key <= '6' && target.build !== undefined) {

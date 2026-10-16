@@ -495,6 +495,12 @@ const sv = {
   'setup.federation.hint': 'Ryssland, Kanada, USA, Kina, Brasilien, Australien och Indien delas upp i allierade delnationer. Du spelar en av dem.',
   'setup.federation.sub': '{country} delas upp. Du spelar en delnation (den du klickar på på kartan, annars den med huvudstaden eller den största). Federationen har upp till {members} delnationer (de som är för små för en rättvis start hoppas över); AI-nationer totalt högst {ai} (tak {max}).',
   'setup.federation.none': 'Inget uppdelningsbart land valt: valet ändrar ingenting.',
+  // M13a-2: chase camera
+  'hotkey.chase': 'Åk med nästa egen helikopter i luften (H igen avslutar)',
+  'heli.chase': 'Åk med',
+  'heli.chaseTip': 'Kameran följer helikoptern. Esc, H, ett drag eller hjulet avslutar.',
+  'toast.heli.noneAirborne': 'Ingen helikopter i luften.',
+  'toast.heli.chaseEnded': 'Helikoptern är borta, kameran är fri igen.',
 } as const;
 
 export type TextKey = keyof typeof sv;
@@ -979,6 +985,12 @@ const en: Record<TextKey, string> = {
   'setup.federation.hint': 'Russia, Canada, the USA, China, Brazil, Australia and India are split into allied sub-nations. You play one of them.',
   'setup.federation.sub': '{country} is split. You play one sub-nation (the one you click on the map, else the one with the capital or the largest). The federation has up to {members} sub-nations (those too small for a fair start are skipped); AI nations in total at most {ai} (cap {max}).',
   'setup.federation.none': 'No splittable country chosen: the option changes nothing.',
+  // M13a-2: chase camera
+  'hotkey.chase': 'Ride along with your next helicopter in the air (H again ends it)',
+  'heli.chase': 'Ride along',
+  'heli.chaseTip': 'The camera follows the helicopter. Esc, H, a drag or the wheel ends it.',
+  'toast.heli.noneAirborne': 'No helicopter in the air.',
+  'toast.heli.chaseEnded': 'The helicopter is gone, the camera is free again.',
 };
 
 /** The two tables, for the parity test and for tools. Treat as read-only. */

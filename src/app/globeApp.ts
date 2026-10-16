@@ -18,6 +18,8 @@ import { cellToLatLon, groundHeightAt, latLonToCell } from '../render/transforms
 import { STRUCTURE_MODELS } from '../render/structureModels';
 import type { DrawnStructure } from '../render/structures';
 import type { DrawnHeli } from '../render/heliLayer';
+import type { FxInfo } from '../render/heliFx';
+import { createChaseMode, type ChaseMode } from './chaseMode';
 import type { DrawnDistrict } from '../render/districts';
 import { setBookmarkHandler } from './bookmarks';
 import { InputStack, attachDomInput, createBaseMode, setContextHandler, setPauseHandler, type ContextCommand, type ContextHandler, type InputTarget } from './input';
@@ -45,7 +47,7 @@ import { diplomacyRefusalKey } from '../ui/diploReasons';
 import { attachHotkeys, hotkeys, registerGameHotkeys } from './hotkeys';
 import { createPlacementMode, type PlacementMode, type PlacementState } from './placement';
 import { AIR_MODE_AGL_M, REJECT_HELI_NO_PAD, REJECT_HELI_NO_ROUTE, createLos, createLosTerrain, createNav, launchHeliBody, recallHeliBody, validateLaunchHeli, type Nav } from '../sim/public';
-import { STRUCT_CITY, STRUCT_FACTORY, produceHeliBody, buildBody, buildDistrictBody, deleteBody, removeDistrictBody, upgradeBody, upgradeDistrictBody, validateBuild } from '../sim/public';
+import { HELI_LIFT, HELI_RETURN, STRUCT_CITY, STRUCT_FACTORY, produceHeliBody, buildBody, buildDistrictBody, deleteBody, removeDistrictBody, upgradeBody, upgradeDistrictBody, validateBuild } from '../sim/public';
 import { createCityViewPanel, type CityViewPanel } from '../ui/cityViewPanel';
 import { BEACH_RING_MAX, CAMERA_FOV_DEG, EARTH_RADIUS_KM } from '../render/config';
 import type { DrawnFront } from '../render/frontLayer';
@@ -325,6 +327,11 @@ export interface GlobeTestHooks {
   /** M13a-1: forces the rotor angle (radians; null = the fx clock) and switches the helicopter layer on or off, so a test can tell the rotor's pixels and the layer's draw call. */
   heliSpin(angle: number | null): void;
   heliLayer(on: boolean): void;
+  /** M13a-2: the effects (counts, draw calls), a switch for them, and the chase camera (active, helicopter id, the camera's height above the ground in metres). */
+  fx(): FxInfo;
+  fxLayer(on: boolean): void;
+  chase(): { active: boolean; heli: number; camAglM: number };
+  startChase(heli: number): void;
   /** M20a-2: the front arrows the layer drew, the layer's state (arrows, fade, whether its draw call is made) and a switch for a draw-call count. */
   fronts(): { arrows: readonly DrawnFront[]; count: number; fade: number; visible: boolean };
   frontLayer(on: boolean): void;
@@ -571,8 +578,10 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
         beachRingVersion = session.view.beachheadsVersion;
         globe.structures.setBeachRings(beachSeeds, ownBeachSeeds(session.view, session.localSeat, beachSeeds), session.localOwner);
       }
+      globe.heliFx.setBeachheads(session.view.beachheads, session.view.beachheadsVersion); // M13a-2
       globe.fronts.setTable(session.view.fronts, session.view.frontsVersion); // M20a-2
       globe.setTickFraction(session.view.tick + (params.test ? 0 : session.alpha()));
+      globe.setHeliAlpha(params.test ? 1 : session.alpha()); // M13a-2: flying helicopters glide from the last table's place to this one's
     }
     globe.render(draw);
     if (session !== null && nationLabels !== null && labelsWanted) updateLabels(draw && params.test);
@@ -603,6 +612,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     if (!params.test) setPref(LABELS.prefKey, on);
   };
   globe.fronts.setEnabled(labelsWanted);
+  globe.heliFx.setEnabled(!params.test || ctx.state.raw.fx === '1'); // M13a-2: a test page has the helicopter effects off (the goldens) unless `fx=1`
   let help = null as HelpOverlay | null;
   let helpMode = null as InputMode | null;
   // M18c-2: the diplomacy panel (an input mode while it is open), the proposal cards and the watcher that turns the proposal table into toasts
@@ -821,6 +831,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       open: () => (deployMode !== null ? exitDeploy() : enterDeploy(selectedId)),
       cancel: () => exitDeploy(),
       recall: (heli) => s.submit(recallHeliBody(s.localSeat, heli)),
+      chase: (heli) => startChase(heli),
     });
     cityPanel = createCityViewPanel(buildRoot, {
       build: (id, slot, kind) => s.submit(buildDistrictBody(s.localSeat, id, slot, kind)),
@@ -1200,10 +1211,75 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       tip.style.display = 'none';
     },
     focusCapital: () => focusCapital(),
+    chase: () => startChase(-1),
     build: (type) => enterPlacement(type),
   };
   const inputStack = new InputStack(createBaseMode(inputTarget));
   tickInput = (now) => inputStack.tick(now);
+  // --- Chase camera (M13a-2): key H or the list button "Åk med" pushes the chase mode (src/app/chaseMode.ts) over the helicopter -------------------------
+  let chaseMode: ChaseMode | null = null;
+  let lastChaseId = -1;
+  const chaseFlying = (id: number): boolean => {
+    const sess = session;
+    if (sess === null) return false;
+    globe.helis.setTable(sess.view.helis, sess.view.helisVersion); // the camera of the ride must see the table of THIS frame, not the last one drawn
+    globe.helis.refresh();
+    const h = sess.view.helis;
+    if (id < 0 || id >= h.highWater || h.owner[id] !== sess.localOwner || globe.helis.slotOn[id] !== 1) return false;
+    const st = h.state[id] as number;
+    return st >= HELI_LIFT && st <= HELI_RETURN;
+  };
+  const chaseTarget = {
+    read: (id: number, out: { lat: number; lon: number; heading: number; radius: number }): boolean => {
+      if (!chaseFlying(id)) return false;
+      const l = globe.helis;
+      // the place the layer draws it now: the table's place and the glide back towards the table before
+      const k = 1 - l.alpha;
+      const x = (l.slotPos[id * 3] as number) + (l.slotDelta[id * 3] as number) * k;
+      const y = (l.slotPos[id * 3 + 1] as number) + (l.slotDelta[id * 3 + 1] as number) * k;
+      const z = (l.slotPos[id * 3 + 2] as number) + (l.slotDelta[id * 3 + 2] as number) * k;
+      out.radius = Math.hypot(x, y, z);
+      out.lat = (Math.asin(y / out.radius) * 180) / Math.PI;
+      out.lon = (Math.atan2(x, z) * 180) / Math.PI;
+      out.heading = (((90 - ((l.slotYaw[id] as number) * 180) / Math.PI) % 360) + 360) % 360;
+      return true;
+    },
+    groundRadius: (lat: number, lon: number): number => globe.rig.groundRadius(lat, lon),
+    apply: (v: Parameters<typeof globe.rig.setViewUnclamped>[0]): void => globe.rig.setViewUnclamped(v),
+    cancelFlight: (): void => {
+      cityFlightOn = false;
+      globe.cancelFlight();
+    },
+    exit: (lost: boolean): void => {
+      if (chaseMode !== null && inputStack.top === chaseMode) inputStack.pop();
+      if (lost) showToast('toast.heli.chaseEnded', {}, 'info');
+    },
+    ended: (): void => {
+      chaseMode = null;
+    },
+  };
+  /** `heli` < 0: the next own helicopter in the air after the one chased last. */
+  const startChase = (heli: number): void => {
+    const sess = session;
+    if (sess === null || setupScreen !== null) return;
+    let pick = -1;
+    if (heli >= 0) pick = chaseFlying(heli) ? heli : -1;
+    else {
+      const cap = sess.view.helis.highWater;
+      for (let k = 1; k <= cap && pick < 0; k++) {
+        const id = (((lastChaseId + k) % cap) + cap) % cap;
+        if (chaseFlying(id)) pick = id;
+      }
+    }
+    if (pick < 0) {
+      showToast('toast.heli.noneAirborne', {}, 'info');
+      return;
+    }
+    if (chaseMode !== null && inputStack.top === chaseMode) inputStack.pop();
+    lastChaseId = pick;
+    chaseMode = createChaseMode(pick, chaseTarget);
+    inputStack.push(chaseMode);
+  };
   // --- Selection (M10-4): a click on an own structure selects it (outline ring, panel; Esc or a click on empty ground deselects) -------------------------------
   const closeCity = (): void => {
     if (cityMode !== null && inputStack.top === cityMode) inputStack.pop();
@@ -1966,6 +2042,10 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
         globe.helis.spinOverride = angle;
       },
       heliLayer: (on) => globe.helis.setEnabled(on),
+      fx: () => globe.heliFx.info(fxNow()),
+      fxLayer: (on) => globe.heliFx.setEnabled(on),
+      chase: () => ({ active: chaseMode !== null, heli: chaseMode?.heli ?? -1, camAglM: globe.rig.aglM() }),
+      startChase: (heli) => startChase(heli),
       fronts: () => ({ arrows: globe.fronts.info().map((d) => ({ ...d })), count: globe.fronts.count, fade: globe.fronts.fade, visible: globe.fronts.visible }),
       frontLayer: (on) => globe.fronts.setEnabled(on && labelsWanted),
       labels: () => ({ shown: nationLabels?.info() ?? [], writes: nationLabels?.writes ?? 0, on: labelsWanted }),

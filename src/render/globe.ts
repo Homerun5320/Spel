@@ -19,6 +19,7 @@ import { groundPickerOf, pickGround, type GroundHit } from './transforms';
 import { OwnershipTexture } from './ownership';
 import { StructureLayer } from './structures';
 import { FrontLayer } from './frontLayer';
+import { HeliFx } from './heliFx';
 import { HeliLayer } from './heliLayer';
 import { DeployLayer } from './deployLayer';
 import { DistrictLayer } from './districts';
@@ -144,6 +145,8 @@ export class Globe {
   readonly structures: StructureLayer;
   /** The helicopters of the match (M13a-1): one instanced draw call. */
   readonly helis: HeliLayer;
+  /** M13a-2: shadows, dust, ropes, smoke, flags (3 draw calls) and the far icon (1); OFF until the page switches it on (`setEnabled`). */
+  readonly heliFx: HeliFx;
   /** M20a-2: the front arrows of the attacks running (one draw call). */
   readonly fronts: FrontLayer;
   /** M13b: the route and the landing-zone marker of the deploy mode (3 draw calls while a route and a marker are shown, 0 otherwise). */
@@ -152,6 +155,7 @@ export class Globe {
   readonly districts: DistrictLayer;
   /** The sim tick as a fraction (set by the page every frame; drives the construction look of the structures). */
   private tickFraction = 0;
+  private heliAlpha = 1;
   readonly quality: QualitySettings;
   private readonly renderer: WebGLRenderer;
   private readonly scene = new Scene();
@@ -268,9 +272,15 @@ export class Globe {
     this.structures = new StructureLayer({ tier: o.quality.tier, gridWidth: o.world.sim.width, gridHeight: o.world.sim.height, sun: this.sun });
     this.districts = new DistrictLayer({ tier: o.quality.tier, gridWidth: o.world.sim.width, gridHeight: o.world.sim.height, sun: this.sun });
     this.helis = new HeliLayer({ gridWidth: o.world.sim.width, gridHeight: o.world.sim.height, sun: this.sun, meanElev: o.world.sim.meanElev });
+    this.heliFx = new HeliFx({ gridWidth: o.world.sim.width, gridHeight: o.world.sim.height });
     this.deploy = new DeployLayer(o.world.sim.width, o.world.sim.height);
     this.fronts = new FrontLayer({ gridWidth: o.world.sim.width, gridHeight: o.world.sim.height });
-    this.scene.add(this.stars, this.mesh, ...this.structures.meshes, ...this.districts.meshes, ...this.helis.meshes, ...this.deploy.meshes, ...this.fronts.meshes, this.shell);
+    this.scene.add(this.stars, this.mesh, ...this.structures.meshes, ...this.districts.meshes, ...this.helis.meshes, ...this.heliFx.meshes, ...this.deploy.meshes, ...this.fronts.meshes, this.shell);
+  }
+
+  /** M13a-2: how far between the previous helicopter table (0) and the current one (1) the picture is (the page sets it every frame; 1 = no blending, a test page). */
+  setHeliAlpha(a: number): void {
+    this.heliAlpha = a;
   }
 
   /** The sim tick including the fraction of the tick in progress (the page sets it every frame). */
@@ -287,6 +297,7 @@ export class Globe {
     this.field.exaggeration = x;
     this.structures.setExaggeration(x);
     this.helis.setExaggeration(x);
+    this.heliFx.setExaggeration(x);
     this.fronts.setExaggeration(x);
     this.deploy.setExaggeration(x);
     this.districts.setExaggeration(x);
@@ -462,6 +473,7 @@ export class Globe {
     tex.needsUpdate = true;
     this.structures.setOwnerPalette(rgba);
     this.helis.setOwnerPalette(rgba);
+    this.heliFx.setOwnerPalette(rgba);
     this.fronts.setOwnerPalette(rgba);
     this.districts.setOwnerPalette(rgba);
   }
@@ -535,7 +547,8 @@ export class Globe {
     c.lookAt(p.target[0], p.target[1], p.target[2]);
     c.updateMatrixWorld();
     this.structures.frame(p.position, now, this.tickFraction, this.renderer.domElement.height);
-    this.helis.frame(p.position, now);
+    this.helis.frame(p.position, now, this.heliAlpha);
+    this.heliFx.frame(this.helis, this.helis.tableView, p.position, now, this.renderer.domElement.height);
     this.fronts.frame(p.position, now);
     this.deploy.frame(p.position);
     this.districts.frame(p.position, now, this.tickFraction, this.renderer.domElement.height, Math.tan((p.fovDeg * Math.PI) / 360));
@@ -725,6 +738,7 @@ export class Globe {
   dispose(): void {
     this.structures.dispose();
     this.helis.dispose();
+    this.heliFx.dispose();
     this.fronts.dispose();
     this.deploy.dispose();
     this.districts.dispose();
