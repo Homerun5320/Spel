@@ -89,6 +89,21 @@ Resume: Läs CLAUDE.md och docs/PROGRESS.md, kör git log -10 och npm run verify
 - [x] 9. `__test.give` above DEBUG_GIVE_MAX throws with the reason (e2e in `e2e/modalKeys.test.ts`)
 - Not run here: the full `npm run verify`, the Artifact pack, the pull request (the orchestrator). Leftovers: "Fix-3B" in `docs/BACKLOG.md`.
 
+### M20a-lite: hotkey registry, help overlay `?`, command resolver, top bar with a win meter (UI and app; src/sim untouched; one slice in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+GÖR
+- [x] 1. `src/app/hotkeys.ts`: `registerHotkey`-style registry (`HotkeyRegistry.register`), every game key moved in (F focus, 1 to 6, Escape via the input stack, space / `,` / `.` / `[` / `]` / `-` / `+`, F3, F2, `?`); the Fix-3B modal block and `RESERVED_KEYS` kept
+- [x] 2. Grep test: no `keydown` listener outside `src/app/input.ts`, `src/app/hotkeys.ts` and the documented exceptions (`tests/app/hotkeyGrep.test.ts`, mutant included)
+- [x] 3. Help overlay `?` (`src/ui/helpOverlay.ts`) generated from the registry, sv and en, Escape through the input stack
+- [x] 4. `src/app/commandResolver.ts`: rule table (build on own ground, selected structure against another cell, attack), `registerCommandRule` for M13b / M15b; the selection mode gets `context(cmd)`
+- [x] 5. Top bar: gold with income, troops with cap bar and 80 % warning, land %, timer, win meter and hold count-down (`src/ui/winMeter.ts`), 10 Hz write gate (`src/ui/hudGate.ts`)
+ACCEPTANS
+- [x] The registry owns every game key; the grep test goes red for a new listener (`tests/app/hotkeys.test.ts`, `tests/app/hotkeyGrep.test.ts`)
+- [x] `?` overlay == registry both ways (`e2e/m20aLite.test.ts`); the modal tests of Fix-3Bs `e2e/modalKeys.test.ts` stay green
+- [x] Resolver table test for every rule and the invalid targets, `context(cmd)` of the selection mode (`tests/app/commandResolver.test.ts`); e2e for the right click (placement mode leaves without an intent, selected structure goes to the resolver)
+- [x] Top bar: values equal the sim, 0 DOM mutations at rest, no overlap at 960x540, 1366x640 and 540x960 with the longest strings, win meter follows the MatchView (`tests/ui/topBar.test.ts`, `e2e/m20aLite.test.ts`)
+- [x] Screenshots of `?` and the top bar looked at in both languages
+- [x] `npm run verify:fast` green; the touched e2e files green. Not run here: the full `npm run verify`, the Artifact pack, the pull request (the orchestrator).
+
 ## Next
 
 - Next slices: M12a (helicopters in the sim, headless) and M20a-lite (the HUD; the keydown rule of the M20a note in `docs/ARCHITECTURE.md` counts `src/ui/matchPanels.ts` and `src/app/debugViewshed.ts` too).

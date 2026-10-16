@@ -353,9 +353,9 @@ const sv = {
   'hotkey.devpanel': 'Utvecklarpanelen',
   'toast.cmd.notOwnGround': 'Du kan bara bygga på din egen mark.',
   'hud.win.label': 'Vinst',
-  'hud.win.leader': '{name} {pct} av {need}',
+  'hud.win.leader': '{pct} av {need} · {name}',
   'hud.win.noLeader': 'Ingen ledare än',
-  'hud.win.hold': '{name} håller: {secs} s kvar',
+  'hud.win.hold': '{secs} s kvar ({name})',
   'hud.win.aria': 'Ledarens andel av vinstgränsen',
 } as const;
 
@@ -699,9 +699,9 @@ const en: Record<TextKey, string> = {
   'hotkey.devpanel': 'Developer panel',
   'toast.cmd.notOwnGround': 'You can only build on your own land.',
   'hud.win.label': 'Win',
-  'hud.win.leader': '{name} {pct} of {need}',
+  'hud.win.leader': '{pct} of {need} · {name}',
   'hud.win.noLeader': 'No leader yet',
-  'hud.win.hold': '{name} holding: {secs} s left',
+  'hud.win.hold': '{secs} s left ({name})',
   'hud.win.aria': "The leader's share of the win limit",
 };
 

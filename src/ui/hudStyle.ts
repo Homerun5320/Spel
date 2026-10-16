@@ -12,16 +12,16 @@ export function hudCss(): string {
 .hud-root [hidden], .start-root [hidden], .setup-root [hidden], .start-root[hidden], .setup-root[hidden] { display: none !important; }
 .hud-root { position: absolute; inset: 0; z-index: ${Z_HUD}; pointer-events: none; user-select: none; -webkit-user-select: none; }
 .hud-panel { pointer-events: auto; background: ${C.panel}; border: 1px solid ${C.panelBorder}; border-radius: 0.6em; box-shadow: 0 0.15em 0.7em rgba(0, 0, 0, 0.5); padding: 0.5em 0.8em; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6); }
-.hud-label { color: ${C.textDim}; font-size: 0.85em; letter-spacing: 0.02em; }
+.hud-label, .hud-win-label { color: ${C.textDim}; font-size: 0.85em; letter-spacing: 0.02em; }
 .hud-num { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 1.25em; }
 .hud-dim { color: ${C.textDim}; font-variant-numeric: tabular-nums; }
 
-.hud-banner { position: absolute; left: 50%; top: ${TOPBAR.wideEm + 0.4}em; transform: translateX(-50%); width: max-content; max-width: min(34em, calc(100vw - 33em)); text-align: center; padding: 0.55em 1.1em; }
+.hud-banner { position: absolute; left: 50%; top: ${TOPBAR.wideEm + 0.4}em; transform: translateX(-50%); width: max-content; max-width: min(34em, calc(100vw - 33em)); display: flex; align-items: center; gap: 0.8em; text-align: left; padding: 0.35em 1em; } /* M20a-lite: one row (text, countdown), so it stays clear of the middle of the globe where a spawn click lands */
 .hud-banner[data-tone="prompt"] { border-color: ${C.accent}; }
 .hud-banner[data-tone="missed"] { border-color: ${C.danger}; }
-.hud-banner-text { font-weight: 600; font-size: 1.1em; }
-.hud-banner-seconds { font-variant-numeric: tabular-nums; font-weight: 800; font-size: 2em; line-height: 1.1; color: ${C.accent}; }
-.hud-badge { position: absolute; left: 50%; top: ${TOPBAR.wideEm + 5.3}em; transform: translateX(-50%); padding: 0.2em 0.9em; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: ${C.barWarning}; pointer-events: none; }
+.hud-banner-text { font-weight: 600; font-size: 1.05em; }
+.hud-banner-seconds { font-variant-numeric: tabular-nums; font-weight: 800; font-size: 1.6em; line-height: 1.1; color: ${C.accent}; flex: none; }
+.hud-badge { position: absolute; left: 50%; top: ${TOPBAR.wideEm + 3.5}em; transform: translateX(-50%); padding: 0.2em 0.9em; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: ${C.barWarning}; pointer-events: none; }
 
 .hud-board { position: absolute; right: 0.6em; top: ${TOPBAR.wideEm + 0.4}em; width: 14.5em; padding: 0.45em 0.6em 0.5em; }
 .hud-board[data-labels="1"] { width: 17.5em; }
@@ -48,8 +48,8 @@ export function hudCss(): string {
 .hud-bar-row { display: flex; align-items: center; gap: 0.5em; min-height: 1.15em; }
 .hud-bar-row .hud-bar { flex: 1 1 auto; margin: 0; }
 .hud-win { flex: 1 1 100%; display: flex; align-items: center; gap: 0.6em; min-height: 1.4em; min-width: 0; }
-.hud-win .hud-bar { flex: 1 1 8em; min-width: 6em; margin: 0; }
-.hud-win-text, .hud-win-hold { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.hud-win .hud-bar { flex: 1 1 8em; min-width: 3em; margin: 0; }
+.hud-win-text, .hud-win-hold { font-variant-numeric: tabular-nums; white-space: nowrap; flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; } /* the figures come first, so a long nation name is the part that is cut */
 .hud-win-hold { color: ${C.barWarning}; font-weight: 700; }
 .hud-gold { color: ${C.gold}; }
 .hud-troops { color: ${C.troops}; }
@@ -109,8 +109,8 @@ export function hudCss(): string {
   .hud-banner { left: 8px; right: 8px; top: ${TOPBAR.narrowEm + 0.4}em; transform: none; width: auto; max-width: none; display: flex; align-items: center; justify-content: space-between; gap: 0.6em; text-align: left; padding: 0.35em 0.7em; }
   .hud-banner-text { font-size: 1em; }
   .hud-banner-seconds { font-size: 1.6em; flex: none; }
-  .hud-badge { left: 8px; transform: none; top: ${TOPBAR.narrowEm + 3.8}em; }
-  .hud-board { top: ${TOPBAR.narrowBoardEm}em; right: 8px; width: 13em; padding: 0.35em 0.5em 0.4em; }
+  .hud-badge { left: auto; right: 8px; transform: none; top: ${TOPBAR.narrowBoardEm}em; }
+  .hud-board { top: ${TOPBAR.narrowBoardEm}em; left: 8px; right: auto; width: 13em; padding: 0.35em 0.5em 0.4em; }
   .hud-board[data-labels="1"] { width: 15.5em; }
   .hud-row { min-height: 1.5em; }
   .hud-toast { bottom: 17em; }
@@ -308,7 +308,7 @@ export function hudCss(): string {
 .help-overlay { position: absolute; inset: 0; z-index: ${HELP_OVERLAY.z}; pointer-events: none; display: flex; align-items: center; justify-content: center; font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; font-size: ${fontSize}; line-height: 1.3; color: ${C.text}; box-sizing: border-box; padding: 0.6em; }
 .help-overlay *, .help-overlay *::before { box-sizing: border-box; }
 .help-overlay[hidden] { display: none !important; }
-.help-card { pointer-events: auto; width: ${HELP_OVERLAY.widthEm}em; max-width: 100%; max-height: 100%; overflow: auto; background: ${C.panel}; border: 1px solid ${C.panelBorder}; border-radius: 0.8em; box-shadow: 0 0.3em 1.4em rgba(0, 0, 0, 0.6); padding: 0.6em 0.9em 0.7em; }
+.help-card { pointer-events: auto; width: ${HELP_OVERLAY.widthEm}em; max-width: 100%; max-height: 100%; overflow: auto; background: ${C.card}; border: 1px solid ${C.panelBorder}; border-radius: 0.8em; box-shadow: 0 0.3em 1.4em rgba(0, 0, 0, 0.6); padding: 0.6em 0.9em 0.7em; }
 .help-title { font-size: 1.15em; font-weight: 800; margin-bottom: 0.3em; }
 .help-row { display: grid; grid-template-columns: ${HELP_OVERLAY.keyColEm}em 1fr; column-gap: 0.7em; align-items: baseline; min-height: 1.6em; }
 .help-keys { font: inherit; font-weight: 700; font-variant-numeric: tabular-nums; color: ${C.accent}; white-space: nowrap; }

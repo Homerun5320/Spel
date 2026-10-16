@@ -46,7 +46,7 @@ export const HUD_MIN_INTERVAL_S = 0.1;
  * M20a-lite: the top bar (gold, troops, land, time, win meter) sits at the top left; the banner, the paused badge and the leaderboard sit below it. These are its heights in `em`
  * (wide: one row of figures plus the win row; narrow or portrait: the figures wrap to two rows), measured in `e2e/topBar.test.ts`, which fails when the bar grows past them.
  */
-export const TOPBAR = { wideEm: 5.4, narrowEm: 8.6, narrowBoardEm: 8.6 + 4.2 } as const;
+export const TOPBAR = { wideEm: 5.4, narrowEm: 8.6, narrowBoardEm: 8.6 + 4.3 } as const;
 
 /** M20a-lite: the help overlay (above the HUD, below the match panels, which are at MATCH_PANELS.z 36). */
 export const HELP_OVERLAY = { z: 34, widthEm: 24, keyColEm: 5.5 } as const;

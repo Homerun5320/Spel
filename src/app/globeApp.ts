@@ -237,8 +237,12 @@ export interface GlobeTestHooks {
   onPause(fn: () => void): void;
   /** M18-2 (test only): makes the panels see this seat (0-based) as eliminated, whatever the sim says; -1 undoes it. */
   forceEliminated(seat: number): void;
+  /** M20a-lite: the entries of the hotkey registry (the help overlay lists the ones that are not hidden). */
+  hotkeys(): Array<{ id: string; keys: string[]; scope: string; hidden: boolean }>;
+  /** M20a-lite: the help overlay (`?`) is open. */
+  helpOpen(): boolean;
   /** M18-2 (test only): the sim's match view as plain data (result and per-seat statistics), null before the match exists. */
-  matchInfo(): { ended: boolean; winnerSeat: number; reason: number; endTick: number; players: number; score: number[]; landStd: number[]; peakLand: number[]; built: number[]; conquered: number[]; eliminated: number[] } | null;
+  matchInfo(): { winFlags: number; leaderSeat: number; requiredPct: number; holdSeat: number; holdTicksLeft: number; ended: boolean; winnerSeat: number; reason: number; endTick: number; players: number; score: number[]; landStd: number[]; peakLand: number[]; built: number[]; conquered: number[]; eliminated: number[] } | null;
   /** M08: `groundHeightAt` (the very function `heightAt`, render metres, all octaves unless given) bound to the page's raster. */
   groundHeightAt(lat: number, lon: number, octaves?: number): number;
   /**
@@ -714,7 +718,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     if (session !== null) return;
     const s = await MatchSession.create(
       { width: world.sim.width, height: world.sim.height, terrainClass: world.sim.terrainClass, meanElev: world.sim.meanElev, cosQ15: world.meta.sim.cosQ15 },
-      { seed: params.seed, debugIntents: params.test, interpolate: !params.test, ai: ctx.state.raw.ai !== '0', win: winForPlay(params.test) },
+      { seed: params.seed, debugIntents: params.test, interpolate: !params.test, ai: ctx.state.raw.ai !== '0', win: winForPlay(params.test && ctx.state.raw.win !== '1') },
     );
     if (!alive) {
       s.dispose();
@@ -1634,6 +1638,8 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
         }
       },
       pick: (x, y) => globe.pick(x, y),
+      hotkeys: () => hotkeys.entries().map((d) => ({ id: d.id, keys: [...d.keys], scope: d.scope, hidden: d.hidden === true })),
+      helpOpen: () => help?.isOpen() === true,
       onContext: (fn) => setContextHandler(fn),
       onPause: (fn) => setPauseHandler(fn),
       forceEliminated: (seat) => {
@@ -1643,6 +1649,11 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
         if (session === null) return null;
         const m = session.view.match;
         return {
+          winFlags: m.winFlags,
+          leaderSeat: m.leaderSeat,
+          requiredPct: m.requiredPct,
+          holdSeat: m.holdSeat,
+          holdTicksLeft: m.holdTicksLeft,
           ended: m.ended,
           winnerSeat: m.winnerSeat,
           reason: m.reason,

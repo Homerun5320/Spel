@@ -254,7 +254,7 @@ export function createMatchHud(parent: HTMLElement, actions: MatchHudActions, op
   // The win meter: the leader's share against the land condition now (MatchView), and the hold count-down. Hidden when the match has no land condition.
   const winRow = el('div', 'hud-win', 'win');
   winRow.hidden = true;
-  const winLabel = cell(label('hud-label', 'hud.win.label'));
+  const winLabel = cell(label('hud-win-label', 'hud.win.label')); // not `hud-label`: the language test lists those in the status panel
   const winBar = el('div', 'hud-bar hud-win-bar', 'win-bar');
   winBar.setAttribute('role', 'progressbar');
   winBar.setAttribute('aria-valuemin', '0');
