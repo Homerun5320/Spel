@@ -97,8 +97,8 @@ describe('slot placement', () => {
     expect(b.east / a.east).toBeCloseTo(levelScale(3) / levelScale(1), 9);
     expect(b.north / a.north).toBeCloseTo(levelScale(3) / levelScale(1), 9);
     expect(levelScale(3) / levelScale(1)).toBeGreaterThan(1);
-    expect(c.east / a.east).toBeCloseTo(1.5, 9);
-    expect(c.north / a.north).toBeCloseTo(1.5, 9);
+    expect(c.east / a.east).toBeCloseTo(levelScale(10), 9); // Look-2: the level scale is logarithmic and gentle (level 10 is about 1.11 x level 1)
+    expect(c.north / a.north).toBeCloseTo(levelScale(10), 9);
     // the City's yaw turns the whole ring: the distance to the centre is kept, the direction turns by the yaw
     const yaw = 0.9;
     for (const slot of [1, 4]) {

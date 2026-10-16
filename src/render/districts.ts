@@ -4,8 +4,8 @@
 // changes (never per frame); `frame` sets uniforms and decides, with a distance test over the instances, whether the mesh is drawn at all.
 import { BufferAttribute, DoubleSide, DynamicDrawUsage, InstancedBufferAttribute, InstancedBufferGeometry, Mesh, ShaderMaterial, Vector3, Vector4 } from 'three';
 import { DISTRICT_BUILD_TICKS, DISTRICT_MAX_SLOTS, STRUCT_CITY, districtIndex, type DistrictView, type StructureView } from '../sim/public';
-import { AMBIENT_DAY, AMBIENT_NIGHT, DISTRICT_FADE_PX_HI, DISTRICT_FADE_PX_LO, DISTRICT_LEVEL_SCALE, DISTRICT_MODEL_UNIT, DISTRICT_TRIANGLE_BUDGET, EARTH_RADIUS_KM, HEIGHT_EXAGGERATION, STRUCT_BUILD_MIN_HEIGHT, STRUCT_CLOSE_FAR_M, STRUCT_CLOSE_MUL, STRUCT_CLOSE_RISE_LO_M, STRUCT_CLOSE_RISE_HI_M, STRUCT_POP_SECONDS, SUN_COLOR } from './config';
-import { levelScale } from './cityTiers';
+import { AMBIENT_DAY, AMBIENT_NIGHT, DISTRICT_FADE_PX_HI, DISTRICT_FADE_PX_LO, DISTRICT_MODEL_UNIT, DISTRICT_TRIANGLE_BUDGET, EARTH_RADIUS_KM, HEIGHT_EXAGGERATION, STRUCT_BUILD_MIN_HEIGHT, STRUCT_CLOSE_FAR_M, STRUCT_CLOSE_MUL, STRUCT_CLOSE_RISE_LO_M, STRUCT_CLOSE_RISE_HI_M, STRUCT_POP_SECONDS, SUN_COLOR } from './config';
+import { districtLevelScale, levelScale } from './cityTiers';
 import { latLonToVec } from './geo';
 import { buildDistrictModels, districtRadiusM, districtSlotModelOffset, districtSlotOffsetM } from './districtModels';
 import type { QualityTier } from './quality';
@@ -269,7 +269,7 @@ export class DistrictLayer {
         const ready = ds.districtReadyTick[at] as number;
         this.build[i * 3] = ready - ((DISTRICT_BUILD_TICKS[kind] as number | undefined) ?? 0);
         this.build[i * 3 + 1] = ready;
-        this.build[i * 3 + 2] = DISTRICT_LEVEL_SCALE[level] ?? 1;
+        this.build[i * 3 + 2] = districtLevelScale(level);
         this.rgb[i * 3] = (palette[owner * 4] as number) / 255;
         this.rgb[i * 3 + 1] = (palette[owner * 4 + 1] as number) / 255;
         this.rgb[i * 3 + 2] = (palette[owner * 4 + 2] as number) / 255;

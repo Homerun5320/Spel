@@ -13,7 +13,8 @@ uniform vec3 uCamLo;
 uniform float uSizeM;      // metres per model unit at true size
 uniform float uPxK;        // minimum radius as a share of the camera distance
 uniform float uMaxScale;
-uniform float uMaxLevel;   // Look-1: the top City level (cityTiers.ts); a model part of a higher band than the City's is collapsed
+uniform float uCapMul;     // Look-2: the hard cap of the radius in multiples of the true size (STRUCT_APPARENT_CAP_MUL)
+uniform float uTallExtra;  // Look-2: how much taller the model gets beyond the last band (TALL_EXTRA)
 uniform vec4 uClose;       // Look-1: x: the mid-range enlargement, y/z: the camera distances (m) where it rises from 1x and reaches full, w: where it is gone again (cityTiers closeMul in rings.ts)
 uniform float uKmPerUnit;  // kilometres per Earth radius
 uniform float uTime;       // fx seconds
@@ -28,7 +29,7 @@ attribute float aTint;
 attribute float aBand;     // Look-1: the first City band a vertex is drawn in (0 = always)
 attribute vec3 aHi;
 attribute vec3 aLo;
-attribute vec4 aParams;    // x: level scale, y: yaw (radians), z: fx time of appearing, w: level (1..10 for a City; the City lights follow it)
+attribute vec4 aParams;    // x: level scale, y: yaw (radians), z: fx time of appearing, w: level code (cityTiers levelCode: band + 1 plus half the tall share; 0 = ghost; the City lights follow the band)
 attribute vec3 aOwner;     // owner colour, sRGB 0..1
 attribute vec2 aBuild;     // buildTick, readyTick
 
@@ -58,7 +59,7 @@ void main() {
   vec3 rel0 = (aHi - uCamHi) + (aLo - uCamLo);
   float distM = length(rel0) * uKmPerUnit * 1000.0;
   float closeK = mix(1.0, uClose.x, smoothstep(uClose.y, uClose.z, distM) * (1.0 - smoothstep(uClose.z * 1.6, uClose.w, distM)));
-  float k = max(clamp(distM * uPxK / uSizeM, 1.0, uMaxScale), closeK) * uSizeM * aParams.x / (uKmPerUnit * 1000.0);
+  float k = min(max(clamp(distM * uPxK / uSizeM, 1.0, uMaxScale), closeK) * aParams.x, uCapMul) * uSizeM / (uKmPerUnit * 1000.0);
   float age = uTime - aParams.z;
   float pop = age < 0.0 ? 1.0 : clamp(age / uPopSeconds, 0.0, 1.0); // a clock set back by a test hook shows the finished model
   float popScale = pop >= 1.0 ? 1.0 : max(easeOutBack(pop), 0.0);
@@ -68,7 +69,9 @@ void main() {
   float cy = cos(aParams.y);
   float sy = sin(aParams.y);
   vec3 p = position;
-  float ib = min(4.0, floor(clamp((max(aParams.w, 1.0) - 1.0) / max(uMaxLevel - 1.0, 1.0), 0.0, 1.0) * 5.0 + 0.0001));
+  float codeBand = floor(aParams.w);
+  float tall = (aParams.w - codeBand) * 2.0;
+  float ib = max(codeBand - 1.0, 0.0);
   p *= step(aBand - 0.5, ib);
   // aTint = owner tint (0/1) + 2 x spinning part + 4 x city light number (1..3, M10-4): a light is lit on the night side when the city's level reaches its number
   float lightIdx = floor(aTint * 0.25 + 0.01);
@@ -76,13 +79,13 @@ void main() {
   float spins = step(1.5, rem);
   float isLight = step(0.5, lightIdx);
   float night = 1.0 - smoothstep(-0.10, 0.20, dot(up, normalize(uSun)));
-  float lit = step(lightIdx - 0.5, aParams.w) * night * step(0.999, progress);
+  float lit = step(lightIdx - 0.5, codeBand) * night * step(0.999, progress);
   p *= mix(1.0, lit, isLight);
   float sa = uSpin * spins; // the turning part (flag in aTint) sweeps round the model's y axis; the instance's yaw is its phase
   float cs = cos(sa);
   float ss = sin(sa);
   p = vec3(p.x * cs - p.z * ss, p.y, p.x * ss + p.z * cs);
-  vec3 local = vec3(p.x * cy - p.z * sy, p.y * hs, p.x * sy + p.z * cy) * (k * popScale);
+  vec3 local = vec3(p.x * cy - p.z * sy, p.y * hs * (1.0 + uTallExtra * tall), p.x * sy + p.z * cy) * (k * popScale);
   vec3 rel = rel0 + east * local.x + up * local.y + north * local.z;
   vRel = rel;
   vColor = aColor;
@@ -193,6 +196,7 @@ uniform vec3 uCamLo;
 uniform float uKmPerUnit;
 uniform float uPxK;
 uniform float uMaxScale;
+uniform float uCapMul;
 uniform vec4 uClose;
 uniform float uViewH;      // drawing-buffer height in pixels
 uniform float uFadeHi;     // projected model radius (px) above which there is no icon
@@ -213,9 +217,9 @@ void main() {
   vec3 up = normalize(centre);
   vec3 rel0 = (aHi - uCamHi) + (aLo - uCamLo);
   float distM = length(rel0) * uKmPerUnit * 1000.0;
-  float k = max(clamp(distM * uPxK / aInfo.y, 1.0, uMaxScale), mix(1.0, uClose.x, smoothstep(uClose.y, uClose.z, distM) * (1.0 - smoothstep(uClose.z * 1.6, uClose.w, distM))));
+  float k = min(max(clamp(distM * uPxK / aInfo.y, 1.0, uMaxScale), mix(1.0, uClose.x, smoothstep(uClose.y, uClose.z, distM) * (1.0 - smoothstep(uClose.z * 1.6, uClose.w, distM)))) * aInfo.z, uCapMul);
   float pxPerRad = uViewH * 0.5 * projectionMatrix[1][1];
-  float modelPx = k * aInfo.y * aInfo.z / distM * pxPerRad;
+  float modelPx = k * aInfo.y / distM * pxPerRad;
   float a = 1.0 - smoothstep(uFadeLo, uFadeHi, modelPx);
   vAlpha = a;
   vUv = corner;

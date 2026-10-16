@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { createSelectionMode, pickStructure } from '../../src/app/structureSelect';
 import { ICON_FADE_PX_HI, STRUCT_MAX_SCALE } from '../../src/render/config';
+import { levelScale, LEVEL_SCALE_TOP } from '../../src/render/cityTiers';
 import { iconSwitchDistanceM, modelRadiusM, modelRadiusPx, selectRingRadiusM, SELECT_RING_FACTOR } from '../../src/render/rings';
 import {
   CAP_CITY_LEVEL_TROOPS,
@@ -121,9 +122,10 @@ describe('rings and icons', () => {
     expect(modelRadiusM(1000, 700, 1)).toBe(700);
     expect(modelRadiusM(300000, 700, 1)).toBeCloseTo(300000 * 0.011, 6);
     expect(modelRadiusM(1e9, 700, 1)).toBe(700 * STRUCT_MAX_SCALE);
-    expect(modelRadiusM(1000, 700, 3)).toBe(700 * 1.5); // the other types: level 3 of 3 is the top (1.5x)
-    expect(modelRadiusM(1000, 700, 3, maxLevelOf(STRUCT_CITY))).toBe(700 * (1 + (0.5 * 2) / 9)); // a City: level 3 of 10 is a small step
-    expect(modelRadiusM(1000, 700, 10, maxLevelOf(STRUCT_CITY))).toBe(700 * 1.5);
+    // Look-2: one gentle logarithmic level scale for every type (1 at level 1, LEVEL_SCALE_TOP at 999), same for any maximum level
+    expect(modelRadiusM(1000, 700, 3)).toBeCloseTo(700 * levelScale(3), 9);
+    expect(modelRadiusM(1000, 700, 3)).toBeGreaterThan(700);
+    expect(modelRadiusM(1000, 700, 999)).toBeCloseTo(700 * LEVEL_SCALE_TOP, 9);
     expect(selectRingRadiusM(1000, 700, 1)).toBeCloseTo(700 * SELECT_RING_FACTOR, 6);
   });
 
@@ -133,7 +135,7 @@ describe('rings and icons', () => {
     const d = iconSwitchDistanceM(700, ICON_FADE_PX_HI, viewH, tanHalf);
     expect(modelRadiusPx(d * 0.98, 700, 1, viewH, tanHalf)).toBeGreaterThan(ICON_FADE_PX_HI);
     expect(modelRadiusPx(d * 1.02, 700, 1, viewH, tanHalf)).toBeLessThan(ICON_FADE_PX_HI);
-    expect(d / 1000).toBeGreaterThan(3000); // models stay readable out to thousands of km, the icons begin beyond
+    expect(d / 1000).toBeGreaterThan(2000); // Look-2: the apparent cap is 35 x (was 70 x), so the icons begin at about 2 400 km instead of 4 700 km
   });
 
   it('range ring radii come from the sim: SAM per level (+20 % on a mountain), Defense Post fixed, others none', () => {

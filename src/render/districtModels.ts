@@ -2,8 +2,8 @@
 // functions of the district layer. Unit radius: a model fits in a disc of radius 1 (x = outward from the City, z = along the ring, y up, y = 0 the
 // floor of the slab; the foundation reaches below it so that a slope never leaves it floating). Tint 1 = the owner's colour.
 import { DISTRICT_BARRACKS, DISTRICT_HOUSING, DISTRICT_MARKET, DISTRICT_WALLS, districtSlotsOf } from '../sim/public';
-import { DISTRICT_FADE_PX_HI, DISTRICT_FADE_PX_LO, DISTRICT_LEVEL_SCALE, DISTRICT_MODEL_UNIT, DISTRICT_RING_R, DISTRICT_SLOT_ANGLES } from './config';
-import { levelScale } from './cityTiers';
+import { DISTRICT_FADE_PX_HI, DISTRICT_FADE_PX_LO, DISTRICT_MODEL_UNIT, DISTRICT_RING_R, DISTRICT_SLOT_ANGLES } from './config';
+import { districtLevelScale, levelScale } from './cityTiers';
 import { MeshBuilder, type ModelData, type Rgb } from './structureModels';
 
 export const DISTRICT_MODEL_MAX_TRIANGLES = 60;
@@ -139,7 +139,7 @@ export function districtSlotOffsetM(cityLevel: number, slot: number, yaw: number
 
 /** The radius of a district in metres (level `level`, City of `cityLevel`). */
 export function districtRadiusM(cityLevel: number, level: number, cityRadiusM: number): number {
-  return DISTRICT_MODEL_UNIT * cityRadiusM * levelScale(cityLevel) * (DISTRICT_LEVEL_SCALE[level] ?? 1);
+  return DISTRICT_MODEL_UNIT * cityRadiusM * levelScale(cityLevel) * districtLevelScale(level);
 }
 
 /** Projected radius in pixels of a district `radiusM` metres wide at camera distance `distM`. */
