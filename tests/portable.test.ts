@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { gzipSync } from 'node:zlib';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { REPO, buildDistTo, makeTmp } from './helpers/buildDist';
 
@@ -37,6 +38,10 @@ describe('the forbidden-address scanner itself', () => {
   });
 });
 
+/** Size caps in bytes of gzipped JavaScript (Fix-3C): measured plus about 5 %. Raise them only with a line in docs/DECISIONS.md. */
+const JS_GZ_TOTAL_MAX = 329_000;
+const JS_GZ_MAIN_MAX = 277_000;
+
 describe('portable build (relative addresses only)', () => {
   let dist = '';
   beforeAll(async () => {
@@ -62,6 +67,16 @@ describe('portable build (relative addresses only)', () => {
   it('puts every chunk in assets/ (ROOT_URL relies on it)', () => {
     const js = walk(dist, (p) => p.endsWith('.js')).map((p) => path.relative(dist, p).split(path.sep)[0]);
     expect([...new Set(js)]).toEqual(['assets']);
+  });
+
+  // Fix-3C: the old acceptance "JS bundle <= 300 KB gz" was enforced by nothing and was passed long ago (311.9 kB at audit 2). The caps are
+  // what was measured at Fix-3C (313 158 B total, main chunk 263 782 B, gzip level 9) plus about 5 %; see docs/DECISIONS.md "Fix-3C".
+  it('keeps the gzipped JavaScript under its size caps (total and main chunk)', () => {
+    const sizes = walk(path.join(dist, 'assets'), (p) => p.endsWith('.js')).map((p) => ({ name: path.basename(p), gz: gzipSync(fs.readFileSync(p), { level: 9 }).length }));
+    const total = sizes.reduce((sum, f) => sum + f.gz, 0);
+    const main = Math.max(...sizes.map((f) => f.gz));
+    expect(main).toBeLessThanOrEqual(JS_GZ_MAIN_MAX);
+    expect(total).toBeLessThanOrEqual(JS_GZ_TOTAL_MAX);
   });
 });
 

@@ -401,7 +401,7 @@ Not done in the Fix-UI slice (the sim, host and AI findings belong to Fix-Sim):
 
 ## Fix-3C
 - Districts drop policy (Districts-2b): when the district layer is over its instance budget the highest structure ids drop first, also the player's own. Prefer the local owner and districts near the camera, and warn once when `dropped > 0` (same idea as the structure layer's drop policy under "Audit 1 leftovers (Fix-UI)").
-- Bundle size: lazy-load the city view panel (`src/ui/cityViewPanel.ts`, `cityViewModel.ts`) and the match panels (`src/ui/matchPanels.ts`, `matchFlow.ts`) with dynamic `import()` so the main chunk shrinks (it was 265.6 kB gz at audit 2); test hooks such as `forceEliminated` could move to a test-only chunk. The size guard in `tests/portable.test.ts` then gets a lower cap.
+- Bundle size: lazy-load the city view panel (`src/ui/cityViewPanel.ts`, `src/ui/cityViewModel.ts`) and the match panels (`src/ui/matchPanels.ts`, `src/ui/matchFlow.ts`) with dynamic `import()` so the main chunk shrinks (it was 265.6 kB gz at audit 2); test hooks such as `forceEliminated` could move to a test-only chunk. The size guard in `tests/portable.test.ts` then gets a lower cap.
 - `cityTotals` sums the Barracks percent per City; the sim caps the owner-wide sum at `BARRACKS_REGEN_PCT_MAX` (see DECISIONS Fix-3C for what the panel does now).
 - `STRUCT_LEVEL_SCALE` in `src/render/config.ts` is unused; remove it together with its pin in `tests/render/structureModels.test.ts` (a test edit, left for a pass that may touch tests).
 - `docs/PREVIEW.md` has no text for the match flow (Vinstvillkor, pause menu, result screen, elimination) and says "2, 3 eller 4" district slots (now 2 to 5 over ten levels); Swedish file, not done in Fix-3C.

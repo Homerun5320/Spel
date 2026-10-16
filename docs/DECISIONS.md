@@ -1121,3 +1121,38 @@ Base aa9b996. The sim half (unlimited levels, one price rule, gentle effects) is
 8. **Goldens.** Only two images changed, each looked at before the single re-pin with `UPDATE_GOLDENS=1`: `e2e/goldens/city-view.png` (panel text: factor 100 and the concave numbers, the upgrade buttons dimmed by the dearer price 80 000, the shorter build buttons; the whole panel now fits, the old image cut the footer) and `e2e/goldens/result-screen.png` (the match of the AI at seed and 5 minutes plays differently after Sim-Levels2: scores 842 / 742 became 342 / 342, built 4 / 4 became 4 / 5, conquered 1115 / 1242 became 1111 / 1349; no gold text and no layout change). `city-old.png`, `city-new.png`, `districts-layer.png`, `structures-city.png`, `structures-factory-port.png`, `structures-military.png`, `structures-select.png` and `spike-test-view.png` still match, so the integration does not alter the 3D look.
 9. **Looked at, with real levels.** A City, a Factory and a Silo were upgraded in a test match through real Upgrade intents to levels 5, 20 and 50 (about 13 000 ticks, inside the match time limit of 15 000; the sim cannot reach 100 or 999 in one match: 998 upgrades of 15 to 25 s each) and drawn at 100 and 999 through the render-only `__test.setLevelOverride`, at about 3 km and 800 m in both City styles. The footprint grew by about 1.3 x from level 1 to 999 at most (the plate of the City), the towers only got taller (the City tower leaves the picture at 999); at 800 m the camera stands inside the plate, as before. The panels read the concave numbers times the factor (City level 1: 150 gold/s, level 5: 235,6, level 20: 279,4, level 50: 291,3; a Factory level 20: 372,6; upgrade prices base x level: 2,04 mn for the City to level 51, 5,1 mn for the Silo to level 51), and in every case the HUD purse and income texts were exactly `formatGold` / `formatGoldRate` of the sim state while the state kept its own sim numbers (for example 998 828 gold and 5 505 milli-gold per second at tick 699).
 10. **Not changed, noted.** The upgrade TIME of a district is still not shown in the tile model (`docs/BACKLOG.md` "Look-2 leftovers"); the sim gives it the build time of the kind. `docs/DECISIONS.md` point 6 of Look-2 (factor 10) and `docs/PROGRESS.md` Look-2 are history; this section supersedes the factor.
+
+## Fix-3C: docs that lied, test holes in app and UI, hygiene (audit 2, lenses fit and mutation; headless)
+
+1. **Each finding checked against HEAD 04eaba8 first.** fit[2] (PROGRESS), fit[7] (ARCHITECTURE), fit[8] (BACKLOG, M18-2 point 7) were all still true and are corrected: Done rows for every slice since M10-4, finished passes moved to a section "Archive" at the end of `docs/PROGRESS.md` (text kept, two stale boxes ticked with a note), Known issues M11a now says "accepted by the owner" (M11b point 10), Next points at M12a and M20a-lite and at audit 3 after five pushes. mutation[6] was true (no test on the Play win path). mutation[2] app part and mutation[10] were true. fit[9] true. fit[10] true (313 158 B gz total, main chunk 263 782 B at Fix-3C; the 311.9 kB of the audit was measured with Vite's own gzip).
+2. **`STRUCT_LEVEL_SCALE` is left in `src/render/config.ts` (marked unused in ARCHITECTURE).** Removing it means editing `tests/render/structureModels.test.ts`, and the render side belongs to another builder. BACKLOG has the line.
+3. **The Play win choice moved to `winForPlay(test)` in `src/app/match.ts`** (the globeApp.ts change is one call plus two import edits). `MatchOptions.win` became `WinConfig | undefined` so the call can pass `undefined` in test mode. Behaviour is unchanged: the plain Play match gets `defaultWinConfig('world')` outside test mode (commit 2dd505a), test mode none.
+4. **`cityTotals` caps the Barracks sum at `BARRACKS_REGEN_PCT_MAX`** (the owner-wide cap the sim applies in `src/sim/structureEffects.ts`). A single panel therefore shows at most the cap; the true owner sum over several Cities is also capped, so the panel never over-promises. Chosen over a label change because the number is what the player compares with the sim.
+5. **Bundle guard** in `tests/portable.test.ts` (it reuses the build the file already makes): total gzipped JS at most 329 000 B (measured 313 158 B, +5 %) and the largest chunk at most 277 000 B (measured 263 782 B, +5 %). The old acceptance "<= 300 KB gz" has been missed since the city view and the match flow; the caps pin the present size so growth fails a test. Raise them only with a line here. Lazy loading of the city view and the match panels is a BACKLOG proposal.
+6. **`PLAYER_FACING` in `tests/i18n.test.ts`** got the 14 files of the finding; the scan found no Swedish literal. The district icon literal `#0d1830` is `UI_COLORS.field` now (same value, no visible change).
+7. **Mutants** (each applied by hand to the one line, the named test file run, the line restored). `tests/ui/fix3c.test.ts` (UI) and `tests/app/winPath.test.ts` (app):
+
+| mutant | change | killed by |
+|---|---|---|
+| ma-win-session | drop the `win` spread in `MatchSession.create` | winPath: session given the block carries it |
+| ma-win-play | `winForPlay` always undefined | winPath: winForPlay |
+| ma-win-play-inv | `winForPlay` inverted | winPath: winForPlay |
+| sm-check-win | `checkDraft` drops the win spread | winPath: checkDraft Standard / Sandbox / Quick |
+| sm-stored-win | `storedOf` drops `win` | winPath: stored setup keeps a win draft |
+| sm-draft-win | `draftFromStored` ignores the stored win | winPath: stored setup keeps a win draft |
+| sm-draft-clamp | no `clampWinDraft` on the way back | winPath: out of range is pulled into range |
+| sm-draft-guard | `isWinDraft` replaced by `!== undefined` | winPath: other shape gives the base draft |
+| ws-flags-swap | `last` and `score` bits swapped in `winInfoOfView` | winPath: flags both ways |
+| ws-draft-null | `winDraftOf(null)` gives Standard | winPath: winDraftOf |
+| ws-draft-undef | `winDraftOf(undefined)` gives Quick | winPath: winDraftOf |
+| ws-draft-minutes | the "equals the area default" shortcut removed | winPath: winDraftOf over all regions (a region default is a fixed choice in some areas) |
+| ws-preset-land-off | `presetOf` compares the land percent of an off switch | winPath: presetOf |
+| ws-preset-score-off | same for the minutes of an off score switch | winPath: presetOf |
+| cv-sig-kind / level / progress / wait / price | one field of `citySignature` set to a constant | fix3c: one test per field |
+| cv-sig-state | the building / upgrading code set to 0 | NOT killed, EQUIVALENT: a tile in the other state always differs in its progress or in the upgrade / remove reasons, which are in the signature |
+| cv-totals-cap | `cityTotals` without the Barracks cap | fix3c: five Barracks at level 999 |
+| br-phase-flow | `spawnPhaseBlocks` returns `view.flow` | fix3c: spawnPhaseBlocks |
+| mf-rows-score / mf-rows-winner | `resultRows` score order reversed / winner-first removed | fix3c: resultRows |
+| mf-watch-elim-cap | `&& e === 0` dropped in `MatchWatcher` | fix3c: eliminated nation not reported again as capital lost (the same-scan case is guarded by the `else if`, so the test uses two scans) |
+
+8. **Not done (BACKLOG "Fix-3C"):** the districts drop policy (logged), lazy loading, `STRUCT_LEVEL_SCALE` removal, PREVIEW text for the match flow (Swedish file).

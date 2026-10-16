@@ -44,15 +44,15 @@ Resume: Läs CLAUDE.md och docs/PROGRESS.md, kör git log -10 och npm run verify
 ## Now
 
 ### Fix-3C: docs that lied, test holes in app and UI, hygiene (audit 2, lens fit and mutation; headless, no Chromium; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
-- [ ] 1. PROGRESS.md: Done rows, finished slices moved to the Archive section, Known issues M11a, Next
-- [ ] 2. ARCHITECTURE.md: stale rows corrected, "Aktuella versioner" line
-- [ ] 3. BACKLOG.md and DECISIONS.md stale lines annotated, districts drop policy logged
-- [ ] 4. Win path: `winForPlay` helper in `src/app/match.ts` (one-line change in `globeApp.ts`), tests for MatchSession, checkDraft, storedOf / draftFromStored
-- [ ] 5. winSetup: asymmetric win flags through `winInfoOfView`
-- [ ] 6. citySignature fields, resultRows, MatchWatcher, winDraftOf, presetOf, spawnPhaseBlocks, cityTotals Barracks cap (mutants in DECISIONS Fix-3C)
-- [ ] 7. Hygiene: `UI_COLORS.field` in the district icons, `PLAYER_FACING` extended
-- [ ] 8. Bundle size guard in `tests/portable.test.ts`
-- [ ] 9. `npm run verify:fast` green
+- [x] 1. PROGRESS.md: Done rows, finished slices moved to the Archive section, Known issues M11a, Next
+- [x] 2. ARCHITECTURE.md: stale rows corrected, "Aktuella versioner" line
+- [x] 3. BACKLOG.md and DECISIONS.md stale lines annotated, districts drop policy logged
+- [x] 4. Win path: `winForPlay` helper in `src/app/match.ts` (one-line change in `src/app/globeApp.ts`), tests for MatchSession, checkDraft, storedOf / draftFromStored
+- [x] 5. winSetup: asymmetric win flags through `winInfoOfView`
+- [x] 6. citySignature fields, resultRows, MatchWatcher, winDraftOf, presetOf, spawnPhaseBlocks, cityTotals Barracks cap (mutants in DECISIONS Fix-3C)
+- [x] 7. Hygiene: `UI_COLORS.field` in the district icons, `PLAYER_FACING` extended
+- [x] 8. Bundle size guard in `tests/portable.test.ts`
+- [x] 9. `npm run verify:fast` green (typecheck, lint, 210 unit files, 2348 tests; 3 min 08 s under load)
 - Not run here: the full `npm run verify`, Chromium, the pack (the orchestrator).
 
 ## Next
