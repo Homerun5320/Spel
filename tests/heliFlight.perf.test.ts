@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest';
 import { heliPhase } from '../src/sim/heliPhase';
 import { HELI_CRUISE, cellCentreQ8 } from '../src/sim/heliTable';
+import { RELATION_ALLIANCE } from '../src/sim/diplomacyTable';
 import { heliSignature, snapshotHelis } from '../src/host/heliSnapshot';
 import { HELI_FUEL_MAX_Q8, HELI_HP_TENTHS, HELI_ROUTE_CAPACITY } from '../src/sim/rules';
 import { step } from '../src/sim/step';
@@ -31,6 +32,9 @@ function world(airborne: boolean): GameState {
     const id = s.structures.add(type, owner, (i % 20) * 50 + Math.floor(i / 20) * W * 30 + 7, 0);
     if (type === STRUCT_FACTORY) factories.push(id);
   }
+  // M12b: air defence shoots at hostile helicopters. Alliances make every pair friendly, so the 12 helicopters stay in the air for the whole measurement
+  // (what this test measures is the flight phase, not the guns; the guns have their own perf test, tests/airDefense.perf.test.ts).
+  for (let a = 1; a <= 12; a++) for (let b = a + 1; b <= 12; b++) s.diplo.setRelation(a, b, RELATION_ALLIANCE, 0);
   s.tick = 5000;
   if (airborne) {
     const t = s.helis;
