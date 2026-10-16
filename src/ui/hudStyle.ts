@@ -145,9 +145,9 @@ export function hudCss(): string {
 
 .setup-root { position: absolute; inset: 0; z-index: ${Z_SETUP}; pointer-events: none; }
 .setup-panel { pointer-events: auto; position: absolute; left: 0.6em; top: 0.6em; bottom: 0.6em; width: min(${SETUP_PANEL_EM}em, calc(100vw - 1.2em)); display: flex; flex-direction: column; background: rgba(8, 13, 24, 0.93); border: 1px solid ${C.panelBorder}; border-radius: 1em; box-shadow: 0 0.4em 2em rgba(0, 0, 0, 0.6); text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6); }
-.setup-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5em; padding: 0.5em 0.8em; border-bottom: 1px solid ${C.panelBorder}; }
-.setup-title { margin: 0; font-size: 1.3em; font-weight: 800; }
-.setup-head-btns { display: flex; gap: 0.4em; }
+.setup-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5em; padding: 0.5em 0.8em; border-bottom: 1px solid ${C.panelBorder}; }
+.setup-title { margin: 0; font-size: 1.3em; font-weight: 800; white-space: nowrap; }
+.setup-head-btns { display: flex; flex-wrap: wrap; gap: 0.4em; }
 .setup-btn { min-width: ${target}; min-height: ${target}; padding: 0 0.9em; border-radius: 0.6em; border: 1px solid ${C.buttonBorder}; background: ${C.button}; font-size: 0.9em; font-weight: 600; }
 .setup-btn:hover { background: ${C.buttonActive}; }
 .setup-body { flex: 1; min-height: 0; overflow-y: auto; padding: 0.6em 0.8em 0.4em; }
@@ -298,6 +298,7 @@ export function hudCss(): string {
 .mp-spectator { position: absolute; left: 50%; top: 6em; transform: translateX(-50%); width: max-content; max-width: calc(100% - 1.2em); justify-content: center; pointer-events: auto; display: flex; align-items: center; gap: 0.35em; flex-wrap: wrap; background: ${C.panel}; border: 1px solid ${C.panelBorder}; border-radius: 0.6em; padding: 0.3em 0.5em; }
 .mp-badge { font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: ${C.barWarning}; padding: 0 0.4em; }
 @media (max-width: ${NARROW_MAX_PX}px), (max-aspect-ratio: 1/1) {
+  .mp-spectator { top: ${MATCH_PANELS.spectatorTopNarrowEm}em; }
   .mp-table th, .mp-table td { padding: 0.3em 0.25em; }
   .mp-table { font-size: 0.9em; }
 }
