@@ -145,7 +145,7 @@ function rng(seed: number): () => number {
 
 interface Fixture {
   nav: Nav;
-  view: NavView;
+  view: NavView & { structures: ReturnType<typeof createEmptyState>['structures'] };
 }
 
 /** A small world (128 x 64 sim cells = 32 x 16 nav cells) with per-nav-cell classes and heights from `cellOf(nx, ny)`. */

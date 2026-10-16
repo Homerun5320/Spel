@@ -8,17 +8,17 @@ import { STRUCT_CITY } from '../structureRules';
 import type { Nav } from './grid';
 import { cellDistance, planRoute, type NavView } from './route';
 
+export type LzReason = 0 | 65 | 66 | 67 | 68 | 69 | 70 | 71 | 72;
 export const LZ_OK = 0;
 // Own range (Fix-3A2): LZ_REASON_BASE + n, never equal to a REJECT_* code of src/sim/intents.ts.
-export const LZ_WATER = LZ_REASON_BASE + 1;
-export const LZ_PEAK = LZ_REASON_BASE + 2;
-export const LZ_TERRAIN_CLASS = LZ_REASON_BASE + 3;
-export const LZ_STEEP = LZ_REASON_BASE + 4;
-export const LZ_ENEMY_CITY_NEAR = LZ_REASON_BASE + 5;
-export const LZ_TOO_HIGH = LZ_REASON_BASE + 6;
-export const LZ_OUT_OF_FUEL = LZ_REASON_BASE + 7;
-export const LZ_NO_ROUTE = LZ_REASON_BASE + 8;
-export type LzReason = 0 | 65 | 66 | 67 | 68 | 69 | 70 | 71 | 72;
+export const LZ_WATER = (LZ_REASON_BASE + 1) as LzReason;
+export const LZ_PEAK = (LZ_REASON_BASE + 2) as LzReason;
+export const LZ_TERRAIN_CLASS = (LZ_REASON_BASE + 3) as LzReason;
+export const LZ_STEEP = (LZ_REASON_BASE + 4) as LzReason;
+export const LZ_ENEMY_CITY_NEAR = (LZ_REASON_BASE + 5) as LzReason;
+export const LZ_TOO_HIGH = (LZ_REASON_BASE + 6) as LzReason;
+export const LZ_OUT_OF_FUEL = (LZ_REASON_BASE + 7) as LzReason;
+export const LZ_NO_ROUTE = (LZ_REASON_BASE + 8) as LzReason;
 /** Name of a reason code (indexed by the code itself: 0 and 65..72). */
 export const LZ_REASON_NAMES: Readonly<Record<LzReason, string>> = {
   0: 'OK',

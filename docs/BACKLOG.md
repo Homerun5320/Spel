@@ -398,3 +398,10 @@ Not done in the Fix-UI slice (the sim, host and AI findings belong to Fix-Sim):
 - (Done in the integration) The effect lines of Factory and Port read the generated tables of `src/sim/levelCurves.ts` (the same functions, levels 1 to 999); `tests/ui/structureInfo.test.ts` pins them against the curve functions.
 - District upgrade time is not shown (the district upgrade has no separate time in the tile model).
 - A latency check of `sel.fxNext` text length on a phone-width panel.
+
+## Fix-3A2 leftovers
+- The eight landing-zone texts (`lz.water` .. `lz.noRoute`, sv and en) and their mapping from `LZ_REASON_BASE + n` in `rejectKey` / the launch toast: M12a adds them with the LaunchHeli UI (`src/ui` was off limits in Fix-3A2; until then 65..72 read "Avvisat (kod N)").
+- Radar mask (M11a alternative C): a finer mask grid or a distance-proportional slack would remove the measured 47 false-hidden cells in 17 of 300 random sites (5.7 % of sites, 0.006 % of cells); the owner accepted the numbers, revisit when SAM engagement (M12b / M14) shows a missed shot.
+- Still unlocked in `scoreLz` / nav: the score weights (spread coefficient, floor 1), the `>=` boundaries (spread 200 m, 3500 m, exactly HELI_FUEL_CELLS), ENEMY_CITY_NEAR before TOO_HIGH, an enemy City across the date line, A* tie handling, and `landReachable` / `landLabel` (no caller: test it or remove it).
+- The A* weight 1.3 still lets a route be 16 percent dearer than the optimum (measured worst, real grid); `AIR_ROUTE_WEIGHT_PCT` 115 would halve that for a few percent more expansions.
+- `Los.invalidate()` exists for hand edits inside one tick; if M12 ever edits the structure table in two places per tick, give the table a version counter instead of the (highWater, liveCount) pair.
