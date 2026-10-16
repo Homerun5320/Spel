@@ -163,10 +163,11 @@ GÖR
 ACCEPTANS
 - [x] Parity: `previewLaunch` / `validateLaunchHeli` equal the real LaunchHeli intent for 35 cells and every reason code, BAD_TROOPS, NO_PAD, NOT_OWNER, NO_FACTORY (`tests/app/launchPreview.test.ts`), NO_GOLD for the production check
 - [x] Async and throttle with a delayed fake query (`tests/app/launchPreview.test.ts`)
-- [ ] Playwright flow (`e2e/deploy.test.ts`): green and red marker, route, 300 troops, Low, launch, flight, landing toast, Escape, refused zone sends nothing (the beachhead-ownership step is `it.skip` until M12a-3 is merged)
-- [ ] Draw calls: route 2 + marker 1, layer on/off by `renderer.info`; no console errors; the new GPU resources are created once (no per-frame resource), no leak test needed
-- [ ] Screenshots looked at
-- [ ] `npm run verify:fast` green; touched e2e green
+- [x] Playwright flow (`e2e/deploy.test.ts`): green and red marker, route, 300 troops, Low, launch, flight, landing toast, Escape, refused zone sends nothing (the beachhead-ownership step is `it.skip` until M12a-3 is merged)
+- [x] Draw calls: route 2 + marker 1, layer on/off by `renderer.info` (3 measured, with the helicopter layer 4); no console errors; leak test `e2e/deployLeak.serial.test.ts` (320x180, 60 renders, heap delta 0.09 MB, geometries and textures unchanged)
+- [x] Screenshots looked at: `test-results/shots/deploy-red.png`, `deploy-green.png`, `deploy-route-tilted.png`, `deploy-flying.png`, `deploy-landed.png` (the beachhead picture waits for M12a-3)
+- [x] `npm run verify:fast` green (typecheck, lint, 237 unit files, 2579 tests + 2 expected fail; 1 min 50 s); touched e2e green: deploy, deployLeak.serial, m20aLite, structuresSelect, structures, helis, modalKeys, hud, fixLayout, fixUi
+- Not run here: the full `npm run verify`, the Artifact pack, a pull request (the orchestrator). The beachhead step of `e2e/deploy.test.ts` is `it.skip` until M12a-3 is merged.
 
 ## Next
 
