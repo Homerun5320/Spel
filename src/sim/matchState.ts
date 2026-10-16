@@ -2,6 +2,7 @@
 // Game state: serialised and hashed (src/sim/serialize.ts). The rules that write it are in src/sim/win.ts and the few counters in
 // conquest.ts, structures.ts and districts.ts. Plain integers and typed arrays only.
 import { TECH_FX_CHANNELS } from './rules';
+import { seatToOwner } from './state';
 import { techFxOfMask } from './techTable';
 
 /** The win conditions a match runs (`MatchConfig.win`). A match without one, or with all three off, never ends. */
@@ -134,6 +135,6 @@ export class MatchState {
 
   /** By SEAT (0-based): the researched mask. The shape a MatchView has too (see matchView.ts), so rules that read both take a `TechMaskSource`. */
   techMaskOfSeat(seat: number): number {
-    return (this.techMask[seat + 1] as number) | 0;
+    return this.techMask[seatToOwner(seat)] as number;
   }
 }

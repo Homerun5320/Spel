@@ -25,7 +25,7 @@ import {
   type Intent,
 } from '../../src/sim/intents';
 import { OUTBOX_HELI_PRODUCED, OUTBOX_HELI_QUEUED, OUTBOX_HELI_SCRAPPED, type OutboxEvent } from '../../src/sim/outbox';
-import { BEACHHEAD_CAPACITY, BUILD_TICKS, HELI_BUILD_TICKS, HELI_FLEET_BASE, HELI_FLEET_MAX, HELI_FUEL_CELLS, HELI_FUEL_MAX_Q8, HELI_HP_TENTHS, HELI_PRICE_GOLD, MILLI_GOLD_PER_GOLD, TICK_HZ } from '../../src/sim/rules';
+import { BEACHHEAD_CAPACITY, BUILD_TICKS, HELI_BUILD_TICKS, HELI_MAX_TROOPS, TECH_FX_CAP, HELI_FLEET_BASE, HELI_FLEET_MAX, HELI_FUEL_CELLS, HELI_FUEL_MAX_Q8, HELI_HP_TENTHS, HELI_PRICE_GOLD, MILLI_GOLD_PER_GOLD, TICK_HZ } from '../../src/sim/rules';
 import { createScenarioState, runScenario } from '../../src/sim/scenario';
 import { deserialize, hashState, serialize } from '../../src/sim/serialize';
 import { applyIntent, step } from '../../src/sim/step';
@@ -420,8 +420,8 @@ describe('serialisation and the hash with helicopters in the table', () => {
     expect(forged((s) => (s.helis.owner[0] = 9))).toBe('air-range');
     expect(forged((s) => (s.helis.state[0] = 10))).toBe('air-range');
     expect(forged((s) => (s.helis.hp[0] = HELI_HP_TENTHS + 1))).toBe('air-range');
-    expect(forged((s) => (s.helis.load[3] = 601))).toBe('air-range');
-    expect(forged((s) => (s.helis.fuel[0] = HELI_FUEL_MAX_Q8 + 1))).toBe('air-range');
+    expect(forged((s) => (s.helis.load[3] = HELI_MAX_TROOPS + Math.floor((HELI_MAX_TROOPS * (TECH_FX_CAP[5] as number)) / 100) + 1))).toBe('air-range'); // M18d-1: the AIR techs lift the maximum by 25 % (750)
+    expect(forged((s) => (s.helis.fuel[0] = HELI_FUEL_MAX_Q8 + Math.floor((HELI_FUEL_MAX_Q8 * (TECH_FX_CAP[7] as number)) / 100) + 1))).toBe('air-range'); // and the tank by 25 %
     expect(forged((s) => (s.helis.mode[0] = 2))).toBe('air-range');
     expect(forged((s) => (s.helis.x[0] = -1))).toBe('air-range');
     expect(forged((s) => (s.helis.y[0] = H * HELI_POS_ONE))).toBe('air-range');

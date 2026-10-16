@@ -1546,11 +1546,13 @@ GÖR
 - [x] 3. Effects in the cached economy code (gold, upgrade price, cell price, regeneration, cap, helicopter load / speed / fuel / fleet, SAM hit and salvo, Walls and Post), all capped
 - [x] 4. AI research (deterministic, `validateResearch`, one at a time, stateless back-off)
 - [x] 5. Statistics in `MatchView`, a research row in the scenario CLI report
-- [ ] 6. Tests (reasons, price, exact finish tick, chain, steps and caps per branch, effects in real sim runs, round trip, snapshot == straight run, Node == worker, AI 20 seeds, perf)
-- [ ] 7. ENGINE / FORMAT raised once, goldens recomputed once; docs; `npm run verify:fast`
+- [x] 6. Tests (reasons, price, exact finish tick, chain, steps and caps per branch, effects in real sim runs, round trip, snapshot == straight run, Node == worker, AI 20 seeds, perf)
+- [x] 7. ENGINE / FORMAT raised once, goldens recomputed once; docs; `npm run verify:fast`
 ACCEPTANS
 - [x] Tree (16 techs, table in rules.ts), Research intent, all reason codes, one shared implementation, export pinned
 - [x] Effects work in the sim, caps hold (a test per branch with all researched)
-- [ ] Solo / pace inside their bands; the AI researches without an invalid intent over 20 seeds; the human share stays above the floor
-- [ ] ENGINE / FORMAT raised once, goldens recomputed once, Node == worker; perf inside `budgetMs(0.5)`
-- [ ] `npm run verify:fast` green
+- [x] Solo / pace inside their bands; the AI researches without an invalid intent over 20 seeds; the human share stays above the floor
+- [x] ENGINE / FORMAT raised once, goldens recomputed once, Node == worker; perf inside `budgetMs(0.5)`
+- [x] `npm run verify:fast` green
+
+verify:fast: see the last result in the final report of the slice. Not run here: the full `npm run verify`, the Artifact pack, a pull request (the orchestrator). The orchestrator sets the final ENGINE / FORMAT values and recomputes the goldens (`e2e/goldens/sim-hashes.json`, `e2e/goldens/match-hashes.json`) and the pinned replay hash in `tests/sim/airDefense.test.ts` at the merge.
