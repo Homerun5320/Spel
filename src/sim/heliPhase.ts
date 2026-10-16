@@ -1,6 +1,7 @@
 // The helicopter mutators (M12a-1): ProduceHeli, the production phase of `step`, and the scrapping of the helicopters of a lost Factory.
-// Part 2 (M12a-2): LaunchHeli / RecallHeli and the flight are in src/sim/heliFlight.ts and run from this phase; part 3 adds the landing and the beachhead.
+// Part 2 (M12a-2): LaunchHeli / RecallHeli and the flight are in src/sim/heliFlight.ts and run from this phase; M12a-3 adds the landing and the beachhead (src/sim/heliLanding.ts).
 import { flyHelis } from './heliFlight';
+import { beachheadPhase } from './heliLanding';
 import { checkProduceHeli, HELI_PRICE_MILLI } from './heliRules';
 import { HELI_BUILDING, HELI_PAD, cellCentreQ8 } from './heliTable';
 import { REJECT_NONE } from './intents';
@@ -40,6 +41,7 @@ export function scrapFactoryHelis(state: GameState, factory: number): void {
 
 /** Phase of the tick: a helicopter whose production time has run out becomes HELI_PAD at its Factory. O(highWater), nothing at all without helicopters. */
 export function heliPhase(state: GameState): void {
+  if (state.beachheads.liveCount !== 0) beachheadPhase(state); // M12a-3: the cut-off clusters (a row outlives its helicopter)
   const t = state.helis;
   if (t.liveCount === 0) return;
   const tick = state.tick;

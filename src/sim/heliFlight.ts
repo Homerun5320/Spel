@@ -1,5 +1,5 @@
 // The flight of a helicopter (M12a-2): LaunchHeli, RecallHeli and the per-tick state machine
-//   Pad -> LIFT (HELI_TAKEOFF_TICKS) -> CRUISE -> APPROACH (last leg) -> HOVER (HELI_HOVER_TICKS) -> [landing placeholder, part 3] -> RETURN -> Pad
+//   Pad -> LIFT (HELI_TAKEOFF_TICKS) -> CRUISE -> APPROACH (last leg) -> HOVER (HELI_HOVER_TICKS) -> UNLOAD (HELI_UNLOAD_TICKS; the landing, M12a-3) -> RETURN -> Pad
 // plus DOWNED (fuel). Everything is integer arithmetic: positions are Q8 sim cells (1 cell = 256), the direction of a leg comes from `isqrt`, x wraps
 // over the date line, the speed per tick is the mode table of rules.ts rounded to Q8, the altitude is whole game metres.
 //
@@ -9,16 +9,17 @@
 // changes by at most HELI_VERT_GM_PER_CELL per cell flown.
 //
 // Troops: LaunchHeli takes them from the seat at once; they ride in `load` and go back to the seat when the helicopter sets down on a Factory pad (or is
-// scrapped). A helicopter that goes down loses its load. Part 2 creates and destroys no troops otherwise.
+// scrapped). A helicopter that goes down loses its load. The landing (src/sim/heliLanding.ts) turns the load into cells, an Attack or nothing (a failed
+// landing loses it); it creates no troops.
 import { hasOccluders, losOf, planRouteOf, scoreLzOf } from './access';
 import { checkLaunchHeli, checkRecallHeli, emptyLaunchPlan, type LaunchProbe } from './heliRules';
-import { HELI_APPROACH, HELI_CRUISE, HELI_DOWNED, HELI_HOVER, HELI_LIFT, HELI_PAD, HELI_POS_ONE, HELI_RETURN, HELI_STATE_MAX, cellCentreQ8 } from './heliTable';
+import { HELI_APPROACH, HELI_CRUISE, HELI_DOWNED, HELI_HOVER, HELI_LIFT, HELI_PAD, HELI_POS_ONE, HELI_RETURN, HELI_STATE_MAX, HELI_UNLOAD, cellCentreQ8 } from './heliTable';
+import { performLanding } from './heliLanding';
 import { isqrt } from './detmath';
 import { REJECT_NONE } from './intents';
 import {
   OUTBOX_HELI_DOWNED,
   OUTBOX_HELI_HOME,
-  OUTBOX_HELI_LANDED,
   OUTBOX_HELI_LAUNCHED,
   OUTBOX_HELI_RTB,
   OUTBOX_HELI_SCRAPPED,
@@ -34,6 +35,7 @@ import {
   HELI_LOOKAHEAD_CELLS,
   HELI_ROUTE_CAPACITY,
   HELI_TAKEOFF_TICKS,
+  HELI_UNLOAD_TICKS,
   HELI_VERT_GM_PER_CELL,
   QT_PER_TROOP,
   TICK_HZ,
@@ -175,17 +177,6 @@ function startDowned(state: GameState, id: number, cause: number): void {
   t.load[id] = 0;
   t.target[id] = 0;
   state.outbox.push(OUTBOX_HELI_DOWNED, state.tick, id, cause);
-}
-
-/**
- * THE LANDING PLACEHOLDER (part 2). Called once, in the tick the hover ends. Part 3 REPLACES THE BODY of this function: it will set the state to
- * HELI_UNLOAD (10 ticks), conquer the landing zone and its neighbours with `load` troops, form the beachhead (`state.beachheads.add`), set `load` to 0
- * and only then turn for home (`startReturn(state, id, 0)`). The placeholder takes no cell: it announces the landing with the load, and the helicopter
- * flies home with the load, which the seat gets back when it sets down on a pad, so no troops are created or lost.
- */
-function landingPlaceholder(state: GameState, id: number): void {
-  state.outbox.push(OUTBOX_HELI_LANDED, state.tick, id, state.helis.load[id] as number);
-  startReturn(state, id, 0);
 }
 
 /** The pad landing: the helicopter stands at Factory `f`, refuelled, empty; its load goes back to the seat. */
@@ -338,10 +329,25 @@ export function flyHelis(state: GameState): void {
     }
     if (s === HELI_HOVER) {
       if (tick - (t.stateTick[id] as number) >= HELI_HOVER_TICKS) {
-        landingPlaceholder(state, id);
+        t.state[id] = HELI_UNLOAD; // set down and unload (the cells are taken when the ticks are over)
+        t.stateTick[id] = tick;
+        setAltitude(state, id, 0, 0, 0, 0);
         continue;
       }
       setAltitude(state, id, 0, 0, 0, 0);
+      continue;
+    }
+    if (s === HELI_UNLOAD) {
+      const k = tick - (t.stateTick[id] as number);
+      if (k >= HELI_UNLOAD_TICKS) {
+        performLanding(state, id);
+        startReturn(state, id, 0);
+        continue;
+      }
+      // Settling: the altitude goes to the ground of the zone in the ticks that are left (exact: it is there at the last one).
+      const g = losOf(state).terrain.groundGm[(t.target[id] as number) - 1] as number;
+      const a = t.alt[id] as number;
+      if (k > 0 && a > g) t.alt[id] = a - Math.floor((a - g) / (HELI_UNLOAD_TICKS - k));
       continue;
     }
     // CRUISE, APPROACH or RETURN: fly the route.

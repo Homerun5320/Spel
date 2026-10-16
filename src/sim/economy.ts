@@ -25,6 +25,7 @@ import {
 } from './rules';
 import type { GameState } from './state';
 import { weightedSimToStdQ15 } from './units';
+import { cutOffWeightOf } from './beachheadCluster';
 import { barracksPctOf, cityCountOf, cityStepQtOf, housingQtOf, structGoldMilliPerTick } from './structureEffects';
 
 /** Largest value of a Uint32 array element. */
@@ -42,7 +43,8 @@ export function cityLevels(state: GameState, owner: number): number {
 
 /** N in std-cells as Q15 for an owner: the Q15-weighted sim cells it owns divided by STD_CELL_AREA. */
 export function ownedStdAreaQ15(state: GameState, owner: number): number {
-  return weightedSimToStdQ15(state.agg.warea[owner] as number);
+  // M12a-3: the cells of a cut-off helicopter beachhead count for no troop cap, regeneration or gold land (one addition; the cache is in beachheadCluster.ts).
+  return weightedSimToStdQ15((state.agg.warea[owner] as number) - cutOffWeightOf(state, owner));
 }
 
 /**

@@ -41,6 +41,7 @@ export function changeOwner(state: GameState, cell: number, owner: number, stamp
     warea[owner] = (warea[owner] as number) + weight;
   }
   state.owner[cell] = owner;
+  if (state.beachheads.liveCount !== 0) state.beachheads.dirty = true; // M12a-3: the cut-off cache of the economy
   if (state.structures.liveCount !== 0 && state.structures.byCell[cell] !== 0) structureCellChanged(state, cell, owner);
   state.outbox.push(PAINT, state.tick, cell, owner);
   // A cell nobody can own (sea, Peak, Ice) takes part in no adjacency; only the debug paint can give one an owner.
