@@ -64,6 +64,8 @@ export interface ResultRow {
   /** M18c-2: treaties the nation entered and treaties it broke (MatchView.treaties / betrayals). */
   readonly treaties: number;
   readonly betrayals: number;
+  /** M18d-2: researched technologies (MatchView.techCount). */
+  readonly techs: number;
 }
 
 /**
@@ -101,6 +103,7 @@ export function resultRows(m: MatchView, players: number, localSeat: number, nam
     conquered: m.conquered[s] as number,
     treaties: m.treaties[s] as number,
     betrayals: m.betrayals[s] as number,
+    techs: m.techCount[s] as number,
   }));
 }
 

@@ -1,7 +1,7 @@
 // The style sheet of the match HUD and the start screen, built from the tokens in uiConfig.ts. One <style> element per root; the
 // classes are prefixed `hud-` / `start-`. No transitions or animations (CSS time is not the fx clock; tests/fxClock.test.ts
 // forbids them): every visible change is a state change driven from JS.
-import { CITY_VIEW, GPU_TIP, HELP_OVERLAY, MATCH_PANELS, NARROW_MAX_PX, TOPBAR, HUD_FONT_BIAS_PX, HUD_FONT_MAX_PX, HUD_FONT_MIN_PX, HUD_FONT_VW, SETUP_PANEL_EM, SETUP_SHEET_VH, TARGET_MIN_PX, DIPLO, UI_COLORS as C, Z_HUD, Z_SETUP, Z_START_SCREEN } from './uiConfig';
+import { CITY_VIEW, GPU_TIP, HELP_OVERLAY, MATCH_PANELS, NARROW_MAX_PX, TOPBAR, HUD_FONT_BIAS_PX, HUD_FONT_MAX_PX, HUD_FONT_MIN_PX, HUD_FONT_VW, SETUP_PANEL_EM, SETUP_SHEET_VH, TARGET_MIN_PX, DIPLO, TECH_UI, UI_COLORS as C, Z_HUD, Z_SETUP, Z_START_SCREEN } from './uiConfig';
 
 export function hudCss(): string {
   const fontSize = `clamp(${HUD_FONT_MIN_PX}px, calc(${HUD_FONT_VW}vw + ${HUD_FONT_BIAS_PX}px), ${HUD_FONT_MAX_PX}px)`;
@@ -393,6 +393,48 @@ export function hudCss(): string {
 .diplo-pcard-text { font-weight: 700; min-width: 0; overflow-wrap: anywhere; }
 .diplo-pcard-left { color: ${C.textDim}; font-variant-numeric: tabular-nums; flex: none; }
 .diplo-pcard-btns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.3em; }
+/* M18d-2: the research panel (four branch columns of four cells; two columns on a narrow or portrait window) */
+.tech-overlay { position: absolute; inset: 0; z-index: ${TECH_UI.z}; pointer-events: none; display: flex; align-items: center; justify-content: center; font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; font-size: ${fontSize}; line-height: 1.25; color: ${C.text}; box-sizing: border-box; padding: 0.6em; }
+.tech-overlay *, .tech-overlay *::before { box-sizing: border-box; }
+.tech-overlay[hidden] { display: none !important; }
+.tech-card { pointer-events: auto; width: ${TECH_UI.panelWidthEm}em; max-width: 100%; max-height: 100%; overflow: auto; background: ${TECH_UI.cardBg}; border: 1px solid ${C.panelBorder}; border-radius: 0.8em; box-shadow: 0 0.3em 1.4em rgba(0, 0, 0, 0.6); padding: 0.6em 0.8em 0.7em; }
+.tech-head { display: flex; align-items: center; justify-content: space-between; gap: 0.6em; margin-bottom: 0.4em; }
+.tech-title { font-size: 1.15em; font-weight: 800; flex: 1 1 auto; }
+.tech-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.5em; }
+.tech-branch { display: flex; flex-direction: column; gap: 0.4em; min-width: 0; }
+.tech-branch-head { font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.85em; padding: 0 0.1em; }
+.tech-cell { display: flex; flex-direction: column; gap: 0.15em; min-width: 0; padding: 0.4em 0.5em; border: 1px solid ${C.panelBorder}; border-radius: 0.5em; background: rgba(255, 255, 255, 0.03); font-size: 0.88em; }
+.tech-cell[data-status="done"] { border-color: ${TECH_UI.status.done}; }
+.tech-cell[data-status="active"] { border-color: ${TECH_UI.status.active}; }
+.tech-cell[data-status="available"] { border-color: ${TECH_UI.status.available}; }
+.tech-cell[data-status="locked"] { opacity: 0.6; }
+.tech-name { font-weight: 800; overflow-wrap: anywhere; }
+.tech-fx { color: ${C.text}; overflow-wrap: anywhere; }
+.tech-meta { color: ${C.textDim}; font-variant-numeric: tabular-nums; }
+.tech-status { font-weight: 700; font-variant-numeric: tabular-nums; }
+.tech-cell[data-status="done"] .tech-status { color: ${TECH_UI.status.done}; }
+.tech-cell[data-status="active"] .tech-status { color: ${TECH_UI.status.active}; }
+.tech-cell[data-status="available"] .tech-status { color: ${TECH_UI.status.available}; }
+.tech-cell[data-status="locked"] .tech-status { color: ${TECH_UI.status.locked}; }
+.tech-cell[data-status="blocked"] .tech-status { color: ${TECH_UI.status.blocked}; }
+.tech-why { color: ${C.textDim}; font-size: 0.9em; overflow-wrap: anywhere; }
+.tech-bar { height: 0.45em; border-radius: 0.25em; background: rgba(255, 255, 255, 0.15); overflow: hidden; }
+.tech-bar-fill { height: 100%; width: 0; background: ${TECH_UI.status.active}; }
+.tech-bar[hidden], .tech-why[hidden], .tech-btn[hidden], .tech-note[hidden] { display: none !important; }
+.tech-actions { display: flex; gap: 0.3em; flex-wrap: wrap; }
+.tech-note { margin-top: 0.4em; color: ${C.barWarning}; font-size: 0.9em; }
+.tech-hint { margin-top: 0.4em; color: ${C.textDim}; font-size: 0.85em; }
+.tech-btn { min-height: 2.1em; padding: 0.15em 0.6em; border-radius: 0.5em; border: 1px solid ${C.buttonBorder}; background: ${C.button}; color: ${C.text}; font: inherit; font-weight: 700; cursor: pointer; touch-action: manipulation; }
+.tech-btn:hover { background: ${C.buttonActive}; }
+.tech-btn[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; }
+.tech-btn[data-armed="1"] { border-color: ${C.danger}; box-shadow: inset 0 0 0 1px ${C.danger}; }
+.tech-btn:focus-visible { outline: 2px solid ${C.accent}; outline-offset: 2px; }
+.hud-tech-running { color: ${TECH_UI.status.active}; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: ${TECH_UI.runningMaxEm}em; min-width: 0; }
+@media (pointer: coarse) { .tech-btn { min-height: ${target}; } }
+@media (max-width: ${NARROW_MAX_PX}px), (max-aspect-ratio: 1/1) {
+  .tech-btn { min-height: ${target}; }
+  .tech-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 @media (pointer: coarse) { .diplo-btn { min-height: ${target}; } }
 @media (max-width: ${NARROW_MAX_PX}px), (max-aspect-ratio: 1/1) {
   .diplo-btn { min-height: ${target}; }

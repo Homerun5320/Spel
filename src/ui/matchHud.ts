@@ -18,6 +18,7 @@ import { formatClock, formatFixed, formatGold, formatGoldRate, formatInt, langua
 import { mountHudStyle } from './hudStyle';
 import { HudGate } from './hudGate';
 import { newWinMeterState, winMeterInto } from './winMeter';
+import { runningResearch, techClock, techName, type RunningResearch } from './techModel';
 import { BADGE_ALLIANCE, BADGE_EMBARGO, BADGE_TRUCE, incomingCount, relationBadges } from './diploModel';
 import { DIPLO, HUD_MIN_INTERVAL_S, COMMIT_MAX_PCT, COMMIT_MIN_PCT, COMMIT_STEP_PCT, FLAG_ROW_H, FLAG_ROW_W, LEADERBOARD_INCLUDES_TRIBES, LEADERBOARD_ROWS, PLAY_HINT_SECONDS, TOAST_SECONDS, TROOP_WARNING_FRACTION } from './uiConfig';
 
@@ -27,6 +28,8 @@ export interface MatchHudActions {
   togglePause(): void;
   /** M18c-2: the top-bar button "Diplomati" (key D does the same through the hotkey registry). */
   openDiplomacy?(): void;
+  /** M18d-2: the top-bar button "Teknik" (key T does the same through the hotkey registry). */
+  openTech?(): void;
 }
 
 export interface MatchHudOptions {
@@ -320,7 +323,19 @@ export function createMatchHud(parent: HTMLElement, actions: MatchHudActions, op
   });
   const diploSignal = dyn(new TextCell(el('span', 'hud-diplo-signal', 'diplo-signal'), (n) => t('diplo.signal', { n }), true));
   diploSignal.el.hidden = true;
-  diploBox.append(diploBtn, diploSignal.el);
+  // M18d-2: the button "Teknik" and the running research ("Forskar: Namn 0:42", hidden when nothing runs) sit in the same box, before Diplomati
+  const techBtn = el('button', 'hud-btn', 'tech-button');
+  techBtn.type = 'button';
+  techBtn.append(cell(new TextCell(el('span', ''), () => t('tech.button'))).el);
+  techBtn.addEventListener('click', () => {
+    actions.openTech?.();
+    techBtn.blur();
+  });
+  const techRun = el('span', 'hud-tech-running', 'tech-running');
+  techRun.hidden = true;
+  const techScratch: RunningResearch = { tech: -1, ticksLeft: 0 };
+  let techRunText = '';
+  diploBox.append(techRun, techBtn, diploBtn, diploSignal.el);
   let diploTick = -1;
   let diploLang = -1;
   row2.append(winRow, fleetBox, beachChip.el, diploBox);
@@ -495,6 +510,17 @@ export function createMatchHud(parent: HTMLElement, actions: MatchHudActions, op
         if (diploSignal.el.hidden === (waiting > 0)) diploSignal.el.hidden = waiting === 0;
         const tip = t('diplo.buttonTip');
         if (diploBtn.title !== tip) diploBtn.title = tip;
+        // M18d-2: the research that runs (written only when the text changed: once a second while researching)
+        const rr = runningResearch(v, L, techScratch);
+        const text = rr.tech < 0 ? '' : t('tech.running', { name: techName(rr.tech), time: techClock(rr.ticksLeft) });
+        if (text !== techRunText) {
+          techRunText = text;
+          techRun.textContent = text;
+          techRun.hidden = text === '';
+          techRun.title = text;
+        }
+        const techTip = t('tech.buttonTip');
+        if (techBtn.title !== techTip) techBtn.title = techTip;
       }
       const tb = troopBar(m.troops, capTroops);
       const q = Math.round(tb.fraction * 400);

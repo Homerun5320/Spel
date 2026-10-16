@@ -29,7 +29,8 @@ import {
   maxLevelOf,
   samRadiusCells,
   seatToOwner,
-  upgradePriceGold,
+  upgradePriceNowMilli,
+  MILLI_GOLD_PER_GOLD,
   upgradeTicksOf,
   validateDelete,
   validateUpgrade,
@@ -142,7 +143,7 @@ export function selectionInfo(view: SimView, seat: number, id: number): Selectio
     owned: s.owner[id] === owner,
     finished: view.tick >= (s.readyTick[id] as number),
     upgrading: (s.upgradeReadyTick[id] as number) !== 0,
-    upgradePrice: level >= maxLevelOf(type) ? 0 : upgradePriceGold(type, level + 1),
+    upgradePrice: level >= maxLevelOf(type) ? 0 : upgradePriceNowMilli(view, seat, type, level + 1) / MILLI_GOLD_PER_GOLD, // M18d-2: with the seat's research discount, the very price the sim debits
     upgradeSeconds: level >= maxLevelOf(type) ? 0 : upgradeTicksOf(type, level + 1) / TICK_HZ,
     upgradeReason: phaseFirst(view, validateUpgrade(view, seat, id)),
     deleteReason: phaseFirst(view, validateDelete(view, seat, id)),

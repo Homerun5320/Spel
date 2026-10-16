@@ -42,9 +42,10 @@ import {
   buildBody,
   buildPriceMilli,
   upgradeBody,
-  upgradePriceGold,
+  upgradePriceNowMilli,
   MILLI_GOLD_PER_GOLD,
   nextBelow,
+  ownerToSeat,
   seatToOwner,
   validateBuild,
   type IntentBody,
@@ -89,7 +90,7 @@ function cheaperUpgrade(view: SimView, owner: number, newCityMilli: number): num
       bestLevel = level;
     }
   }
-  if (best < 0 || upgradePriceGold(STRUCT_CITY, bestLevel + 1) * MILLI_GOLD_PER_GOLD >= newCityMilli) return -1;
+  if (best < 0 || upgradePriceNowMilli(view, ownerToSeat(owner), STRUCT_CITY, bestLevel + 1) >= newCityMilli) return -1;
   return best;
 }
 
@@ -106,7 +107,7 @@ function richUpgrade(view: SimView, owner: number, goldMilli: number): number {
     if (s.owner[id] !== owner || (type !== STRUCT_CITY && type !== STRUCT_FACTORY && type !== STRUCT_PORT)) continue;
     if (view.tick < (s.readyTick[id] as number) || (s.upgradeReadyTick[id] as number) !== 0) continue;
     const level = s.level[id] as number;
-    if (level >= (type === STRUCT_CITY ? cityLevelTarget(s.ownedCount(owner, STRUCT_CITY)) : AI_STRUCT_LEVEL_CAP) || upgradePriceGold(type, level + 1) * MILLI_GOLD_PER_GOLD > goldMilli) continue;
+    if (level >= (type === STRUCT_CITY ? cityLevelTarget(s.ownedCount(owner, STRUCT_CITY)) : AI_STRUCT_LEVEL_CAP) || upgradePriceNowMilli(view, ownerToSeat(owner), type, level + 1) > goldMilli) continue;
     const cell = s.cell[id] as number;
     if (!interior(view, owner, cell, cell % view.width, Math.floor(cell / view.width))) continue; // a border structure may change hands before the Upgrade runs
     const key = level * 8 + type; // lowest level first, then City < Factory < Port, then the lowest id (the loop order)
@@ -183,7 +184,7 @@ export function buildMove(view: SimView, memory: AiMemory, rng: Uint32Array): In
     const up = cheaperUpgrade(view, owner, price);
     if (up >= 0) {
       const level = view.structures.level[up] as number;
-      return (stats.goldMilli[seat] as number) >= upgradePriceGold(STRUCT_CITY, level + 1) * MILLI_GOLD_PER_GOLD ? upgradeBody(seat, up) : null;
+      return (stats.goldMilli[seat] as number) >= upgradePriceNowMilli(view, seat, STRUCT_CITY, level + 1) ? upgradeBody(seat, up) : null;
     }
   }
   if ((stats.goldMilli[seat] as number) * 100 >= price * AI_BUILD_RICH_PCT) {
