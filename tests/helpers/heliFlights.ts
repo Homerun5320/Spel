@@ -78,7 +78,9 @@ export async function makeFlightWorld(): Promise<GameState> {
   const world = await loadRealWorld();
   const s = createWorldState(world, { seed: 11, seats: 2, config: { debugIntents: true } });
   // one enemy SAM site per region (ownerId 2), finished
-  for (const r of REGIONS) s.structures.add(STRUCT_SAM, 2, cellOf(r.sam[0], r.sam[1]), 0);
+  // M12b: these SAM sites shape the routes (the exposure the planner avoids) but HOLD FIRE (a salvo clock that never comes up), so that this property stays about
+  // flight physics; the engagements are tested in tests/sim/airDefense*.test.ts.
+  for (const r of REGIONS) s.structures.salvoTick[s.structures.add(STRUCT_SAM, 2, cellOf(r.sam[0], r.sam[1]), 0)] = 0xffffffff;
   return s;
 }
 

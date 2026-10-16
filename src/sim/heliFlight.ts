@@ -13,7 +13,7 @@
 // landing loses it); it creates no troops.
 import { hasOccluders, losOf, planRouteOf, scoreLzOf } from './access';
 import { checkLaunchHeli, checkRecallHeli, emptyLaunchPlan, type LaunchProbe } from './heliRules';
-import { HELI_APPROACH, HELI_CRUISE, HELI_DOWNED, HELI_HOVER, HELI_LIFT, HELI_PAD, HELI_POS_ONE, HELI_RETURN, HELI_STATE_MAX, HELI_UNLOAD, cellCentreQ8 } from './heliTable';
+import { HELI_APPROACH, HELI_CRUISE, HELI_DOWNED, HELI_DOWN_FUEL, HELI_HOVER, HELI_LIFT, HELI_PAD, HELI_POS_ONE, HELI_RETURN, HELI_STATE_MAX, HELI_UNLOAD, cellCentreQ8 } from './heliTable';
 import { performLanding } from './heliLanding';
 import { isqrt } from './detmath';
 import { REJECT_NONE } from './intents';
@@ -32,6 +32,7 @@ import {
   HELI_DOWNED_TICKS,
   HELI_FUEL_MAX_Q8,
   HELI_HOVER_TICKS,
+  HELI_HP_TENTHS,
   HELI_LOOKAHEAD_CELLS,
   HELI_ROUTE_CAPACITY,
   HELI_TAKEOFF_TICKS,
@@ -181,8 +182,8 @@ function startReturn(state: GameState, id: number, recalled: number): void {
   state.outbox.push(OUTBOX_HELI_RTB, state.tick, id, recalled);
 }
 
-/** A helicopter that ran dry or was shot down: stays in the table HELI_DOWNED_TICKS, its load is lost. */
-function startDowned(state: GameState, id: number, cause: number): void {
+/** A helicopter that ran dry or was shot down (`cause`: HELI_DOWN_FUEL, HELI_DOWN_SAM, HELI_DOWN_POST): stays in the table HELI_DOWNED_TICKS, its load is lost. */
+export function downHeli(state: GameState, id: number, cause: number): void {
   const t = state.helis;
   t.state[id] = HELI_DOWNED;
   t.stateTick[id] = state.tick;
@@ -206,6 +207,7 @@ function setDown(state: GameState, id: number, f: number): void {
   t.y[id] = cellCentreQ8((c - cx) / w);
   t.alt[id] = 0;
   t.fuel[id] = HELI_FUEL_MAX_Q8;
+  t.hp[id] = HELI_HP_TENTHS; // M12b: the pad repairs what the Posts wore down
   t.load[id] = 0;
   t.target[id] = 0;
   t.routeLen[id] = 0;
@@ -390,7 +392,7 @@ export function flyHelis(state: GameState): void {
       continue;
     }
     if (t.fuel[id] === 0) {
-      startDowned(state, id, 1);
+      downHeli(state, id, HELI_DOWN_FUEL);
       continue;
     }
     setAltitude(state, id, HEADING[0] as number, HEADING[1] as number, HEADING[2] as number, moved);

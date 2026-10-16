@@ -8,7 +8,7 @@
 // THROTTLE. `LaunchPreviewer` runs at most ONE query at a time and at most `PREVIEW_MIN_INTERVAL_S` apart on the clock it is given (the fx clock in the
 // page). The cursor can move on while a query is out: an answer that is no longer for the wanted request is dropped, and only the newest wanted request is
 // ever sent next (older ones are replaced, not queued). The answer arrives as a Promise, as it will from a WorkerHost (M24a).
-import { isExposed, planRoute, validateLaunchHeli, type AltMode, type Nav, type SimView } from '../sim/public';
+import { hostileSeats, isExposed, planRoute, validateLaunchHeli, type AltMode, type Nav, type SimView } from '../sim/public';
 import { TICK_HZ } from '../sim/rules';
 
 export interface PreviewRequest {
@@ -61,7 +61,7 @@ export function previewLaunch(nav: Nav, view: SimView, seat: number, req: Previe
   const exposed = new Uint8Array(route.waypoints.length);
   for (let i = 0; i < route.waypoints.length; i++) {
     for (let s = 0; s < view.seats; s++) {
-      if (s === seat) continue;
+      if (!hostileSeats(view, seat, s)) continue; // an ally's or a truce partner's sensors are not drawn as a threat (M12b, hostile())
       if (isExposed(nav.los, view, s, route.waypoints[i] as number, req.mode)) {
         exposed[i] = 1;
         break;

@@ -345,3 +345,8 @@ Economy script result (M09c, Russia, seed 1, 10 minutes, `npm run sim:scenario -
 | `BEACHHEAD_CHECK_TICKS` | 10 | ticks | plan | M12a-3: the cluster of a beachhead is searched every 10 ticks after the landing. |
 | `BEACHHEAD_REVERT_TICKS` | 450 | ticks | plan | M12a-3: a cut-off beachhead that is not established returns to neutral exactly 45 s after its landing. |
 | `LANDING_ENEMY_COST_PCT` | 200 | percent | plan | M12a-3: a landing cell that belongs to somebody else costs twice the plain cell price (the Attack price at depth 0 on level ground, terrain, home trait, Post and Walls included). |
+| `POST_AA_RADIUS_CELLS` | 12 | sim cells | plan | M12b: a finished Defense Post hurts every hostile helicopter within this distance, in both flight modes. It is `POST_RADIUS_CELLS` (no new number). |
+| `POST_AA_DPS` | 15 | HP/s | plan | M12b: damage of ONE Defense Post to a helicopter (100 HP); Posts stack. One Post fells a helicopter in 6.7 s, two in 3.3 s. |
+| `POST_AA_TENTHS_PER_TICK` | 15 | tenths of HP per tick | plan | M12b: derived, `POST_AA_DPS` x 10 / `TICK_HZ`, the unit the helicopter table counts in (`HELI_HP_TENTHS` 1000). |
+| `SAM_SALVO_PERIOD_TICKS` | 90 | ticks | plan | M12b: a SAM site fires one salvo every 9 s; the first salvo goes as soon as a visible hostile helicopter is in reach. |
+| `SAM_HIT_PCT` | 55 | percent | plan | M12b: chance that one salvo brings a helicopter down (a hit is a kill). Flat in the level: a higher SAM level reaches further (`SAM_RADIUS_BASE_CELLS` curve), it does not hit harder. |

@@ -523,3 +523,13 @@ Not done in the Fix-UI slice (the sim, host and AI findings belong to Fix-Sim):
 - Proposed CHARTER change, for the user (a builder does not edit `docs/CHARTER.md`): invariant 6 and the M15b step 1 text still describe `SimHost.query`, which M13b replaced by plain functions plus an injected async query in `LaunchPreviewer`. Suggested wording: "the page asks questions through functions that read the ViewMirror and through an injected async query; it never reaches into the sim". See "Audit 3 downstream decisions" in `docs/DECISIONS.md`.
 - Add a size guard for the other big docs: `docs/DECISIONS.md` (about 590 kB) and `docs/PROGRESS.md` (about 240 kB) are also far too large to read in one call; split them like ARCHITECTURE (an index file plus per-period files in a folder) in a docs-hygiene pass.
 - A generator that checks every file under `src` has a row in `docs/ARCHITECTURE.md` or `docs/arch/` (the rows are by module, several files per row, so it needs a path scan of the backticks); not built, the existing path-exists check only goes the other way.
+
+## M12b (air defence against helicopters)
+
+- Per-viewer visibility of helicopters (decision (c) of "Audit 3 downstream decisions") and the AI's `navOf(state)` accessor (decision (a)) were NOT done in M12b; both belong to M17, which must not start without them.
+- The toast of a downed helicopter ("En helikopter sköts ner.") is the same for fuel, SAM and Post: the page sees only the table, not the cause of the `HELI_DOWNED` event. Needs a `cause` column in the helicopter table (or the capped event list of D(d)) and then the texts "sköts ned av luftvärn" / "sköts ned av en försvarspost" / "tog slut på bränsle" in `src/ui/i18n.ts`.
+- A SAM's level changes only its radius (the existing curve); the hit chance is flat `SAM_HIT_PCT`. A level curve for the hit chance, a missile reload and a SAM that can be jammed are M19 balance ideas.
+- Nothing shoots at a helicopter that stands on a pad or is under production (by rule) and nothing at a helicopter of a seat in the same alliance; a Post does not distinguish Low from High (by plan).
+- The raid statistics are scripted, one defended case each (plains, ridge). A mixed case (one SAM visible, one hidden) and a High-mode raid statistic are in `tests/sim/airDefense.test.ts` only as single checks; M19 measures AI raids in full matches.
+- `heli-raid --fixture alps` draws its Factories and zones inside one 4 x 10 degree box; the zones are reset between trials, so a raid is not affected by the earlier landings. Other regions (Himalaya, Andes) are a flag away.
+- A destroyed SAM's salvo clock dies with its table row; a conquered SAM keeps the clock (the new owner's first salvo can wait up to 90 ticks). Left as is.

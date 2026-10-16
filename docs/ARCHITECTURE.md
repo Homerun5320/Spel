@@ -166,6 +166,7 @@ Budgets per layer in the test tier (`?test=1`, 960x540, DPR 1). `tests/budgets.t
 | `src/sim/heliLanding.ts`, `src/sim/heliPhase.ts`, `src/sim/heliRules.ts`, `src/sim/win.ts`, `src/sim/structureEffects.ts` (Fix-4A1, ENGINE 19) | Audit 3 rule fixes: eliminated seats' helicopters are scrapped, a landing that touches own land makes no beachhead row, full-table refusals (57, 58), allied Port trade 125 %. | `scrapOwnerHelis`, `REJECT_HELI_TABLE_FULL`, `REJECT_HELI_BEACHHEAD_FULL`, `TRADE_ALLIANCE_PCT` | [sim](arch/sim.md) |
 | `deserialize` guards (Fix-4A2), `tests/helpers/saveLayout.ts` | `deserialize` refuses future stateTick/landTick/readyTick, unmatched embargo flags, eliminated seats with land/helicopters/treaties and airborne helicopters without `maxElev`; one save-layout test helper. | errors `air-range`, `no-occluders`, ... | [sim](arch/sim.md) |
 | `BeachheadView` in `src/sim/view.ts`, `src/host/beachheadSnapshot.ts`, `src/host/beachheadMirror.ts`, `src/ui/beachheadInfo.ts` (Fix-4B) | The beachhead is shown and explained: read-only view, host snapshot and mirror, pulsing ring, count-down chip, revert and established toasts. | `SimView.beachheads` | [sim](arch/sim.md) |
+| `src/sim/airDefense.ts`, `src/sim/hostile.ts`, `tools/sim/heliRaid.ts` (M12b, ENGINE 20) | Air defence: Defense Posts wear hostile helicopters down, SAM sites fire salvos at what their layer and own mask see; `hostile(a, b)` (a relation) is used by route, LZ, preview and guns; the `heli-raid` replay and raid statistics. | `airDefensePhase`, `hostileSeats`, `hostileOwners`, `heliRaid` | [sim](arch/sim.md) |
 
 
 ## Roadmap
@@ -175,4 +176,4 @@ See `docs/CHARTER.md` section 8. Planned modules (later): `src/ai` (M05 part C),
 
 ## Aktuella versioner
 
-ENGINE_VERSION 19 (`src/sim/state.ts`), FORMAT_VERSION 13 (`src/sim/serialize.ts`). A change bumps them and re-pins both golden hash files once (`UPDATE_GOLDENS=1`). Check the constants in the code before trusting this line.
+ENGINE_VERSION 20 (`src/sim/state.ts`), FORMAT_VERSION 14 (`src/sim/serialize.ts`). A change bumps them and re-pins both golden hash files once (`UPDATE_GOLDENS=1`). Check the constants in the code before trusting this line.

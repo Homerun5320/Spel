@@ -37,6 +37,8 @@ export class StructureTable implements StructureView, DistrictView {
   readonly buildTick = new Uint32Array(STRUCT_CAPACITY);
   readonly readyTick = new Uint32Array(STRUCT_CAPACITY);
   readonly upgradeReadyTick = new Uint32Array(STRUCT_CAPACITY);
+  /** M12b: the tick from which a SAM site may fire its next salvo (0 = at once). State: serialised and hashed. */
+  readonly salvoTick = new Uint32Array(STRUCT_CAPACITY);
   /** The deleted ids waiting for reuse (a stack: the top is `recycled[recycledCount - 1]`). */
   readonly recycled = new Uint16Array(STRUCT_CAPACITY);
   recycledCount = 0;
@@ -213,6 +215,7 @@ export class StructureTable implements StructureView, DistrictView {
     this.buildTick[id] = tick;
     this.readyTick[id] = tick + (BUILD_TICKS[type] as number);
     this.upgradeReadyTick[id] = 0;
+    this.salvoTick[id] = 0;
     this.byCell[cell] = id + 1;
     this.counts[ownerId * STRUCT_TYPE_SLOTS + type] = (this.counts[ownerId * STRUCT_TYPE_SLOTS + type] as number) + 1;
     this.liveCount++;
@@ -234,6 +237,7 @@ export class StructureTable implements StructureView, DistrictView {
     this.buildTick[id] = 0;
     this.readyTick[id] = 0;
     this.upgradeReadyTick[id] = 0;
+    this.salvoTick[id] = 0;
     this.recycled[this.recycledCount++] = id;
     this.liveCount--;
     this.effDirty = true;
@@ -290,6 +294,7 @@ export function foldStructures(h: number, t: StructureTable): number {
     x = foldWord(x, t.buildTick[id] as number);
     x = foldWord(x, t.readyTick[id] as number);
     x = foldWord(x, t.upgradeReadyTick[id] as number);
+    x = foldWord(x, t.salvoTick[id] as number);
   }
   // Districts (Districts-1): the count, then every occupied slot by ascending (id, slot).
   x = foldWord(x, t.districtCount);

@@ -8,6 +8,7 @@ import { createLosTerrain } from './los/terrain';
 import { createNav, type Nav } from './nav/grid';
 import { scoreLz, type LzResult } from './nav/lz';
 import { planRoute, type NavView, type RouteResult } from './nav/route';
+import { DiplomacyReader, type DiplomacyView } from './diplomacyTable';
 import { AIR_EXPOSURE_LAMBDA } from './rules';
 import type { StructureView } from './structureRules';
 import type { GameState } from './state';
@@ -22,7 +23,10 @@ export class MissingOccluderError extends Error {
 
 /** The state as the read-only source that Los.sync and planRoute take (tick, structures, terrain class, seats). */
 class StateNavView implements NavView {
-  constructor(private readonly state: GameState) {}
+  readonly diplomacy: DiplomacyView;
+  constructor(private readonly state: GameState) {
+    this.diplomacy = new DiplomacyReader(state.diplo, state.header.players, () => state.tick);
+  }
   get tick(): number {
     return this.state.tick;
   }
