@@ -369,3 +369,10 @@ Not done in the Fix-UI slice (the sim, host and AI findings belong to Fix-Sim):
 - Leftovers of the slice: none in the list of the prompt; the Artifact preview was not republished (orchestrator).
 
 - M18-2 follow-up (orchestrator): the plain Play match (MatchSession.create) now gets defaultWinConfig('world') outside ?test=1, so it ends like the setup matches; test mode matches never end (`options.win` absent).
+
+## Look-1 leftovers
+- A level number as a digit on the far City icon (the arc is the stand-in); the build bar could show "Nivå 1 / max" for the City it builds.
+- The hamlet (level 1) looks bare at 800 m: a small well or a first tower in band 0.
+- At the top level two Cities 3 cells apart touch at about 3500 km camera distance (1.5x level scale); a cap on the policy radius by the spacing would fix it.
+- The e2e pixel diffs of old vs new and of level 1 vs 3 include the territory change over time; a masked diff around the City would be sharper.
+- A setting for the Dev panel that switches the style without changing the address.

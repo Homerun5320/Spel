@@ -1,6 +1,8 @@
 // Look-1: the City tiers (band and scale from level and top level) and the two City models.
 import { describe, expect, it } from 'vitest';
 import { CITY_BANDS, cityBand, levelScale } from '../../src/render/cityTiers';
+import { STRUCT_CLOSE_MUL } from '../../src/render/config';
+import { closeMul } from '../../src/render/rings';
 import { STRUCTURE_MODELS, cityLights } from '../../src/render/structureModels';
 import { STRUCT_CITY } from '../../src/sim/public';
 
@@ -32,6 +34,22 @@ describe('the tier function', () => {
   });
   it('the scale keeps the old values at three levels: 1, 1.25, 1.5', () => {
     expect([1, 2, 3].map((l) => levelScale(l, 3))).toEqual([1, 1.25, 1.5]);
+  });
+});
+
+describe('the mid-range City enlargement', () => {
+  it('is true size close up and far away, full between 25 and 40 km, continuous', () => {
+    expect(closeMul(800)).toBe(1);
+    expect(closeMul(3000)).toBe(1);
+    expect(closeMul(30000)).toBeCloseTo(STRUCT_CLOSE_MUL, 6);
+    expect(closeMul(150000)).toBe(1);
+    expect(closeMul(3_000_000)).toBe(1);
+    let prev = closeMul(100);
+    for (let d = 100; d < 400000; d *= 1.01) {
+      const v = closeMul(d);
+      expect(Math.abs(v - prev)).toBeLessThan(0.03);
+      prev = v;
+    }
   });
 });
 

@@ -14,7 +14,7 @@ uniform float uSizeM;      // metres per model unit at true size
 uniform float uPxK;        // minimum radius as a share of the camera distance
 uniform float uMaxScale;
 uniform float uMaxLevel;   // Look-1: the top City level (cityTiers.ts); a model part of a higher band than the City's is collapsed
-uniform vec3 uClose;       // Look-1: x: enlargement close up, y/z: the camera distances (m) where it starts to ease and where it is gone
+uniform vec4 uClose;       // Look-1: x: the mid-range enlargement, y/z: the camera distances (m) where it rises from 1x and reaches full, w: where it is gone again (cityTiers closeMul in rings.ts)
 uniform float uKmPerUnit;  // kilometres per Earth radius
 uniform float uTime;       // fx seconds
 uniform float uTick;       // the sim tick as a fraction
@@ -57,7 +57,7 @@ void main() {
   vec3 north = cross(up, east);
   vec3 rel0 = (aHi - uCamHi) + (aLo - uCamLo);
   float distM = length(rel0) * uKmPerUnit * 1000.0;
-  float closeK = mix(uClose.x, 1.0, smoothstep(uClose.y, uClose.z, distM));
+  float closeK = mix(1.0, uClose.x, smoothstep(uClose.y, uClose.z, distM) * (1.0 - smoothstep(uClose.z * 1.6, uClose.w, distM)));
   float k = max(clamp(distM * uPxK / uSizeM, 1.0, uMaxScale), closeK) * uSizeM * aParams.x / (uKmPerUnit * 1000.0);
   float age = uTime - aParams.z;
   float pop = age < 0.0 ? 1.0 : clamp(age / uPopSeconds, 0.0, 1.0); // a clock set back by a test hook shows the finished model
@@ -193,7 +193,7 @@ uniform vec3 uCamLo;
 uniform float uKmPerUnit;
 uniform float uPxK;
 uniform float uMaxScale;
-uniform vec3 uClose;
+uniform vec4 uClose;
 uniform float uViewH;      // drawing-buffer height in pixels
 uniform float uFadeHi;     // projected model radius (px) above which there is no icon
 uniform float uFadeLo;     // ... and below which the icon is full
@@ -213,7 +213,7 @@ void main() {
   vec3 up = normalize(centre);
   vec3 rel0 = (aHi - uCamHi) + (aLo - uCamLo);
   float distM = length(rel0) * uKmPerUnit * 1000.0;
-  float k = max(clamp(distM * uPxK / aInfo.y, 1.0, uMaxScale), mix(uClose.x, 1.0, smoothstep(uClose.y, uClose.z, distM)));
+  float k = max(clamp(distM * uPxK / aInfo.y, 1.0, uMaxScale), mix(1.0, uClose.x, smoothstep(uClose.y, uClose.z, distM) * (1.0 - smoothstep(uClose.z * 1.6, uClose.w, distM))));
   float pxPerRad = uViewH * 0.5 * projectionMatrix[1][1];
   float modelPx = k * aInfo.y * aInfo.z / distM * pxPerRad;
   float a = 1.0 - smoothstep(uFadeLo, uFadeHi, modelPx);

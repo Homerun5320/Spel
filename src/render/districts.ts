@@ -4,7 +4,7 @@
 // changes (never per frame); `frame` sets uniforms and decides, with a distance test over the instances, whether the mesh is drawn at all.
 import { BufferAttribute, DoubleSide, DynamicDrawUsage, InstancedBufferAttribute, InstancedBufferGeometry, Mesh, ShaderMaterial, Vector3, Vector4 } from 'three';
 import { DISTRICT_BUILD_TICKS, DISTRICT_MAX_SLOTS, STRUCT_CITY, districtIndex, type DistrictView, type StructureView } from '../sim/public';
-import { AMBIENT_DAY, AMBIENT_NIGHT, DISTRICT_FADE_PX_HI, DISTRICT_FADE_PX_LO, DISTRICT_LEVEL_SCALE, DISTRICT_MODEL_UNIT, DISTRICT_TRIANGLE_BUDGET, EARTH_RADIUS_KM, HEIGHT_EXAGGERATION, STRUCT_BUILD_MIN_HEIGHT, STRUCT_CLOSE_FAR_M, STRUCT_CLOSE_MUL, STRUCT_CLOSE_NEAR_M, STRUCT_POP_SECONDS, SUN_COLOR } from './config';
+import { AMBIENT_DAY, AMBIENT_NIGHT, DISTRICT_FADE_PX_HI, DISTRICT_FADE_PX_LO, DISTRICT_LEVEL_SCALE, DISTRICT_MODEL_UNIT, DISTRICT_TRIANGLE_BUDGET, EARTH_RADIUS_KM, HEIGHT_EXAGGERATION, STRUCT_BUILD_MIN_HEIGHT, STRUCT_CLOSE_FAR_M, STRUCT_CLOSE_MUL, STRUCT_CLOSE_RISE_LO_M, STRUCT_CLOSE_RISE_HI_M, STRUCT_POP_SECONDS, SUN_COLOR } from './config';
 import { levelScale } from './cityTiers';
 import { latLonToVec } from './geo';
 import { buildDistrictModels, districtRadiusM, districtSlotModelOffset, districtSlotOffsetM } from './districtModels';
@@ -126,7 +126,7 @@ export class DistrictLayer {
         uViewH: { value: 540 },
         uFadeLo: { value: DISTRICT_FADE_PX_LO },
         uFadeHi: { value: DISTRICT_FADE_PX_HI },
-        uClose: { value: new Vector3(STRUCT_CLOSE_MUL, STRUCT_CLOSE_NEAR_M, STRUCT_CLOSE_FAR_M) },
+        uClose: { value: new Vector4(STRUCT_CLOSE_MUL, STRUCT_CLOSE_RISE_LO_M, STRUCT_CLOSE_RISE_HI_M, STRUCT_CLOSE_FAR_M) },
         uSun: { value: o.sun },
         uSunColor: { value: v3(SUN_COLOR) },
         uAmbientDay: { value: v3(AMBIENT_DAY) },

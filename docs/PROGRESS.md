@@ -1188,3 +1188,11 @@ Plains median Low (Kansas, Iowa, Ukraine, Pampas, Australia): 21.8 %. Rounds of 
 - [x] ACCEPTANS performance (`tests/nav.perf.test.ts`): A* median 0.074 ms (budget 2), p99 0.54 ms (budget 20) over 200 routes; label rejection 0.7 us (budget 100 us); leak test 0.00 MB for 200 queries
 - [x] ACCEPTANS fingerprint equal in Node and Chromium (`4680ed7e`)
 - Not run here: the full `npm run verify`, the Artifact pack, the pull request (the orchestrator).
+
+### Look-1: look and feel after the version 20 test (fast city view, City size, City style, level display; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+- [x] 1. Fast city view: `FlyOptions.fast` (`FLY_FAST_MAX_S` 1.8 fx seconds, same phases and clearance), used by "Open city" in `src/app/globeApp.ts`; the panel opens at once; `tests/render/flyToFast.test.ts` (duration, clearance, determinism, cancel), e2e in `e2e/lookCities.test.ts`
+- [x] 2. City size: a smooth enlargement of Cities and districts between about 5 and 150 km of camera distance (`STRUCT_CLOSE_*`, `closeMul` in `src/render/rings.ts`, repeated in the three vertex shaders); true size closer than 5 km (so 3 km and 800 m do not cover the screen)
+- [x] 3. Style setting 'Gammal / Modern' (`src/app/cityStyle.ts`, `?citystyle=old|new`, `#citystyle-new`, setup button, Dev panel modes, `Globe.structures.setCityStyle` live) and five level bands (`src/render/cityTiers.ts`, bands per model part, shader collapse); both models at most 260 triangles with the lights
+- [x] 4. Level display: the panels already read "Nivå n av max" and the upgrade tooltip names the next level (max from `STRUCT_MAX_LEVEL` in public.ts); the far icon of a City has a clockwise progress arc (lit share = level / max) instead of a digit
+- [x] Tests: `tests/render/cityTiers.test.ts`, `tests/app/cityStyle.test.ts`, `tests/render/flyToFast.test.ts`, `e2e/lookCities.test.ts` (goldens `city-old.png`, `city-new.png`); goldens `structures-city`, `structures-factory-port`, `districts-layer` re-pinned once (DECISIONS Look-1). Leftovers: "Look-1 leftovers" in `docs/BACKLOG.md`.
+- Not run here: the full `npm run verify`, the Artifact pack, the pull request (the orchestrator).
