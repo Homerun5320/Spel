@@ -23,7 +23,7 @@ function appendGroupTable(card: HTMLElement, v: ResultView): void {
   const groups = v.groups;
   if (groups === undefined || !groups.some((g) => g.fed >= 0)) return;
   addText(card, 'h3', 'mp-subtitle', t('result.groups.title'), 'result-groups-title');
-  const wrap = el('div', 'mp-table-wrap');
+  const wrap = el('div', 'mp-table-wrap mp-groups-wrap');
   const table = el('table', 'mp-table', 'result-groups');
   const head = el('tr', '');
   for (const k of ['result.col.rank', 'result.col.group', 'result.col.land', 'result.col.score'] as const) {

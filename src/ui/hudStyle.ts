@@ -34,6 +34,8 @@ export function hudCss(): string {
 .mp-table tr[data-group="1"] td { border-top: 2px solid ${FED_BOARD.accent}; font-weight: 700; }
 .mp-table tr[data-sub="1"] td { font-size: 0.92em; opacity: 0.9; }
 .mp-table tr[data-sub="1"] td.mp-name { padding-left: ${FED_BOARD.subIndentEm}em; }
+.mp-groups-wrap { flex: 0 0 auto; max-height: 9.5em; }
+.hud-row[data-group="1"] .hud-rels { display: none; }
 .mp-subtitle { margin: 0.7em 0 0.3em; font-size: 0.95em; color: ${C.textDim}; }
 .mp-flag { flex: none; display: block; border-radius: 2px; border: 1px solid rgba(255, 255, 255, 0.55); }
 .hud-rank { color: ${C.textDim}; text-align: right; font-variant-numeric: tabular-nums; }

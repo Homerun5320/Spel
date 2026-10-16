@@ -177,12 +177,12 @@ Result (details and numbers in `docs/DECISIONS.md` "M13a-2"): effects, chase cam
 
 GOR och ACCEPTANS:
 
-- [ ] Group concept in the sim derived from the bound diplomacy pairs (`src/sim/groups.ts`, no new state, ENGINE and FORMAT untouched), a seat without a federation is a group of one.
-- [ ] Win conditions count groups (land sum and hold timer, last alive, score sum, anti-snowball by group share, elimination per seat); a match without a federation takes the old code path (golden hashes unchanged).
-- [ ] MatchView: `group` per seat, leader / hold / winner are group representatives, `groupMembers`.
-- [ ] UI: leaderboard shows a federation as ONE expandable row with a flag; win meter follows the group; result screen shows the winning group and rows per group and member.
-- [ ] Tests: groups, every condition with and without federation, 40 % federation vs 40 % nation, round trip and snapshot, 20 AI seeds, UI models, e2e.
-- [ ] `npm run verify:fast` green; affected e2e green.
+- [x] Group concept in the sim derived from the bound diplomacy pairs (`src/sim/groups.ts`, no new state, ENGINE and FORMAT untouched), a seat without a federation is a group of one.
+- [x] Win conditions count groups (land sum and hold timer, last alive, score sum, anti-snowball by group share, elimination per seat); a match without a federation takes the old code path (golden hashes unchanged).
+- [x] MatchView: `group` per seat, leader / hold / winner are group representatives, `groupMembers`.
+- [x] UI: leaderboard shows a federation as ONE expandable row with a flag; win meter follows the group; result screen shows the winning group and rows per group and member.
+- [x] Tests: groups, every condition with and without federation, 40 % federation vs 40 % nation, round trip and snapshot, 20 AI seeds, UI models, e2e.
+- [x] `npm run verify:fast` green; affected e2e green (federationWin, federation).
 
 ## Next
 

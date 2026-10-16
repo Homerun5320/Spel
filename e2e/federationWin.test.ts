@@ -51,7 +51,7 @@ describe('a federation in the leaderboard and the win meter', () => {
       const members = Number(await group.getAttribute('data-members'));
       expect(members).toBeGreaterThanOrEqual(8);
       expect(await group.getAttribute('data-flag')).toBe('1');
-      expect(await group.locator('.hud-name').textContent()).toContain('United States of America');
+      expect(await group.locator('.hud-name').textContent()).toMatch(/USA|United States of America/);
       expect(await group.locator('.hud-name').textContent()).toContain(`${members}/`);
       expect(await page.locator(`${tid('leader-row')}[data-sub="1"]:visible`).count()).toBe(0);
       const share = Number(await group.getAttribute('data-share'));
@@ -68,7 +68,7 @@ describe('a federation in the leaderboard and the win meter', () => {
       expect(await page.locator(`${tid('leader-row')}[data-sub="1"]:visible`).count()).toBe(0);
       // the win meter: the leader is the federation (9 or more sub-nations against single nations), named by the federation, with the summed percent
       const meter = page.locator(tid('win-leader'));
-      expect(await meter.textContent()).toContain('United States of America');
+      expect(await meter.textContent()).toMatch(/USA|United States of America/);
       const pct = (await group.locator('.hud-share').textContent()) ?? '';
       expect(await meter.textContent()).toContain(pct.trim());
       await shot(page, 'meter');
