@@ -114,6 +114,21 @@ ACCEPTANS
 - [x] Top bar: values equal the sim, 0 DOM mutations at rest, no overlap at 960x540, 1366x640 and 540x960 with the longest strings, win meter follows the MatchView (`tests/ui/topBar.test.ts`, `e2e/m20aLite.test.ts`)
 - [x] Screenshots of `?` and the top bar looked at in both languages
 - [x] `npm run verify:fast` green; the touched e2e files green. Not run here: the full `npm run verify`, the Artifact pack, the pull request (the orchestrator).
+### M13a-1: the helicopter is visible (render and UI; src/sim untouched; one slice in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+Previous merge SHA (origin/main): f29121a8d1607ca169e6675b5f22a52d76c42ef7
+GÖR
+- [ ] 1. `src/render/heliModel.ts` + `src/render/heliLayer.ts` + `src/render/shaders/helis.ts`: one merged model (under 150 triangles, per-vertex part id), the rotor spins in the vertex shader from the fx clock, ONE instanced draw (capacity 64), owner colour per instance, every non-empty HeliView row except under-production drawn
+- [ ] 2. Build button in the Factory selection panel (price, queue, fleet gauge, dimmed with the reason), toasts for produced and scrapped
+- [ ] 3. HUD line "Helikoptrar n/tak" with a data-testid
+- [ ] 4. Budget row (1 draw call) in the table and `tests/budgets.test.ts`; leak test if needed
+- [ ] 5. Test hook `__test.helis()`
+ACCEPTANS
+- [ ] Build button works end to end (e2e: after the build time the helicopter stands at the Factory)
+- [ ] Every state is drawn, position == sim position within 0.5 cell (unit test)
+- [ ] The rotor alone changes pixels (e2e)
+- [ ] 1 draw call measured, instances <= 64, no console errors
+- [ ] Screenshots at 3 km and 800 m, day and night, looked at
+- [ ] `npm run verify:fast` green; touched e2e green
 
 ## Next
 

@@ -102,6 +102,9 @@ export function hudCss(): string {
 .sel-btn { min-height: ${target}; padding: 0 0.8em; border-radius: 0.5em; border: 1px solid ${C.buttonBorder}; background: ${C.button}; color: ${C.text}; font: inherit; font-weight: 700; cursor: pointer; touch-action: manipulation; }
 .sel-btn:hover { background: ${C.buttonActive}; }
 .sel-btn[data-state="dim"] { opacity: 0.5; border-style: dashed; cursor: not-allowed; }
+.sel-heli { display: flex; flex-direction: column; gap: 0.2em; margin-top: 0.3em; }
+.sel-heli[hidden] { display: none !important; }
+.sel-heli-fleet[data-full="1"] { color: ${C.barWarning}; }
 
 /* Narrow screens (a phone held upright, D107): the banner takes the whole top row left of the Dev button, with the countdown beside the
    text; the leaderboard sits below it, so nothing overlaps the banner, the board or the Dev button (48 px + 8 px margins). */

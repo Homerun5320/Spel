@@ -23,3 +23,12 @@ describe('Fix-Audit2: per-layer draw-call rows pin the real total, not only the 
     expect(layers.every((l) => l.drawCalls <= 10)).toBe(true);
   });
 });
+
+describe('M13a-1: the helicopter layer has its own row', () => {
+  it('one draw call and a triangle allowance that fits 64 instances of the model, and the layer rows still add up to at most 17 draw calls (16 + this one)', () => {
+    const [, ...layers] = readBudgets();
+    const row = layers.find((l) => l.layer.startsWith('Helikoptrar'));
+    expect(row).toEqual({ layer: expect.stringContaining('Helikoptrar'), triangles: 7_000, drawCalls: 1 });
+    expect(layers.reduce((s, l) => s + l.drawCalls, 0)).toBeLessThanOrEqual(17);
+  });
+});

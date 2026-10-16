@@ -17,6 +17,7 @@ import { BOOKMARKS, CAPITAL_BOOKMARK, DEFAULT_START_TIME, DEFAULT_START_VIEW, GR
 import { cellToLatLon, groundHeightAt, latLonToCell } from '../render/transforms';
 import { STRUCTURE_MODELS } from '../render/structureModels';
 import type { DrawnStructure } from '../render/structures';
+import type { DrawnHeli } from '../render/heliLayer';
 import type { DrawnDistrict } from '../render/districts';
 import { setBookmarkHandler } from './bookmarks';
 import { InputStack, attachDomInput, createBaseMode, setContextHandler, setPauseHandler, type ContextCommand, type ContextHandler, type InputTarget } from './input';
@@ -30,11 +31,12 @@ import { PerfSceneRun, type PerfSceneHost } from './perfScene';
 import { createBuildBar, type BuildBar } from '../ui/buildBar';
 import { buildRejectKey, spawnPhaseBlocks } from '../ui/buildReasons';
 import { REJECT_PHASE } from '../ui/hudCodes';
+import { HeliWatcher, heliPanelInfo } from '../ui/heliInfo';
 import { mountToasts, showToast, tickToasts, visibleToastKeys } from '../ui/toast';
 import { createHelpOverlay, type HelpOverlay } from '../ui/helpOverlay';
 import { attachHotkeys, hotkeys, registerGameHotkeys } from './hotkeys';
 import { createPlacementMode, type PlacementMode, type PlacementState } from './placement';
-import { STRUCT_CITY, buildBody, buildDistrictBody, deleteBody, removeDistrictBody, upgradeBody, upgradeDistrictBody, validateBuild } from '../sim/public';
+import { STRUCT_CITY, STRUCT_FACTORY, produceHeliBody, buildBody, buildDistrictBody, deleteBody, removeDistrictBody, upgradeBody, upgradeDistrictBody, validateBuild } from '../sim/public';
 import { createCityViewPanel, type CityViewPanel } from '../ui/cityViewPanel';
 import { CAMERA_FOV_DEG, EARTH_RADIUS_KM } from '../render/config';
 import { cityFitFlight, cityFlightNeeded, createCityViewMode, isDoubleClick } from './cityViewMode';
@@ -285,6 +287,11 @@ export interface GlobeTestHooks {
   state(): MatchStateInfo | null;
   /** M10: the structure layer (instance counts per type, the drawn structures) and the placement mode. */
   props(): PropsInfo;
+  /** M13a-1: the helicopters the layer drew (id, owner, state, cell position, lat / lon, metres above the ground, parked). */
+  helis(): readonly DrawnHeli[];
+  /** M13a-1: forces the rotor angle (radians; null = the fx clock) and switches the helicopter layer on or off, so a test can tell the rotor's pixels and the layer's draw call. */
+  heliSpin(angle: number | null): void;
+  heliLayer(on: boolean): void;
   /** Look-1: switches the City style live (the preference is not written in test mode). */
   setCityStyle(style: CityStyle): void;
   /** Look-2: draws structure `id` (and the districts of a City) as if it had `level`; render only. `null` clears. */
@@ -491,6 +498,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       // the structures follow the snapshot's table; the construction look follows the interpolated tick
       globe.structures.setTable(session.view.structures, session.view.structuresVersion);
       globe.districts.setTable(session.view.structures, session.view.districts, session.view.structuresVersion); // Districts-2b
+      globe.helis.setTable(session.view.helis, session.view.helisVersion); // M13a-1
       globe.setTickFraction(session.view.tick + (params.test ? 0 : session.alpha()));
     }
     globe.render(draw);
@@ -699,7 +707,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     wrapper.appendChild(buildRoot);
     buildBar = createBuildBar(buildRoot, { select: (type) => enterPlacement(type) });
     buildBarWanted = !params.test || ctx.state.raw.hud === '1';
-    selectPanel = createSelectionPanel(buildRoot, { upgrade: (id) => s.submit(upgradeBody(s.localSeat, id)), remove: (id) => s.submit(deleteBody(s.localSeat, id)), openCity: (id) => openCity(id) });
+    selectPanel = createSelectionPanel(buildRoot, { upgrade: (id) => s.submit(upgradeBody(s.localSeat, id)), remove: (id) => s.submit(deleteBody(s.localSeat, id)), openCity: (id) => openCity(id), produceHeli: (id) => s.submit(produceHeliBody(s.localSeat, id)) });
     cityPanel = createCityViewPanel(buildRoot, {
       build: (id, slot, kind) => s.submit(buildDistrictBody(s.localSeat, id, slot, kind)),
       upgrade: (id, slot) => s.submit(upgradeDistrictBody(s.localSeat, id, slot)),
@@ -747,6 +755,18 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   };
   /** The one model object the HUD reads each frame (rewritten in place: nothing is allocated per frame). */
   let model: { -readonly [K in keyof MatchHudModel]: MatchHudModel[K] } | null = null;
+  const heliWatcher = new HeliWatcher();
+  // the Factory panel's helicopter numbers are asked once per tick, not once per frame
+  let heliKey = '';
+  let heliCache: ReturnType<typeof heliPanelInfo> | null = null;
+  const heliInfoOf = (view: MatchSession['view'], seat: number, factory: number): ReturnType<typeof heliPanelInfo> => {
+    const key = `${view.tick}|${view.helisVersion}|${factory}|${seat}`;
+    if (heliCache === null || key !== heliKey) {
+      heliKey = key;
+      heliCache = heliPanelInfo(view, seat, factory);
+    }
+    return heliCache;
+  };
   const refreshHud = (): void => {
     if (session === null || hud === null) return;
     const alpha = session.alpha();
@@ -768,7 +788,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       } else {
         const onMountain = session.view.terrainClass[session.view.structures.cell[selectedId] as number] === CLASS_MOUNTAIN;
         globe.structures.setSelection(selectedId, rangeRingCells(info.type, info.level, onMountain));
-        selectPanel?.update(buildBarWanted && cityId < 0 ? info : null, onMountain);
+        selectPanel?.update(buildBarWanted && cityId < 0 ? info : null, onMountain, info.type === STRUCT_FACTORY ? heliInfoOf(session.view, L, selectedId) : null);
       }
     }
     if (cityId >= 0) {
@@ -776,6 +796,9 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       if (ci === null || !ci.owned || ci.type !== STRUCT_CITY) closeCity(); // destroyed, deleted or conquered
       else cityPanel?.update(session.view, L, buildBarWanted ? cityId : -1);
     }
+    const heliNews = heliWatcher.update(session.view, session.view.helisVersion, L);
+    if (heliNews === 'produced') showToast('toast.heli.produced', {}, 'info');
+    else if (heliNews === 'scrapped') showToast('toast.heli.scrapped', {}, 'warn');
     const refused = session.takeNewReject();
     if (refused !== 0) hud.toast(rejectText(refused), fxNow());
   };
@@ -1592,6 +1615,11 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       },
       state: matchState,
       props: propsInfo,
+      helis: () => globe.helis.drawn().map((d) => ({ ...d })),
+      heliSpin: (angle) => {
+        globe.helis.spinOverride = angle;
+      },
+      heliLayer: (on) => globe.helis.setEnabled(on),
       setCityStyle: (style) => applyCityStyle(style),
       setLevelOverride(id, level): void {
         globe.structures.setLevelOverride(id, level);
