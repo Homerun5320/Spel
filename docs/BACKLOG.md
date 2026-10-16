@@ -398,3 +398,8 @@ Not done in the Fix-UI slice (the sim, host and AI findings belong to Fix-Sim):
 - (Done in the integration) The effect lines of Factory and Port read the generated tables of `src/sim/levelCurves.ts` (the same functions, levels 1 to 999); `tests/ui/structureInfo.test.ts` pins them against the curve functions.
 - District upgrade time is not shown (the district upgrade has no separate time in the tile model).
 - A latency check of `sel.fxNext` text length on a phone-width panel.
+
+## Fix-3A1
+- Economy script margin (audit 2 sim[6]): `tests/sim/economyScript.test.ts` (b) passes on the pinned seed 1 with 1.1 % margin (14160 of 14000); seeds 4, 5, 6 give 0.937 / 0.988 / 0.992. Any balance nudge breaks seed 1. To do (needs a balance decision): assert the median factor over seeds 1 to 5 and keep the single seed as a log line. Not changed here.
+- Property test "effects cache of the live state equals a fresh recompute / restored copy" at every tick of a scripted run (audit f15), in the unit project.
+- `match.districts` statistic against an independent recount (next to the peak / conquered / built recount in `tests/sim/win.test.ts`); the doc comment of `districtSlotsOf` still says "level outside 1..3".
