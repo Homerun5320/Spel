@@ -241,7 +241,6 @@ export const GOLD_DISPLAY_FACTOR = 100;
 
 /** Bundle-diet-2: the language-load notice (a failed table fetch) and the busy look of a language button while the other table loads. */
 export const LANG_NOTICE = {
-  showMs: 8000,
   background: 'rgba(60, 20, 20, 0.92)',
   color: '#ffd9d9',
   font: '14px system-ui, sans-serif',

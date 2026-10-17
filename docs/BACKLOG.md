@@ -660,3 +660,8 @@ M18e-2
 - Runway lights for the Airfield (night lamps along the runway) and a windsock; a rotating radar on the Lab; steam that moves on the Plant (one more spinning tint code).
 - If many Airfields, Labs and Plants stand in one match, split the shared mesh into one mesh per type (the vertex cost of the shared mesh is 590 triangles per instance, also for a type that needs only 154).
 - The 800 m camera of the original wish: a "model view" camera that frames one structure from the side at its true size.
+
+Bundle-diet-2
+- A `modulepreload` for the Swedish table chunk (or starting the language `import()` from `index.html`) would remove the one-request wait after the main chunk; Vite does not preload dynamic imports by itself.
+- The total gzip grew 2 575 B because the two tables compress apart; an `en` table as values only (aligned with the `sv` key order) would drop the repeated key strings, at the cost of the `Record<TextKey, string>` typing the tables have now.
+- The language button exists only on the start and setup screens; a language switch inside a running match has no UI (the HUD still follows `onLanguageChange`, covered by the test-mode e2e).
