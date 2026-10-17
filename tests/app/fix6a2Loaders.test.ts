@@ -138,7 +138,8 @@ describe('loadStartLanguage', () => {
 
 /** The smallest DOM the language button code touches. */
 function stubDom(): { host: { children: Array<Record<string, unknown>> }; clickAnywhere: () => void } {
-  const host = { children: [] as Array<Record<string, unknown>>, appendChild(c: Record<string, unknown>): void { this.children.push(c); } };
+  // Round 25 integration: Fix-6B's notice placement asks the host for an old notice and for the start tagline; a bare stub answers "none" to both.
+  const host = { children: [] as Array<Record<string, unknown>>, appendChild(c: Record<string, unknown>): void { this.children.push(c); }, querySelectorAll: (): unknown[] => [], querySelector: (): null => null };
   const handlers: Array<() => void> = [];
   vi.stubGlobal('document', {
     body: host,
