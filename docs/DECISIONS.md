@@ -2454,3 +2454,37 @@ Size state to act on: the START cap (351 500) now has only 4 380 bytes of headro
 
 Round 24 verification note: the full `npm run verify` passed typecheck, lint, unit, perf and e2e; `e2e/terrainLeak.serial.test.ts` stopped on the same ANGLE/SwiftShader driver hint as in round 22 ("Running out of reserved outsideRenderPass queueSerial", heap delta 0.1 MB). Root-cause measurement this time: the page makes the same GL work on HEAD and on the v33 commit (one `bufferSubData` of 14 400 bytes and 3 draw calls per render, `__test.render()` already ends in `finish()`), and an interleaved A/B of 6 runs each gave warnings on v33 once, v35 once, v34 never and HEAD never (the earlier 6 + 6 runs on v33 and HEAD: none). So the hint is a roughly 5 to 10 percent random event of the driver that is independent of the game code (the published v33 shows it too); the test was not changed. The other nine serial files passed, and `terrainLeak` itself passed 6 of 6 on HEAD afterwards. BACKLOG has the options for making the harness robust (that choice is the owner's: filtering a driver performance hint in the console collector would loosen a check).
 
+
+
+## Fix-6A2 (audit 5, mutation findings 1.0 to 1.13; tests only, no src change, ENGINE and FORMAT unchanged, goldens untouched)
+
+Every finding was checked against HEAD 11ac641 first: none was already fixed. The audit's repro files were adopted as the base of the sim and host tests (with the audit's `AUDIT5` titles shortened) and extended; nothing else was touched. Fix-6A1 changes ship, missile and interceptor rules at the same time, so the tests avoid its pins (ship start cell, A* tie-break, landing price, interceptor on a reused id, missile path shape): the interception cell test computes its expectation with `missilePosition` itself, the route tests use forced one-cell corridors or straight legs.
+
+Every mutant was applied as the one-line change named, the new test file run alone, and the change reverted (no src diff afterwards). "Killed by" names the file in `tests/`.
+
+| Finding | Mutant | Killed by |
+|---|---|---|
+| 1.0 | `isHeliEvent` without HOME / without LANDED (EF08, EF10) | `tests/host/fix6a2Extra.test.ts` set equality with the exported `OUTBOX_HELI_*` and `tests/host/fix6a2Leaks.test.ts` per-kind filter |
+| 1.0 | `snapshotHelis` forgets to zero fuel / readyTick / load (HS01..HS09 sampled, three run) | `fix6a2Extra` "every typed array ... is zero at the hidden slot" (iterates the keys, 11 columns pinned) |
+| 1.1 | `t.launches.slice()` -> `t.launches` (SN10) | `fix6a2Extra` "a snapshot shares no buffer with the live table" (missiles, helicopters, ships) |
+| 1.13 | `drainEvents` without the full-view guard (MH01); `kindAt` without `i >= 0` (ER08) | `fix6a2Extra` "a full view does not steal ..." (a fact in the ring, a full view requested inside tick 2, both facts in one diff); ring answers -1 / 0 |
+| 1.2 | price `<` -> `<=` (M01); `previewThreat` mountain bonus off (M28); `districtSlotsOf(level - 1)` -> `level` (P06); `effDirty` / `upgradeReadyTick` / `dirtyTrade` / `scrapFactoryHelis` deleted (P07, P05, P12, P24) | `tests/sim/fix6a2Missiles.test.ts` (exact price, mountain SAM, City ring hit, truce spill, Factory with a helicopter round-trips through `deserialize`) |
+| 1.3 | interceptor loop advances after `m.remove` (I25); Post allowed to fire (I24); `fireControl` term dropped (I18); salvo cut ignored (I21); event cell of tick - 1 (I28) | `fix6a2Missiles` "interception details" (five tests; the blocked-SAM test loops 30 seeds) |
+| 1.4 | `x < 0` wrap in `advance` (SP13); `dx < -half` (SP14); west neighbour of column 0 (R12); east wrap (R18); `dxs` wrap in `lineClear` (R21); Shallows not sailable (R17); diagonal needs both orthogonal cells `||` -> `&&` (R01) | `tests/sim/fix6a2Ships.test.ts` (sea over the date line, Port on column 0, Shallows channel, bend corridor) |
+| 1.5 | returning ships kept at elimination (SP09); `eliminatedAgrees` without the ship clause (F32); Port ready check (SP04) and Port type check (SP07) dropped | `fix6a2Ships` (four live states, `deserialize` refusal, two recycled-slot cases) |
+| 1.6 | `this.version++` removed from `StructureTable.transfer` (F05); hold timer moves for any elimination (F14); heir not restricted to the holder's group (F15) | `tests/sim/fix6a2Fix5.test.ts` |
+| 1.7 | ship state 0 / state > max / routeLen 0 guards (SD05, SD06, SD12); duplicate (missile, SAM) pair (IC10); fire before launch (IC06) | `tests/sim/fix6a2Deser.test.ts` (blobs where every other guard passes) |
+| 1.7 | ship count `>` -> `>=` (SD01), ship id `<=` -> `<` (SD02); missile count (MS01), missile id order (MS10), impact == now (MS13) | `tests/sim/fix6a2Bounds.test.ts` (a full 32-ship and 64-missile table, byte-patched duplicate ids with the exact error `air-range`, exact flight-time and interceptor bounds) |
+| 1.8 | `hi - lo + 1 < w` -> `<=` (F07); `b0 <= a1` (F08); `b1 >= a0` (F09); `(lo + w - 1)` (F10); `(hi - w - 1)` (F11) | `tests/sim/fix6a2AaIndex.test.ts` (level 4 mountain SAM, widths 2R-4 to 2R+40, oracle for inclusion and for tightness). F07 survives and is EQUIVALENT: with `hi - lo + 1 == w` the two wrapped ranges are adjacent and their union is the full range, visited in the same order |
+| 1.9 | `sameGroup` -> `a === b` (F36); tie `>` -> `>=` (F38); truce answer with the own share (F41); leader test `leader !== seat` (F42) | `tests/ai/fix6a2Diplomacy.test.ts` (tie of two 45 % groups, alliance from a non-root member, truce from a member of the biggest group, chain-bound member) |
+| 1.10 | `delete pending[lang]` (LD01); synchronous switch branch (LD02); test mode loads one table (LD05); `failed: null` (LD06); fallback = wanted (LD07); test mode writes the pref (LD09); `wait = false` (LD11); no notice (LD12); stand-in text / hidden / data flag (LD13..LD15); `LANGUAGE_NAMES` swapped (LD16) | `tests/app/fix6a2Loaders.test.ts` (fresh module copies per test, so `import()` really runs; a mocked table whose factory throws; a minimal DOM stub) |
+| 1.11 | Silo lock dropped (BB04); `gold <= price` (BB05); hint shown with the bar hidden; key digit; `keys: ['v']` (HK01); `noRepeat` dropped (HK02); ship box gating and clamp | `tests/ui/fix6a2Ui.test.ts` (fake element class; the hotkey table pinned as id, keys, scope, noRepeat, hidden) |
+| 1.12 | airfield dashes 5 -> 4 (MD04); bulb 4 -> 3 (MD05); tube `k < n - 1` (MD06); plant tower 10 -> 8 sides (MD09); plant radiusM 640 -> 740 (MD08) | `tests/render/fix6a2ModelTriangles.test.ts` (154 / 208 / 228 triangles, 780 / 560 / 640 m) |
+
+Not covered, with reason:
+- 1.11 geometry numbers (`BUILD_BAR_TWO_ROWS_MIN_PX`, the five CSS columns, `BOARD_RESERVE_BOTTOM_EM`, card heights) and `ShipLayer` paths stay with the e2e files and Fix-6B (no DOM layout tests here, by the slice rules). The Dev stand-in is tested for its attributes; its adoption by `mountDevPanel` needs the real panel DOM and stays in `e2e/devpanel.test.ts`.
+- 1.4 the random-water-map Dijkstra property test the audit suggests is in `docs/BACKLOG.md`.
+- I17 (drop `detected`) is equivalent, as the audit says. 1.14 (gzip ceilings) is not in this slice.
+- Observed, not changed: `createBuildBar` writes the placing hint text only when it is shown, so a language switch while placing leaves the old text until the next placement (BACKLOG).
+
+Verification: `npm run verify:fast` passed (typecheck, lint, 330 unit test files, 3562 tests passed, 2 expected fail, 1 skipped; 2 min 40 s with four other builders on the cores). No Chromium, no full `verify`.

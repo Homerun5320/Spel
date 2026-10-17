@@ -697,3 +697,11 @@ M14b
 
 - `e2e/terrainLeak.serial.test.ts` fails by chance (about 1 run in 10) on "GL Driver Message (OpenGL, Performance, ...): Running out of reserved outsideRenderPass queueSerial" even on the published v33; the leak measurement itself is fine. Options for the owner: (a) treat ANGLE performance hints as non-failing in the console collector of `scripts/shot.mjs` (loosens a check, but only for a driver hint), (b) rerun the file once in `scripts/verify.mjs` for this one message (a documented retry, like the perf project's), (c) leave it and rerun by hand as now.
 
+
+
+## Fix-6A2 (audit 5 follow-ups)
+
+- A property test for `findShipRoute`: random water maps (with date-line wrap and Shallows) against a reference Dijkstra with the stated 10 / 14 costs (audit 5 finding 1.4).
+- `createBuildBar`: the placing hint is written once when it appears, so a language switch while placing keeps the old language until the next placement; rewrite it when `languageVersion()` changes (a UI change, Fix-6B territory).
+- A generic snapshot-copy test for the structure, beachhead, front and diplomacy snapshotters (the buffer-sharing test of `tests/host/fix6a2Extra.test.ts` covers missiles, helicopters and ships; the others build their arrays fresh).
+- List in `docs/arch/ui.md` which e2e file owns each `src/ui/uiConfig.ts` geometry number (audit 5 finding 1.11).
