@@ -27,11 +27,12 @@ uniform float uSpin;       // the angle (rad, 0..2pi) of a part flagged to turn 
 attribute vec3 aColor;
 attribute float aTint;
 attribute float aBand;     // Look-1: the first City band a vertex is drawn in (0 = always)
+attribute float aModel;    // M18e-2: 0 = the vertex is always drawn; k >= 1 = it belongs to model k of a shared mesh and is drawn only by instances whose aBuild.z is k
 attribute vec3 aHi;
 attribute vec3 aLo;
 attribute vec4 aParams;    // x: level scale, y: yaw (radians), z: fx time of appearing, w: level code (cityTiers levelCode: band + 1 plus half the tall share; 0 = ghost; the City lights follow the band)
 attribute vec3 aOwner;     // owner colour, sRGB 0..1
-attribute vec2 aBuild;     // buildTick, readyTick
+attribute vec3 aBuild;     // buildTick, readyTick, model kind (M18e-2: which model of a shared mesh the instance shows; 0 in a mesh of one model)
 
 varying vec3 vRel;
 varying vec3 vColor;
@@ -73,6 +74,7 @@ void main() {
   float tall = (aParams.w - codeBand) * 2.0;
   float ib = max(codeBand - 1.0, 0.0);
   p *= step(aBand - 0.5, ib);
+  p *= mix(1.0, step(abs(aModel - aBuild.z), 0.5), step(0.5, aModel)); // the other models of a shared mesh collapse to nothing (degenerate triangles)
   // aTint = owner tint (0/1) + 2 x spinning part + 4 x city light number (1..3, M10-4): a light is lit on the night side when the city's level reaches its number
   float lightIdx = floor(aTint * 0.25 + 0.01);
   float rem = aTint - 4.0 * lightIdx;
@@ -254,7 +256,10 @@ float shape(vec2 p, float t) {
   if (t < 3.5) return abs(p.x) + abs(p.y) - 1.05;                               // Port: diamond
   if (t < 4.5) return max(-p.y - 0.75, (abs(p.x) * 1.7 + p.y - 0.95) * 0.5);    // Silo: triangle up
   if (t < 5.5) return max(p.y - 0.75, (abs(p.x) * 1.7 - p.y - 0.95) * 0.5);     // SAM: triangle down
-  return max(abs(p.x) * 0.866 + abs(p.y) * 0.5, abs(p.y)) - 0.88;              // Post: hexagon
+  if (t < 6.5) return max(abs(p.x) * 0.866 + abs(p.y) * 0.5, abs(p.y)) - 0.88;  // Post: hexagon
+  if (t < 7.5) return min(max(abs(p.x) - 0.5, abs(p.y) - 0.95), max(abs(p.x) - 0.95, abs(p.y) - 0.5)); // Airfield: a plus (two runways)
+  if (t < 8.5) return max(max(abs(p.x), abs(p.y)), (abs(p.x) + abs(p.y)) * 0.7071) - 0.85; // Lab: octagon
+  return max(abs(p.x) * 1.5, abs(p.y)) - 0.9;                                   // Plant: a tall bar (the chimney)
 }
 void main() {
   float d = shape(vUv, vType);

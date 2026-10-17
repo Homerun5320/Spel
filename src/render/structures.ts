@@ -15,7 +15,7 @@ import { latLonToVec } from './geo';
 import { iconSpacingM } from './iconScale';
 import type { QualityTier } from './quality';
 import { DEFAULT_CITY_STYLE, TALL_EXTRA, levelArcShare, levelCode, levelScale, type CityStyle } from './cityTiers';
-import { CITY_LIGHT_COUNT, STRUCTURE_MODELS, cityLights, modelledTypes, type ModelData } from './structureModels';
+import { CITY_LIGHT_COUNT, STRUCTURE_MODELS, cityLights, iconShapeOf, kindOf, modelledTypes, sharedGroup, type ModelData } from './structureModels';
 import { iconFragmentShader, iconVertexShader, ringFragmentShader, ringVertexShader, structureFragmentShader, structureVertexShader } from './shaders/structures';
 import { cellToLatLon, groundHeightAt } from './transforms';
 
@@ -42,7 +42,7 @@ interface TypeLayer {
   readonly type: number;
   model: ModelData;
   readonly cap: number;
-  /** Triangles one instance costs (the model plus, for the City, its night lights). */
+  /** Triangles one instance costs (the model plus, for the City, its night lights; a shared mesh draws every model of the group for every instance, so it costs the group's sum). */
   tris: number;
   readonly geometry: InstancedBufferGeometry;
   readonly material: ShaderMaterial;
@@ -83,7 +83,7 @@ interface IconState {
 
 const RING_VERTS = (RING_SEGMENTS + 1) * 2;
 
-const FLOATS = { hi: 3, lo: 3, params: 4, owner: 3, build: 2 } as const;
+const FLOATS = { hi: 3, lo: 3, params: 4, owner: 3, build: 3 } as const;
 const NEVER = -1e9;
 
 /** The yaw (radians, model +x -> east/north) that points a pier from a coast cell to the open water, or NaN when no neighbour is sea. */
@@ -152,6 +152,10 @@ export class StructureLayer {
   private order = new Int32Array(0);
   private rankKey = new Float64Array(0);
   private readonly typeCount = new Map<number, number>();
+  /** Per structure type: the triangles one instance costs in the budget (a shared mesh: the whole group), and the triangles of its own model. */
+  private readonly typeTris = new Map<number, number>();
+  private readonly ownTris = new Map<number, number>();
+  private readonly drawnByType = new Map<number, number>();
   private camX = 0;
   private camY = 0;
   private camZ = 3;
@@ -212,21 +216,41 @@ export class StructureLayer {
     this.triangleBudget = budget;
     for (const type of modelledTypes()) {
       const spec = STRUCTURE_MODELS[type];
-      if (spec === undefined || spec.alias !== undefined) continue; // an aliased type (M18e-1) shares the layer of its alias: no mesh, no draw call of its own
-      const model = spec.build(type === STRUCT_CITY ? this.cityStyle : undefined);
+      if (spec === undefined || (spec.shared !== undefined && spec.shared !== type)) continue; // a type in a shared mesh (M18e-2) is built with the type that owns the mesh
+      const members = spec.shared === undefined ? [type] : sharedGroup(type);
+      const models = members.map((mt) => (STRUCTURE_MODELS[mt] as NonNullable<(typeof STRUCTURE_MODELS)[number]>).build(mt === STRUCT_CITY ? this.cityStyle : undefined));
+      const model = models[0] as ModelData;
       // the City's night lights ride in the same buffers (a tint code per light, lit in the vertex shader): no extra draw call
       const extra = type === STRUCT_CITY ? cityLights() : null;
-      const tris = model.triangles + (extra === null ? 0 : extra.positions.length / 9);
+      const shared = spec.shared !== undefined;
+      const sum = models.reduce((n, md) => n + md.triangles, 0);
+      const tris = sum + (extra === null ? 0 : extra.positions.length / 9);
+      members.forEach((mt, i) => {
+        this.typeTris.set(mt, tris);
+        this.ownTris.set(mt, (models[i] as ModelData).triangles);
+      });
       // the buffer of a type never needs more than the whole budget buys; the City's cap holds for both of its styles (a live switch keeps the buffers)
       let capTris = tris;
       if (type === STRUCT_CITY) for (const st of ['old', 'new'] as const) capTris = Math.max(capTris, spec.build(st).triangles + (extra === null ? 0 : extra.positions.length / 9));
       const cap = Math.max(1, Math.floor(budget / capTris));
       const geometry = new InstancedBufferGeometry();
-      const cat = (a: Float32Array, b: Float32Array | undefined): Float32Array => (b === undefined ? a : Float32Array.from([...a, ...b]));
-      geometry.setAttribute('position', new BufferAttribute(cat(model.positions, extra?.positions), 3));
-      geometry.setAttribute('aColor', new BufferAttribute(cat(model.colors, extra?.colors), 3));
-      geometry.setAttribute('aTint', new BufferAttribute(cat(model.tints, extra?.tints), 1));
-      geometry.setAttribute('aBand', new BufferAttribute(cat(model.bands ?? new Float32Array(model.triangles * 3), extra === null ? undefined : new Float32Array(extra.positions.length / 3)), 1));
+      const cat = (arrs: Float32Array[]): Float32Array => {
+        const out = new Float32Array(arrs.reduce((n, a) => n + a.length, 0));
+        let o = 0;
+        for (const a of arrs) {
+          out.set(a, o);
+          o += a.length;
+        }
+        return out;
+      };
+      const ex = (a: Float32Array | undefined): Float32Array[] => (a === undefined ? [] : [a]);
+      const zeros = extra === null ? undefined : new Float32Array(extra.positions.length / 3);
+      geometry.setAttribute('position', new BufferAttribute(cat([...models.map((md) => md.positions), ...ex(extra?.positions)]), 3));
+      geometry.setAttribute('aColor', new BufferAttribute(cat([...models.map((md) => md.colors), ...ex(extra?.colors)]), 3));
+      geometry.setAttribute('aTint', new BufferAttribute(cat([...models.map((md) => md.tints), ...ex(extra?.tints)]), 1));
+      geometry.setAttribute('aBand', new BufferAttribute(cat([...models.map((md) => md.bands ?? new Float32Array(md.triangles * 3)), ...ex(zeros)]), 1));
+      // M18e-2: the model kind of every vertex (1.. in a shared mesh, 0 = always drawn)
+      geometry.setAttribute('aModel', new BufferAttribute(cat([...models.map((md, i) => new Float32Array(md.triangles * 3).fill(shared ? kindOf(members[i] as number) : 0)), ...ex(zeros)]), 1));
       const hi = new Float32Array(cap * FLOATS.hi);
       const lo = new Float32Array(cap * FLOATS.lo);
       const params = new Float32Array(cap * FLOATS.params);
@@ -363,12 +387,13 @@ export class StructureLayer {
       geometry.setAttribute('aColor', first.geometry.getAttribute('aColor'));
       geometry.setAttribute('aTint', first.geometry.getAttribute('aTint'));
       geometry.setAttribute('aBand', first.geometry.getAttribute('aBand'));
+      geometry.setAttribute('aModel', first.geometry.getAttribute('aModel'));
       const attrs = [
         this.instanced(geometry, 'aHi', new Float32Array(3), 3),
         this.instanced(geometry, 'aLo', new Float32Array(3), 3),
         this.instanced(geometry, 'aParams', new Float32Array(4), 4),
         this.instanced(geometry, 'aOwner', new Float32Array(3), 3),
-        this.instanced(geometry, 'aBuild', new Float32Array(2), 2),
+        this.instanced(geometry, 'aBuild', new Float32Array(3), 3),
       ];
       geometry.instanceCount = 1;
       const material = this.makeMaterial(STRUCTURE_MODELS[first.type]?.radiusM ?? 700, true);
@@ -487,9 +512,9 @@ export class StructureLayer {
     }
   }
 
-  /** The layer a type is drawn in: its own, or the layer of its alias (M18e-1); undefined for a type without a model. */
+  /** The layer a type is drawn in: its own, or the shared mesh it is part of (M18e-2); undefined for a type without a model. */
   private layerOf(type: number): TypeLayer | undefined {
-    return this.layers.get(STRUCTURE_MODELS[type]?.alias ?? type);
+    return this.layers.get(STRUCTURE_MODELS[type]?.shared ?? type);
   }
 
   private rebuild(): void {
@@ -512,6 +537,7 @@ export class StructureLayer {
     let fits = true;
     let tris = 0;
     for (const l of this.layers.values()) this.typeCount.set(l.type, 0);
+    this.drawnByType.clear();
     for (let id = 0; id < t.highWater; id++) {
       const owner = t.owner[id] as number;
       if (owner === 0) {
@@ -528,9 +554,9 @@ export class StructureLayer {
         this.born[id] = this.primed ? this.fxTime : NEVER;
       }
       order[n++] = id;
-      tris += layer.tris;
-      const c = (this.typeCount.get(type) as number) + 1;
-      this.typeCount.set(type, c);
+      tris += this.typeTris.get(type) as number;
+      const c = (this.typeCount.get(layer.type) as number) + 1;
+      this.typeCount.set(layer.type, c);
       if (c > layer.cap || tris > this.triangleBudget) fits = false;
     }
     // Over the allowance: the local player's own first, then (when the camera is close enough for models to matter) nearest the camera, then by id.
@@ -563,19 +589,20 @@ export class StructureLayer {
       const type = t.type[id] as number;
       const layer = this.layerOf(type) as TypeLayer;
       const spec = STRUCTURE_MODELS[type];
-      const mul = spec?.ownerMul;
+      const typeTris = this.typeTris.get(type) as number;
       const cell = t.cell[id] as number;
-      const hasModel = !(layer.count >= layer.cap || this.trianglesDrawn + layer.tris > this.triangleBudget);
+      const hasModel = !(layer.count >= layer.cap || this.trianglesDrawn + typeTris > this.triangleBudget);
       const level = this.levelOverride.get(id) ?? (t.level[id] as number);
       const p = this.place(cell);
       const hx = Math.fround(p.x);
       const hy = Math.fround(p.y);
       const hz = Math.fround(p.z);
-      const r = ((palette[owner * 4] as number) / 255) * (mul === undefined ? 1 : mul[0]);
-      const g = ((palette[owner * 4 + 1] as number) / 255) * (mul === undefined ? 1 : mul[1]);
-      const bl = ((palette[owner * 4 + 2] as number) / 255) * (mul === undefined ? 1 : mul[2]);
+      const r = (palette[owner * 4] as number) / 255;
+      const g = (palette[owner * 4 + 1] as number) / 255;
+      const bl = (palette[owner * 4 + 2] as number) / 255;
       if (hasModel) {
-        this.trianglesDrawn += layer.tris;
+        this.trianglesDrawn += typeTris;
+        this.drawnByType.set(type, (this.drawnByType.get(type) ?? 0) + 1);
         const i = layer.count++;
         layer.hi[i * 3] = hx;
         layer.hi[i * 3 + 1] = hy;
@@ -583,7 +610,7 @@ export class StructureLayer {
         layer.lo[i * 3] = p.x - hx;
         layer.lo[i * 3 + 1] = p.y - hy;
         layer.lo[i * 3 + 2] = p.z - hz;
-        layer.params[i * 4] = levelScale(level) * (spec?.scale ?? 1);
+        layer.params[i * 4] = levelScale(level);
         let yaw = NaN;
         if (STRUCTURE_MODELS[type]?.seaward === true) yaw = seawardYaw(p.lat, p.lon, this.gridWidth, this.gridHeight, cell);
         if (Number.isNaN(yaw)) yaw = yawOf(id);
@@ -593,8 +620,9 @@ export class StructureLayer {
         layer.rgb[i * 3] = r;
         layer.rgb[i * 3 + 1] = g;
         layer.rgb[i * 3 + 2] = bl;
-        layer.build[i * 2] = t.buildTick[id] as number;
-        layer.build[i * 2 + 1] = t.readyTick[id] as number;
+        layer.build[i * 3] = t.buildTick[id] as number;
+        layer.build[i * 3 + 1] = t.readyTick[id] as number;
+        layer.build[i * 3 + 2] = kindOf(type);
         this.drawn.push({ id, type, owner, cell, level, lat: p.lat, lon: p.lon, radius: p.radius, heightM: p.heightM, yaw, ready: t.readyTick[id] as number });
       } else {
         this.dropped++;
@@ -611,8 +639,8 @@ export class StructureLayer {
         ic.rgb[j * 3] = r;
         ic.rgb[j * 3 + 1] = g;
         ic.rgb[j * 3 + 2] = bl;
-        ic.info[j * 4] = spec?.alias ?? type; // an aliased type wears the far icon of its alias
-        ic.info[j * 4 + 1] = spec?.radiusM ?? 700; // an aliased type's radius already includes its scale
+        ic.info[j * 4] = iconShapeOf(type);
+        ic.info[j * 4 + 1] = spec?.radiusM ?? 700;
         ic.info[j * 4 + 2] = levelScale(level);
         ic.info[j * 4 + 3] = type === STRUCT_CITY ? levelArcShare(level) : 1;
       }
@@ -821,6 +849,8 @@ export class StructureLayer {
         g.geometry.setAttribute('position', src.geometry.getAttribute('position'));
         g.geometry.setAttribute('aColor', src.geometry.getAttribute('aColor'));
         g.geometry.setAttribute('aTint', src.geometry.getAttribute('aTint'));
+        g.geometry.setAttribute('aBand', src.geometry.getAttribute('aBand'));
+        g.geometry.setAttribute('aModel', src.geometry.getAttribute('aModel'));
         (g.material.uniforms.uSizeM as { value: number }).value = STRUCTURE_MODELS[type]?.radiusM ?? 700;
       }
     }
@@ -846,7 +876,7 @@ export class StructureLayer {
     const yaw = STRUCTURE_MODELS[g.type]?.seaward === true ? seawardYaw(p.lat, p.lon, this.gridWidth, this.gridHeight, g.cell) : NaN;
     (parA.array as Float32Array).set([1, Number.isNaN(yaw) ? 0 : yaw, NEVER, 0]);
     (ownA.array as Float32Array).set(g.ok ? GHOST_OK_RGB : GHOST_BAD_RGB);
-    (bldA.array as Float32Array).set([0, 1]);
+    (bldA.array as Float32Array).set([0, 1, kindOf(g.type)]);
     for (const a of g.attrs) a.needsUpdate = true;
     const rgb = g.ok ? GHOST_OK_RGB : GHOST_BAD_RGB;
     (g.material.uniforms.uGhost as { value: Vector4 }).value.set(rgb[0], rgb[1], rgb[2], GHOST_MIX);
@@ -875,7 +905,7 @@ export class StructureLayer {
   /** Instances per type number actually in the draw. */
   counts(): Record<number, number> {
     const out: Record<number, number> = {};
-    for (const l of this.layers.values()) out[l.type] = l.count;
+    for (const t of this.typeTris.keys()) out[t] = this.drawnByType.get(t) ?? 0;
     return out;
   }
 
@@ -901,21 +931,30 @@ export class StructureLayer {
     const col = new BufferAttribute(cat(model.colors, extra.colors), 3);
     const tint = new BufferAttribute(cat(model.tints, extra.tints), 1);
     const band = new BufferAttribute(cat(model.bands ?? new Float32Array(model.triangles * 3), new Float32Array(extra.positions.length / 3)), 1);
+    const kind = new BufferAttribute(new Float32Array(model.triangles * 3 + extra.positions.length / 3), 1);
     for (const g of [layer.geometry, this.ghost?.geometry]) {
       if (g === undefined) continue;
       g.setAttribute('position', pos);
       g.setAttribute('aColor', col);
       g.setAttribute('aTint', tint);
       g.setAttribute('aBand', band);
+      g.setAttribute('aModel', kind);
     }
     layer.model = model;
     layer.tris = model.triangles + extra.positions.length / 9;
+    this.typeTris.set(STRUCT_CITY, layer.tris);
+    this.ownTris.set(STRUCT_CITY, model.triangles);
     this.dirty = true;
   }
 
-  /** The triangles of one instance of a type (0 when it has no model). */
+  /** What one instance of a type costs in the triangle budget: its own model, or for a type in a shared mesh the whole group (0 when it has no model). */
+  trianglesCost(type: number): number {
+    return this.typeTris.get(type) ?? 0;
+  }
+
+  /** The triangles of the type's own model (0 when it has no model). */
   trianglesOf(type: number): number {
-    return this.layerOf(type)?.model.triangles ?? 0;
+    return this.ownTris.get(type) ?? 0;
   }
 
   dispose(): void {
