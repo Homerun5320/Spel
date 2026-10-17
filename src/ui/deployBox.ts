@@ -12,6 +12,8 @@ export interface DeployBoxActions {
   /** The button was pressed (starts the mode, or leaves it when it is already on). */
   open(): void;
   cancel(): void;
+  /** Ctx-1: send the pre-picked landing zone (the button shows only while the mode has a pinned target and its preview is valid). Optional so that older callers keep compiling. */
+  confirm?(): void;
   recall(heli: number): void;
   /** M13a-2: ride along with this helicopter (the chase camera). Optional so that older callers keep compiling. */
   chase?(heli: number): void;
@@ -32,6 +34,8 @@ export interface DeployBoxModel {
   readonly exposedCells: number;
   /** The seat's troop cap per helicopter (`heliMaxTroopsOf`: the base cap plus the load techs); the slider and the clamps follow it. */
   readonly maxTroops: number;
+  /** Ctx-1: the mode was opened with a target already picked (from the context menu): the Send button shows. */
+  readonly pinned?: boolean;
 }
 
 export interface DeployBox {
@@ -76,7 +80,9 @@ export function createDeployBox(parent: HTMLElement, actions: DeployBoxActions):
   const status = el('div', 'deploy-status', 'deploy-status');
   const info = el('div', 'sel-note', 'deploy-info');
   const cancelBtn = button('sel-btn', 'deploy-cancel');
-  controls.append(hint, troopsLabel, slider, modeRow, status, info, cancelBtn);
+  const confirmBtn = button('sel-btn deploy-confirm', 'deploy-confirm');
+  confirmBtn.hidden = true;
+  controls.append(hint, troopsLabel, slider, modeRow, status, info, confirmBtn, cancelBtn);
   controls.hidden = true;
   const list = el('div', 'heli-list', 'heli-list');
   const listTitle = el('div', 'sel-state', 'heli-list-title');
@@ -101,6 +107,7 @@ export function createDeployBox(parent: HTMLElement, actions: DeployBoxActions):
   let sExposed = -1;
   let sTroops = -1;
   let sMode = -1;
+  let sPinned = false;
   let sLang = -1;
   // the list: per row id, state, troops, fuel and the recall flag, flat; `lCount` rows
   const LIST_FIELDS = 5;
@@ -115,6 +122,7 @@ export function createDeployBox(parent: HTMLElement, actions: DeployBoxActions):
     if (openBtn.getAttribute('aria-disabled') !== 'true') actions.open();
   });
   cancelBtn.addEventListener('click', () => actions.cancel());
+  confirmBtn.addEventListener('click', () => actions.confirm?.());
   lowBtn.addEventListener('click', () => setMode(0));
   highBtn.addEventListener('click', () => setMode(1));
   slider.addEventListener('input', () => {
@@ -144,7 +152,7 @@ export function createDeployBox(parent: HTMLElement, actions: DeployBoxActions):
       }
       const troops = clampTroops();
       const lang = languageVersion();
-      if (dirty || m.canOpen !== sCanOpen || m.openReason !== sOpenReason || m.active !== sActive || m.status !== sStatus || m.reason !== sReason || m.etaSeconds !== sEta || m.fuelCells !== sFuel || m.exposedCells !== sExposed || troops !== sTroops || mode !== sMode || lang !== sLang) {
+      if (dirty || m.canOpen !== sCanOpen || m.openReason !== sOpenReason || m.active !== sActive || m.status !== sStatus || m.reason !== sReason || m.etaSeconds !== sEta || m.fuelCells !== sFuel || m.exposedCells !== sExposed || (m.pinned === true) !== sPinned || troops !== sTroops || mode !== sMode || lang !== sLang) {
         dirty = false;
         sCanOpen = m.canOpen;
         sOpenReason = m.openReason;
@@ -154,6 +162,7 @@ export function createDeployBox(parent: HTMLElement, actions: DeployBoxActions):
         sEta = m.etaSeconds;
         sFuel = m.fuelCells;
         sExposed = m.exposedCells;
+        sPinned = m.pinned === true;
         sTroops = troops;
         sMode = mode;
         sLang = lang;
@@ -179,6 +188,8 @@ export function createDeployBox(parent: HTMLElement, actions: DeployBoxActions):
         lowBtn.setAttribute('aria-pressed', mode === 0 ? 'true' : 'false');
         highBtn.setAttribute('aria-pressed', mode === 1 ? 'true' : 'false');
         cancelBtn.textContent = t('deploy.cancel');
+        confirmBtn.textContent = t('deploy.confirm');
+        confirmBtn.hidden = !(sPinned && m.status === 'valid');
         status.dataset.state = m.status;
         status.dataset.reason = String(m.reason);
         status.textContent = m.status === 'valid' ? t('deploy.valid') : m.status === 'invalid' ? t(rejectKey(m.reason), { code: m.reason, max: cap }) : m.status === 'pending' ? t('deploy.pending') : '';

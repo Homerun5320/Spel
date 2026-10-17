@@ -38,6 +38,8 @@ import { BEACH_ESTABLISHED, BEACH_REVERTED, BeachheadWatcher, beachSecondsLeft, 
 import { HeliWatcher, MISSION_LANDED, MISSION_LOST, MissionWatcher, heliPanelInfo, ownHeliRows, padHeliOf, type HeliRow } from '../ui/heliInfo';
 import { createDeployBox, type DeployBox } from '../ui/deployBox';
 import { createDeployMode, type DeployMode } from './deployMode';
+import type { ContextRunner } from './contextActionsRun';
+import { isPlayableClass } from '../sim/terrain';
 import { createShipController, type ShipController, type ShipControllerInfo } from './shipController';
 import { createShipBox, type ShipBox } from '../ui/shipBox';
 import { newShipNews, ShipEventWatcher, shipNewsKey, SHIP_NEWS_LANDED, SHIP_NEWS_LAUNCHED } from '../ui/shipEvents';
@@ -68,7 +70,7 @@ import { createSelectionPanel, type SelectionPanel } from '../ui/selectionPanel'
 import { rangeRingCells, selectionInfo } from '../ui/structureInfo';
 import { createSelectionMode, pickStructure, type SelectionMode } from './structureSelect';
 import { createMatchHud, notConquerableText, rejectText, type MatchHud, type MatchHudModel } from '../ui/matchHud';
-import { getLanguage, onLanguageChange, setStrictI18n, t, type TextKey } from '../ui/i18n';
+import { getLanguage, onLanguageChange, setStrictI18n, t, type TextKey, type TextParams } from '../ui/i18n';
 import { notifyLanguageError } from '../ui/langSwitch';
 import { CITY_VIEW, DEPLOY, GPU_TIP_PREF_KEY, START_FLY_KM, START_SPIN_DEG_PER_S, SETUP_IDLE_DIST_KM } from '../ui/uiConfig';
 import { mountStartScreen, type StartScreen } from '../ui/startScreen';
@@ -97,7 +99,7 @@ import { DEBUG_GIVE_MAX, REJECT_NOT_SPAWNED } from '../sim/intents';
 import { seatToOwner } from '../sim/state';
 import type { IntentBody } from '../sim/intents';
 import { clickMeaning, resolveClickCell } from './clickTarget';
-import { resolveCommand, type CommandSelection, type CommandTarget } from './commandResolver';
+import { resolveCommand, type Command, type CommandSelection, type CommandTarget } from './commandResolver';
 import { MatchSession, winForPlay } from './match';
 import { adaptiveEnabled, type AppParams, type AppState, type SceneParams } from './params';
 import { siteUrl } from './paths';
@@ -657,6 +659,9 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   let selectPanel = null as SelectionPanel | null;
   /** M13b: the deploy mode (send a helicopter) on the input stack, the Factory it sends from, the box in the Factory panel and the throttled preview. */
   let deployMode = null as DeployMode | null;
+  /** Ctx-1: the right-click menu, loaded with import() at the first right click on playable land (src/app/contextActionsRun.ts); null until then. */
+  let ctxRunner = null as ContextRunner | null;
+  let ctxLoading = false;
   let deployFactory = -1;
   let deployBox = null as DeployBox | null;
   let deployHover = -1;
@@ -864,6 +869,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     deployBox = createDeployBox(selectPanel.heliBox, {
       open: () => (deployMode !== null ? exitDeploy() : enterDeploy(selectedId)),
       cancel: () => exitDeploy(),
+      confirm: () => void deployMode?.confirm(),
       recall: (heli) => s.submit(recallHeliBody(s.localSeat, heli)),
       chase: (heli) => startChase(heli),
     });
@@ -991,6 +997,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       }
     }
     deployFrame(session);
+    ctxRunner?.frame();
     shipToasts(session);
     if (cityId >= 0) {
       const ci = selectionInfo(session.view, L, cityId);
@@ -1212,6 +1219,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     nationLabels?.dispose();
     help?.dispose();
     diploPanel?.dispose();
+    ctxRunner?.dispose();
     techPanel?.dispose();
     diploCards?.dispose();
     buildBar?.dispose();
@@ -1447,7 +1455,60 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     const cell = resolveClickCell(pick, v.terrainClass, v.width, v.height);
     const sel: CommandSelection = { structure: selectedId, structureType: selectedId >= 0 ? (v.structures.type[selectedId] as number) : 0, placing };
     const target: CommandTarget = { cell, terrainClass: v.terrainClass[cell] as number, owner: v.owner[cell] as number, ownStructure: structureAtCell(cell) };
-    const command = resolveCommand('context', sel, target, { localOwner: sess.localOwner, spawned: (v.stats.capital[sess.localSeat] as number) !== 0, spawnPhase: v.phase === PHASE_SPAWN });
+    const spawned = (v.stats.capital[sess.localSeat] as number) !== 0;
+    const command = resolveCommand('context', sel, target, { localOwner: sess.localOwner, spawned, spawnPhase: v.phase === PHASE_SPAWN });
+    // Ctx-1: with nothing marked, a right click on playable land opens the menu in front of the rules (an attack, or your own land / the spawn phase, which the table leaves alone).
+    // The table itself is unchanged; the pref 'rightClick' = 'direct' or `?ctx=0` gives the old behaviour (a plain right click attacks).
+    if (sel.structure < 0 && placing === 0 && spawned && isPlayableClass(target.terrainClass) && (command.kind === 'attack' || command.kind === 'none') && ctxMenuWanted()) {
+      void openContextMenu(cmd.x, cmd.y, cell, target.ownStructure, command);
+      return;
+    }
+    runCommand(sess, command);
+  };
+  const ctxMenuWanted = (): boolean => ctx.state.raw.ctx !== '0' && getPref<string>('rightClick', 'menu', (x): x is string => x === 'menu' || x === 'direct') !== 'direct';
+  const ctxHost = {
+    match: () => session,
+    stack: inputStack,
+    parent: wrapper,
+    nav: () => (session === null ? null : previewNavOf(session)),
+    heliTroops: () => (deployBox === null ? DEPLOY.troopsDefault : deployBox.troops()),
+    heliMode: () => (deployBox === null ? 0 : deployBox.mode()),
+    nameOf: (seat: number) => nameOfSeat(seat),
+    attack: (owner: number) => {
+      if (session !== null) attackOrExplain(session, owner);
+    },
+    toast: (key: TextKey, params: TextParams, kind: 'info' | 'warn' | 'error') => showToast(key, params, kind),
+    select: (id: number) => selectStructure(id),
+    openCity: (id: number) => openCity(id),
+    deploy: (factory: number, cell: number) => {
+      selectStructure(factory);
+      enterDeploy(factory, cell);
+    },
+    ship: (port: number, cell: number) => {
+      selectStructure(port);
+      shipCtl.enter(port, cell);
+    },
+    shouldClose: () => keysBlockedByModal(),
+  };
+  /** Loads the menu code on the first use; a failed load falls back to the old behaviour (the command the table gave). */
+  const openContextMenu = async (x: number, y: number, cell: number, structure: number, fallback: Command): Promise<void> => {
+    if (ctxRunner === null) {
+      if (ctxLoading) return;
+      ctxLoading = true;
+      try {
+        const mod = await import('./contextActionsRun');
+        if (!alive) return;
+        ctxRunner = mod.createContextRunner(ctxHost);
+      } catch {
+        if (session !== null) runCommand(session, fallback);
+        return;
+      } finally {
+        ctxLoading = false;
+      }
+    }
+    if (session !== null) ctxRunner.open(x, y, cell, structure);
+  };
+  const runCommand = (sess: MatchSession, command: Command): void => {
     switch (command.kind) {
       case 'attack':
         attackOrExplain(sess, command.target);
@@ -1606,7 +1667,8 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   const exitDeploy = (): void => {
     if (deployMode !== null && inputStack.top === deployMode) inputStack.pop();
   };
-  const enterDeploy = (factory: number): void => {
+  /** `targetCell` (Ctx-1, the context menu's "send a helicopter here") pins the landing zone at once: the route, marker and verdict show and the Send button (or a click on the zone) confirms. */
+  const enterDeploy = (factory: number, targetCell = -1): void => {
     const sess = session;
     if (sess === null || setupScreen !== null || deployBox === null) return;
     const L = sess.localSeat;
@@ -1620,7 +1682,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       return;
     }
     if (deployMode !== null) {
-      if (deployFactory === factory) return;
+      if (deployFactory === factory && targetCell < 0) return;
       exitDeploy();
     }
     shipCtl.exit();
@@ -1657,7 +1719,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
         globe.deploy.setRoute(null, null, 0);
         globe.deploy.setMarker(-1, 0);
       },
-    });
+    }, targetCell);
     deployMode = mode;
     inputStack.push(mode);
   };
@@ -1737,7 +1799,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   let rowsVersion = -1;
   let rowsFactory = -2;
   /** The one model object of the deploy block, rewritten in place each frame (Fix-4B: no literal per frame). */
-  const boxModel = { canOpen: false, openReason: 0, active: false, status: 'idle' as 'idle' | 'pending' | 'valid' | 'invalid', reason: 0, etaSeconds: 0, fuelCells: 0, exposedCells: 0, maxTroops: HELI_MAX_TROOPS };
+  const boxModel = { canOpen: false, openReason: 0, active: false, status: 'idle' as 'idle' | 'pending' | 'valid' | 'invalid', reason: 0, etaSeconds: 0, fuelCells: 0, exposedCells: 0, maxTroops: HELI_MAX_TROOPS, pinned: false };
   /** The deploy block and the helicopter list in the Factory panel (only while a Factory is selected). */
   const deployBoxFrame = (sess: MatchSession, factory: number): void => {
     const box = deployBox;
@@ -1756,6 +1818,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     boxModel.fuelCells = cur === null ? 0 : cur.fuelCells;
     boxModel.exposedCells = cur === null ? 0 : cur.exposedCells;
     boxModel.maxTroops = heliMaxTroopsOf(v, L);
+    boxModel.pinned = deployMode !== null && deployMode.pinned() >= 0;
     // the helicopter rows only change with the table or the tick (the Recall verdict is a function of both): ask again then, not every frame
     if (v.tick !== rowsTick || v.helisVersion !== rowsVersion || factory !== rowsFactory) {
       rowsTick = v.tick;

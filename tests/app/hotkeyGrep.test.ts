@@ -15,6 +15,7 @@ const ALLOWED: Record<string, string> = {
   'app/setupScreen.ts': 'the setup screen owns the keyboard before a match: Enter in the search field and Escape back to the menu',
   'ui/matchPanels.ts': 'the Tab trap inside a modal dialog (scrim element, not the window)',
   'app/main.ts': 'the M00 spike scene (?scene=spike) has its own F3 box',
+  'ui/contextMenu.ts': 'Ctx-1: the arrow keys, Enter and Home / End inside the open right-click menu (a listener on the menu element, not on the window; it also keeps the game keys dead while the menu is open)',
 };
 
 const LISTENER = /addEventListener\(\s*['"`]keydown['"`]|\bonkeydown\b|\.on\(\s*['"`]keydown['"`]/;
