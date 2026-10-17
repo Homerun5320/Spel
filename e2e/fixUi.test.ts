@@ -91,6 +91,15 @@ describe('Fix-UI', () => {
           });
           expect(box.left).toBeGreaterThanOrEqual(0);
           expect(box.right).toBeLessThanOrEqual(size.width);
+          // M18e-1 integration: the bar never overlaps the speed / commitment panel (five columns at 1366 px did)
+          const clash = await page.evaluate(() => {
+            const a = (document.querySelector('[data-testid="build-bar"]') as HTMLElement).getBoundingClientRect();
+            const c = document.querySelector('.hud-controls') as HTMLElement | null;
+            if (c === null) return null;
+            const b = c.getBoundingClientRect();
+            return a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+          });
+          expect(clash, 'build bar versus controls panel').toBe(false);
           await page.screenshot({ path: path.join(SHOT_DIR, `fixui-bar-${size.width}x${size.height}-${lang}.png`) });
         } finally {
           await page.close();
