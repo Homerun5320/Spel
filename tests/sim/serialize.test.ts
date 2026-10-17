@@ -48,8 +48,8 @@ describe('serialize / deserialize', () => {
     expect(b.length).toBe(serializedLengthOf(s));
     // fixed part + attack table (8 byte head; per attack 36 bytes, 8 per non-empty frontier bag and 4 per frontier cell) + 20 bucket counts and the queued cells (4 each) + checksum
     const attacks = s.attacks.list.reduce((n, a) => n + 36 + 4 * a.size + 8 * a.counts.reduce((k, c) => k + (c > 0 ? 1 : 0), 0), 0);
-    expect(b.length).toBe(HEADER_BYTES + 128 * 64 * 11 + 64 * 2 + 5 * 16 + 8 + attacks + 20 * 4 + 4 * s.enclaves.length + 20 /* M12a-1: the empty air block, M13c-1: + the ship count word */ + (16 + 5 * 4 + 5 * 5 + 32 * s.structures.liveCount + 4 * s.structures.recycledCount + 24 * s.structures.districtCount) + (40 + 36 * 5) + (16 + 12 * 5) + 4); // M18d-1: the match block holds the three technology arrays (40 + 36 per ownerId); M18c-1: + the empty diplomacy block (16 + 12 per ownerId); M18-1: + the match block (40 + 24 per ownerId); Districts-1: + districtCount (4) and 24 per district // M09 part B: + the embargo flags, (seats + 1)^2 bytes
-    expect(serializedLength(128, 64, 4)).toBe(HEADER_BYTES + 128 * 64 * 11 + 64 * 2 + 5 * 16 + 8 + 20 * 4 + 20 + 16 + 5 * 4 + 5 * 5 + (40 + 36 * 5) + (16 + 12 * 5) + 4); // M13c-1: the air block is 4 bytes longer (the ship count)
+    expect(b.length).toBe(HEADER_BYTES + 128 * 64 * 11 + 64 * 2 + 5 * 16 + 8 + attacks + 20 * 4 + 4 * s.enclaves.length + 20 /* M12a-1: the empty air block, M13c-1: + the ship count word */ + (16 + 5 * 4 + 5 * 5 + 32 * s.structures.liveCount + 4 * s.structures.recycledCount + 24 * s.structures.districtCount) + (40 + 36 * 5) + (16 + 12 * 5) + 4 + (8 + 12 * 5) /* M14a: the missile block */); // M18d-1: the match block holds the three technology arrays (40 + 36 per ownerId); M18c-1: + the empty diplomacy block (16 + 12 per ownerId); M18-1: + the match block (40 + 24 per ownerId); Districts-1: + districtCount (4) and 24 per district // M09 part B: + the embargo flags, (seats + 1)^2 bytes
+    expect(serializedLength(128, 64, 4)).toBe(HEADER_BYTES + 128 * 64 * 11 + 64 * 2 + 5 * 16 + 8 + 20 * 4 + 20 + 16 + 5 * 4 + 5 * 5 + (40 + 36 * 5) + (16 + 12 * 5) + 4 + (8 + 12 * 5)); // M13c-1: the air block is 4 bytes longer (the ship count); M14a: the missile block (a row count, a fallout count and 3 launch counters per owner slot)
     expect(HEADER_BYTES).toBe(64);
     expect(Array.from(b.subarray(0, 4))).toEqual([0x53, 0x50, 0x45, 0x4c]); // 'SPEL'
     expect(v.getUint32(0, true)).toBe(MAGIC);
@@ -358,6 +358,6 @@ describe('deserialize: errors are results, never throws', () => {
 
 describe('golden params', () => {
   it('serialized size of the golden world', () => {
-    expect(serialize(createScenarioState(GOLDEN_PARAMS)).length).toBe(64 + 8192 * 11 + 64 * 2 + 5 * 16 + 8 + 20 * 4 + 20 + 16 + 5 * 4 + 5 * 5 + (40 + 36 * 5) + (16 + 12 * 5) + 4); // M13c-1: the air block is 4 bytes longer (the ship count) // M18c-1: + the empty diplomacy block (16 + 12 per ownerId); M18-1: + the match block; Districts-1: + the district count (16 = 12 + 4); M09 part B: + the embargo flags (seats + 1)^2; M09 part A: + the structure block (12 bytes and 4 per ownerId when empty)
+    expect(serialize(createScenarioState(GOLDEN_PARAMS)).length).toBe(64 + 8192 * 11 + 64 * 2 + 5 * 16 + 8 + 20 * 4 + 20 + 16 + 5 * 4 + 5 * 5 + (40 + 36 * 5) + (16 + 12 * 5) + 4 + (8 + 12 * 5)); // M14a: + the empty missile block (8 + 12 per ownerId); M13c-1: the air block is 4 bytes longer (the ship count) // M18c-1: + the empty diplomacy block (16 + 12 per ownerId); M18-1: + the match block; Districts-1: + the district count (16 = 12 + 4); M09 part B: + the embargo flags (seats + 1)^2; M09 part A: + the structure block (12 bytes and 4 per ownerId when empty)
   });
 });

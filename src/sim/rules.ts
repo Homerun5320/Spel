@@ -691,3 +691,39 @@ export const SHIP_CELLS_PER_TICK_Q = 32;
 export const SHIP_LAND_TICKS = 20;
 /** Refusal codes of LaunchShip are SHIP_REASON_BASE + n (n = 1..), a block of their own above every other REJECT_* code (as LZ_REASON_BASE does for the landing zone). */
 export const SHIP_REASON_BASE = 120;
+
+// ---------------------------------------------------------------------------------------------------------------
+// M14a: missiles and nukes (src/sim/missileTable.ts, missileGeom.ts, missileRules.ts, missilePhase.ts). Every constant has a row in docs/BALANCE.md. Provisional: the M14a block of docs/DECISIONS.md.
+// A class index is 0 Tactical cruise, 1 Fission, 2 Fusion. Distances along the globe are in ANGLE UNITS (65536 = one turn): the reference cell of the plan (a 1024-cell equator) is 64 units,
+// so "80 cells" is 5120. Radii of the blast are in km and become cells per row with the cell size of that row (cellWidthM).
+
+/** Slots of the missile table (a structural limit, all seats together). */
+export const MISSILE_CAPACITY = 64;
+/** Gold of the first launch of a class (index = class). */
+export const MISSILE_BASE_GOLD = [300, 900, 3500];
+/** Every earlier launch of the class by the same seat adds this many percent of the base price: price = base x (100 + step x n) / 100. */
+export const MISSILE_PRICE_STEP_PCT = 25;
+/** Ticks a Silo needs between two launches (45 s). */
+export const MISSILE_COOLDOWN_TICKS = 450;
+/** Range in angle units (index = class; 0 = unlimited). 80 and 240 reference cells. */
+export const MISSILE_RANGE_ANGLE = [5120, 15360, 0];
+/** Speed in angle units per tick (index = class): 20 reference cells/s for the cruise missile, 30 for the ballistic ones, at 10 ticks/s. */
+export const MISSILE_SPEED_ANGLE_PER_TICK = [128, 192, 192];
+/** Inner and outer blast radius in km (index = class): the plan's 4/8, 6/16 and 18/30 cells times the 39.1 km of an equator cell, rounded. */
+export const MISSILE_R_IN_KM = [157, 235, 704];
+export const MISSILE_R_OUT_KM = [313, 626, 1174];
+/** A Fusion missile needs a Silo of at least this level. */
+export const MISSILE_FUSION_SILO_LEVEL = 2;
+/** A building in the outer ring is hit with this chance in percent (a stateless hash roll per building). */
+export const MISSILE_OUTER_HIT_PCT = 50;
+/** Troop loss of an owner hit by a Fission or Fusion blast: min(CAP percent of the troops, FACTOR x troops x cells hit / cells owned). */
+export const MISSILE_TROOP_LOSS_CAP_PCT = 60;
+export const MISSILE_TROOP_LOSS_FACTOR = 3;
+/** Ticks the fallout of the inner disc lasts (180 s). */
+export const FALLOUT_TICKS = 1800;
+/** Fallout cells cost this many percent of the usual price to conquer. */
+export const FALLOUT_COST_PCT = 150;
+/** The longest flight in ticks the state may hold (a guard of deserialize; the longest real flight is half the globe at the ballistic speed: 171). */
+export const MISSILE_MAX_FLIGHT_TICKS = 200;
+/** Refusal codes of LaunchMissile are MISSILE_REASON_BASE + n (n = 1..), a block of their own above the ship block (121..133). */
+export const MISSILE_REASON_BASE = 140;

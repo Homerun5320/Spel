@@ -4,13 +4,13 @@
 // Every intent has a seat (0-based) and an id (unsigned 32 bit, unique per seat, handed out by an IdAllocator).
 // Inside one turn intents run in the canonical order (seat, id, kind, payload); the id is the tie-break between the
 // intents of one seat, so the result never depends on the order in which they arrived.
-import { DISTRICT_MAX_SLOTS, HELI_CAPACITY, SHIP_REASON_BASE, STRUCT_CAPACITY, STRUCT_TYPE_COUNT, TECH_COUNT } from './rules';
+import { DISTRICT_MAX_SLOTS, HELI_CAPACITY, MISSILE_REASON_BASE, SHIP_REASON_BASE, STRUCT_CAPACITY, STRUCT_TYPE_COUNT, TECH_COUNT } from './rules';
 import { MAX_SEATS } from './state';
 
-export type IntentKind = 'Noop' | 'DebugPaint' | 'Spawn' | 'Attack' | 'CancelAttack' | 'DebugGive' | 'Build' | 'Upgrade' | 'Delete' | 'BuildDistrict' | 'UpgradeDistrict' | 'RemoveDistrict' | 'ProduceHeli' | 'LaunchHeli' | 'RecallHeli' | 'ProposeTreaty' | 'AcceptTreaty' | 'DeclineTreaty' | 'BreakTreaty' | 'ImposeEmbargo' | 'LiftEmbargo' | 'Research' | 'CancelResearch' | 'LaunchShip';
+export type IntentKind = 'Noop' | 'DebugPaint' | 'Spawn' | 'Attack' | 'CancelAttack' | 'DebugGive' | 'Build' | 'Upgrade' | 'Delete' | 'BuildDistrict' | 'UpgradeDistrict' | 'RemoveDistrict' | 'ProduceHeli' | 'LaunchHeli' | 'RecallHeli' | 'ProposeTreaty' | 'AcceptTreaty' | 'DeclineTreaty' | 'BreakTreaty' | 'ImposeEmbargo' | 'LiftEmbargo' | 'Research' | 'CancelResearch' | 'LaunchShip' | 'LaunchMissile';
 
 /** The intent kinds in wire order (the index is the kind byte of the codec). Append only: a published code never changes meaning. */
-export const INTENT_KINDS: readonly IntentKind[] = ['Noop', 'DebugPaint', 'Spawn', 'Attack', 'CancelAttack', 'DebugGive', 'Build', 'Upgrade', 'Delete', 'BuildDistrict', 'UpgradeDistrict', 'RemoveDistrict', 'ProduceHeli', 'LaunchHeli', 'RecallHeli', 'ProposeTreaty', 'AcceptTreaty', 'DeclineTreaty', 'BreakTreaty', 'ImposeEmbargo', 'LiftEmbargo', 'Research', 'CancelResearch', 'LaunchShip'];
+export const INTENT_KINDS: readonly IntentKind[] = ['Noop', 'DebugPaint', 'Spawn', 'Attack', 'CancelAttack', 'DebugGive', 'Build', 'Upgrade', 'Delete', 'BuildDistrict', 'UpgradeDistrict', 'RemoveDistrict', 'ProduceHeli', 'LaunchHeli', 'RecallHeli', 'ProposeTreaty', 'AcceptTreaty', 'DeclineTreaty', 'BreakTreaty', 'ImposeEmbargo', 'LiftEmbargo', 'Research', 'CancelResearch', 'LaunchShip', 'LaunchMissile'];
 
 /** Does nothing; valid for any seat. Exists to prove the pipeline (and as the heartbeat of a lockstep client). */
 export interface NoopBody {
@@ -226,8 +226,20 @@ export interface LaunchShipBody {
   readonly troops: number;
 }
 
+/**
+ * M14a (wire kind 24): a seat fires a missile of class `missileClass` (0 Tactical, 1 Fission, 2 Fusion) from its finished Silo `silo` (a structure table id) at the cell `targetCell`.
+ * The gold is taken at once. The refusals are REJECT_PHASE and the REJECT_MISSILE_* block (MISSILE_REASON_BASE + n).
+ */
+export interface LaunchMissileBody {
+  readonly kind: 'LaunchMissile';
+  readonly seat: number;
+  readonly silo: number;
+  readonly missileClass: number;
+  readonly targetCell: number;
+}
+
 /** An intent before it has an id (what the UI submits to a host). */
-export type IntentBody = NoopBody | DebugPaintBody | SpawnBody | AttackBody | CancelAttackBody | DebugGiveBody | BuildBody | UpgradeBody | DeleteBody | BuildDistrictBody | UpgradeDistrictBody | RemoveDistrictBody | ProduceHeliBody | LaunchHeliBody | RecallHeliBody | ProposeTreatyBody | AcceptTreatyBody | DeclineTreatyBody | BreakTreatyBody | ImposeEmbargoBody | LiftEmbargoBody | ResearchBody | CancelResearchBody | LaunchShipBody;
+export type IntentBody = NoopBody | DebugPaintBody | SpawnBody | AttackBody | CancelAttackBody | DebugGiveBody | BuildBody | UpgradeBody | DeleteBody | BuildDistrictBody | UpgradeDistrictBody | RemoveDistrictBody | ProduceHeliBody | LaunchHeliBody | RecallHeliBody | LaunchMissileBody | ProposeTreatyBody | AcceptTreatyBody | DeclineTreatyBody | BreakTreatyBody | ImposeEmbargoBody | LiftEmbargoBody | ResearchBody | CancelResearchBody | LaunchShipBody;
 
 export type Intent = IntentBody & { readonly id: number };
 
@@ -270,6 +282,10 @@ export function launchHeliBody(seat: number, factory: number, lzCell: number, tr
 export function recallHeliBody(seat: number, heli: number): RecallHeliBody {
   return { kind: 'RecallHeli', seat, heli };
 }
+export function launchMissileBody(seat: number, silo: number, missileClass: number, targetCell: number): LaunchMissileBody {
+  return { kind: 'LaunchMissile', seat, silo, missileClass, targetCell };
+}
+
 export function launchShipBody(seat: number, port: number, targetCell: number, troops: number): LaunchShipBody {
   return { kind: 'LaunchShip', seat, port, targetCell, troops };
 }
@@ -484,7 +500,7 @@ function isIntegerIn(v: unknown, lo: number, hi: number): boolean {
 /** Why an intent is not valid in this match (REJECT_*), or REJECT_NONE. Total: any value whatsoever may be passed in. */
 export function validateIntent(x: unknown, ctx: ValidateContext): number {
   if (typeof x !== 'object' || x === null) return REJECT_SHAPE;
-  const o = x as { kind?: unknown; seat?: unknown; id?: unknown; cell?: unknown; target?: unknown; pct?: unknown; gold?: unknown; troops?: unknown; targetCell?: unknown; port?: unknown; type?: unknown; structure?: unknown; slot?: unknown; districtKind?: unknown; factory?: unknown; lzCell?: unknown; altMode?: unknown; heli?: unknown; to?: unknown; treaty?: unknown; from?: unknown; with?: unknown; tech?: unknown };
+  const o = x as { kind?: unknown; seat?: unknown; id?: unknown; cell?: unknown; target?: unknown; pct?: unknown; gold?: unknown; troops?: unknown; targetCell?: unknown; port?: unknown; silo?: unknown; missileClass?: unknown; type?: unknown; structure?: unknown; slot?: unknown; districtKind?: unknown; factory?: unknown; lzCell?: unknown; altMode?: unknown; heli?: unknown; to?: unknown; treaty?: unknown; from?: unknown; with?: unknown; tech?: unknown };
   const code = kindCode(o.kind);
   if (code < 0) return REJECT_KIND;
   if (!isIntegerIn(o.seat, 0, MAX_SEATS - 1) || (o.seat as number) >= ctx.seats) return REJECT_SEAT;
@@ -514,6 +530,10 @@ export function validateIntent(x: unknown, ctx: ValidateContext): number {
     if (!isIntegerIn(o.lzCell, 0, ctx.cells - 1)) return REJECT_CELL;
     if (!isIntegerIn(o.troops, 0, 4294967295)) return REJECT_AMOUNT;
     if (!isIntegerIn(o.altMode, 0, 1)) return REJECT_SHAPE;
+  } else if (o.kind === 'LaunchMissile') {
+    if (!isIntegerIn(o.silo, 0, STRUCT_CAPACITY - 1)) return REJECT_STRUCT_ID;
+    if (!isIntegerIn(o.missileClass, 0, 2)) return REJECT_SHAPE;
+    if (!isIntegerIn(o.targetCell, 0, ctx.cells - 1)) return REJECT_CELL;
   } else if (o.kind === 'LaunchShip') {
     if (!isIntegerIn(o.port, 0, STRUCT_CAPACITY - 1)) return REJECT_STRUCT_ID;
     if (!isIntegerIn(o.targetCell, 0, ctx.cells - 1)) return REJECT_CELL;
@@ -559,6 +579,10 @@ function comparePayload(a: Intent, b: Intent): number {
     return a.troops !== b.troops ? a.troops - b.troops : a.altMode - b.altMode;
   }
   if (a.kind === 'RecallHeli' && b.kind === 'RecallHeli') return a.heli - b.heli;
+  if (a.kind === 'LaunchMissile' && b.kind === 'LaunchMissile') {
+    if (a.silo !== b.silo) return a.silo - b.silo;
+    return a.missileClass !== b.missileClass ? a.missileClass - b.missileClass : a.targetCell - b.targetCell;
+  }
   if (a.kind === 'LaunchShip' && b.kind === 'LaunchShip') {
     if (a.port !== b.port) return a.port - b.port;
     return a.targetCell !== b.targetCell ? a.targetCell - b.targetCell : a.troops - b.troops;
@@ -594,7 +618,7 @@ export const INVALID_BODY: IntentBody = Object.freeze({ kind: 'Noop', seat: -1 }
  */
 export function copyBody(x: unknown): IntentBody {
   if (typeof x !== 'object' || x === null) return INVALID_BODY;
-  const o = x as { kind?: unknown; seat?: unknown; cell?: unknown; target?: unknown; pct?: unknown; gold?: unknown; troops?: unknown; targetCell?: unknown; port?: unknown; type?: unknown; structure?: unknown; slot?: unknown; districtKind?: unknown; factory?: unknown; lzCell?: unknown; altMode?: unknown; heli?: unknown; to?: unknown; treaty?: unknown; from?: unknown; with?: unknown; tech?: unknown };
+  const o = x as { kind?: unknown; seat?: unknown; cell?: unknown; target?: unknown; pct?: unknown; gold?: unknown; troops?: unknown; targetCell?: unknown; port?: unknown; silo?: unknown; missileClass?: unknown; type?: unknown; structure?: unknown; slot?: unknown; districtKind?: unknown; factory?: unknown; lzCell?: unknown; altMode?: unknown; heli?: unknown; to?: unknown; treaty?: unknown; from?: unknown; with?: unknown; tech?: unknown };
   const seat = typeof o.seat === 'number' ? o.seat : -1;
   if (o.kind === 'Noop') return { kind: 'Noop', seat };
   if (o.kind === 'DebugPaint') return { kind: 'DebugPaint', seat, cell: typeof o.cell === 'number' ? o.cell : -1 };
@@ -612,6 +636,7 @@ export function copyBody(x: unknown): IntentBody {
   if (o.kind === 'ProduceHeli') return { kind: 'ProduceHeli', seat, factory: num(o.factory) };
   if (o.kind === 'LaunchHeli') return { kind: 'LaunchHeli', seat, factory: num(o.factory), lzCell: num(o.lzCell), troops: num(o.troops), altMode: num(o.altMode) };
   if (o.kind === 'RecallHeli') return { kind: 'RecallHeli', seat, heli: num(o.heli) };
+  if (o.kind === 'LaunchMissile') return { kind: 'LaunchMissile', seat, silo: num(o.silo), missileClass: num(o.missileClass), targetCell: num(o.targetCell) };
   if (o.kind === 'LaunchShip') return { kind: 'LaunchShip', seat, port: num(o.port), targetCell: num(o.targetCell), troops: num(o.troops) };
   if (o.kind === 'ProposeTreaty') return { kind: 'ProposeTreaty', seat, to: num(o.to), treaty: num(o.treaty) };
   if (o.kind === 'AcceptTreaty') return { kind: 'AcceptTreaty', seat, from: num(o.from) };
@@ -655,6 +680,8 @@ export function withId(body: IntentBody, id: number): Intent {
       return { kind: 'LaunchHeli', seat: body.seat, factory: body.factory, lzCell: body.lzCell, troops: body.troops, altMode: body.altMode, id };
     case 'RecallHeli':
       return { kind: 'RecallHeli', seat: body.seat, heli: body.heli, id };
+    case 'LaunchMissile':
+      return { kind: 'LaunchMissile', seat: body.seat, silo: body.silo, missileClass: body.missileClass, targetCell: body.targetCell, id };
     case 'LaunchShip':
       return { kind: 'LaunchShip', seat: body.seat, port: body.port, targetCell: body.targetCell, troops: body.troops, id };
     case 'ProposeTreaty':
@@ -733,3 +760,27 @@ export const REJECT_SHIP_BAD_TARGET = SHIP_REASON_BASE + 11;
 export const REJECT_SHIP_NO_ROUTE = SHIP_REASON_BASE + 12;
 /** LaunchShip while the global ship table (SHIP_CAPACITY slots, all seats) is full. */
 export const REJECT_SHIP_TABLE_FULL = SHIP_REASON_BASE + 13;
+
+// M14a: the refusals of LaunchMissile, a block of their own (MISSILE_REASON_BASE + n). A spawn phase is REJECT_PHASE.
+/** LaunchMissile from a structure that is not a live Silo. */
+export const REJECT_MISSILE_NO_SILO = MISSILE_REASON_BASE + 1;
+/** LaunchMissile from another seat's Silo. */
+export const REJECT_MISSILE_NOT_OWNER = MISSILE_REASON_BASE + 2;
+/** LaunchMissile from a Silo that is still being built. */
+export const REJECT_MISSILE_SILO_NOT_READY = MISSILE_REASON_BASE + 3;
+/** LaunchMissile from a Silo whose cooldown (MISSILE_COOLDOWN_TICKS) is still running. */
+export const REJECT_MISSILE_COOLDOWN = MISSILE_REASON_BASE + 4;
+/** LaunchMissile at a cell beyond the range of the class (Fusion has none). */
+export const REJECT_MISSILE_OUT_OF_RANGE = MISSILE_REASON_BASE + 5;
+/** LaunchMissile of a Fusion missile from a Silo below level MISSILE_FUSION_SILO_LEVEL. */
+export const REJECT_MISSILE_NEED_SILO_L2 = MISSILE_REASON_BASE + 6;
+/** LaunchMissile the purse cannot pay (base price x the launch counter). */
+export const REJECT_MISSILE_NO_GOLD = MISSILE_REASON_BASE + 7;
+/** LaunchMissile at a cell that is water (deep sea or shallows). */
+export const REJECT_MISSILE_TARGET_NOT_LAND = MISSILE_REASON_BASE + 8;
+/** LaunchMissile at land whose owner is not hostile to the seat (a truce, an alliance, a federation, the seat's own land). */
+export const REJECT_MISSILE_NOT_HOSTILE = MISSILE_REASON_BASE + 9;
+/** LaunchMissile while the missile table (MISSILE_CAPACITY slots, all seats) is full. */
+export const REJECT_MISSILE_TABLE_FULL = MISSILE_REASON_BASE + 10;
+/** LaunchMissile with a class that does not exist (a state-side check; the shape check catches it first). */
+export const REJECT_MISSILE_BAD_CLASS = MISSILE_REASON_BASE + 11;

@@ -204,6 +204,24 @@ ACCEPTANS
 - [x] No ENGINE or FORMAT change, goldens untouched; perf (`tests/viewEvents.perf.test.ts`) and allocation (`tests/host/viewEventRing.test.ts`) green.
 - [x] `npm run verify:fast` (result in `docs/DECISIONS.md` "Events-1").
 
+### M14a: missiles and nukes in the sim (headless, no Chromium; ENGINE 27, FORMAT 18; the SAM interception is M14b; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+
+GÖR
+- [x] 1. Missile table (`src/sim/missileTable.ts`): SoA, 64 slots, lowest-free-slot allocation, launch counters per (owner, class), the FALLOUT layer; hashed and serialised (FORMAT 18) with typed deserialize guards.
+- [x] 2. Intent `LaunchMissile{seat, silo, missileClass, targetCell}` (wire kind 24), codec, shape check, refusal block MISSILE_REASON_BASE + n (141..151), price +25 % per earlier launch, Silo cooldown in `salvoTick`.
+- [x] 3. Flight (`src/sim/missileGeom.ts`): unit vectors from the Q15 sine table, range as a chord, flight time from a chord table, normalised-lerp position; no trig.
+- [x] 4. Blast (`src/sim/missilePhase.ts`, `src/sim/missileBlast.ts`): cell changes through `setOwner`, buildings, outer ring roll, troop loss, fallout (no Build, 1.5 x price), Tactical buildings only, spill on non-hostile land breaks the treaty.
+- [x] 5. `validateMissileLaunch`, `previewBlast`, `previewThreat` (empty list) in `src/sim/public.ts`; `OUTBOX_MISSILE_*` events forwarded as `ViewSnapshot.events`; `MissileView` in the host snapshot and mirror; `interceptPhase` hook (no-op).
+- [x] 6. Tests with mutants (table in DECISIONS "M14a"), `missiles --fixture plain-cruise|fusion-silo --seed N` CLI, perf test.
+
+ACCEPTANS
+- [x] Table, intent, codes, flight, blast, fallout and troop loss built; Tactical changes no owner.
+- [x] Every refusal code has a test and the page-side check agrees with the sim; the price rises 25 % per launch.
+- [x] Blast area within 1.5 % of the spherical cap at the equator, 45 N and 60 N; fallout ends exactly 1800 ticks after the blast; troop loss never above 60 %; derived structures equal a rebuild; a 104 000 cell blast inside budgetMs(50).
+- [x] OUTBOX_MISSILE_* reach the page once; `MissileView` in snapshot and mirror; `interceptPhase` exists as a no-op.
+- [x] ENGINE 27 / FORMAT 18, both golden files recomputed once; Node == worker; a save in the middle of a flight equals a straight run; the CLI prints identical bytes.
+- [x] `npm run verify:fast` (result in `docs/DECISIONS.md` "M14a").
+
 ## Next
 
 - Fix-5 (the audit 4 fixes) is merged on the branch and published as version 32; audit 5 follows after five more published versions (v33 to v37).

@@ -50,6 +50,7 @@ import {
   UPHILL_MAX_PCT,
   UPHILL_PER_STEP_MILLI,
   UPHILL_STEP_UNITS,
+  FALLOUT_COST_PCT,
 } from './rules';
 import { PHASE_IMMUNITY, PHASE_SPAWN, phaseAt } from './flow';
 import {
@@ -234,6 +235,9 @@ export function advanceAttack(state: GameState, a: Attack, slot: number, n: numb
   const leaderPct = leaderCostPct(state, target);
   // LAND techs (M18d-1): the attacker's own researched discount on every cell, fixed for the call (100 = none).
   const techPct = 100 - state.match.fx(attacker, TECH_FX_COST);
+  const fallout = state.missiles.fallout;
+  const falloutLive = state.missiles.falloutCount !== 0;
+  const tickNow = state.tick;
   const w = grid.width;
   const colMask = grid.colMask;
   const cells = grid.cells;
@@ -296,6 +300,7 @@ export function advanceAttack(state: GameState, a: Attack, slot: number, n: numb
     // The attacker's discount comes AFTER the defence multipliers (home trait, Walls / Post: the largest of those applies): price = defended price x pct / 100.
     if (leaderPct !== 100) cost = Math.floor((cost * leaderPct) / 100);
     if (techPct !== 100) cost = Math.floor((cost * techPct) / 100);
+    if (falloutLive && (fallout[cell] as number) > tickNow) cost = Math.floor((cost * FALLOUT_COST_PCT) / 100); // M14a: fallout cells cost 1.5 x
     const owed = (costFrac + cost) | 0;
     const whole = (owed / MILLI_QT) | 0;
     if (troops < whole) {

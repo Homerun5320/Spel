@@ -15,6 +15,8 @@ import { MirrorStructures } from './structureMirror';
 import { MirrorHelis } from './heliMirror';
 import { MirrorBeachheads } from './beachheadMirror';
 import { MirrorShips } from './shipMirror';
+import { MirrorMissiles } from './missileMirror';
+import type { MissileView } from '../sim/missileTable';
 import type { ShipView } from '../sim/shipTable';
 import { MirrorFronts } from './frontMirror';
 import { MirrorDiplomacy } from './diplomacyMirror';
@@ -63,6 +65,7 @@ export class ViewMirror implements SimView {
   private readonly heliTable = new MirrorHelis();
   private readonly beachTable = new MirrorBeachheads();
   private readonly shipTable = new MirrorShips();
+  private readonly missileTable = new MirrorMissiles();
   private readonly frontTable = new MirrorFronts();
   private readonly diploTable: MirrorDiplomacy;
   private readonly eventRing = new ViewEventRing();
@@ -103,6 +106,7 @@ export class ViewMirror implements SimView {
     if (v.helis !== null) this.heliTable.adopt(v.helis);
     if (v.beachheads !== null) this.beachTable.adopt(v.beachheads);
     if (v.ships != null) this.shipTable.adopt(v.ships);
+    if (v.missiles != null) this.missileTable.adopt(v.missiles);
     if (v.fronts !== null) this.frontTable.adopt(v.fronts);
     if (v.diplomacy !== null) this.diploTable.adopt(v.diplomacy);
   }
@@ -162,6 +166,13 @@ export class ViewMirror implements SimView {
   }
   get shipsVersion(): number {
     return this.shipTable.version;
+  }
+  /** The missile table (M14a): the copy of the last table the host sent; `missilesVersion` moves when a new one arrived. */
+  get missiles(): MissileView {
+    return this.missileTable;
+  }
+  get missilesVersion(): number {
+    return this.missileTable.version;
   }
 
   /** The attack fronts (M20a-2): the copy of the last description the host sent; `frontsVersion` moves when a new one arrived. */
@@ -272,6 +283,7 @@ export class ViewMirror implements SimView {
     if (d.view.helis !== null) this.heliTable.adopt(d.view.helis);
     if (d.view.beachheads !== null) this.beachTable.adopt(d.view.beachheads);
     if (d.view.ships != null) this.shipTable.adopt(d.view.ships);
+    if (d.view.missiles != null) this.missileTable.adopt(d.view.missiles);
     if (d.view.fronts !== null) this.frontTable.adopt(d.view.fronts);
     if (d.view.diplomacy !== null) this.diploTable.adopt(d.view.diplomacy);
     this.eventRing.appendPacked(d.view.events, d.view.eventsDropped);

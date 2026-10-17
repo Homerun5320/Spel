@@ -16,6 +16,7 @@ import { heliSignature, snapshotHelis } from './heliSnapshot';
 import { heliVisibilityOf, type HeliSight } from '../sim/heliVisibility';
 import { beachheadSignature, snapshotBeachheads } from './beachheadSnapshot';
 import { shipSignature, snapshotShips } from './shipSnapshot';
+import { missileSignature, snapshotMissiles } from './missileSnapshot';
 import { frontSignature, snapshotFronts } from './frontSnapshot';
 import { snapshotDiplomacy } from './diplomacySnapshot';
 import { StateView, attackPairs, fillSeatStats, statsLength, type SimView } from '../sim/view';
@@ -36,6 +37,7 @@ import {
   type AttackFrontSnapshot,
   type BeachheadSnapshot,
   type ShipSnapshot,
+  type MissileSnapshot,
   type HeliSnapshot,
   type DiplomacySnapshot,
   type StructureSnapshot,
@@ -94,6 +96,8 @@ export class MainThreadHost implements SimHost {
   private lastFrontSig = -1;
   /** The same for the ship table (M13c-1). */
   private lastShipSig = -1;
+  /** The same for the missile table (M14a). */
+  private lastMissileSig = -1;
   /** The version of the diplomacy table in the last diff that carried it (-1 = none yet). */
   private lastDiploVersion = -1;
   /** Reused for the statistics of every view (the snapshot gets a copy). */
@@ -260,8 +264,17 @@ export class MainThreadHost implements SimHost {
       beachheads: full ? snapshotBeachheads(s) : this.changedBeachheads(),
       fronts: full ? snapshotFronts(s) : this.changedFronts(),
       ships: full ? snapshotShips(s.ships) : this.changedShips(),
+      missiles: full ? snapshotMissiles(s.missiles) : this.changedMissiles(),
       ...this.drainEvents(full),
     };
+  }
+
+  /** The missile table when it differs from the one the last diff carried, else null (64 rows at most; it changes at a launch and at a blast only). */
+  private changedMissiles(): MissileSnapshot | null {
+    const sig = missileSignature(this.state.missiles);
+    if (sig === this.lastMissileSig) return null;
+    this.lastMissileSig = sig;
+    return snapshotMissiles(this.state.missiles);
   }
 
   /** The ship table when it differs from the one the last diff carried, else null (32 rows at most). */

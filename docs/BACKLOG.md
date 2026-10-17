@@ -660,3 +660,12 @@ M18e-2
 - Runway lights for the Airfield (night lamps along the runway) and a windsock; a rotating radar on the Lab; steam that moves on the Plant (one more spinning tint code).
 - If many Airfields, Labs and Plants stand in one match, split the shared mesh into one mesh per type (the vertex cost of the shared mesh is 590 triangles per instance, also for a type that needs only 154).
 - The 800 m camera of the original wish: a "model view" camera that frames one structure from the side at its true size.
+M14a
+- The SAM interception (M14b): `interceptPhase` in `src/sim/missilePhase.ts` is a no-op; `previewThreat` answers the empty list; `OUTBOX_MISSILE_INTERCEPTOR_LAUNCHED` 25 and `_INTERCEPTED` 26 are declared and not pushed; the fixtures ridge-cruise and sam-stack are not in `tools/sim/missiles.ts`.
+- Fallout gives gold: the prompt wanted "no gold" for fallout cells, but the gold comes from the per-owner weighted area aggregate, which has no per-cell hook. Built: no Build (existing rule), 1.5 x conquest price. Idea: a per-owner fallout weight kept by `changeOwner` plus an expiry queue, subtracted in `goldMilliPerTick`.
+- Expired fallout entries stay in the `fallout` array until the cell is blasted again (they are part of the hash and the save, harmless); an expiry sweep would shrink the save of a long match.
+- The fallout layer is not in the ViewMirror (`falloutUntilAt` answers 0 there, so the page-side Build check cannot refuse a fallout cell; the sim does). M15a needs it for the overlay: send the detonation list (centre, tick, class) or a sparse (cell, until) delta in the snapshot.
+- A ViewMirror does not carry the Silo salvo clock (`salvoTick`), so `validateMissileLaunch` on a mirror never answers COOLDOWN; add an optional `salvoTick` column to the structure snapshot for Silos (its signature must then not fold the SAM clocks).
+- `missilePosition` is the normalised lerp: slower near the ends than in the middle (a renderer may smooth it); `cellOf` for a missile (the cell it is over now) needs an inverse of the vector, a column search with cross products, not built (M14b needs it for the SAM hash).
+- No missile is scrapped when its launcher is eliminated; it blasts as planned. No interception of a cruise missile by terrain masking yet (M14b).
+- Blast radii are km constants converted per row with the row's cell width; the disc uses the row of the cell for east-west, so a disc near the pole is a little wider than a true circle in the last rows (area within 1.5 % of the cap, tested at 60 N).

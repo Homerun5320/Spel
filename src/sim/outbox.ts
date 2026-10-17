@@ -48,6 +48,20 @@ export const OUTBOX_SHIP_SCRAPPED = 19;
 /** A ship turned for home: a = ship id, b = 1 when a truce or an alliance now binds its owner to the owner of the landing cell, 0 when its mission is over. */
 export const OUTBOX_SHIP_RTB = 20;
 
+// M14a: missile events. The interceptor events (25, 26) are declared for M14b and not pushed yet.
+/** A missile left its Silo: a = missile id, b = target cell. */
+export const OUTBOX_MISSILE_LAUNCHED = 21;
+/** A warning to the owner of the target cell (pushed only when somebody else's land is aimed at): a = missile id, b = ticks until the blast (the ETA). */
+export const OUTBOX_MISSILE_WARNING = 22;
+/** A missile blew up: a = class (0 Tactical, 1 Fission, 2 Fusion), b = the centre cell. The row is gone by then; the radii are the class's (rules.ts). */
+export const OUTBOX_MISSILE_DETONATED = 23;
+/** A building was destroyed by a blast: a = its cell, b = its structure type. */
+export const OUTBOX_MISSILE_BUILDING_DESTROYED = 24;
+/** (M14b) An interceptor left a SAM site: a = missile id, b = the tick it meets the warhead. */
+export const OUTBOX_MISSILE_INTERCEPTOR_LAUNCHED = 25;
+/** (M14b) A warhead was shot down: a = missile id, b = the cell it was over. */
+export const OUTBOX_MISSILE_INTERCEPTED = 26;
+
 export interface OutboxEvent {
   readonly kind: number;
   /** The tick of the step that produced the event (the tick before it was incremented). */

@@ -28,6 +28,7 @@ import { applyBuildDistrict, applyRemoveDistrict, applyUpgradeDistrict } from '.
 import { applyLaunchHeli, applyRecallHeli } from './heliFlight';
 import { applyProduceHeli, heliPhase } from './heliPhase';
 import { applyLaunchShip, shipPhase } from './shipPhase';
+import { applyLaunchMissile, missilePhase } from './missilePhase';
 import { applyBuild, applyDelete, applyUpgrade, structuresPhase } from './structures';
 import { seatToOwner, type GameState } from './state';
 import { applyCancelResearch, applyResearch, techPhase } from './tech';
@@ -80,6 +81,8 @@ export function applyIntent(state: GameState, intent: Intent): number {
       return applyLaunchHeli(state, intent.seat, intent.factory, intent.lzCell, intent.troops, intent.altMode);
     case 'RecallHeli':
       return applyRecallHeli(state, intent.seat, intent.heli);
+    case 'LaunchMissile':
+      return applyLaunchMissile(state, intent.seat, intent.silo, intent.missileClass, intent.targetCell);
     case 'LaunchShip':
       return applyLaunchShip(state, intent.seat, intent.port, intent.targetCell, intent.troops);
     case 'ProposeTreaty':
@@ -151,13 +154,14 @@ export function step(state: GameState, turn: TurnIntents): StepResult {
       applied++;
     }
   }
-  // Phases of a tick: 0 diplomacy expiry (above, before the intents), 1 intents (above), 2 conquest, 3 enclaves, 4 economy, 5 structures (finished upgrades), 5b helicopters (finished production; M12a-1), 5c ships (M13c-1), 6 the generator, 7 the tick, 7b research (a finished research becomes a researched tech; M18d-1), 8 the match end (peak land, elimination, win conditions; M18-1).
+  // Phases of a tick: 0 diplomacy expiry (above, before the intents), 1 intents (above), 2 conquest, 3 enclaves, 4 economy, 5 structures (finished upgrades), 5b helicopters (finished production; M12a-1), 5c ships (M13c-1), 5d missiles (M14a: the SAM hook, then the blasts), 6 the generator, 7 the tick, 7b research (a finished research becomes a researched tech; M18d-1), 8 the match end (peak land, elimination, win conditions; M18-1).
   conquestPhase(state);
   enclavePhase(state);
   economyTick(state);
   structuresPhase(state);
   heliPhase(state);
   shipPhase(state); // M13c-1: the transport ships (src/sim/shipPhase.ts)
+  missilePhase(state); // M14a: the interception hook, then the blasts (src/sim/missilePhase.ts)
   if (rejected > 0) state.rejects = (state.rejects + rejected) >>> 0;
   nextU32(state.rng);
   state.tick = (state.tick + 1) >>> 0;
