@@ -132,7 +132,7 @@ ACCEPTANS
 - [x] Keys 7, 8, 9 in the registry and the overlay; texts sv + en; the registry has provisional models without new draw calls (`tests/render/structureModelsAlias.test.ts`).
 - [x] The AI builds Lab and Plant without an illegal intent; the solo band and `tests/sim/pace.test.ts` are unchanged.
 - [x] ENGINE 25 (FORMAT stays 16), both golden files recomputed once (only the version word moved), Node == worker, serialize round trip.
-- [ ] `npm run verify:fast` green (see the result line at the end of this block).
+- [x] `npm run verify:fast` green: typecheck, lint and 297 unit files (3228 tests) PASS, 1 min 55 s wall (the full `npm run verify` is the orchestrator's).
 
 Note for the user: the Airfield, Lab and Plant look like a bigger Factory, a smaller Silo and a small Factory in another colour until M18e-2 brings real models.
 
