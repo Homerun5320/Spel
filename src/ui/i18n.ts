@@ -562,6 +562,7 @@ const sv = {
   'tech.fx.9': 'SAM-träff +{n} procentenheter',
   'tech.fx.10': 'Murar och poster +{n} %',
   'tech.fx.11': 'SAM-salvotid -{n} %',
+  'setup.error.federationNeedsAi': 'Ett uppdelat land behöver minst {min} AI-nation som motståndare, annars vinner ni direkt.',
 } as const;
 
 export type TextKey = keyof typeof sv;
@@ -1113,6 +1114,7 @@ const en: Record<TextKey, string> = {
   'tech.fx.9': 'SAM hit chance +{n} points',
   'tech.fx.10': 'Walls and posts +{n}%',
   'tech.fx.11': 'SAM salvo time -{n}%',
+  'setup.error.federationNeedsAi': 'A split country needs at least {min} AI nation as an opponent, or you win at once.',
 };
 
 /** The two tables, for the parity test and for tools. Treat as read-only. */

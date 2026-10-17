@@ -139,7 +139,7 @@ export function matchSetupConfig(player: PlayerChoice, options: Partial<Omit<Mat
   };
 }
 
-export type SetupErrorCode = 'invalid' | 'neutralNeedsCustom' | 'unknownCountry' | 'notSelectable' | 'startCell' | 'notEnoughCountries' | 'nameTaken';
+export type SetupErrorCode = 'invalid' | 'neutralNeedsCustom' | 'unknownCountry' | 'notSelectable' | 'startCell' | 'notEnoughCountries' | 'nameTaken' | 'federationNeedsAi';
 
 /** Why a config was refused: a code for the tests and an i18n key with its parameters for the player. */
 export interface SetupError {
@@ -289,6 +289,49 @@ function subNationStart(state: GameState, f: Federations, sub: SubNation, prefer
   return -1;
 }
 
+/** Fix-5A2: AI nations a match needs when the player's country is split into a federation (all seats would be one group: an instant "last alive" win). */
+export const FEDERATION_MIN_AI_NATIONS = 1;
+
+/**
+ * M18b-2: how the player's federation candidate splits: the sub-nation you play, its capital cell and the partner sub-nations (cell each), or null when
+ * the country stays whole (not a candidate, or fewer than two sub-nations can start). Their starts are found on an empty map.
+ */
+function planHumanSplit(
+  analysis: RegionAnalysis,
+  fed: Federations,
+  config: MatchSetupConfig,
+  playerCountry: CountryInfo,
+): { sub: SubNation; cell: number; partners: Array<{ sub: SubNation; cell: number }> } | null {
+  const members = membersOf(fed, playerCountry);
+  if (members.length < 2) return null;
+  const scratch = createWorldState(analysis.world, { seed: config.seed, seats: 1, players: 1, config: { debugIntents: false, spawnPhase: false, homeRules: false } });
+  const starts: Array<{ sub: SubNation; cell: number }> = [];
+  for (const m of members) {
+    const cell = subNationStart(scratch, fed, m, fed.federationRaster[playerCountry.capitalCell] === m.id ? playerCountry.capitalCell : -1);
+    if (cell >= 0) starts.push({ sub: m, cell });
+  }
+  if (starts.length < 2) return null;
+  const wanted = config.subNation ?? 0;
+  let me = starts.find((x) => x.sub.id === wanted);
+  me ??= starts.find((x) => x.sub.id === fed.federationRaster[playerCountry.capitalCell]);
+  me ??= starts.reduce((a, b) => (b.sub.cells > a.sub.cells ? b : a));
+  return { sub: me.sub, cell: me.cell, partners: starts.filter((x) => x !== me) };
+}
+
+/**
+ * Fix-5A2: the fewest AI nations a config may have. FEDERATION_MIN_AI_NATIONS when "Dela upp stormakter" is on and the chosen country really splits
+ * (the same decision createMatch takes), else 0 (India and every non-candidate stay whole). A bad config gives 0 (createMatch refuses it itself).
+ */
+export function federationMinAiNations(world: PreparedWorld, config: MatchSetupConfig): number {
+  if (config.federations !== true || badField(config) !== null || config.player.kind !== 'real' || config.neutral) return 0;
+  const fed = world.data.federations ?? null;
+  const country = world.byId.get(config.player.countryId) ?? null;
+  if (fed === null || country === null) return 0;
+  const analysis = world.analyse(config.region);
+  if (!countryEligibility(analysis, country).ok) return 0;
+  return planHumanSplit(analysis, fed, config, country) === null ? 0 : FEDERATION_MIN_AI_NATIONS;
+}
+
 /** Squared distance of two cells on the cylinder (x wraps). */
 function distance2(width: number, a: number, b: number): number {
   const ax = a % width;
@@ -373,28 +416,12 @@ function build(world: PreparedWorld, config: MatchSetupConfig, lenient: boolean)
   // M18b-2: "Dela upp stormakter". The player's country, when it is a federation candidate, becomes its sub-nations: you play one, the others are AI
   // partners (allied from tick 0). Their starts are found on an empty map first, because the number of seats depends on how many sub-nations can start.
   const fed = config.federations === true ? (world.data.federations ?? null) : null;
-  let humanSub: SubNation | null = null;
-  let partners: Array<{ sub: SubNation; cell: number }> = [];
-  if (fed !== null && playerCountry !== null) {
-    const members = membersOf(fed, playerCountry);
-    if (members.length >= 2) {
-      const scratch = createWorldState(analysis.world, { seed: config.seed, seats: 1, players: 1, config: { debugIntents: false, spawnPhase: false, homeRules: false } });
-      const starts: Array<{ sub: SubNation; cell: number }> = [];
-      for (const m of members) {
-        const cell = subNationStart(scratch, fed, m, fed.federationRaster[playerCountry.capitalCell] === m.id ? playerCountry.capitalCell : -1);
-        if (cell >= 0) starts.push({ sub: m, cell });
-      }
-      if (starts.length >= 2) {
-        const wanted = config.subNation ?? 0;
-        let me = starts.find((x) => x.sub.id === wanted);
-        me ??= starts.find((x) => x.sub.id === fed.federationRaster[playerCountry.capitalCell]);
-        me ??= starts.reduce((a, b) => (b.sub.cells > a.sub.cells ? b : a));
-        humanSub = me.sub;
-        humanCell = me.cell;
-        partners = starts.filter((x) => x !== me);
-      }
-    }
-  }
+  const split = fed !== null && playerCountry !== null ? planHumanSplit(analysis, fed, config, playerCountry) : null;
+  const humanSub: SubNation | null = split === null ? null : split.sub;
+  const partners: Array<{ sub: SubNation; cell: number }> = split === null ? [] : split.partners;
+  if (split !== null) humanCell = split.cell;
+  // Fix-5A2: a federation without an outsider would win "last alive" 20 s in (win.ts counts groups), so the match needs one AI nation.
+  if (split !== null && config.aiNations < FEDERATION_MIN_AI_NATIONS) return fail('federationNeedsAi', 'setup.error.federationNeedsAi', { min: FEDERATION_MIN_AI_NATIONS });
   const aiOthers = Math.min(config.aiNations, SETUP_AI_NATIONS_MAX - partners.length);
   const players = 1 + partners.length + aiOthers;
   const tribeSeats = config.tribes ? MATCH_TRIBES : 0;

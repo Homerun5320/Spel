@@ -43,15 +43,15 @@ export interface TechCell {
   readonly prereq: number;
 }
 
-export const TECH_NAME_KEYS: readonly TextKey[] = [
-  'tech.name.0', 'tech.name.1', 'tech.name.2', 'tech.name.3', 'tech.name.4', 'tech.name.5', 'tech.name.6', 'tech.name.7',
-  'tech.name.8', 'tech.name.9', 'tech.name.10', 'tech.name.11', 'tech.name.12', 'tech.name.13', 'tech.name.14', 'tech.name.15',
-];
-export const TECH_BRANCH_KEYS: readonly TextKey[] = ['tech.branch.0', 'tech.branch.1', 'tech.branch.2', 'tech.branch.3'];
+// Fix-5A2: the key lists are DERIVED from the counts of rules.ts (the keys themselves are checked by tests/ui/techKeys.test.ts), so a new tech or branch needs its text, not a
+// new list. The researched set is a 31-bit mask (`1 << tech`), so more than 31 techs cannot work: the module refuses to load.
+if (TECH_COUNT > 31) throw new Error(`TECH_COUNT ${TECH_COUNT} does not fit the 31-bit tech mask`);
+/** The key family `prefix` + 0 .. n - 1 (the prefix ends with a dot; tests/i18n.test.ts knows these three families, tests/ui/techKeys.test.ts checks them). */
+const keysOf = (prefix: string, n: number): readonly TextKey[] => Array.from({ length: n }, (_, i) => `${prefix}${i}` as TextKey);
+export const TECH_NAME_KEYS: readonly TextKey[] = keysOf('tech.name.', TECH_COUNT);
+export const TECH_BRANCH_KEYS: readonly TextKey[] = keysOf('tech.branch.', TECH_BRANCHES);
 /** One text per effect channel of TECH_FX, with the placeholder {n}. */
-export const TECH_FX_KEYS: readonly TextKey[] = [
-  'tech.fx.0', 'tech.fx.1', 'tech.fx.2', 'tech.fx.3', 'tech.fx.4', 'tech.fx.5', 'tech.fx.6', 'tech.fx.7', 'tech.fx.8', 'tech.fx.9', 'tech.fx.10', 'tech.fx.11',
-];
+export const TECH_FX_KEYS: readonly TextKey[] = keysOf('tech.fx.', TECH_FX_CHANNELS);
 
 /** The non-zero effect channels of a tech as (channel, value) pairs, straight from TECH_FX. */
 export function techEffectParts(tech: number): { channel: number; n: number }[] {

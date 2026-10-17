@@ -4,6 +4,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import { TECH_BRANCHES, TECH_COUNT, TECH_FX_CHANNELS } from '../src/sim/rules';
 import {
   DEFAULT_LANGUAGE,
   LANGUAGES,
@@ -168,6 +169,11 @@ describe('the source and the tables agree', () => {
   for (const f of files) {
     const text = fs.readFileSync(f, 'utf8');
     for (const m of text.matchAll(KEY_LITERAL)) used.set(m[1] as string, path.relative(SRC, f));
+  }
+  // Fix-5A2: the tech-tree text keys are DERIVED from the counts of rules.ts in src/ui/techModel.ts (no literal per key); the families are known here, and
+  // tests/ui/techKeys.test.ts checks that exactly TECH_COUNT / TECH_BRANCHES / TECH_FX_CHANNELS keys of each family exist (no dead 'tech.name.16').
+  for (const [family, n] of [['tech.name.', TECH_COUNT], ['tech.branch.', TECH_BRANCHES], ['tech.fx.', TECH_FX_CHANNELS]] as const) {
+    for (let i = 0; i < n; i++) used.set(`${family}${i}`, 'ui/techModel.ts');
   }
 
   it('every key written in the source exists in both tables', () => {

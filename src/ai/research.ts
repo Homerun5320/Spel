@@ -28,9 +28,15 @@ import {
 } from '../sim/public';
 import type { AiMemory } from './memory';
 
-const UNDER_ATTACK: readonly number[] = [TECH_BRANCH_DEFENCE, TECH_BRANCH_LAND, TECH_BRANCH_ECONOMY, TECH_BRANCH_AIR];
-const AIRBORNE: readonly number[] = [TECH_BRANCH_AIR, TECH_BRANCH_ECONOMY, TECH_BRANCH_LAND, TECH_BRANCH_DEFENCE];
-const PEACEFUL: readonly number[] = [TECH_BRANCH_ECONOMY, TECH_BRANCH_LAND, TECH_BRANCH_DEFENCE, TECH_BRANCH_AIR];
+/** The branch order of each situation (exported for the tech-tree guard test: every branch must be in each). */
+export const RESEARCH_ORDERS: Readonly<Record<'underAttack' | 'airborne' | 'peaceful', readonly number[]>> = {
+  underAttack: [TECH_BRANCH_DEFENCE, TECH_BRANCH_LAND, TECH_BRANCH_ECONOMY, TECH_BRANCH_AIR],
+  airborne: [TECH_BRANCH_AIR, TECH_BRANCH_ECONOMY, TECH_BRANCH_LAND, TECH_BRANCH_DEFENCE],
+  peaceful: [TECH_BRANCH_ECONOMY, TECH_BRANCH_LAND, TECH_BRANCH_DEFENCE, TECH_BRANCH_AIR],
+};
+const UNDER_ATTACK = RESEARCH_ORDERS.underAttack;
+const AIRBORNE = RESEARCH_ORDERS.airborne;
+const PEACEFUL = RESEARCH_ORDERS.peaceful;
 
 /** Is somebody attacking this seat right now? */
 function underAttack(view: SimView, seat: number): boolean {
