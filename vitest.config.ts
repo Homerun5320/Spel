@@ -24,6 +24,7 @@ export default defineConfig({
           include: ['tests/**/*.test.ts', 'tools/**/*.test.ts'],
           exclude: ['tests/**/*.perf.test.ts', 'node_modules/**'],
           environment: 'node',
+          setupFiles: ['tests/i18n.setup.ts'],
           // All cores (the default is cores - 1): the unit project is CPU-bound and nothing else runs next to it except typecheck and lint (D144).
           maxWorkers: os.availableParallelism(),
           testTimeout: 30_000,
@@ -40,7 +41,7 @@ export default defineConfig({
           maxWorkers: 1,
           // retry: 1 is allowed in the perf project only; the setup file logs it.
           retry: 1,
-          setupFiles: ['tests/perf.setup.ts'],
+          setupFiles: ['tests/i18n.setup.ts', 'tests/perf.setup.ts'],
           testTimeout: 120_000,
           hookTimeout: 60_000,
         },
@@ -52,6 +53,7 @@ export default defineConfig({
           exclude: [...E2E_SERIAL_FILES, 'node_modules/**'],
           environment: 'node',
           globalSetup: ['e2e/globalSetup.ts'],
+          setupFiles: ['tests/i18n.setup.ts'],
           pool: 'forks',
           fileParallelism: e2eWorkers > 1,
           maxWorkers: e2eWorkers,
@@ -68,6 +70,7 @@ export default defineConfig({
           include: E2E_SERIAL_FILES,
           environment: 'node',
           globalSetup: ['e2e/globalSetup.ts'],
+          setupFiles: ['tests/i18n.setup.ts'],
           pool: 'forks',
           fileParallelism: false,
           maxWorkers: 1,

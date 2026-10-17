@@ -9,7 +9,8 @@ import { federationOfCell } from '../data/federations';
 import { REGION_IDS, type RegionId } from '../data/regions';
 import { SETUP_AI_NATIONS_MAX, START_DISC_CELLS } from '../sim/rules';
 import { cssOfHex, drawFlag, flagSpecText, makeFlagSpec } from '../ui/flag';
-import { getLanguage, onLanguageChange, setLanguage, t, tn, type TextKey } from '../ui/i18n';
+import { getLanguage, onLanguageChange, t, tn, type TextKey } from '../ui/i18n';
+import { toggleLanguage } from '../ui/langSwitch';
 import { mountHudStyle } from '../ui/hudStyle';
 import { CUSTOM_NAME_MAX_CHARS, FLAG_PREVIEW_H, FLAG_PREVIEW_W, SETUP_FLY_MAX_KM, SETUP_PLACE_DIST_KM, WIN_SETUP } from '../ui/uiConfig';
 import { resolveClickCell } from './clickTarget';
@@ -729,7 +730,7 @@ export function mountSetupScreen(parent: HTMLElement, world: PreparedWorld, init
   neutral.addEventListener('change', () => apply({ neutral: neutral.checked }));
   fed.addEventListener('change', () => apply({ federations: fed.checked, subNation: 0 }));
   langBtn.addEventListener('click', () => {
-    setLanguage(getLanguage() === 'sv' ? 'en' : 'sv');
+    toggleLanguage(langBtn);
     langBtn.blur();
   });
   styleBtn.addEventListener('click', () => {

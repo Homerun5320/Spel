@@ -4,7 +4,8 @@
 import { DEV_PANEL_REQUEST_EVENT } from './events';
 import { createGpuTip } from './gpuTip';
 import { mountHudStyle } from './hudStyle';
-import { getLanguage, onLanguageChange, setLanguage, t, type TextKey } from './i18n';
+import { onLanguageChange, t, type TextKey } from './i18n';
+import { toggleLanguage } from './langSwitch';
 
 export interface StartScreen {
   /** The Play button, for the caller that wants to focus or probe it. */
@@ -131,7 +132,7 @@ export function mountStartScreen(parent: HTMLElement, onPlay: () => void | Promi
     options.onSetup?.();
   });
   lang.addEventListener('click', () => {
-    setLanguage(getLanguage() === 'sv' ? 'en' : 'sv');
+    toggleLanguage(lang);
     lang.blur();
   });
   dev.addEventListener('click', () => {

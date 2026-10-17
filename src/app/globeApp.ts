@@ -65,9 +65,10 @@ import { rangeRingCells, selectionInfo } from '../ui/structureInfo';
 import { createSelectionMode, pickStructure, type SelectionMode } from './structureSelect';
 import { createMatchHud, notConquerableText, rejectText, type MatchHud, type MatchHudModel } from '../ui/matchHud';
 import { getLanguage, onLanguageChange, setStrictI18n, t, type TextKey } from '../ui/i18n';
+import { notifyLanguageError } from '../ui/langSwitch';
 import { CITY_VIEW, DEPLOY, GPU_TIP_PREF_KEY, START_FLY_KM, START_SPIN_DEG_PER_S, SETUP_IDLE_DIST_KM } from '../ui/uiConfig';
 import { mountStartScreen, type StartScreen } from '../ui/startScreen';
-import { applyStartLanguage } from './langPref';
+import { applyStartLanguage, loadStartLanguage } from './langPref';
 import { getPref, setPref } from './prefs';
 import { rememberCityStyle, startCityStyle } from './cityStyle';
 import type { CityStyle } from '../render/cityTiers';
@@ -478,14 +479,19 @@ function loadPrepared(world: WorldData): Promise<PreparedWorld> {
 export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   const { wrapper, canvas, overlay, params } = ctx;
   // Language and strictness first: every text below goes through t(). Test mode fails on a missing key (D98).
-  const stopLanguagePref = applyStartLanguage(ctx.state.raw, params.test);
+  // Bundle-diet-2: only the start language is fetched (both in test mode), together with the world pack, before any text is built.
+  const worldLoad = loadWorld();
+  worldLoad.catch(() => undefined); // reported where it is awaited below
+  const startLang = await loadStartLanguage(ctx.state.raw, params.test);
+  const stopLanguagePref = applyStartLanguage(ctx.state.raw, params.test, startLang.lang);
   setStrictI18n(params.test);
   const status = document.createElement('div');
   status.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#9bd;font:14px system-ui,sans-serif;pointer-events:none;';
   status.textContent = t('app.loading');
+  if (startLang.failed !== null) notifyLanguageError(wrapper, startLang.failed);
   if (!params.test) wrapper.appendChild(status);
 
-  const world = await loadWorld();
+  const world = await worldLoad;
   const { meta } = world;
   status.remove();
   if (ctx.isActive && !ctx.isActive()) {
