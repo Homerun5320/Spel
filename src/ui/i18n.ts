@@ -435,7 +435,7 @@ const sv = {
   'diplo.signal': 'Förslag: {n}',
   'diplo.title': 'Diplomati',
   'diplo.close': 'Stäng',
-  'diplo.hint': 'Ett förslag gäller i 60 sekunder. Esc eller D stänger.',
+  'diplo.hint': 'Ett förslag gäller i {s} sekunder. Esc eller D stänger.',
   'diplo.empty': 'Det finns inga andra nationer att förhandla med.',
   'diplo.rel.war': 'Krig',
   'diplo.rel.truce': 'Vapenvila, {time} kvar',
@@ -492,7 +492,7 @@ const sv = {
   // M18b-2: federations (Dela upp stormakter)
   'reject.diplo.federation': 'Delnationer i samma federation är bundna av en allians som inte kan brytas.',
   'setup.federation': 'Dela upp stormakter',
-  'setup.federation.hint': 'Ryssland, Kanada, USA, Kina, Brasilien, Australien och Indien delas upp i allierade delnationer. Du spelar en av dem.',
+  'setup.federation.hint': 'Ryssland, Kanada, USA, Kina, Brasilien och Australien delas upp i allierade delnationer när de kan starta. Du spelar en av dem.',
   'setup.federation.sub': '{country} delas upp. Du spelar en delnation (den du klickar på på kartan, annars den med huvudstaden eller den största). Federationen har upp till {members} delnationer (de som är för små för en rättvis start hoppas över); AI-nationer totalt högst {ai} (tak {max}).',
   'setup.federation.none': 'Inget uppdelningsbart land valt: valet ändrar ingenting.',
   // M13a-2: chase camera
@@ -986,7 +986,7 @@ const en: Record<TextKey, string> = {
   'diplo.signal': 'Proposals: {n}',
   'diplo.title': 'Diplomacy',
   'diplo.close': 'Close',
-  'diplo.hint': 'A proposal is open for 60 seconds. Esc or D closes.',
+  'diplo.hint': 'A proposal is open for {s} seconds. Esc or D closes.',
   'diplo.empty': 'There are no other nations to negotiate with.',
   'diplo.rel.war': 'War',
   'diplo.rel.truce': 'Truce, {time} left',
@@ -1043,7 +1043,7 @@ const en: Record<TextKey, string> = {
   // M18b-2: federations (split the great powers)
   'reject.diplo.federation': 'Sub-nations of one federation are bound by an alliance that cannot be broken.',
   'setup.federation': 'Split the great powers',
-  'setup.federation.hint': 'Russia, Canada, the USA, China, Brazil, Australia and India are split into allied sub-nations. You play one of them.',
+  'setup.federation.hint': 'Russia, Canada, the USA, China, Brazil and Australia are split into allied sub-nations when they can start. You play one of them.',
   'setup.federation.sub': '{country} is split. You play one sub-nation (the one you click on the map, else the one with the capital or the largest). The federation has up to {members} sub-nations (those too small for a fair start are skipped); AI nations in total at most {ai} (cap {max}).',
   'setup.federation.none': 'No splittable country chosen: the option changes nothing.',
   // M13a-2: chase camera

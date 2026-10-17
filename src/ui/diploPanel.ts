@@ -2,7 +2,7 @@
 // most DIPLO.cardsMax, always on screen while a proposal waits). Plain DOM built from JS. The panel only SENDS intents through `DiploActions` and READS the sim through
 // the model (`src/ui/diploModel.ts`), where every button state is the answer of a `validate*` function. The DOM is written only where a text, an attribute or a state
 // changed: the rows are rebuilt when the clock second, the diplomacy table, the language or the armed break changed, so a resting page makes no mutation at all.
-import { RELATION_ALLIANCE, RELATION_TRUCE, TICK_HZ, TREATY_ALLIANCE, TREATY_BREAK_COOLDOWN_TICKS, TREATY_TRUCE, type SimView } from '../sim/public';
+import { PROPOSAL_TTL_TICKS, RELATION_ALLIANCE, RELATION_TRUCE, TICK_HZ, TREATY_ALLIANCE, TREATY_BREAK_COOLDOWN_TICKS, TREATY_TRUCE, type SimView } from '../sim/public';
 import { BreakConfirm, buildDiploRows, incomingProposals, secondsLeft, type DiploButton, type DiploRow } from './diploModel';
 import { diplomacyRefusalKey } from './diploReasons';
 import { formatClock, formatFixed, languageVersion, t, type TextKey } from './i18n';
@@ -201,7 +201,7 @@ export function createDiploPanel(parent: HTMLElement, actions: DiploActions, opt
   const draw = (v: SimView, L: number): void => {
     title.textContent = t('diplo.title');
     closeBtn.textContent = t('diplo.close');
-    hint.textContent = t('diplo.hint');
+    hint.textContent = t('diplo.hint', { s: Math.round(PROPOSAL_TTL_TICKS / TICK_HZ) });
     card.setAttribute('aria-label', t('diplo.title'));
     const rows = buildDiploRows(v, L);
     setHidden(empty, rows.length !== 0);
