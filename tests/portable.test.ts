@@ -39,7 +39,7 @@ describe('the forbidden-address scanner itself', () => {
 });
 
 /** Size caps in bytes of gzipped JavaScript (Fix-3C): measured plus about 5 %. Raise them only with a line in docs/DECISIONS.md. */
-const JS_GZ_TOTAL_MAX = 408_500; // Round 24 merge (M14b + M13c-2): measured 407_965 (the lazy sim/host chunks grew with the interceptors, the ship UI sits in the start chunk: START headroom 4_380, see DECISIONS "Round 24 integration"). Older: // M13c-2: measured 406_263 (the ship layer, mode, box, watcher and texts: about 4.8 kB over 401_424); START headroom after it is 4_380 (docs/DECISIONS.md "M13c-2"). Before: 402_000, Round 23 merge (M14a + Bundle-diet-2): measured 401_424; the total counts the lazy chunks and both language tables, so the payback of the diet shows in the START and MAIN caps (lowered by 8_000 and 12_200), not here: see DECISIONS "Round 23 integration". Older: // Bundle-diet-2: 396_000 before; measured 397_892 (+2_575: the two tables gzip separately, 8_779 + 9_141, instead of 15_4xx inside main; the total counts the lazy chunks too, so the payback of diet step 1 shows in the START and MAIN caps below, not here; see DECISIONS "Bundle-diet-2"). Older: // Round 22 merge: 393_000 before; measured 395_288 with the ship code, the three structure models in one shared mesh and the event ring (rule of DECISIONS "Bundle diet" 3: paid back by diet step 1, the language tables, about 8.8 kB, which is the NEXT pass and must lower this cap by at least 8_000). Older: // M13c-1: 391_000 before; measured 392_934 with the ship table, the sea route, LaunchShip and the ship snapshot (rule of DECISIONS "Bundle diet" 3: paid back by diet step 1, the language tables, about 8.8 kB, in the pass "Bundle diet 1-3"). Older: 391_000 // Round 19 merge: 370_000 before; measured 372_309 with the technology rules, the federation setup and the helicopter effects, + 5 %
+const JS_GZ_TOTAL_MAX = 408_500; // Fix-6C [1.14]: a FIXED BUDGET NUMBER for all chunks, no longer "measured + 0.15 %"; it is not a gate that follows each slice (a player pays the first load, see JS_GZ_FIRST_LOAD_MAX; DECISIONS "Fix-6C"). Measured 408_043. Older: Round 24 merge (M14b + M13c-2): measured 407_965 (the lazy sim/host chunks grew with the interceptors, the ship UI sits in the start chunk: START headroom 4_380, see DECISIONS "Round 24 integration"). Older: // M13c-2: measured 406_263 (the ship layer, mode, box, watcher and texts: about 4.8 kB over 401_424); START headroom after it is 4_380 (docs/DECISIONS.md "M13c-2"). Before: 402_000, Round 23 merge (M14a + Bundle-diet-2): measured 401_424; the total counts the lazy chunks and both language tables, so the payback of the diet shows in the START and MAIN caps (lowered by 8_000 and 12_200), not here: see DECISIONS "Round 23 integration". Older: // Bundle-diet-2: 396_000 before; measured 397_892 (+2_575: the two tables gzip separately, 8_779 + 9_141, instead of 15_4xx inside main; the total counts the lazy chunks too, so the payback of diet step 1 shows in the START and MAIN caps below, not here; see DECISIONS "Bundle-diet-2"). Older: // Round 22 merge: 393_000 before; measured 395_288 with the ship code, the three structure models in one shared mesh and the event ring (rule of DECISIONS "Bundle diet" 3: paid back by diet step 1, the language tables, about 8.8 kB, which is the NEXT pass and must lower this cap by at least 8_000). Older: // M13c-1: 391_000 before; measured 392_934 with the ship table, the sea route, LaunchShip and the ship snapshot (rule of DECISIONS "Bundle diet" 3: paid back by diet step 1, the language tables, about 8.8 kB, in the pass "Bundle diet 1-3"). Older: 391_000 // Round 19 merge: 370_000 before; measured 372_309 with the technology rules, the federation setup and the helicopter effects, + 5 %
 const JS_GZ_MAIN_MAX = 303_500; // Bundle-diet-2: 315_700 before; measured 294_681 after the two language tables left the main chunk (own chunks, import()), + 3 %. Older: // Bundle-diet-1: 321_000 before; measured 306_484 after the dev modules left the main chunk (steps 2 and 3 of the diet), + 3 %. Older notes: // M18d-2: 311_000 before; measured 311_035 with the research panel, + 3 %. M20a-2: 294_500 before, measured 296_501 with the nation labels, the front arrows and the attack-front snapshot, + 5 %. M13b: 277_000 before; measured 280_318 + 5 % (the page now carries Los, Nav, planRoute and scoreLz for the preview; before, they lived only in the sim worker)
 
 describe('portable build (relative addresses only)', () => {
@@ -75,6 +75,7 @@ describe('portable build (relative addresses only)', () => {
     const sizes = walk(path.join(dist, 'assets'), (p) => p.endsWith('.js')).map((p) => ({ name: path.basename(p), gz: gzipSync(fs.readFileSync(p), { level: 9 }).length }));
     const total = sizes.reduce((sum, f) => sum + f.gz, 0);
     const main = Math.max(...sizes.map((f) => f.gz));
+    console.info(`[Fix-6C] main ${main} total ${total}`);
     expect(main).toBeLessThanOrEqual(JS_GZ_MAIN_MAX);
     expect(total).toBeLessThanOrEqual(JS_GZ_TOTAL_MAX);
   });
@@ -82,6 +83,8 @@ describe('portable build (relative addresses only)', () => {
 
 /** Bundle-diet-1: the first load (the script and the modulepreload chunks of index.html), gzip level 9, measured 348_938 + 3 %. */
 const JS_GZ_START_MAX = 351_500; // Bundle-diet-2: 359_500 before; measured 341_231 (the start load no longer carries a language table; the active one is fetched at boot, about 9 kB), + 3 %
+/** Fix-6C [2.0]: the first load before diet step 1 (start chunks with the language table inside). */
+const JS_GZ_FIRST_LOAD_MAX = 356_583;
 /** Chunks that must exist (the dynamic import() targets) and must NOT be in the first load. */
 const LAZY_CHUNKS = ['devpanel', 'modes', 'perfOverlay', 'perfScene', 'spike', 'mainThreadHost', 'aiDriver', 'matchHash'];
 
@@ -105,6 +108,35 @@ describe('portable build: the first load stays small (Bundle-diet-1)', () => {
     }
     const gz = start.reduce((sum, f) => sum + gzipSync(fs.readFileSync(path.join(dist, 'assets', f)), { level: 9 }).length, 0);
     expect(gz).toBeLessThanOrEqual(JS_GZ_START_MAX);
+    console.info(`[Fix-6C] start gz ${gz}`);
+  });
+
+  // Fix-6C [2.1]: matchSetup.ts once imported the whole AI barrel for pickSpawnCell and the first load carried about 11.8 kB of minified AI code. Property names survive
+  // minification: `lastBreakAt` and `proposeAt` are fields of the AI diplomacy memory and live in the aiDriver chunk only.
+  it('keeps AI-only code out of the first load (matchSetup imports ai/place, not the barrel)', () => {
+    const html = fs.readFileSync(path.join(dist, 'index.html'), 'utf8');
+    const start = [...html.matchAll(/assets\/([^"]+\.js)/g)].map((m) => m[1] as string);
+    const all = fs.readdirSync(path.join(dist, 'assets')).filter((f) => f.endsWith('.js'));
+    const holders = all.filter((f) => fs.readFileSync(path.join(dist, 'assets', f), 'utf8').includes('lastBreakAt'));
+    expect(holders.length, 'the needle must exist somewhere (else this test proves nothing)').toBeGreaterThan(0);
+    for (const needle of ['lastBreakAt', 'proposeAt']) {
+      const inStart = start.filter((f) => fs.readFileSync(path.join(dist, 'assets', f), 'utf8').includes(needle));
+      expect(inStart, `${needle} is AI diplomacy code and must not load with the page`).toEqual([]);
+    }
+  });
+
+  // Fix-6C [2.0]: what a player downloads at the first load is the start chunks PLUS the active language table (fetched at boot), not the start chunks alone. The cap is
+  // the figure before diet step 1 (356_583 B), so the diet can never be silently paid back.
+  it('keeps the FIRST LOAD (start chunks plus the larger language table) under the pre-diet figure', () => {
+    const html = fs.readFileSync(path.join(dist, 'index.html'), 'utf8');
+    const start = [...html.matchAll(/assets\/([^"]+\.js)/g)].map((m) => m[1] as string);
+    const gzOf = (f: string): number => gzipSync(fs.readFileSync(path.join(dist, 'assets', f)), { level: 9 }).length;
+    const startGz = start.reduce((sum, f) => sum + gzOf(f), 0);
+    const tables = fs.readdirSync(path.join(dist, 'assets')).filter((f) => /^i18n\.(sv|en)-.*\.js$/.test(f));
+    expect(tables.length).toBe(2);
+    const largest = Math.max(...tables.map(gzOf));
+    console.info(`[Fix-6C] first load ${startGz + largest} (start ${startGz} + table ${largest})`);
+    expect(startGz + largest).toBeLessThanOrEqual(JS_GZ_FIRST_LOAD_MAX);
   });
 
   // Bundle-diet-2: a unique Swedish and a unique English string of the tables. Each lives in a chunk of its own (loaded by import() for the ACTIVE language only), in
