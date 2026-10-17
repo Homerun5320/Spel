@@ -155,6 +155,24 @@ Measured before (gzip level 9, `npm run build` only to measure): first load 368 
 - [x] e2e green alone: artifact, hud, setup, perfScene, devpanel.
 - [x] `npm run verify:fast` (result in `docs/DECISIONS.md`).
 
+### M13c-1: sea transport in the sim (headless, no Chromium; ENGINE 26, FORMAT 17; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+
+GÖR
+- [x] 1. The ship table (`src/sim/shipTable.ts`): SoA, 32 slots, lowest-free-slot allocation, hashed and serialised (FORMAT 17), typed deserialize guards.
+- [x] 2. Intent `LaunchShip{seat, port, targetCell, troops}` (wire kind 23), codec, shape check, the refusal block SHIP_REASON_BASE + n (121..133), gold fee, `validateLaunchShip` in `src/sim/public.ts` (the sim runs the same `checkLaunchShip`).
+- [x] 3. Sea route (`src/sim/shipRoute.ts`): deterministic A* over water, string-pulled to at most 48 waypoints, work limit SHIP_ROUTE_MAX_CELLS, wrapX; the flight time follows from the route length and SHIP_CELLS_PER_TICK_Q.
+- [x] 4. Landing = the helicopter landing (`landTroops` in `src/sim/heliLanding.ts`, shared); treaty under way turns the ship back; eliminated owner scrapped; Port lost: sails on, lands, is scrapped.
+- [x] 5. No air defence against ships in v1 (DECISIONS, BACKLOG).
+- [x] 6. Outbox events SHIP_LAUNCHED / LANDED / RETURNED / SCRAPPED (+ RTB), `SimView.ships`, host snapshot and mirror (no render, no UI).
+- [x] 7. Tests with mutants (table in DECISIONS "M13c-1"), `ship-landing --seed N` CLI, perf test.
+
+ACCEPTANS
+- [x] Table, intent, codes, route, landing and events built; helicopter behaviour and tests unchanged (version words and hashes excepted).
+- [x] Parity between `validateLaunchShip` and the sim path; every refusal code has a test (`tests/sim/shipLaunch.test.ts`).
+- [x] Serialize / restore in the middle of a voyage, Node == worker, the CLI prints identical bytes (`tests/sim/shipState.test.ts`, `tests/sim/shipFlight.test.ts`, `tests/sim/shipLandingCli.test.ts`).
+- [x] ENGINE 26 / FORMAT 17, both golden files recomputed once (reason in DECISIONS "M13c-1").
+- [x] `npm run verify:fast` (result in DECISIONS "M13c-1").
+
 ## Next
 
 - Fix-5 (the audit 4 fixes) is merged on the branch and published as version 32; audit 5 follows after five more published versions (v33 to v37).

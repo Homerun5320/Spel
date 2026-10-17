@@ -37,11 +37,17 @@ import {
   MILLI_GOLD_PER_GOLD,
   QT_PER_TROOP,
   SHIP_CAPACITY,
+  SHIP_CELLS_PER_TICK_Q,
+  SHIP_COOLDOWN_TICKS,
   SHIP_FLEET_MAX,
+  SHIP_LAND_REACH_CELLS,
+  SHIP_LAND_TICKS,
   SHIP_LAUNCH_GOLD,
   SHIP_MAX_TROOPS,
   SHIP_MIN_TROOPS,
   SHIP_REASON_BASE,
+  SHIP_ROUTE_CAPACITY,
+  SHIP_ROUTE_MAX_CELLS,
 } from '../../src/sim/rules';
 import { applyLaunchShip } from '../../src/sim/shipPhase';
 import { validateLaunchShip } from '../../src/sim/shipRules';
@@ -103,6 +109,11 @@ describe('LaunchShip: the intent', () => {
     expect(compareIntents(a, withId(launchShipBody(0, 1, 6, 1), 0))).toBeLessThan(0);
     expect(compareIntents(a, withId(launchShipBody(0, 1, 5, 10), 0))).toBeLessThan(0);
     expect(compareIntents(a, withId(launchShipBody(0, 1, 5, 9), 0))).toBe(0);
+  });
+
+  it('the numbers of the rules are the ones of docs/BALANCE.md (a literal pin: the tests above use the constants)', () => {
+    expect([SHIP_CAPACITY, SHIP_FLEET_MAX, SHIP_MIN_TROOPS, SHIP_MAX_TROOPS, SHIP_LAUNCH_GOLD, SHIP_LAND_REACH_CELLS, SHIP_ROUTE_CAPACITY, SHIP_ROUTE_MAX_CELLS]).toEqual([32, 4, 20, 1200, 100, 2, 48, 16384]);
+    expect([SHIP_CELLS_PER_TICK_Q, SHIP_LAND_TICKS, SHIP_COOLDOWN_TICKS]).toEqual([32, 20, 300]);
   });
 
   it('the refusal codes are a block of their own above every older code, all different', () => {
@@ -234,7 +245,10 @@ describe('LaunchShip: every refusal, one by one (page check == sim check)', () =
   it('REJECT_SHIP_BAD_TARGET: sea, own land, a peak, inland, and the reach of SHIP_LAND_REACH_CELLS (2 cells from the water is fine, 3 is not)', () => {
     const c = base();
     expect(both(c, 0, TROOPS, c.port, at(110, 28))).toBe(REJECT_SHIP_BAD_TARGET); // open sea
-    expect(both(c, 0, TROOPS, c.port, at(10, 28))).toBe(REJECT_SHIP_BAD_TARGET); // own land
+    expect(both(c, 0, TROOPS, c.port, at(10, 28))).toBe(REJECT_SHIP_BAD_TARGET); // own land, inland
+    c.s.owner[at(144, 40)] = 1; // an own cell ON the far coast (somebody's attack took it): nothing to land on
+    rebuildAggregates(c.s);
+    expect(both(c, 0, TROOPS, c.port, at(144, 40))).toBe(REJECT_SHIP_BAD_TARGET);
     expect(both(c, 0, TROOPS, c.port, at(200, 28))).toBe(REJECT_SHIP_BAD_TARGET); // inland, far from the water
     c.s.terrain[at(145, 20)] = CLASS_PEAK;
     expect(both(c, 0, TROOPS, c.port, at(145, 20))).toBe(REJECT_SHIP_BAD_TARGET); // a peak cannot be owned

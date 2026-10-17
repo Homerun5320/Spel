@@ -383,3 +383,15 @@ Three new structure types in the same table, with the same Build / Upgrade / Del
 | `AI_BUILD_CITIES_PER_PLANT` | 4 | cities | eget val | M18e-1: the AI buys a Plant per 4 Cities it owns (the first at 4 Cities), only from the gold left after its next wanted structure, so it never delays a City. |
 | `AI_BUILD_CITIES_PER_LAB` | 6 | cities | eget val | M18e-1: and a Lab per 6 Cities (the first at 6), at most the 3 the rules allow. The AI builds no Airfield (it uses no helicopters before M17). |
 | `AI_BUILD_EXTRA_START_TICKS` | 3000 | ticks | eget val | M18e-1: no AI Plant or Lab before 5 minutes (expansion first; its research starts at tick 1500). |
+| `SHIP_CAPACITY` | 32 | slots | eget val | M13c-1: slots of the ship table (all seats together); a structural limit. Eight owners can fill it at the fleet cap of 4. |
+| `SHIP_ROUTE_CAPACITY` | 48 | waypoints | plan | M13c-1: the most waypoints of one route after the string-pull; a longer route is refused as REJECT_SHIP_NO_ROUTE. |
+| `SHIP_FLEET_MAX` | 4 | ships | eget val | M13c-1: ships one owner may have at a time; a docked ship that is cooling down still counts. |
+| `SHIP_COOLDOWN_TICKS` | 300 | ticks | eget val | M13c-1: after the ship has docked its Port is blocked for 30 s (REJECT_SHIP_COOLDOWN), then the row goes away. |
+| `SHIP_MIN_TROOPS` | 20 | troops | eget val | M13c-1: the fewest troops a ship carries (a ship is a raid, not a hop). |
+| `SHIP_MAX_TROOPS` | 1200 | troops | eget val | M13c-1: the most troops one ship carries: twice a helicopter (600), but only after a long, slow crossing. |
+| `SHIP_LAUNCH_GOLD` | 100 | gold | eget val | M13c-1: the fee of a departure, taken with the troops (half the price of a helicopter, which stays in the fleet). |
+| `SHIP_LAND_REACH_CELLS` | 2 | sim cells | eget val | M13c-1: the landing cell must have a water cell within 2 cells (Chebyshev, x wrapping); the ship stops on such a cell. |
+| `SHIP_ROUTE_MAX_CELLS` | 16384 | cells | eget val | M13c-1: the route search expands at most this many water cells; more and the launch is refused as NO_ROUTE. About 100 cells of open sea cost 3000 expansions, a 300-cell crossing round a wall 6000. |
+| `SHIP_CELLS_PER_TICK_Q` | 32 | Q8 cells/tick | eget val | M13c-1: 32/256 = 0.125 cells per tick = 1.25 cells per second, 60 percent of a Low helicopter (2.1): a 46-cell crossing takes 368 ticks (37 s). |
+| `SHIP_LAND_TICKS` | 20 | ticks | eget val | M13c-1: a ship unloads for 2 s before the cells are taken (a helicopter 1 s). |
+| `SHIP_REASON_BASE` | 120 | code offset | eget val | M13c-1: the refusals of LaunchShip are 121..133 (SHIP_REASON_BASE + 1..13), above every other REJECT_* code (the last older one is 119). |

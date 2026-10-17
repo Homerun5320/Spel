@@ -640,3 +640,13 @@ Bundle-diet-1
 - The total gzip cap (`JS_GZ_TOTAL_MAX`) cannot fall: lazy chunks add about 5 kB of per-chunk overhead to the sum, only the first load shrinks. Diet step 1 (language tables, about -8.8 kB) lowers it; then re-measure.
 - Prefetch hints for the host chunk (`modulepreload` after the start screen is shown) would hide the Play-press load on a slow managed network; not built.
 
+
+## M13c-1 (sea transport)
+
+- No air defence against ships in v1: Defense Posts and SAM sites do not shoot at them. Idea: a Post wears a ship down in a coast radius (a `shipHp` column), a coast battery as a new structure; sea battle and submarines are separate milestones.
+- Every ship is visible to every viewer (no `visibleShips`, no fog). Idea: a ship is seen under the viewer's `Los.detected` or inside a coast radius of an own Port, as the helicopters of M17-pre.
+- No shipyard or production: a Port sends one ship at a time for a gold fee and a cooldown; a Port level could raise the load, the speed or the fleet cap (`SHIP_FLEET_MAX`).
+- The LaunchShip UI (route preview, `validateLaunchShip` live check, texts for the 13 refusals `REJECT_SHIP_*`, the 58 and the 90) and the ship models are M13c-2; the AI sends no ship (it crosses no sea) until a later AI pass.
+- A ship that is turned back by a treaty stops where it is and sails home along its own route; a way to unload at the nearest own coast (not only the home Port) is not built. A Port lost during a voyage loses the load (no docking at another own Port).
+- Route: a one-cell wide strait counts as passable; the string-pull may pass a land corner by one cell between two sea cells (cosmetic for the future render, harmless for the rules). A route with more than 48 waypoints (a long winding channel) is refused as NO_ROUTE instead of being split.
+- The golden scenario (`src/sim/scenario.ts`) sends no LaunchShip: the ship rules are pinned by their own tests and by the `ship-landing` hash in `tests/sim/shipLandingCli.test.ts`.
