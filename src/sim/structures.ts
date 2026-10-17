@@ -344,9 +344,9 @@ class StateBuildSource implements BuildSource {
   get structures(): StructureTable {
     return this.state.structures;
   }
-  /** Fallout arrives with M14; until then no cell is ever contaminated. */
-  falloutUntilAt(): number {
-    return 0;
+  /** The tick until which a cell is fallout (M14a: the fallout layer of the missile table). */
+  falloutUntilAt(cell: number): number {
+    return this.state.missiles.fallout[cell] as number;
   }
 }
 

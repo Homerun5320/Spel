@@ -362,3 +362,42 @@ export type { LaunchShipBody } from './intents';
 export { launchShipBody } from './intents';
 export { REJECT_SHIP_BAD_TARGET, REJECT_SHIP_COOLDOWN, REJECT_SHIP_FLEET_CAP, REJECT_SHIP_NOT_OWNER, REJECT_SHIP_NO_GOLD, REJECT_SHIP_NO_PORT, REJECT_SHIP_NO_ROUTE, REJECT_SHIP_NO_TROOPS, REJECT_SHIP_PORT_BUILDING, REJECT_SHIP_PORT_BUSY, REJECT_SHIP_TABLE_FULL, REJECT_SHIP_TROOPS_HIGH, REJECT_SHIP_TROOPS_LOW } from './intents';
 export { SHIP_CAPACITY, SHIP_CELLS_PER_TICK_Q, SHIP_COOLDOWN_TICKS, SHIP_FLEET_MAX, SHIP_LAND_REACH_CELLS, SHIP_LAND_TICKS, SHIP_LAUNCH_GOLD, SHIP_MAX_TROOPS, SHIP_MIN_TROOPS, SHIP_REASON_BASE, SHIP_ROUTE_CAPACITY, SHIP_ROUTE_MAX_CELLS } from './rules';
+
+// M14a (append-only): missiles and nukes. The read-only missile table type and its class numbers, the LaunchMissile check (the very function the sim runs: `validateMissileLaunch`), the
+// price, the two previews (`previewBlast`; `previewThreat` is the empty list until M14b), the flight helper for a renderer (`missilePosition`), the intent body, the refusal block
+// (MISSILE_REASON_BASE + n) and the constants of rules.ts the UI reads (each has a row in docs/BALANCE.md).
+export type { MissileView } from './missileTable';
+export { MISSILE_FISSION, MISSILE_FUSION, MISSILE_TACTICAL } from './missileTable';
+export { missilePriceMilli, previewBlast, previewThreat, validateMissileLaunch } from './missileRules';
+export type { BlastPreview, ThreatSite } from './missileRules';
+export { missilePosition } from './missileGeom';
+export type { LaunchMissileBody } from './intents';
+export { launchMissileBody } from './intents';
+export {
+  REJECT_MISSILE_BAD_CLASS,
+  REJECT_MISSILE_COOLDOWN,
+  REJECT_MISSILE_NEED_SILO_L2,
+  REJECT_MISSILE_NOT_HOSTILE,
+  REJECT_MISSILE_NOT_OWNER,
+  REJECT_MISSILE_NO_GOLD,
+  REJECT_MISSILE_NO_SILO,
+  REJECT_MISSILE_OUT_OF_RANGE,
+  REJECT_MISSILE_SILO_NOT_READY,
+  REJECT_MISSILE_TABLE_FULL,
+  REJECT_MISSILE_TARGET_NOT_LAND,
+} from './intents';
+export {
+  FALLOUT_COST_PCT,
+  FALLOUT_TICKS,
+  MISSILE_BASE_GOLD,
+  MISSILE_CAPACITY,
+  MISSILE_COOLDOWN_TICKS,
+  MISSILE_FUSION_SILO_LEVEL,
+  MISSILE_OUTER_HIT_PCT,
+  MISSILE_PRICE_STEP_PCT,
+  MISSILE_RANGE_ANGLE,
+  MISSILE_REASON_BASE,
+  MISSILE_R_IN_KM,
+  MISSILE_R_OUT_KM,
+  MISSILE_SPEED_ANGLE_PER_TICK,
+} from './rules';

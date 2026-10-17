@@ -96,6 +96,8 @@ export interface ViewSnapshot {
   readonly fronts: AttackFrontSnapshot | null;
   /** The ship table (M13c-1): always present in the answer to `requestView`; in a frame's diff only when it changed since the last frame that carried it, else null. Optional so that older producers and test literals stay valid (absent = null). */
   readonly ships?: ShipSnapshot | null;
+  /** The missile table (M14a): always present in the answer to `requestView`; in a frame's diff only when it changed (a launch or a blast), else null. Optional like `ships` (absent = null). */
+  readonly missiles?: MissileSnapshot | null;
   /**
    * The side facts since the last frame (Events-1), packed 4 integers per event (kind, tick, a, b), oldest first, at most VIEW_EVENTS_CAP events: drained, so each fact is in exactly
    * one frame. Empty in the answer to `requestView` (it does not drain). Never written to: an empty frame shares one empty array.
@@ -237,8 +239,28 @@ export function cloneView(v: ViewSnapshot): ViewSnapshot {
     beachheads: v.beachheads === null ? null : cloneBeachheads(v.beachheads),
     fronts: v.fronts === null ? null : cloneFronts(v.fronts),
     ships: v.ships === undefined || v.ships === null ? null : cloneShips(v.ships),
+    missiles: v.missiles === undefined || v.missiles === null ? null : cloneMissiles(v.missiles),
     events: v.events.slice(),
   };
+}
+
+/** The live missile rows as the page sees them (M14a), in slot order: `count` rows, `slot[k]` the table slot of row k; `launches` is the launch counter per (ownerId, class). */
+export interface MissileSnapshot {
+  readonly count: number;
+  readonly slot: Uint8Array;
+  readonly owner: Uint16Array;
+  readonly cls: Uint8Array;
+  readonly silo: Uint16Array;
+  readonly launchTick: Uint32Array;
+  readonly impactTick: Uint32Array;
+  readonly startCell: Int32Array;
+  readonly targetCell: Int32Array;
+  readonly launches: Uint16Array;
+}
+
+/** A deep copy of a missile snapshot. */
+export function cloneMissiles(s: MissileSnapshot): MissileSnapshot {
+  return { count: s.count, slot: s.slot.slice(), owner: s.owner.slice(), cls: s.cls.slice(), silo: s.silo.slice(), launchTick: s.launchTick.slice(), impactTick: s.impactTick.slice(), startCell: s.startCell.slice(), targetCell: s.targetCell.slice(), launches: s.launches.slice() };
 }
 
 /** A deep copy of a ship snapshot. */

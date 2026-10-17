@@ -395,3 +395,19 @@ Three new structure types in the same table, with the same Build / Upgrade / Del
 | `SHIP_CELLS_PER_TICK_Q` | 32 | Q8 cells/tick | eget val | M13c-1: 32/256 = 0.125 cells per tick = 1.25 cells per second, 60 percent of a Low helicopter (2.1): a 46-cell crossing takes 368 ticks (37 s). |
 | `SHIP_LAND_TICKS` | 20 | ticks | eget val | M13c-1: a ship unloads for 2 s before the cells are taken (a helicopter 1 s). |
 | `SHIP_REASON_BASE` | 120 | code offset | eget val | M13c-1: the refusals of LaunchShip are 121..133 (SHIP_REASON_BASE + 1..13), above every other REJECT_* code (the last older one is 119). |
+| `MISSILE_CAPACITY` | 64 | slots | eget val | M14a: slots of the missile table (all seats together); a structural limit. |
+| `MISSILE_BASE_GOLD` | [300, 900, 3500] | gold, by class (Tactical, Fission, Fusion) | plan | M14a: the price of the first launch of a class; later launches by the same seat cost more (MISSILE_PRICE_STEP_PCT). |
+| `MISSILE_PRICE_STEP_PCT` | 25 | % of the base per earlier launch | plan | M14a: price = base x (100 + 25 n) / 100 in whole milli-gold, n = earlier launches of that class by the seat. |
+| `MISSILE_COOLDOWN_TICKS` | 450 | ticks | plan | M14a: a Silo launches once per 45 s (kept in the salvoTick word of the Silo row). |
+| `MISSILE_RANGE_ANGLE` | [5120, 15360, 0] | angle units (65536 = a turn), by class; 0 = unlimited | plan | M14a: 80 and 240 reference cells of 64 units (a 1024-cell equator); compared as a chord length against a table, no asin. |
+| `MISSILE_SPEED_ANGLE_PER_TICK` | [128, 192, 192] | angle units/tick, by class | plan | M14a: 20 reference cells/s for the cruise missile, 30 for the ballistic ones (provisional, M19 tunes). Flight time = ceil(arc / speed). |
+| `MISSILE_R_IN_KM` | [157, 235, 704] | km, by class | plan | M14a: the plan's inner radii 4, 6 and 18 cells x 39.1 km (an equator cell), rounded. |
+| `MISSILE_R_OUT_KM` | [313, 626, 1174] | km, by class | plan | M14a: the plan's outer radii 8, 16 and 30 cells x 39.1 km, rounded. |
+| `MISSILE_FUSION_SILO_LEVEL` | 2 | Silo level | plan | M14a: a Fusion missile needs a Silo of level 2 or more (REJECT_MISSILE_NEED_SILO_L2). |
+| `MISSILE_OUTER_HIT_PCT` | 50 | % | plan | M14a: chance that a building in the outer ring is hit (a stateless hash roll of match seed, tick, missile and cell). |
+| `MISSILE_TROOP_LOSS_CAP_PCT` | 60 | % of the owner's troops | plan | M14a: an owner never loses more than this share of its troops to one blast. |
+| `MISSILE_TROOP_LOSS_FACTOR` | 3 | factor | plan | M14a: loss = min(60 % x T, 3 x T x cellsHit / N), N = the owner's cells before the blast. |
+| `FALLOUT_TICKS` | 1800 | ticks | plan | M14a: the fallout of the inner disc lasts 180 s from the tick of the blast; no building, 1.5 x the conquest price. |
+| `FALLOUT_COST_PCT` | 150 | % of the usual price | plan | M14a: conquering a fallout cell costs 1.5 x. |
+| `MISSILE_MAX_FLIGHT_TICKS` | 200 | ticks | eget val | M14a: the longest flight a state may hold (a guard of deserialize); half the globe at 192 units/tick is 171. |
+| `MISSILE_REASON_BASE` | 140 | code offset | eget val | M14a: the refusals of LaunchMissile are 141..151 (MISSILE_REASON_BASE + 1..11), above the ship block (121..133). |
