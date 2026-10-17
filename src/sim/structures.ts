@@ -31,6 +31,8 @@ export class StructureTable implements StructureView, DistrictView {
   readonly capacity = STRUCT_CAPACITY;
   highWater = 0;
   liveCount = 0;
+  /** Change counter for sensors (Fix-5A1): bumped by add, remove, transfer and every level raise. Not hashed, not serialised; a restored table starts at 0 (a new object, so the Los memo cannot confuse them). */
+  version = 0;
   readonly type = new Uint8Array(STRUCT_CAPACITY);
   readonly owner = new Uint16Array(STRUCT_CAPACITY);
   readonly cell = new Int32Array(STRUCT_CAPACITY);
@@ -195,6 +197,7 @@ export class StructureTable implements StructureView, DistrictView {
     this.level[id] = newLevel;
     this.upgradeReadyTick[id] = 0;
     this.effDirty = true;
+    this.version++;
   }
 
   deleteReadyTick(ownerId: number): number {
@@ -223,6 +226,7 @@ export class StructureTable implements StructureView, DistrictView {
     this.counts[ownerId * STRUCT_TYPE_SLOTS + type] = (this.counts[ownerId * STRUCT_TYPE_SLOTS + type] as number) + 1;
     this.liveCount++;
     this.effDirty = true;
+    this.version++;
     return id;
   }
 
@@ -244,6 +248,7 @@ export class StructureTable implements StructureView, DistrictView {
     this.recycled[this.recycledCount++] = id;
     this.liveCount--;
     this.effDirty = true;
+    this.version++;
   }
 
   /** Recomputes the derived index and counts from the stored arrays (what deserialize does; tests compare it with the incremental one). */
@@ -398,6 +403,7 @@ export function structuresPhase(state: GameState): void {
       t.level[id] = (t.level[id] as number) + 1;
       t.upgradeReadyTick[id] = 0;
       t.effDirty = true;
+      t.version++;
     }
   }
   if (t.districtCount === 0) return;

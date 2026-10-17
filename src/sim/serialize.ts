@@ -660,13 +660,14 @@ function embargoAgrees(structures: StructureTable, d: DiplomacyTable): boolean {
   return true;
 }
 
-/** Fix-4A2: an eliminated seat owns no land and no helicopter and is in no treaty, embargo or proposal (the elimination clears them). */
+/** Fix-4A2: an eliminated seat owns no land and no helicopter and is in no treaty, embargo or proposal (the elimination clears them); Fix-5A1: nor a running research. */
 function eliminatedAgrees(m: MatchState, d: DiplomacyTable, owner: Uint16Array, helis: HeliTable, seats: number): boolean {
   const s = d.slots;
   let any = false;
   for (let o = 1; o <= seats; o++) {
     if (m.eliminated[o] !== 1) continue;
     any = true;
+    if (m.techCurrent[o] !== 0 || m.techDone[o] !== 0) return false; // Fix-5A1: no running research
     for (let q = 0; q < s; q++) {
       if (d.relation[o * s + q] !== 0 || d.embargoBy[o * s + q] !== 0 || d.embargoBy[q * s + o] !== 0) return false;
     }

@@ -65,6 +65,7 @@ export class Los {
   private memoHigh = -1;
   private memoLive = -1;
   private memoExtra = -1;
+  private memoVersion = -1;
   private extraVersion = 0;
   /** Full scans of the structure table done by `sync` (a memoised call does none; tests assert it). */
   syncScans = 0;
@@ -93,16 +94,17 @@ export class Los {
    */
   sync(src: LosSource): void {
     const t = src.structures;
-    // One comparison when nothing can have changed: the sim mutates the structure table only inside `step`, between two ticks, so the same
-    // table object at the same tick with the same counters (and the same extra sites) is the same set. A caller that edits a table by hand
+    // One comparison when nothing can have changed: the same table object at the same tick with the same counters, the same change version
+    // (a level raise or owner change inside the tick bumps it, Fix-5A1) and the same extra sites is the same set. A caller that edits a table by hand
     // within one tick calls `invalidate()`.
-    if (this.memoTable === t && this.memoTick === src.tick && this.memoHigh === t.highWater && this.memoLive === t.liveCount && this.memoExtra === this.extraVersion) return;
+    if (this.memoTable === t && this.memoTick === src.tick && this.memoHigh === t.highWater && this.memoLive === t.liveCount && this.memoExtra === this.extraVersion && this.memoVersion === (t.version ?? 0)) return;
     this.syncScan(src);
     this.memoTable = t;
     this.memoTick = src.tick;
     this.memoHigh = t.highWater;
     this.memoLive = t.liveCount;
     this.memoExtra = this.extraVersion;
+    this.memoVersion = t.version ?? 0;
   }
 
   /** Forgets the memo of `sync`: the next call scans the table again. */

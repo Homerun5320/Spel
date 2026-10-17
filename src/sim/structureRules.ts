@@ -64,6 +64,8 @@ export interface StructureView {
   readonly highWater: number;
   /** Structures alive (owner not 0). */
   readonly liveCount: number;
+  /** Optional change counter (StructureTable.version): lets a sensor cache see a level or owner change inside one tick. */
+  readonly version?: number;
   readonly type: Numbers;
   /** ownerId (0 = free slot). */
   readonly owner: Numbers;
