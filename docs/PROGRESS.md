@@ -195,6 +195,16 @@ GÖR och ACCEPTANS:
 - [x] Tests: `tests/ui/techModel.test.ts`, `tests/ai/upgradeDiscount.test.ts`, `tests/app/techKey.test.ts`, `e2e/research.test.ts`.
 - [x] `npm run verify:fast` green; the affected e2e green (result in `docs/DECISIONS.md` "M18d-2").
 
+### Fix-5A1: audit 4, rule fixes in air defence, research and federation timers (headless sim, ENGINE 24; one slice in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+
+- [x] [0.1] `StructureTable.version` in the `Los.sync` memo key; test: a query before a step does not change the hash with a SAM upgrade finishing in that step.
+- [x] [0.2] Cell-based column ranges in `airDefensePhase` (no width assertion; hash of width 1024 unchanged); test against a brute-force oracle for widths 96, 100, 128, 130, 1024.
+- [x] [0.3] Federation hold timer moves to the new root when the holder is eliminated; test in `tests/sim/fix5a1.test.ts`.
+- [x] [0.4] Research cleared at elimination, `eliminatedAgrees` guard; tests.
+- [x] [2.0] [2.2] [2.3] [2.4] [2.13] test holes (mutant table in `docs/DECISIONS.md` "Fix-5A1").
+- [x] ENGINE_VERSION 24, both golden hash files recomputed once, `PLAINS_SAM_SEED3_HASH` and version pins updated.
+- [x] `npm run verify:fast` (result in `docs/DECISIONS.md` "Fix-5A1").
+
 
 ## Next
 

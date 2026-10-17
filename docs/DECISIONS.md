@@ -1875,3 +1875,35 @@ The first full `npm run verify` of the merged tree found four things; none neede
 2. **Result screen golden.** `e2e/goldens/result-screen.png` differs by 5 % because of the new Teknik column (M18d-2); the picture was looked at (table fits, columns readable, group rows absent in this match) and re-pinned once.
 3. **Two e2e expectations that count columns from the end.** `e2e/diplomacy.test.ts` read the last two result columns as the treaty columns; the Teknik column is now last, so it reads `slice(-3, -1)`. No assertion was weakened.
 4. **Heavy helicopter picture test moved to the serial project.** the heliFx pictures test (effects and chase camera pictures, formerly in the parallel e2e project) exceeded the 90 s screenshot timeout twice when three Chromium workers shared the four cores; alone it passes in about two minutes. It is now `e2e/heliFxPictures.serial.test.ts` (same content, one file at a time after the parallel stage, like the leak tests); docs references follow.
+
+## Fix-5A1
+
+Audit 4 (sim, fit, mutation, feel) against 01c0de9. ENGINE_VERSION 23 to 24 once, FORMAT_VERSION 16 unchanged, both golden hash files recomputed once with `UPDATE_GOLDENS=1`. Probe: with the new rules but ENGINE 23 the OLD golden files still matched, so the only change in the golden hashes is the engine version word (the fixes touch situations the golden worlds never reach); the same holds for `PLAINS_SAM_SEED3_HASH` in `tests/sim/airDefense.test.ts` (the raid itself is unchanged).
+
+1. **[0.1] Los memo.** The structure table has `version` (not hashed, not serialised; bumped by add, remove, transfer and every level raise in `structuresPhase`), and `Los.sync` compares it. Chosen over `los.invalidate()` calls because it also covers owner changes (conquest) and any later writer. `StructureView.version` is optional so mirrors without it keep the old key.
+2. **[0.2] Date line at widths that are no multiple of 32.** Not asserted in `validDimensions`: many test worlds (20, 100, 200, 960 wide) are legal and the rule would break them. The column range of `airDefensePhase` is now derived in cells from `AaIndex.maxR` (up to two ranges, merged to all columns when they touch). For widths that are multiples of 32 the old arithmetic was exact, so the hash of width 1024 does not move.
+3. **[0.3] Federation hold timer.** At the elimination of the holder `winPhase` picks the lowest remaining member (area above 0) of its group BEFORE `clearDiplomacyOf` and makes it the holder, keeping `holdCount`. If the group no longer qualifies, the existing land check resets the timer. A federation cannot be left in any other way (the alliance is permanent), so no other path needed.
+4. **[0.4] Research of the dead.** `winPhase` clears `techCurrent` / `techDone` at the elimination (no refund); `eliminatedAgrees` rejects a dead seat with a running research (`match-range`). No committed fixture blob had one (tests/sim passes).
+5. **Report details that did not hold.** [2.3] says a level 4+ mountain SAM has radius 35; the curve ends at 33 (level 4: 33, level 5: 33), so the test uses a helicopter exactly 33 cells away across two buckets (along a row and along a column). With cell-based columns the column reach no longer depends on `AaIndex.reach`, so AD39 (ceil to floor) is killed by the column case (rows still use `reach`). AD16 (`hp <= 0`) stays equivalent while 1000 is not a multiple of `POST_AA_TENTHS_PER_TICK` (not changed, noted in the report).
+
+Mutant table (each applied alone to `src`, `npx vitest run --project unit tests/sim/fix5a1.test.ts`, then restored):
+
+| Mutant | Killed by |
+|---|---|
+| `Los.sync` ignores `version` / `structuresPhase` does not bump it | `[0.1]` hash equality with a query before the step |
+| Column range: last bucket skipped / overflow side shortened / no wrap on the high side | `[0.2]` oracle, `wraps the date line` |
+| Holder not moved to the heir | `[0.3]` `moves the holder to the new root` |
+| Research not cleared at elimination | `[0.4]` `the elimination clears the research` |
+| `eliminatedAgrees` guard removed | `[0.4]` `deserialize refuses an eliminated seat with a running research` |
+| `techPhase` loop `o <= seats` to `o < seats` (M2.0) | `[2.0]` last seat research |
+| AD41 (LIFT), AD42 (UNLOAD), AD43 (RETURN) skipped, AD50 early-out without RETURN | `[2.2]` Post wear and SAM salvo over every state |
+| AD11 no pick guard | `[2.3]` lowest id and one salvo per period |
+| AD39 floor reach | `[2.3]` level 4 mountain SAM, 33 cells |
+| AD47 row above (`-reach + 1`) | `[2.3]` row above, and the oracle |
+| AD07 no distance wrap, AD48 no bucket wrap | `[2.3]` date line both directions, and the oracle |
+| AD44a `add` keeps the salvo clock / AD44b `remove` keeps it | `[2.4]` recycled row (a stale value is planted on the free row, so each reset is tested alone) |
+| AD46 Post kill before SAM kill | `[2.13]` cause SAM when both coincide |
+| AD17 hit roll `<=` | `[2.13]` exact count 5497 of 10 000 rolls |
+| V13 `AttackFrontReader` refreshes only once | `[2.13]` `StateView.fronts` read before and after the end of an attack |
+
+Backlog: nothing new; AD16 stays an equivalent mutant.

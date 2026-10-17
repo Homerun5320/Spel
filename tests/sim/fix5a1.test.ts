@@ -280,16 +280,21 @@ describe('[2.3] the SAM target rule and the spatial hash', () => {
     expect(s.structures.salvoTick[sam]).toBe(SAM_SALVO_PERIOD_TICKS);
   });
 
-  it('a level 4 mountain SAM (radius over 32) reaches a High helicopter 33 cells away (the report said 35: the level curve ends at 33), two buckets over', () => {
-    const s = flat(160, 64, seedWithRoll(0, 0, true));
-    s.terrain[30 * 160 + 31] = CLASS_MOUNTAIN;
-    const sam = finished(s, STRUCT_SAM, 31, 30);
-    s.structures.level[sam] = 4;
-    expect(samRadiusCells(4, true)).toBeGreaterThan(32);
-    const id = heli(s, 1, 64, 30, 1); // bucket column 0 versus 2, exactly at the radius
-    airDefensePhase(s);
-    expect(s.structures.salvoTick[sam]).not.toBe(0);
-    expect(s.helis.state[id]).toBe(HELI_DOWNED);
+  it('a level 4 mountain SAM (radius over 32) reaches a High helicopter 33 cells away, two buckets over, along a row and along a column (the report said 35: the level curve ends at 33)', () => {
+    for (const [hx, hy] of [
+      [64, 31],
+      [31, 64],
+    ] as const) {
+      const s = flat(160, 96, seedWithRoll(0, 0, true));
+      s.terrain[31 * 160 + 31] = CLASS_MOUNTAIN;
+      const sam = finished(s, STRUCT_SAM, 31, 31);
+      s.structures.level[sam] = 4;
+      expect(samRadiusCells(4, true)).toBeGreaterThan(32);
+      const id = heli(s, 1, hx, hy, 1); // bucket 0 versus 2 along the axis, exactly at the radius
+      airDefensePhase(s);
+      expect(s.structures.salvoTick[sam], `heli at ${hx},${hy}`).not.toBe(0);
+      expect(s.helis.state[id]).toBe(HELI_DOWNED);
+    }
   });
 
   it('finds a Post in the bucket row above the helicopter', () => {
