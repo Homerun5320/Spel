@@ -13,7 +13,7 @@
 //      enclave queue: ENCLAVE_FLIP_TICKS x (count u32, count x cell u32)
 //      ONLY when config flag 8 (homeRules) is on: country u8 x n, homeLand u8 x (seats+1), portMilli u16 x (seats+1),
 //               defenceMilli u16 x (seats+1)   (D112: a match without the flag is byte-identical to M05, so FORMAT_VERSION stays 5)
-//      missile block (M14a, always present, between the home block and the air block): count u32, then per live slot by ascending id: id owner class silo launchTick impactTick startCell targetCell (u32 each), then launches u32 x (seats+1) x 3 (per ownerId and class), then fallout: count u32 and per non-zero cell by ascending index: cell until (u32 each);
+//      missile block (M14a, always present, between the home block and the air block): count u32, then per live slot by ascending id: id owner class silo launchTick impactTick startCell targetCell (u32 each), then launches u32 x (seats+1) x 3 (per ownerId and class), then fallout: count u32 and per non-zero cell by ascending index: cell until (u32 each), then (M14b) interceptors: count u32 and per row in firing order: missile SAM fireTick meetTick hit (u32 each);
 //      air block (M12a-1, always present, between the home block and the structure block): helicopters: highWater u32, recycledCount u32, recycled u32 x recycledCount, liveCount u32,
 //               then per live slot by ascending id: id owner state factory readyTick stateTick x y alt hp load fuel mode target routeLen routeIdx (u32 each, x y alt signed),
 //               each followed by routeLen x cell u32; beachheads: count u32, then per live slot by ascending index: index owner seed landTick status (u32 each);
@@ -38,7 +38,7 @@ import { ALLIANCE_FEDERATION, DiplomacyTable, RELATION_ALLIANCE, RELATION_TRUCE,
 import { SHIP_CAPACITY, SHIP_FLEET_MAX, SHIP_MAX_TROOPS, SHIP_ROUTE_CAPACITY } from './rules';
 import { SHIP_OFF, SHIP_RETURN, SHIP_SAIL, SHIP_LAND, SHIP_STATE_MAX, ShipTable, foldShips } from './shipTable';
 import { isWaterClass } from './shipRoute';
-import { MISSILE_CAPACITY, MISSILE_MAX_FLIGHT_TICKS, FALLOUT_TICKS, MISSILE_COOLDOWN_TICKS } from './rules';
+import { INTERCEPTOR_CAPACITY, MISSILE_CAPACITY, MISSILE_MAX_FLIGHT_TICKS, FALLOUT_TICKS, MISSILE_COOLDOWN_TICKS } from './rules';
 import { MISSILE_CLASS_COUNT, MissileTable, foldMissiles } from './missileTable';
 import { STRUCT_SILO } from './structureRules';
 import { BEACH_STATUS_MAX, BeachheadTable, HELI_BUILDING, HELI_LIFT, HELI_PAD, HELI_RETURN, HELI_STATE_MAX, HeliTable, foldHelis } from './heliTable';
@@ -93,8 +93,8 @@ import {
   type MatchHeader,
 } from './state';
 
-/** Bumped when the byte layout above changes. 2: owner u16 (D71). 3: players, rowCos and the per-owner economy arrays (M04). 4: attacks and the enclave queue (M04 conquest). 5: the exposure array (M04 fix pass). 6: the structure table (M09 part A). 7: the embargo flags (M09 part B). 8: the district table (Districts-1). 9: the match block (M18-1). 10: Sim-Growth (City levels up to 10, five district slots per row). 11: Sim-Levels2 (u16 levels up to 999 in the structure and district tables). 12: M12a-1 (the air block: the helicopter and beachhead tables). 13: M18c-1 (the diplomacy block after the match block; the M12a-3 landing track may raise the format on its own branch, the orchestrator sets the final value when the tracks are merged). 14: M12b (the salvo clock `salvoTick` of every structure row). 15: M18d-1 (the technology arrays at the end of the match block: researched mask, current tech + 1, finish tick). 16: M18b-2 (an alliance pair may carry `until` 1 = bound by a federation; the layout is unchanged, deserialize accepts the value). 17: M13c-1 (the ship table at the end of the air block). 18: M14a (the missile block before the air block: rows, launch counters, sparse fallout). */
-export const FORMAT_VERSION = 18;
+/** Bumped when the byte layout above changes. 2: owner u16 (D71). 3: players, rowCos and the per-owner economy arrays (M04). 4: attacks and the enclave queue (M04 conquest). 5: the exposure array (M04 fix pass). 6: the structure table (M09 part A). 7: the embargo flags (M09 part B). 8: the district table (Districts-1). 9: the match block (M18-1). 10: Sim-Growth (City levels up to 10, five district slots per row). 11: Sim-Levels2 (u16 levels up to 999 in the structure and district tables). 12: M12a-1 (the air block: the helicopter and beachhead tables). 13: M18c-1 (the diplomacy block after the match block; the M12a-3 landing track may raise the format on its own branch, the orchestrator sets the final value when the tracks are merged). 14: M12b (the salvo clock `salvoTick` of every structure row). 15: M18d-1 (the technology arrays at the end of the match block: researched mask, current tech + 1, finish tick). 16: M18b-2 (an alliance pair may carry `until` 1 = bound by a federation; the layout is unchanged, deserialize accepts the value). 17: M13c-1 (the ship table at the end of the air block). 18: M14a (the missile block before the air block: rows, launch counters, sparse fallout). 19: M14b (the interceptor rows at the end of the missile block). */
+export const FORMAT_VERSION = 19;
 /** 'SPEL' as a little-endian u32. */
 export const MAGIC = 0x4c455053;
 export const HEADER_BYTES = 64;
@@ -119,10 +119,12 @@ const BYTES_PER_ATTACK = 36;
 const BYTES_PER_BAG = 8;
 /** The air block of a state without helicopters, beachheads and ships: highWater, recycledCount, liveCount, beachhead count, ship count. */
 const EMPTY_AIR_BYTES = 20;
-/** The missile block of a state without missiles and fallout, before the launch counters: the row count and the fallout count. */
-const EMPTY_MISSILE_BYTES = 8;
+/** The missile block of a state without missiles, fallout and interceptors, before the launch counters: the row count, the fallout count and the interceptor count (M14b). */
+const EMPTY_MISSILE_BYTES = 12;
 /** One live missile: id owner class silo launchTick impactTick startCell targetCell. */
 const BYTES_PER_MISSILE = 32;
+/** One interceptor (M14b): missile slot, SAM structure id, fire tick, meeting tick, hit. */
+const BYTES_PER_INTERCEPTOR = 20;
 /** One live helicopter: id owner state factory readyTick stateTick x y alt hp load fuel mode target routeLen routeIdx (its route cells follow, 4 bytes each). */
 const BYTES_PER_HELI = 64;
 /** One live beachhead: index owner seed landTick status. */
@@ -194,7 +196,7 @@ export function serializedLengthOf(state: GameState): number {
   n += sh.liveCount * BYTES_PER_SHIP;
   for (let id = 0; id < SHIP_CAPACITY; id++) if (sh.owner[id] !== 0) n += (sh.routeLen[id] as number) * 4;
   const mt = state.missiles;
-  n += mt.liveCount * BYTES_PER_MISSILE + mt.falloutCount * 8; // the empty block and the launch counters are in serializedLength
+  n += mt.liveCount * BYTES_PER_MISSILE + mt.falloutCount * 8 + mt.interceptorCount * BYTES_PER_INTERCEPTOR; // the empty block and the launch counters are in serializedLength
   const dc = diplomacyCounts(state.diplo);
   n += dc.pairs * 16 + dc.embargoes * 8 + dc.proposals * 16;
   return n + state.enclaves.length * 4;
@@ -419,6 +421,16 @@ export function serialize(state: GameState): Uint8Array {
       v.setUint32(p + 4, u, true);
       p += 8;
     }
+  }
+  v.setUint32(p, mt.interceptorCount, true);
+  p += 4;
+  for (let i = 0; i < mt.interceptorCount; i++) {
+    v.setUint32(p, mt.iMissile[i] as number, true);
+    v.setUint32(p + 4, mt.iSam[i] as number, true);
+    v.setUint32(p + 8, mt.iFire[i] as number, true);
+    v.setUint32(p + 12, mt.iMeet[i] as number, true);
+    v.setUint32(p + 16, mt.iHit[i] as number, true);
+    p += BYTES_PER_INTERCEPTOR;
   }
   const hl = state.helis;
   v.setUint32(p, hl.highWater, true);
@@ -974,6 +986,23 @@ export function deserialize(bytes: Uint8Array, options?: DeserializeOptions): De
     missiles.fallout[cell] = until;
   }
   missiles.rebuildIndex();
+  // The interceptors (M14b): each one belongs to a live missile, left no earlier than the launch and no later than now, meets before the blast and is unique per (missile, SAM).
+  if (p + 4 > end) return fail('size');
+  const interceptorCount = v.getUint32(p, true);
+  p += 4;
+  if (interceptorCount > INTERCEPTOR_CAPACITY || p + interceptorCount * BYTES_PER_INTERCEPTOR > end) return fail('air-range');
+  for (let k = 0; k < interceptorCount; k++) {
+    const im = v.getUint32(p, true);
+    const sam = v.getUint32(p + 4, true);
+    const fire = v.getUint32(p + 8, true);
+    const meet = v.getUint32(p + 12, true);
+    const hit = v.getUint32(p + 16, true);
+    p += BYTES_PER_INTERCEPTOR;
+    if (im >= MISSILE_CAPACITY || missiles.owner[im] === 0 || sam >= STRUCT_CAPACITY || hit > 1) return fail('air-range');
+    if (fire > missileNow || fire < (missiles.launchTick[im] as number) || meet <= fire || meet - fire > MISSILE_MAX_FLIGHT_TICKS || meet > (missiles.impactTick[im] as number)) return fail('air-range');
+    if (missiles.hasInterceptor(im, sam)) return fail('air-range');
+    missiles.addInterceptor(im, sam, fire, meet, hit);
+  }
   // The air block (M12a-1, between the home block and the structure block): the helicopter table, then the beachheads. Every count is checked against the bytes that are left before it is trusted.
   const helis = new HeliTable(slots);
   const beachheads = new BeachheadTable();

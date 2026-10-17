@@ -176,7 +176,7 @@ describe('the trait cap of +-10 %', () => {
     const s = corridor(true);
     const bytes = serialize(s);
     const slots = 5; // seats + 1
-    const portAt = saveLayout(bytes, slots - 1).emptyAirBlockAt(0) - (8 + 12 * slots) - slots * 2 * 2; // the two u16 blocks end just before the (empty) missile block (M14a: 8 + 12 per ownerId) and the air block
+    const portAt = saveLayout(bytes, slots - 1).emptyAirBlockAt(0) - (12 + 12 * slots) - slots * 2 * 2; // the two u16 blocks end just before the (empty) missile block (M14a: 8 + 12 per ownerId; M14b: 12 + 12, the interceptor count word) and the air block
     for (const [offset, value] of [[portAt + 2 * 2, 1101], [portAt + 2 * 2, 899], [portAt + slots * 2 + 3 * 2, 1500], [portAt + slots * 2 + 3 * 2, 0]] as const) {
       const bad = bytes.slice();
       new DataView(bad.buffer).setUint16(offset, value, true);

@@ -4,7 +4,8 @@
 import { describe, expect, it } from 'vitest';
 import { MISSILE_CAPACITY } from '../src/sim/rules';
 import { blastAt, missilePhase } from '../src/sim/missilePhase';
-import { MISSILE_FUSION, MISSILE_TACTICAL } from '../src/sim/missileTable';
+import { MISSILE_FISSION, MISSILE_FUSION, MISSILE_TACTICAL } from '../src/sim/missileTable';
+import { STRUCT_SAM } from '../src/sim/structureRules';
 import { rebuildAggregates, createState, type GameState } from '../src/sim/state';
 import { step } from '../src/sim/step';
 import { CLASS_PLAINS } from '../src/sim/terrain';
@@ -67,5 +68,21 @@ describe('missile performance', () => {
     const phase = measureMedianMs(() => void missilePhase(s), { runs: 200, warmups: 50 });
     console.log(`missile phase, 64 missiles: median ${phase.toFixed(4)} ms`);
     expect(phase).toBeLessThan(budgetMs(0.05));
+  });
+});
+
+// M14b: the interception on top of the missiles. 20 missiles in the air with hostile SAM sites round their path (the phase really rebuilds the index, finds the cell of each warhead and works
+// out meeting ticks): a whole `step` stays within budgetMs(4), median of 50 after 10 warm-ups.
+describe('missile performance with air defence', () => {
+  it('a whole step with 20 missiles in the air and 12 hostile SAM sites near them takes at most budgetMs(4) (median of 50)', () => {
+    const s = world();
+    own(s);
+    for (let i = 0; i < 12; i++) s.structures.add(STRUCT_SAM, 2, at(420 + i * 8, 240 + (i % 3) * 10), 0);
+    for (let i = 0; i < 20; i++) s.missiles.add(i, 1, MISSILE_FISSION, 0, s.tick, s.tick + 190, at(410, 232 + (i % 8)), at(560, 230 + i)); // a long, slow flight: the warheads stay in reach for the whole run
+    const ms = measureMedianMs(() => void step(s, { turn: s.tick, intents: [] }), { runs: 50, warmups: 10 });
+    expect(s.missiles.liveCount, 'some warheads are still up').toBeGreaterThan(0);
+    expect(s.missiles.interceptorCount, 'the sites really fired').toBeGreaterThan(0);
+    console.log(`step with 20 missiles and 12 SAM sites: median ${ms.toFixed(3)} ms, interceptors ${s.missiles.interceptorCount}`);
+    expect(ms).toBeLessThan(budgetMs(4));
   });
 });

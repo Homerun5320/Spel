@@ -7,7 +7,7 @@ import { OUTBOX_BEACHHEAD_FORMED, OUTBOX_SHIP_LANDED, OUTBOX_SHIP_LAUNCHED, OUTB
 import { parseShipLandingArgs, runShipLanding, shipLanding } from '../../tools/sim/shipLanding';
 
 // The final hash of seed 1 (rewrite it only together with an ENGINE or FORMAT bump, DECISIONS M13c-1).
-const SEED1_HASH = '804ef7cc'; // ENGINE 27 / FORMAT 18 (M14a: the engine version word and the missile fold move the hash, the voyage itself is unchanged: 'a5b6d6f3' on ENGINE 26)
+const SEED1_HASH = '6099ab31'; // ENGINE 28 / FORMAT 19 (M14b: the engine version word and the interceptor fold move the hash, the voyage itself is unchanged: '804ef7cc' on ENGINE 27) (M14a: the engine version word and the missile fold move the hash, the voyage itself is unchanged: 'a5b6d6f3' on ENGINE 26)
 
 describe('ship-landing', () => {
   it('prints the same bytes for the same seed and different bytes for another', () => {

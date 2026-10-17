@@ -674,3 +674,11 @@ Bundle-diet-2
 - A `modulepreload` for the Swedish table chunk (or starting the language `import()` from `index.html`) would remove the one-request wait after the main chunk; Vite does not preload dynamic imports by itself.
 - The total gzip grew 2 575 B because the two tables compress apart; an `en` table as values only (aligned with the `sv` key order) would drop the repeated key strings, at the cost of the `Record<TextKey, string>` typing the tables have now.
 - The language button exists only on the start and setup screens; a language switch inside a running match has no UI (the HUD still follows `onLanguageChange`, covered by the test-mode e2e).
+
+M14b
+- `previewThreat` lists the SAM sites whose radius a flight crosses; it does not know the ridge mask (a Tactical missile behind a ridge is still listed) nor the owner's SAM techs (the pct is the class chance). A UI that wants the truth should run the sim's own rule: a `Los` window on the view, or a `techFx` column in the ViewMirror.
+- The interceptors are not in the `MissileView` or the ViewMirror: a renderer (M15a) gets events 25 (site, meeting tick, hit) and 26 (cell) and works the interceptor path out from the SAM cell and the meeting tick. If it needs the live rows, add `interceptors` to the snapshot with its own signature.
+- A SAM never fires a second interceptor at the same warhead, even after a miss; a second salvo a few ticks later (a reload that really repeats) would raise the kill chance of a lone SAM above the plan's 75 / 60 / 40 and is left out on purpose.
+- Missed rows stay until the missile ends (they hold the "one per pair" memory): 64 missiles x many SAMs can fill `INTERCEPTOR_CAPACITY` (256); a SAM that finds the table full does not fire. Raise it with a FORMAT bump if a match ever gets there.
+- The radius gate uses the cell distance (as the helicopter rule) and the meeting gate the equatorial angle of the radius; at high latitudes the first is the tighter one. One of the two could become a true spherical distance for both rules in a rebalance pass (M19).
+- The Silo is not a SAM: a Silo has no radius rule of its own in this slice (the old comment "SAM and Silo radius" in `src/sim/rules.ts` is about the shared curve).

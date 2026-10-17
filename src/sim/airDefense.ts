@@ -95,10 +95,64 @@ export class AaIndex {
     this.count = n;
     return n;
   }
+
+  /**
+   * Writes the ids of the indexed structures in the buckets that can hold one within `maxR` cells of cell (cx, cy) into out[0..n-1] and returns n, in bucket order (rows, then the
+   * columns, then the ids of the bucket). The column range is derived from the distance in CELLS across the date line (Fix-5A1): up to two ranges [a0, a1] and [b0, b1]; the last
+   * bucket of a width that is no multiple of BUCKET is narrower, so index arithmetic would skip it. The caller still tests the exact radius of each structure.
+   */
+  collect(w: number, cx: number, cy: number, out: Int32Array): number {
+    const bxN = this.bx;
+    const by = Math.floor(cy / BUCKET);
+    const lo = cx - this.maxR;
+    const hi = cx + this.maxR;
+    let a0 = 0;
+    let a1 = bxN - 1;
+    let b0 = 1;
+    let b1 = 0;
+    if (hi - lo + 1 < w) {
+      if (lo < 0) {
+        a1 = Math.floor(hi / BUCKET);
+        b0 = Math.floor((lo + w) / BUCKET);
+        b1 = bxN - 1;
+        if (b0 <= a1) {
+          a1 = bxN - 1;
+          b0 = 1;
+          b1 = 0;
+        }
+      } else if (hi >= w) {
+        a0 = Math.floor(lo / BUCKET);
+        b0 = 0;
+        b1 = Math.floor((hi - w) / BUCKET);
+        if (b1 >= a0) {
+          a0 = 0;
+          b0 = 1;
+          b1 = 0;
+        }
+      } else {
+        a0 = Math.floor(lo / BUCKET);
+        a1 = Math.floor(hi / BUCKET);
+      }
+    }
+    let n = 0;
+    for (let dy = -this.reach; dy <= this.reach; dy++) {
+      const yy = by + dy;
+      if (yy < 0 || yy >= this.by) continue;
+      for (let seg = 0; seg < 2; seg++) {
+        const c0 = seg === 0 ? a0 : b0;
+        const c1 = seg === 0 ? a1 : b1;
+        for (let col = c0; col <= c1; col++) {
+          const b = yy * bxN + col;
+          for (let k = this.start[b] as number; k < (this.start[b + 1] as number); k++) out[n++] = this.items[k] as number;
+        }
+      }
+    }
+    return n;
+  }
 }
 
 /** The index of a state (built at the first use; derived, like the Los / Nav caches). */
-function indexOf(state: GameState): AaIndex {
+export function indexOf(state: GameState): AaIndex {
   const env = state.env;
   if (env.aa === null) env.aa = new AaIndex(state.width, state.height);
   return env.aa;
@@ -111,7 +165,7 @@ export function samRoll(seed: number, tick: number, samId: number): number {
 }
 
 /** Does the Q8 point (x256, y256) lie within `r` cells of cell `c`? (Euclidean on cells, x wraps.) */
-function within(w: number, x256: number, y256: number, c: number, r: number): boolean {
+export function within(w: number, x256: number, y256: number, c: number, r: number): boolean {
   const cx = c % w;
   const cy = (c - cx) / w;
   let dx = Math.abs((x256 >> 8) - cx);
@@ -123,6 +177,8 @@ function within(w: number, x256: number, y256: number, c: number, r: number): bo
 // Per-tick scratch for the helicopters (indexed by helicopter id; the table has HELI_CAPACITY 64 slots).
 const DAMAGE = new Int32Array(256);
 const KILLED = new Uint8Array(256);
+/** Scratch of `AaIndex.collect`: the structure ids near one aircraft. */
+const NEAR = new Int32Array(STRUCT_CAPACITY);
 
 /**
  * One tick of air defence (called by `heliPhase` after the flight). `reverse` is for the order-independence test only: it visits the structures backwards.
@@ -154,8 +210,6 @@ export function airDefensePhase(state: GameState, reverse = false): void {
     KILLED[id] = 0;
   }
   idx.pick.fill(0);
-  const bxN = idx.bx;
-  const maxR = idx.maxR;
   for (let id = 0; id < hw; id++) {
     const s = t.state[id] as number;
     const heliOwner = t.owner[id] as number;
@@ -165,61 +219,17 @@ export function airDefensePhase(state: GameState, reverse = false): void {
     const hy = t.y[id] as number;
     const cell = (hy >> 8) * w + (hx >> 8);
     const mode = (t.mode[id] === 1 ? ALT_MODE_HIGH : ALT_MODE_LOW) as AltMode;
-    const by = Math.floor((hy >> 8) / BUCKET);
-    // The bucket columns that can hold a structure within maxR cells, derived from the distance in CELLS across the date line (Fix-5A1): up to two
-    // column ranges [a0, a1] and [b0, b1]; the last bucket of a width that is no multiple of BUCKET is narrower, so index arithmetic would skip it.
-    const hxc = hx >> 8;
-    const lo = hxc - maxR;
-    const hi = hxc + maxR;
-    let a0 = 0;
-    let a1 = bxN - 1;
-    let b0 = 1;
-    let b1 = 0;
-    if (hi - lo + 1 < w) {
-      if (lo < 0) {
-        a1 = Math.floor(hi / BUCKET);
-        b0 = Math.floor((lo + w) / BUCKET);
-        b1 = bxN - 1;
-        if (b0 <= a1) {
-          a1 = bxN - 1;
-          b0 = 1;
-          b1 = 0;
-        }
-      } else if (hi >= w) {
-        a0 = Math.floor(lo / BUCKET);
-        b0 = 0;
-        b1 = Math.floor((hi - w) / BUCKET);
-        if (b1 >= a0) {
-          a0 = 0;
-          b0 = 1;
-          b1 = 0;
-        }
-      } else {
-        a0 = Math.floor(lo / BUCKET);
-        a1 = Math.floor(hi / BUCKET);
-      }
-    }
-    for (let dy = -idx.reach; dy <= idx.reach; dy++) {
-      const yy = by + dy;
-      if (yy < 0 || yy >= idx.by) continue;
-      for (let seg = 0; seg < 2; seg++) {
-        const c0 = seg === 0 ? a0 : b0;
-        const c1 = seg === 0 ? a1 : b1;
-        for (let col = c0; col <= c1; col++) {
-          const b = yy * bxN + col;
-          for (let k = idx.start[b] as number; k < (idx.start[b + 1] as number); k++) {
-            const sid = idx.items[k] as number;
-            const so = st.owner[sid] as number;
-            if (so === heliOwner || !atWar(state, so, heliOwner)) continue; // hostile(): not an ally's, not a truce partner's
-            if (!within(w, hx, hy, st.cell[sid] as number, idx.radius[sid] as number)) continue;
-            if (st.type[sid] === STRUCT_POST) {
-              DAMAGE[id] = (DAMAGE[id] as number) + POST_AA_TENTHS_PER_TICK;
-            } else if (los !== null && tick >= (st.salvoTick[sid] as number) && idx.pick[sid] === 0 && los.detected(so, cell, mode) && los.fireControl(sid, cell, mode)) {
-              idx.pick[sid] = id + 1; // helicopters are tested in ascending id: the first to pick is the lowest id
-              idx.fired[nFired++] = sid;
-            }
-          }
-        }
+    const nNear = idx.collect(w, hx >> 8, hy >> 8, NEAR);
+    for (let n = 0; n < nNear; n++) {
+      const sid = NEAR[n] as number;
+      const so = st.owner[sid] as number;
+      if (so === heliOwner || !atWar(state, so, heliOwner)) continue; // hostile(): not an ally's, not a truce partner's
+      if (!within(w, hx, hy, st.cell[sid] as number, idx.radius[sid] as number)) continue;
+      if (st.type[sid] === STRUCT_POST) {
+        DAMAGE[id] = (DAMAGE[id] as number) + POST_AA_TENTHS_PER_TICK;
+      } else if (los !== null && tick >= (st.salvoTick[sid] as number) && idx.pick[sid] === 0 && los.detected(so, cell, mode) && los.fireControl(sid, cell, mode)) {
+        idx.pick[sid] = id + 1; // helicopters are tested in ascending id: the first to pick is the lowest id
+        idx.fired[nFired++] = sid;
       }
     }
   }

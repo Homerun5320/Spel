@@ -727,3 +727,11 @@ export const FALLOUT_COST_PCT = 150;
 export const MISSILE_MAX_FLIGHT_TICKS = 200;
 /** Refusal codes of LaunchMissile are MISSILE_REASON_BASE + n (n = 1..), a block of their own above the ship block (121..133). */
 export const MISSILE_REASON_BASE = 140;
+
+// M14b: SAM interception of missiles (src/sim/interceptor.ts, missilePhase.ts). Every constant has a row in docs/BALANCE.md. Provisional: the M14b block of docs/DECISIONS.md.
+/** Chance in percent that one interceptor kills a warhead of the class (index = class: Tactical, Fission, Fusion). The roll is stateless and taken when the interceptor leaves; the SAM owner's AIR techs add percentage points (TECH_FX_SAM_HIT). */
+export const MISSILE_SAM_HIT_PCT = [75, 60, 40];
+/** Speed of an interceptor in angle units per tick: 60 reference cells/s = 6 per tick x 64 units. */
+export const INTERCEPTOR_SPEED_ANGLE_PER_TICK = 384;
+/** Interceptors in the air or waiting for their missile to end, all SAM sites together (a structural limit; a SAM that finds the table full does not fire). */
+export const INTERCEPTOR_CAPACITY = 256;

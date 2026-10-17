@@ -36,7 +36,7 @@ const REC = 32;
 function layoutOf(bytes: Uint8Array, s: GameState): { countAt: number; rec: (k: number) => number; launchesAt: number; falloutCountAt: number; falloutAt: (k: number) => number } {
   const lay = saveLayout(bytes, SEATS);
   const m = s.missiles;
-  const size = 4 + m.liveCount * REC + SLOTS * 3 * 4 + 4 + m.falloutCount * 8;
+  const size = 4 + m.liveCount * REC + SLOTS * 3 * 4 + 4 + m.falloutCount * 8 + 4 + m.interceptorCount * 20; // M14b: the interceptor count word (and rows) end the block
   const countAt = lay.emptyAirBlockAt(s.structures.liveCount, s.structures.districtCount) - size;
   const launchesAt = countAt + 4 + m.liveCount * REC;
   const falloutCountAt = launchesAt + SLOTS * 3 * 4;
@@ -51,9 +51,9 @@ function patched(bytes: Uint8Array, edits: Array<[number, number]>): Uint8Array 
 }
 
 describe('the missile table in the state', () => {
-  it('ENGINE 27 and FORMAT 18', () => {
-    expect(ENGINE_VERSION).toBe(27);
-    expect(FORMAT_VERSION).toBe(18);
+  it('ENGINE 28 and FORMAT 19 (M14b: the interceptor rows end the missile block)', () => {
+    expect(ENGINE_VERSION).toBe(28);
+    expect(FORMAT_VERSION).toBe(19);
   });
 
   it('round trip: same rows, counters, fallout, hash and length; the derived counts are rebuilt', () => {

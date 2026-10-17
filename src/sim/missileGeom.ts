@@ -30,6 +30,41 @@ export function cellVector(cell: number, width: number, height: number, out: Int
   out[o + 2] = sinQ15(lat);
 }
 
+/**
+ * The inverse of `cellVector` (M14b): the cell a unit vector (Q15 x, y, z) is over. Integer only, no trig: the row is the first one whose southern edge lies at or below z (a binary search in the
+ * sine table of the edge latitudes), the column the last one whose western edge is at or before the direction of (x, y) (a binary search with the cross product against the edge direction, one
+ * half-plane at a time). `cellOfVector(cellVector(c)) === c` for every cell outside the two rows at each pole, where the sine table has no resolution left to tell the rows apart.
+ */
+export function cellOfVector(x: number, y: number, z: number, width: number, height: number): number {
+  let lo = 0;
+  let hi = height - 1;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    const south = floorDiv((height - 2 * mid - 2) * ANGLE_QUARTER, height);
+    if (z >= sinQ15(south)) hi = mid;
+    else lo = mid + 1;
+  }
+  const row = lo;
+  const upper = y >= 0;
+  let a = 0;
+  let b = width - 1;
+  while (a < b) {
+    const mid = (a + b + 1) >> 1;
+    const e = floorDiv(mid * ANGLE_TURN, width);
+    let atOrBefore: boolean;
+    if (upper) atOrBefore = e <= ANGLE_TURN / 2 && cosQ15(e) * y - sinQ15(e) * x >= 0;
+    else atOrBefore = e <= ANGLE_TURN / 2 || cosQ15(e) * y - sinQ15(e) * x >= 0;
+    if (atOrBefore) a = mid;
+    else b = mid - 1;
+  }
+  return row * width + a;
+}
+
+/** The Q15 chord of an arc of `angle` units (0..32768): the chord a point at that arc from another has. */
+export function chordOfAngle(angle: number): number {
+  return 2 * sinQ15(angle >> 1);
+}
+
 /** The Q15 chord between the unit vectors at a[ao..] and b[bo..]. */
 export function chordQ15(a: Int32Array, ao: number, b: Int32Array, bo: number): number {
   const dx = (a[ao] as number) - (b[bo] as number);
