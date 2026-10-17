@@ -173,7 +173,7 @@ export function hudCss(): string {
   .build-btn { min-width: 0; padding: 0.1em 0.4em; column-gap: 0.3em; }
   .build-name { font-size: 0.8em; overflow: hidden; text-overflow: ellipsis; }
   .toast-stack { bottom: calc(11.5em + ${NARROW_BAR_ROWS * TARGET_MIN_PX}px + 1.4em + ${NARROW_HINT_EM}em); }
-  .sel-panel { left: 8px; bottom: calc(11em + ${NARROW_BAR_ROWS * TARGET_MIN_PX}px + 1.4em); width: auto; max-width: min(17.5em, calc(100vw - 16px)); max-height: calc(100% - 11em - ${NARROW_BAR_ROWS * TARGET_MIN_PX}px - 9em); }
+  .sel-panel { left: 8px; bottom: calc(11em + ${NARROW_BAR_ROWS * TARGET_MIN_PX}px + 2.4em); width: auto; max-width: min(17.5em, calc(100vw - 16px)); max-height: calc(100% - 11em - ${NARROW_BAR_ROWS * TARGET_MIN_PX}px - 9em); }
 }
 
 .start-root { position: absolute; inset: 0; z-index: ${Z_START_SCREEN}; display: flex; align-items: safe center; justify-content: center; padding: 1em; background: radial-gradient(ellipse at center, ${C.scrim} 0%, ${C.scrimEdge} 100%); overflow: auto; }
