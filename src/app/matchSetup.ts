@@ -15,7 +15,7 @@
 //  - HOME RULES (the home-land discount for the owner, the coast and mountain traits) are on when you play a real country and not in the
 //    neutral mode; a custom nation is a match on equal footing without them (D112).
 // This file builds a sim state, so it is one of the files the front-end import rule exempts (eslint.config.js, D117).
-import { pickSpawnCell } from '../ai';
+import { pickSpawnCell } from '../ai/place';
 import type { Federations, SubNation } from '../data/federations';
 import { isRegionId, type RegionId } from '../data/regions';
 import { bindFederation } from '../sim/diplomacy';

@@ -60,220 +60,35 @@ Resume: Läs CLAUDE.md och docs/PROGRESS.md, kör git log -10 och npm run verify
 | M18b-3 | (set after the squash merge) | Federations part 3: shared victory derived from the bound diplomacy pairs (no new state), federation rows in the leaderboard, the win meter and the result by group, one flag per federation. Branch merge commit bd0e1b0 (round 20 track 2). Round 20 integration: 8c34429 (ENGINE 23) and 15a71a0 (goldens re-pinned once). |
 | Audit 4 | (no merge) | Independent review of the pushes v27 to v31 against 01c0de9 (sim, fit, mutation, feel). Its findings are worked through by Fix-5A1, 5A2, 5B and 5C (below); the rest is in `docs/BACKLOG.md`. |
 | Fix-5 | (set after the squash merge) | Audit 4 fixes in five slices: 5A1 rule faults and tests (ENGINE 24: Los memo version, cell-based air-defence columns, federation hold timer follows the group, research cleared at elimination), 5A2 set-up barrier for a split country with 0 AI nations, tighter deserialize guards, AI leader per group, tech-tree guard test, 5A3 test holes in app, render and UI models and the attack arrow cap 32, 5B layout faults (deploy load cap, leaderboard, result card, proposal cards, help overlay, narrow top bar) and the budget table, 5C docs, bundle diet decision, setup texts, sub-nation names. Integration: `startableSubNations` asks for the least AI nations, the AI slider minimum is 1 for a split country. Branch tip: see `git log`. |
+| M18e-1 | (set after the squash merge) | Airfield, Laboratory and Plant in the sim, the AI and the build bar model (keys 7 to 9; ENGINE 25, FORMAT 16). |
+| M18e-2 | (set after the squash merge) | Real models for the Airfield, Laboratory and Plant (render and pictures; no rule change). |
+| M17-pre | (set after the squash merge) | `navOf` and per-viewer helicopter visibility (an enemy helicopter shows only in radar or air-defence cover). |
+| Bundle-diet-1 | (set after the squash merge) | Diet steps 2 and 3: dev modules, host and AI load on demand (own chunks by import()). |
+| M13c-1 | (set after the squash merge) | Sea transport in the sim: the ship table, the sea route and LaunchShip (ENGINE 26, FORMAT 17). |
+| Events-1 | (set after the squash merge) | `ViewSnapshot.events`, a capped drained side-fact list through host, view and mirror. |
+| M14a | (set after the squash merge) | Missiles and nukes in the sim (ENGINE 27, FORMAT 18); there is no player UI for missiles yet. |
+| Bundle-diet-2 | (set after the squash merge) | Diet step 1: only the active language table is loaded (START cap 359 500 to 351 500, MAIN 315 700 to 303 500). |
+| M14b | (set after the squash merge) | SAM interception of missiles (`interceptPhase`, `previewThreat`, events 25 and 26; ENGINE 28, FORMAT 19). |
+| M13c-2 | (set after the squash merge) | Ships at sea and their control: the ship layer, 'Skicka fartyg' on key B with route preview, landing marker, troop slider and messages (no rule change). |
+| Audit 5 | (no merge) | Independent review of the pushes v32 to v36 against 11ac641 (sim, mutation, fit, feel). Its findings are worked through by the Fix-6 slices; the rest is in `docs/BACKLOG.md`. |
 
 ## Now
 
-### Fix-5B: audit 4, layout faults in the HUD, the result card and the distribution boxes, plus the budget table (UI and e2e guards; no rule change, ENGINE and FORMAT unchanged; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
-
-- [x] [3.0] The load slider, its clamps and the refusal text follow `heliMaxTroopsOf` (e2e: the max grows after Rotor Blades).
-- [x] [3.1] The leaderboard has a max height above the controls and scrolls inside; e2e with the federation row expanded, 960x540 and 1366x640, sv and en.
-- [x] [3.2] Federation result card: one scroll surface, member names cut to the province, no wrapping cells; e2e: every header inside the card on both sizes and languages. Golden: see DECISIONS Fix-5B.
-- [x] [3.3] `resultRows`: a federation win ranks by score alone and marks every member of the winning group (unit test).
-- [x] [3.4] Proposal cards: the selection panel stops below them, they hide while D is open and the rows of the D panel show Accept / Decline (e2e).
-- [x] [3.5] The `?` card has an almost opaque background from `uiConfig` (e2e reads the alpha).
-- [x] [3.8] The narrow top bar wraps its second row (e2e at 540x960 with a federation, a research chip and two proposals).
-- [x] [3.9] Small things: plural of the exposed cells, "All" badge, name column min width, shorter research chip, compact T panel on short windows (e2e), start card help names T, D, N, L. Item (6) not done (see DECISIONS).
-- [x] [1.4] Budget table: rows for the helicopter effects and the front arrows (measured, e2e), the pinned sum is 23, the eight module rows moved to the module table, `readBudgets` fails on a stray row.
-- [x] `npm run verify:fast` (result in DECISIONS Fix-5B).
-
-### Fix-5A1: audit 4, rule fixes in air defence, research and federation timers (headless sim, ENGINE 24; one slice in its own worktree; the orchestrator owns merging, pushing and the Artifact)
-
-- [x] [0.1] `StructureTable.version` in the `Los.sync` memo key; test: a query before a step does not change the hash with a SAM upgrade finishing in that step.
-- [x] [0.2] Cell-based column ranges in `airDefensePhase` (no width assertion; hash of width 1024 unchanged); test against a brute-force oracle for widths 96, 100, 128, 130, 1024.
-- [x] [0.3] Federation hold timer moves to the new root when the holder is eliminated; test in `tests/sim/fix5a1.test.ts`.
-- [x] [0.4] Research cleared at elimination, `eliminatedAgrees` guard; tests.
-- [x] [2.0] [2.2] [2.3] [2.4] [2.13] test holes (mutant table in `docs/DECISIONS.md` "Fix-5A1").
-- [x] ENGINE_VERSION 24, both golden hash files recomputed once, `PLAINS_SAM_SEED3_HASH` and version pins updated.
-- [x] `npm run verify:fast` (result in `docs/DECISIONS.md` "Fix-5A1").
-### Fix-5A2: audit 4, the set-up barrier, deserialize guards, AI groups, the tech-tree guard and test holes (headless, no rule change, ENGINE_VERSION and FORMAT_VERSION unchanged, e2e/goldens untouched; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
-
-- [x] 0.0 `createMatch` refuses a split country with 0 AI nations (`setup.error.federationNeedsAi`); `federationMinAiNations(world, config)` for the set-up screen; test for all 7 candidates.
-- [x] 0.5 / 2.14b tight guards in `readMatch` (techDone window, tribe techs, winner / holdOwner players, holdOwner a group root) and helicopter load / fuel against the owner's own mask; one forged-blob test per guard with a control run.
-- [x] 0.6 AI diplomacy decides the leader per group (`groupShare`); `tests/ai` and `tests/sim/pace.test.ts` green.
-- [x] 1.2 tech key lists derived from `TECH_COUNT` / `TECH_BRANCHES` / `TECH_FX_CHANNELS`, one guard test (`tests/ui/techKeys.test.ts`).
-- [x] 2.1, 2.5, 2.6, 2.14a test holes closed (mutant table in DECISIONS, block Fix-5A2).
-- [x] `npm run verify:fast`: typecheck and lint green; unit run 3104 passed, the 2 failures (docs wording, the fixture of fix4a2Forged) fixed and re-run as single files green.
-### Fix-5A3: audit 4, test holes in app, render and UI models, and the attack arrow cap (headless, no rule change, ENGINE and FORMAT unchanged, goldens untouched; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
-
-- [x] [1.5] The own attack always has an arrow: `ATTACK_VIEW_CAP` 16 -> 32 (same single instanced mesh, no new draw call); test with 20 attacks, the own one the 19th, and 40 attacks fill exactly the cap.
-- [x] [2.7] `fillAttackFronts` and the per-tick reader: pure tests on hand-built grids (`tests/sim/attackFronts.test.ts`).
-- [x] [2.8] `NationCentroids` east half, date line, `anchorCell` order (`tests/app/nationCentroids.test.ts`).
-- [x] [2.9] Chase camera at courses 0 / 45 / 90 / 180 / 270, the pole clamp, the lean, heading easing and the frame-step clamp (`tests/app/chaseModeGeometry.test.ts`).
-- [x] [2.10] Helicopter glide (`tests/render/heliGlide.test.ts`) and fx edges (`tests/render/heliFxEdges.test.ts`).
-- [x] [2.11] `ownHeliRows` rewrites reused rows, diplomacy / tech watchers, result groups (`tests/ui/heliRows.test.ts`, `tests/ui/modelEdges.test.ts`).
-- [x] [2.12] Key N and `compactTroops` boundaries (`tests/app/labelsKey.test.ts`); the AI research / diplomacy survivors went to `docs/BACKLOG.md`.
-- [x] Mutant table in `docs/DECISIONS.md` "Fix-5A3". `npm run verify:fast` result in the block there.
-
-### Fix-5C: audit 4, stale docs, bundle diet, sub-nation names and the setup texts (docs plus a few texts and `src/app/federationStarts.ts`; no Chromium; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
-
-GÖR och ACCEPTANS:
-
-- [x] 1. PROGRESS.md: Done has rows for M12b, M18b-1/2/3, M18d-1/2, M13a-2, M20a-2, the rounds 18 to 20, Fix-4 and audit 4; Next lists what is really next; the finished Now blocks are in Archive word for word (audit 4 [1.0]).
-- [x] 2. Bundle diet decided with measured sizes and a rule for the gzip caps in `docs/DECISIONS.md` "Bundle diet"; the BACKLOG pass "Bundle diet 1-3" has the acceptance ([1.1]).
-- [x] 3. PREVIEW.md: unique section ids, research items in their own section, typos, M12b air defence section ([1.6]).
-- [x] 4. BACKLOG: the M18b-3 bullet about the group id corrected; ASSETS and CLAUDE.md command drift fixed ([1.8]).
-- [x] 5. Setup texts agree with `createMatch` (only startable sub-nations count; India is shown as "no split"), `diplo.hint` takes `{s}` from the rule ([1.7]); test `tests/app/federationTexts.test.ts`.
-- [x] 6. Sub-nation names are the province alone, the country in the language of the UI where needed (`subNationLabel`); `subNationName` keeps its signature ([3.6]).
-- [x] 7. [1.3] is the orchestrator's (the prompt list is outside the repo): not touched.
-- [x] `npm run verify:fast` green (result in `docs/DECISIONS.md` "Fix-5C").
-
-### M18e-1: Airfield, Lab and Plant in the sim, the AI and the build bar model (headless, no Chromium, ENGINE 25, FORMAT 16 unchanged; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
-
-GÖR
-- [x] 1. Three types in the existing structure table: Airfield (fleet cap +1 per level up to +6, helicopter production up to 40 percent shorter), Lab (research up to 40 percent shorter, stacking), Plant (gold, near an own City or Port); prices, curves, limits (3 / 3 / 6) and the refusals 118 and 119 in `src/sim/rules.ts` and `docs/BALANCE.md`; effects through the cached economy code (no new hashed cache).
-- [x] 2. Build bar and keys 7, 8 and 9 in the hotkey registry and the `?` overlay; texts sv + en; selection panel and research panel read the new effects through pure functions of `src/sim/public.ts`; provisional models by alias (no new draw call), with a unit test.
-- [x] 3. AI: Plant and Lab from spare gold after tick 3000 (never an Airfield); no illegal intent in 20 seeds; solo band and pace unchanged.
-- [x] 4. Serialize / restore guards, Node == worker, a replay with all nine types.
-- [x] 5. A test per effect with exact numbers and per refusal; mutants in the M18e-1 block of `docs/DECISIONS.md`.
-
-ACCEPTANS
-- [x] Three types with levels, prices and effects in `src/sim/rules.ts` and `docs/BALANCE.md`; Build / Upgrade / Delete work for them with the new refusal codes (`tests/sim/m18e1.test.ts`).
-- [x] Fleet cap, production time, research time and gold tested with exact numbers; the 10x limit and the payback tests are green.
-- [x] Keys 7, 8, 9 in the registry and the overlay; texts sv + en; the registry has provisional models without new draw calls (`tests/render/structureModelsShared.test.ts`).
-- [x] The AI builds Lab and Plant without an illegal intent; the solo band and `tests/sim/pace.test.ts` are unchanged.
-- [x] ENGINE 25 (FORMAT stays 16), both golden files recomputed once (only the version word moved), Node == worker, serialize round trip.
-- [x] `npm run verify:fast` green: typecheck, lint and 297 unit files (3228 tests) PASS, 1 min 55 s wall (the full `npm run verify` is the orchestrator's).
-
-Note for the user: the Airfield, Lab and Plant look like a bigger Factory, a smaller Silo and a small Factory in another colour until M18e-2 brings real models.
-
-### M18e-2: real models for the Airfield, Lab and Plant (render and pictures; no rule change, ENGINE and FORMAT unchanged, goldens untouched; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
-
-GÖR
-- [x] 1. Three procedural models (Airfield 154, Lab 208, Plant 228 triangles, at most 300) in ONE shared geometry; a model kind per vertex (`aModel`) and per instance (`aBuild.z`) makes the vertex shader collapse the other two: one extra draw call for the three types.
-- [x] 2. Registry: the aliases are gone; `trianglesOf`, the ghost (kind), the ring radius per type, the far icons (plus, octagon, tall bar in the same icon draw call) and the night lamps of the Lab and the Plant (same buffers, no extra call).
-- [x] 3. Pictures (3 km and 1.5 km, day and night, two owners, beside the Factory and the Silo) looked at with the Read tool; written to test-results/shots (no new golden).
-- [x] 4. Unit test of the registry and the layer (`tests/render/structureModelsShared.test.ts`), e2e with `renderer.info` and the build-bar buttons 7, 8, 9 (`e2e/structuresAirLabPlant.test.ts`), mutants in the M18e-2 block of `docs/DECISIONS.md`.
-- [x] 5. The leak and heap tests (`e2e/heap.test.ts`, `e2e/deployLeak.serial.test.ts`) alone: green.
-
-ACCEPTANS
-- [x] Three models of their own, one shared geometry, one extra draw call (7 -> 8 in the e2e), triangles as `renderer.info` reports them (590 per instance of the shared mesh).
-- [x] Ghost, ring, far icon and night lamps for the three types; pictures looked at and acceptable.
-- [x] Register unit test and e2e green alone; heap and leak tests green.
-- [x] `npm run verify:fast` green (result in `docs/DECISIONS.md` "M18e-2").
-
-Note for the user: build an Airfield (key 7), a Lab (8) or a Plant (9) and zoom in: a runway with a tower and a hangar, a domed building with an antenna, a cooling tower with a chimney.
-
-### M17-pre: navOf and per-viewer helicopter visibility (headless sim, host and view; no rule change, ENGINE and FORMAT unchanged, goldens untouched; one slice in its own worktree)
-
-- [x] 1. `SimView.navOf()`: a StateView returns the Nav of `GameState.env` (null without `maxElev`), a ViewMirror null; `HeliSight` in the pinned list of `tests/ai/boundary.test.ts` (`Nav` was pinned since M11b).
-- [x] 2. `src/sim/heliVisibility.ts`: the mask per viewer (own and non-hostile always; hostile only under the viewer's `Los.detected`; hostile parked or under production never), lazy and exact (fingerprint), never hashed; `SimView.visibleHelis(seat)`.
-- [x] 3. Host: `viewerSeat` option, `snapshotHelis` / `heliSignature` filter, `MatchSession.fromMatch` passes the human seat; the page's layer, effects, list, chase and `MissionWatcher` read the filtered mirror (no change needed, tests in `tests/render/heliVanish.test.ts`).
-- [x] 4. Tests with mutants (table in `docs/DECISIONS.md` "M17-pre"); perf test `tests/heliVisibility.perf.test.ts`.
-- [x] ACCEPTANS: navOf with test and pinned export; mask with ridge, ally, federation, truce and relation-change tests; hash equal with and without readers; perf inside `budgetMs`; no console errors on a vanishing helicopter (fake-layer test); `npm run verify:fast` (result in DECISIONS "M17-pre").
-### Bundle-diet-1: dev modules, host and AI load on demand (diet steps 2 and 3; no rule change, ENGINE and FORMAT unchanged, goldens untouched; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
-
-Measured before (gzip level 9, `npm run build` only to measure): first load 368 566 B (main 314 964, techRules 38 063, mainThreadHost 12 659, data 2 146, paths 469, public 265), all chunks 381 002 B.
-
-- [x] Measure before and after per chunk (in `docs/DECISIONS.md` "Bundle-diet-1").
-- [x] Step 2: Dev panel, mode list, perf overlay, perf scene (and so report, perfSceneReport) and the spike scene load with `import()` (`src/app/debugLoad.ts`, Swedish error on failure).
-- [x] Step 3: `MainThreadHost`, `AiDriver` and the AI load with `import()` when a match starts; `hashBuiltMatch` moved to `src/app/matchHash.ts`.
-- [x] The shared sim chunk (techRules) exists once; the first-load test pins it.
-- [x] Caps in `tests/portable.test.ts` lowered (main 321 000 to 315 700; total stays 391 000, see DECISIONS) and a first-load cap plus a lazy-chunk test added.
-- [x] e2e green alone: artifact, hud, setup, perfScene, devpanel.
-- [x] `npm run verify:fast` (result in `docs/DECISIONS.md`).
-
-### M13c-1: sea transport in the sim (headless, no Chromium; ENGINE 26, FORMAT 17; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
-
-GÖR
-- [x] 1. The ship table (`src/sim/shipTable.ts`): SoA, 32 slots, lowest-free-slot allocation, hashed and serialised (FORMAT 17), typed deserialize guards.
-- [x] 2. Intent `LaunchShip{seat, port, targetCell, troops}` (wire kind 23), codec, shape check, the refusal block SHIP_REASON_BASE + n (121..133), gold fee, `validateLaunchShip` in `src/sim/public.ts` (the sim runs the same `checkLaunchShip`).
-- [x] 3. Sea route (`src/sim/shipRoute.ts`): deterministic A* over water, string-pulled to at most 48 waypoints, work limit SHIP_ROUTE_MAX_CELLS, wrapX; the flight time follows from the route length and SHIP_CELLS_PER_TICK_Q.
-- [x] 4. Landing = the helicopter landing (`landTroops` in `src/sim/heliLanding.ts`, shared); treaty under way turns the ship back; eliminated owner scrapped; Port lost: sails on, lands, is scrapped.
-- [x] 5. No air defence against ships in v1 (DECISIONS, BACKLOG).
-- [x] 6. Outbox events SHIP_LAUNCHED / LANDED / RETURNED / SCRAPPED (+ RTB), `SimView.ships`, host snapshot and mirror (no render, no UI).
-- [x] 7. Tests with mutants (table in DECISIONS "M13c-1"), `ship-landing --seed N` CLI, perf test.
-
-ACCEPTANS
-- [x] Table, intent, codes, route, landing and events built; helicopter behaviour and tests unchanged (version words and hashes excepted).
-- [x] Parity between `validateLaunchShip` and the sim path; every refusal code has a test (`tests/sim/shipLaunch.test.ts`).
-- [x] Serialize / restore in the middle of a voyage, Node == worker, the CLI prints identical bytes (`tests/sim/shipState.test.ts`, `tests/sim/shipFlight.test.ts`, `tests/sim/shipLandingCli.test.ts`).
-- [x] ENGINE 26 / FORMAT 17, both golden files recomputed once (reason in DECISIONS "M13c-1").
-- [x] `npm run verify:fast` (result in DECISIONS "M13c-1").
-### Events-1: `ViewSnapshot.events`, a capped, drained side-fact list (headless host, view and mirror; no rule change, ENGINE and FORMAT unchanged, goldens untouched; one slice in its own worktree)
-
-GÖR
-- [x] 1. `ViewEvent`, `ViewEventsView`, `VIEW_EVENTS_CAP` (128) in `src/sim/view.ts`; `ViewSnapshot.events` (packed Int32Array) and `eventsDropped`; newest kept, drained into every diff, each fact in exactly one frame.
-- [x] 2. Source: every outbox event except paints and refusals, unknown kinds forwarded as they are (`src/host/viewEventFilter.ts`); the drain order of the host is unchanged.
-- [x] 3. Visibility: facts about hostile helicopters only while the helicopter is visible to the viewer (M17-pre mask), own and non-hostile always.
-- [x] 4. `ViewMirror.events` / `clearEvents()`, `SimView.events` (empty on a `StateView`), preallocated rings, transfer list in `src/host/remote.ts`.
-- [x] 5. Tests with mutants, allocation guard, perf budget, boundary pin.
-
-ACCEPTANS
-- [x] `ViewSnapshot.events` with cap, draining, `eventsDropped` and exactly-once delivery; mirror and view surface exist (`tests/host/viewEvents.test.ts`).
-- [x] No hidden enemy fact leaks; the state hash is the same with and without readers.
-- [x] No ENGINE or FORMAT change, goldens untouched; perf (`tests/viewEvents.perf.test.ts`) and allocation (`tests/host/viewEventRing.test.ts`) green.
-- [x] `npm run verify:fast` (result in `docs/DECISIONS.md` "Events-1").
-
-### M14a: missiles and nukes in the sim (headless, no Chromium; ENGINE 27, FORMAT 18; the SAM interception is M14b; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
-
-GÖR
-- [x] 1. Missile table (`src/sim/missileTable.ts`): SoA, 64 slots, lowest-free-slot allocation, launch counters per (owner, class), the FALLOUT layer; hashed and serialised (FORMAT 18) with typed deserialize guards.
-- [x] 2. Intent `LaunchMissile{seat, silo, missileClass, targetCell}` (wire kind 24), codec, shape check, refusal block MISSILE_REASON_BASE + n (141..151), price +25 % per earlier launch, Silo cooldown in `salvoTick`.
-- [x] 3. Flight (`src/sim/missileGeom.ts`): unit vectors from the Q15 sine table, range as a chord, flight time from a chord table, normalised-lerp position; no trig.
-- [x] 4. Blast (`src/sim/missilePhase.ts`, `src/sim/missileBlast.ts`): cell changes through `setOwner`, buildings, outer ring roll, troop loss, fallout (no Build, 1.5 x price), Tactical buildings only, spill on non-hostile land breaks the treaty.
-- [x] 5. `validateMissileLaunch`, `previewBlast`, `previewThreat` (empty list) in `src/sim/public.ts`; `OUTBOX_MISSILE_*` events forwarded as `ViewSnapshot.events`; `MissileView` in the host snapshot and mirror; `interceptPhase` hook (no-op).
-- [x] 6. Tests with mutants (table in DECISIONS "M14a"), `missiles --fixture plain-cruise|fusion-silo --seed N` CLI, perf test.
-
-ACCEPTANS
-- [x] Table, intent, codes, flight, blast, fallout and troop loss built; Tactical changes no owner.
-- [x] Every refusal code has a test and the page-side check agrees with the sim; the price rises 25 % per launch.
-- [x] Blast area within 1.5 % of the spherical cap at the equator, 45 N and 60 N; fallout ends exactly 1800 ticks after the blast; troop loss never above 60 %; derived structures equal a rebuild; a 104 000 cell blast inside budgetMs(50).
-- [x] OUTBOX_MISSILE_* reach the page once; `MissileView` in snapshot and mirror; `interceptPhase` exists as a no-op.
-- [x] ENGINE 27 / FORMAT 18, both golden files recomputed once; Node == worker; a save in the middle of a flight equals a straight run; the CLI prints identical bytes.
-- [x] `npm run verify:fast` (result in `docs/DECISIONS.md` "M14a").
-### Bundle-diet-2: only the active language is loaded (diet step 1; no rule change, ENGINE and FORMAT unchanged, goldens untouched; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
-
-Measured before (gzip level 9, `npm run build` only to measure): first load 356 583 B (main 310 033), all chunks 395 317 B; the two tables were inside main (about 15 400 B).
-
-- [x] Measure per chunk before and after (numbers in `docs/DECISIONS.md` "Bundle-diet-2").
-- [x] `sv` and `en` are two modules (`src/ui/i18n.sv.ts`, `src/ui/i18n.en.ts`); `TextKey` is one type derived from `sv`, `en` stays `Record<TextKey, string>`; `t()` is unchanged and synchronous.
-- [x] The start language loads with `import()` before the first text is built (`loadStartLanguage`, `src/app/langPref.ts`); a failed load falls back to the other language with a visible notice (`app.langError`); test mode and the unit tests register both tables.
-- [x] The language buttons wait for a not-yet-loaded table with a busy state (`src/ui/langSwitch.ts`), a failed load is told to the player.
-- [x] Caps in `tests/portable.test.ts`: first load 359 500 to 351 500, main 315 700 to 303 500; the TOTAL cap had to go UP (396 000 to 400 500, see DECISIONS: the split costs 2 575 B in the sum); a test pins one chunk per language outside the first load.
-- [x] New e2e `e2e/langLazy.test.ts` (live page: requests, switch, remembered choice, load failures).
-- [x] e2e green alone: artifact, hud, setup, setupFix, fixLayout, gpuTip, matchEnd, langLazy.
-- [x] `npm run verify:fast` (result in `docs/DECISIONS.md` "Bundle-diet-2").
-
-### M14b: SAM interception of missiles (headless, no Chromium; ENGINE 28, FORMAT 19; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
-
-GÖR
-- [x] 1. `src/sim/interceptor.ts`: `interceptPhase` (first in `missilePhase`): one interceptor per warhead and SAM, meeting tick by integer iteration (`meetingTick`), the hit rolled stateless at launch and applied at the meeting tick, stacking by independent rolls; interceptor rows in `MissileTable` (saved at the end of the missile block, hashed, dropped with their missile).
-- [x] 2. Rules: hostile finished SAM only (`atWar`, checked at launch and again at the meeting tick), shared `salvoTick` clock and period with the helicopter salvo, radius R(L) with the mountain bonus through `AaIndex` (new `AaIndex.collect`, also used by the helicopter rule), Tactical needs `Los.detected` and the site's own `Los.fireControl` (Low), Fission / Fusion always visible inside the radius.
-- [x] 3. `cellOfVector` (the inverse of `cellVector`, integer only), `previewThreat` (the SAM sites a flight crosses), events 25 and 26, fixtures `ridge-cruise` and `sam-stack` in `npm run sim:scenario -- missiles`.
-- [x] 4. `src/sim/rules.ts` + `docs/BALANCE.md`: `MISSILE_SAM_HIT_PCT`, `INTERCEPTOR_SPEED_ANGLE_PER_TICK`, `INTERCEPTOR_CAPACITY`.
-- [x] 5. ENGINE 28 / FORMAT 19, both golden files recomputed once; tests with mutants (table in `docs/DECISIONS.md` "M14b"); perf test; docs.
-
-ACCEPTANS
-- [x] A warhead is shot down at its meeting tick and never blows up; Tactical only when detection AND the site's own mask AND the radius allow it; Fission / Fusion always visible inside the radius.
-- [x] Pk Monte-Carlo (10 000 trials) 75 / 60 / 40 % within 2 points, two overlapping sites 1 - prod(1 - p) within 2 points; ridge-cruise cannot be engaged behind the ridge, can over plains.
-- [x] An ally or a treaty partner does not shoot; a salvo spent on a helicopter is not available; a treaty signed in flight voids the hit.
-- [x] `previewThreat` lists the crossed SAM sites; events 25 and 26 reach `ViewSnapshot.events` once; the fixtures give the same hash in Node and in a worker.
-- [x] A save with interceptors in the air equals a straight run; a step with 20 missiles and 12 SAM sites inside `budgetMs(4)`; ENGINE 28.
-- [x] `npm run verify:fast`: typecheck, lint and 3433 unit tests green after three fixes of the first run (a type guard in the new test, the BALANCE value format, one backticked path); the raised total gzip cap re-run alone (see `docs/DECISIONS.md` "M14b").
-
-### M13c-2: ships at sea and their control (render, UI and app; Chromium used one command at a time; no rule change, ENGINE and FORMAT unchanged, goldens untouched; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
-
-GÖR
-- [x] 1. The ship layer (`src/render/shipLayer.ts`, `src/render/shipModel.ts`, `src/render/shaders/ships.ts`): one instanced mesh, 32 instances, 76 triangles each, one draw call (none without ships), on the sea surface, heading from the route, sunk while unloading, a minimum screen size, budget row "Fartyg (M13c-2)".
-- [x] 2. Control: "Skicka fartyg" (`sel-ship`) in the Port panel with the fee and the reason; the ship mode (pick a coast, route preview on the deploy layer, landing marker, troop slider capped by the owner's troops, confirm sends `LaunchShip`); key B in the registry and the help card.
-- [x] 3. Texts: all 13 `REJECT_SHIP_*` codes (sv and en), toasts for set sail, landed (failed, nothing), treaty turn-back and scrapped from `view.events` (`ShipEventWatcher`, the first consumer of the event list).
-- [x] 4. The ship card is out of scope (BACKLOG).
-- [x] 5. Tests with mutants (`docs/DECISIONS.md` "M13c-2"), e2e (`e2e/ships.test.ts`) and pictures looked at.
-- [x] 6. Leak test (`e2e/shipsLeak.serial.test.ts`).
-
-ACCEPTANS
-- [x] Ships in ONE instanced mesh (1 draw call, 76 triangles per ship), on the sea, with heading, visible from the earth view.
-- [x] "Skicka fartyg": route preview, marker, slider, confirm sends `LaunchShip`; text for all 13 refusals.
-- [x] Toasts through `ViewSnapshot.events` with a unit test.
-- [x] One shortcut (B) in the registry and the help card, which still fits 960x540 (the rows are 1.3 em).
-- [x] e2e and pictures; the touched existing e2e green when run alone.
-- [x] `npm run verify:fast` (result in `docs/DECISIONS.md` "M13c-2").
+### Fix-6C: audit 5, the size of the first load, stale docs and the player guide (docs, one import and the size tests; headless, no rule change, ENGINE and FORMAT unchanged, goldens untouched; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+- [x] [2.1] `src/app/matchSetup.ts` imports `../ai/place`, not the AI barrel; test: no AI-only property name in the start chunks.
+- [x] [2.1] Measured again: START 343 908, MAIN 294 864 (both already under measured + 3 %, so the caps 351 500 and 303 500 stay; a cap is never raised without a diet step); recorded in `docs/DECISIONS.md` "Fix-6C".
+- [x] [2.0] First-load test (start chunks + the larger language table) with the pre-diet 356 583 B as cap: measured 353 515. The START headroom is corrected in DECISIONS; TOTAL is a fixed budget number (rule in "Fix-6C" 4).
+- [x] [2.2] `docs/PREVIEW.md` sections 5n, 5o, 5p (Swedish) and the placeholder 5q "Högerklicksmenyn" for Ctx-1 (item 17cb).
+- [x] [2.3] Fifteen finished passes moved word for word from Now to Archive; Done rows added; Next rewritten.
+- [x] [2.8] and [2.9] BACKLOG: M14a items marked solved, block "Fix-6C" with the plan for M15a, M15b, M16, M17 and M20b; the ARCHITECTURE index has 3 269 bytes of air (section moved to `docs/arch/render.md`).
+- [x] `tests/docs.test.ts`, `tests/portable.test.ts` green; `npm run verify:fast` once at the end (result in `docs/DECISIONS.md` "Fix-6C" and the hand-off).
 
 ## Next
 
-- Fix-5 (the audit 4 fixes) is merged on the branch and published as version 32; audit 5 follows after five more published versions (v33 to v37).
-- Next slices, in this order: the bundle diet ("Bundle diet 1-3" in `docs/BACKLOG.md`, decided in `docs/DECISIONS.md` "Bundle diet"; it must come before M15a, whose SMAAPass alone is 35.6 kB gz, and before M24a), M13c (travel over land, sea and air), M14 (the events array and `navOf` are preconditions, see "Audit 3 downstream decisions" in `docs/DECISIONS.md`), M15a and M15b, M16, M17, M18e (more building types and a city map).
-- Already done and no longer next: M12b, M13a-2, M20a-2, M18b (federations, three parts) and M18d (technology, two parts): see Done.
+- Audit 5 (against v36, 11ac641) is worked through by the Fix-6 slices and Ctx-1 (the right-click menu, a separate track); the merged result is published as v37.
+- The size prerequisite comes before any picture work: diet step 4 (the ship modules behind `import()`, the `en` table as values only, a `modulepreload` of the active language chunk, see `docs/BACKLOG.md` "Fix-6C"); the first load has 3 068 B left under the pre-diet figure and M15a's SMAAPass alone is 35.6 kB gzip.
+- Then, in this order: M15a (missile and nuke pictures; needs a uniform-in-arc `missilePosition` with an ENGINE bump and the fallout layer in the ViewMirror), M15b (the missile UI and its 11 refusal texts), M16 and M17 (AI helicopters, ships and missiles), M20b (minimap and alarms). Each adds one row to the ARCHITECTURE index (plan in `docs/BACKLOG.md` "Fix-6C").
+- Already done and no longer next: the bundle diet steps 1 to 3 as first planned (Bundle-diet-1 and -2; the further steps are new), M13c (ships), M14a and M14b (missiles and SAM interception), M18e (Airfield, Lab, Plant), M12b, M13a-2, M20a-2, M18b and M18d: see Done.
 - Before the first CI run that matters: wire the three verify shards into `.github/workflows/ci.yml` (D156 (8)): a GitHub runner has 2 cores and `npm run verify` takes 12 minutes on 4.
 - The USER GATEs of the camera (M08, CamFix) and the real-GPU tuning are the user's, see Known issues and `docs/PREVIEW.md`.
 
@@ -516,6 +331,215 @@ Reading: (1) the fixed part grows with the triangle count (about 3 ms per 1000 t
 ## Archive
 
 Finished passes moved out of Now by Fix-3C, text kept word for word (two ticks annotated).
+
+Moved out of Now by Fix-6C (15 finished passes of the rounds 20 to 24), text kept word for word.
+
+### Fix-5B: audit 4, layout faults in the HUD, the result card and the distribution boxes, plus the budget table (UI and e2e guards; no rule change, ENGINE and FORMAT unchanged; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+
+- [x] [3.0] The load slider, its clamps and the refusal text follow `heliMaxTroopsOf` (e2e: the max grows after Rotor Blades).
+- [x] [3.1] The leaderboard has a max height above the controls and scrolls inside; e2e with the federation row expanded, 960x540 and 1366x640, sv and en.
+- [x] [3.2] Federation result card: one scroll surface, member names cut to the province, no wrapping cells; e2e: every header inside the card on both sizes and languages. Golden: see DECISIONS Fix-5B.
+- [x] [3.3] `resultRows`: a federation win ranks by score alone and marks every member of the winning group (unit test).
+- [x] [3.4] Proposal cards: the selection panel stops below them, they hide while D is open and the rows of the D panel show Accept / Decline (e2e).
+- [x] [3.5] The `?` card has an almost opaque background from `uiConfig` (e2e reads the alpha).
+- [x] [3.8] The narrow top bar wraps its second row (e2e at 540x960 with a federation, a research chip and two proposals).
+- [x] [3.9] Small things: plural of the exposed cells, "All" badge, name column min width, shorter research chip, compact T panel on short windows (e2e), start card help names T, D, N, L. Item (6) not done (see DECISIONS).
+- [x] [1.4] Budget table: rows for the helicopter effects and the front arrows (measured, e2e), the pinned sum is 23, the eight module rows moved to the module table, `readBudgets` fails on a stray row.
+- [x] `npm run verify:fast` (result in DECISIONS Fix-5B).
+
+### Fix-5A1: audit 4, rule fixes in air defence, research and federation timers (headless sim, ENGINE 24; one slice in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+
+- [x] [0.1] `StructureTable.version` in the `Los.sync` memo key; test: a query before a step does not change the hash with a SAM upgrade finishing in that step.
+- [x] [0.2] Cell-based column ranges in `airDefensePhase` (no width assertion; hash of width 1024 unchanged); test against a brute-force oracle for widths 96, 100, 128, 130, 1024.
+- [x] [0.3] Federation hold timer moves to the new root when the holder is eliminated; test in `tests/sim/fix5a1.test.ts`.
+- [x] [0.4] Research cleared at elimination, `eliminatedAgrees` guard; tests.
+- [x] [2.0] [2.2] [2.3] [2.4] [2.13] test holes (mutant table in `docs/DECISIONS.md` "Fix-5A1").
+- [x] ENGINE_VERSION 24, both golden hash files recomputed once, `PLAINS_SAM_SEED3_HASH` and version pins updated.
+- [x] `npm run verify:fast` (result in `docs/DECISIONS.md` "Fix-5A1").
+### Fix-5A2: audit 4, the set-up barrier, deserialize guards, AI groups, the tech-tree guard and test holes (headless, no rule change, ENGINE_VERSION and FORMAT_VERSION unchanged, e2e/goldens untouched; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+
+- [x] 0.0 `createMatch` refuses a split country with 0 AI nations (`setup.error.federationNeedsAi`); `federationMinAiNations(world, config)` for the set-up screen; test for all 7 candidates.
+- [x] 0.5 / 2.14b tight guards in `readMatch` (techDone window, tribe techs, winner / holdOwner players, holdOwner a group root) and helicopter load / fuel against the owner's own mask; one forged-blob test per guard with a control run.
+- [x] 0.6 AI diplomacy decides the leader per group (`groupShare`); `tests/ai` and `tests/sim/pace.test.ts` green.
+- [x] 1.2 tech key lists derived from `TECH_COUNT` / `TECH_BRANCHES` / `TECH_FX_CHANNELS`, one guard test (`tests/ui/techKeys.test.ts`).
+- [x] 2.1, 2.5, 2.6, 2.14a test holes closed (mutant table in DECISIONS, block Fix-5A2).
+- [x] `npm run verify:fast`: typecheck and lint green; unit run 3104 passed, the 2 failures (docs wording, the fixture of fix4a2Forged) fixed and re-run as single files green.
+### Fix-5A3: audit 4, test holes in app, render and UI models, and the attack arrow cap (headless, no rule change, ENGINE and FORMAT unchanged, goldens untouched; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+
+- [x] [1.5] The own attack always has an arrow: `ATTACK_VIEW_CAP` 16 -> 32 (same single instanced mesh, no new draw call); test with 20 attacks, the own one the 19th, and 40 attacks fill exactly the cap.
+- [x] [2.7] `fillAttackFronts` and the per-tick reader: pure tests on hand-built grids (`tests/sim/attackFronts.test.ts`).
+- [x] [2.8] `NationCentroids` east half, date line, `anchorCell` order (`tests/app/nationCentroids.test.ts`).
+- [x] [2.9] Chase camera at courses 0 / 45 / 90 / 180 / 270, the pole clamp, the lean, heading easing and the frame-step clamp (`tests/app/chaseModeGeometry.test.ts`).
+- [x] [2.10] Helicopter glide (`tests/render/heliGlide.test.ts`) and fx edges (`tests/render/heliFxEdges.test.ts`).
+- [x] [2.11] `ownHeliRows` rewrites reused rows, diplomacy / tech watchers, result groups (`tests/ui/heliRows.test.ts`, `tests/ui/modelEdges.test.ts`).
+- [x] [2.12] Key N and `compactTroops` boundaries (`tests/app/labelsKey.test.ts`); the AI research / diplomacy survivors went to `docs/BACKLOG.md`.
+- [x] Mutant table in `docs/DECISIONS.md` "Fix-5A3". `npm run verify:fast` result in the block there.
+
+### Fix-5C: audit 4, stale docs, bundle diet, sub-nation names and the setup texts (docs plus a few texts and `src/app/federationStarts.ts`; no Chromium; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+
+GÖR och ACCEPTANS:
+
+- [x] 1. PROGRESS.md: Done has rows for M12b, M18b-1/2/3, M18d-1/2, M13a-2, M20a-2, the rounds 18 to 20, Fix-4 and audit 4; Next lists what is really next; the finished Now blocks are in Archive word for word (audit 4 [1.0]).
+- [x] 2. Bundle diet decided with measured sizes and a rule for the gzip caps in `docs/DECISIONS.md` "Bundle diet"; the BACKLOG pass "Bundle diet 1-3" has the acceptance ([1.1]).
+- [x] 3. PREVIEW.md: unique section ids, research items in their own section, typos, M12b air defence section ([1.6]).
+- [x] 4. BACKLOG: the M18b-3 bullet about the group id corrected; ASSETS and CLAUDE.md command drift fixed ([1.8]).
+- [x] 5. Setup texts agree with `createMatch` (only startable sub-nations count; India is shown as "no split"), `diplo.hint` takes `{s}` from the rule ([1.7]); test `tests/app/federationTexts.test.ts`.
+- [x] 6. Sub-nation names are the province alone, the country in the language of the UI where needed (`subNationLabel`); `subNationName` keeps its signature ([3.6]).
+- [x] 7. [1.3] is the orchestrator's (the prompt list is outside the repo): not touched.
+- [x] `npm run verify:fast` green (result in `docs/DECISIONS.md` "Fix-5C").
+
+### M18e-1: Airfield, Lab and Plant in the sim, the AI and the build bar model (headless, no Chromium, ENGINE 25, FORMAT 16 unchanged; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+
+GÖR
+- [x] 1. Three types in the existing structure table: Airfield (fleet cap +1 per level up to +6, helicopter production up to 40 percent shorter), Lab (research up to 40 percent shorter, stacking), Plant (gold, near an own City or Port); prices, curves, limits (3 / 3 / 6) and the refusals 118 and 119 in `src/sim/rules.ts` and `docs/BALANCE.md`; effects through the cached economy code (no new hashed cache).
+- [x] 2. Build bar and keys 7, 8 and 9 in the hotkey registry and the `?` overlay; texts sv + en; selection panel and research panel read the new effects through pure functions of `src/sim/public.ts`; provisional models by alias (no new draw call), with a unit test.
+- [x] 3. AI: Plant and Lab from spare gold after tick 3000 (never an Airfield); no illegal intent in 20 seeds; solo band and pace unchanged.
+- [x] 4. Serialize / restore guards, Node == worker, a replay with all nine types.
+- [x] 5. A test per effect with exact numbers and per refusal; mutants in the M18e-1 block of `docs/DECISIONS.md`.
+
+ACCEPTANS
+- [x] Three types with levels, prices and effects in `src/sim/rules.ts` and `docs/BALANCE.md`; Build / Upgrade / Delete work for them with the new refusal codes (`tests/sim/m18e1.test.ts`).
+- [x] Fleet cap, production time, research time and gold tested with exact numbers; the 10x limit and the payback tests are green.
+- [x] Keys 7, 8, 9 in the registry and the overlay; texts sv + en; the registry has provisional models without new draw calls (`tests/render/structureModelsShared.test.ts`).
+- [x] The AI builds Lab and Plant without an illegal intent; the solo band and `tests/sim/pace.test.ts` are unchanged.
+- [x] ENGINE 25 (FORMAT stays 16), both golden files recomputed once (only the version word moved), Node == worker, serialize round trip.
+- [x] `npm run verify:fast` green: typecheck, lint and 297 unit files (3228 tests) PASS, 1 min 55 s wall (the full `npm run verify` is the orchestrator's).
+
+Note for the user: the Airfield, Lab and Plant look like a bigger Factory, a smaller Silo and a small Factory in another colour until M18e-2 brings real models.
+
+### M18e-2: real models for the Airfield, Lab and Plant (render and pictures; no rule change, ENGINE and FORMAT unchanged, goldens untouched; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+
+GÖR
+- [x] 1. Three procedural models (Airfield 154, Lab 208, Plant 228 triangles, at most 300) in ONE shared geometry; a model kind per vertex (`aModel`) and per instance (`aBuild.z`) makes the vertex shader collapse the other two: one extra draw call for the three types.
+- [x] 2. Registry: the aliases are gone; `trianglesOf`, the ghost (kind), the ring radius per type, the far icons (plus, octagon, tall bar in the same icon draw call) and the night lamps of the Lab and the Plant (same buffers, no extra call).
+- [x] 3. Pictures (3 km and 1.5 km, day and night, two owners, beside the Factory and the Silo) looked at with the Read tool; written to test-results/shots (no new golden).
+- [x] 4. Unit test of the registry and the layer (`tests/render/structureModelsShared.test.ts`), e2e with `renderer.info` and the build-bar buttons 7, 8, 9 (`e2e/structuresAirLabPlant.test.ts`), mutants in the M18e-2 block of `docs/DECISIONS.md`.
+- [x] 5. The leak and heap tests (`e2e/heap.test.ts`, `e2e/deployLeak.serial.test.ts`) alone: green.
+
+ACCEPTANS
+- [x] Three models of their own, one shared geometry, one extra draw call (7 -> 8 in the e2e), triangles as `renderer.info` reports them (590 per instance of the shared mesh).
+- [x] Ghost, ring, far icon and night lamps for the three types; pictures looked at and acceptable.
+- [x] Register unit test and e2e green alone; heap and leak tests green.
+- [x] `npm run verify:fast` green (result in `docs/DECISIONS.md` "M18e-2").
+
+Note for the user: build an Airfield (key 7), a Lab (8) or a Plant (9) and zoom in: a runway with a tower and a hangar, a domed building with an antenna, a cooling tower with a chimney.
+
+### M17-pre: navOf and per-viewer helicopter visibility (headless sim, host and view; no rule change, ENGINE and FORMAT unchanged, goldens untouched; one slice in its own worktree)
+
+- [x] 1. `SimView.navOf()`: a StateView returns the Nav of `GameState.env` (null without `maxElev`), a ViewMirror null; `HeliSight` in the pinned list of `tests/ai/boundary.test.ts` (`Nav` was pinned since M11b).
+- [x] 2. `src/sim/heliVisibility.ts`: the mask per viewer (own and non-hostile always; hostile only under the viewer's `Los.detected`; hostile parked or under production never), lazy and exact (fingerprint), never hashed; `SimView.visibleHelis(seat)`.
+- [x] 3. Host: `viewerSeat` option, `snapshotHelis` / `heliSignature` filter, `MatchSession.fromMatch` passes the human seat; the page's layer, effects, list, chase and `MissionWatcher` read the filtered mirror (no change needed, tests in `tests/render/heliVanish.test.ts`).
+- [x] 4. Tests with mutants (table in `docs/DECISIONS.md` "M17-pre"); perf test `tests/heliVisibility.perf.test.ts`.
+- [x] ACCEPTANS: navOf with test and pinned export; mask with ridge, ally, federation, truce and relation-change tests; hash equal with and without readers; perf inside `budgetMs`; no console errors on a vanishing helicopter (fake-layer test); `npm run verify:fast` (result in DECISIONS "M17-pre").
+### Bundle-diet-1: dev modules, host and AI load on demand (diet steps 2 and 3; no rule change, ENGINE and FORMAT unchanged, goldens untouched; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+
+Measured before (gzip level 9, `npm run build` only to measure): first load 368 566 B (main 314 964, techRules 38 063, mainThreadHost 12 659, data 2 146, paths 469, public 265), all chunks 381 002 B.
+
+- [x] Measure before and after per chunk (in `docs/DECISIONS.md` "Bundle-diet-1").
+- [x] Step 2: Dev panel, mode list, perf overlay, perf scene (and so report, perfSceneReport) and the spike scene load with `import()` (`src/app/debugLoad.ts`, Swedish error on failure).
+- [x] Step 3: `MainThreadHost`, `AiDriver` and the AI load with `import()` when a match starts; `hashBuiltMatch` moved to `src/app/matchHash.ts`.
+- [x] The shared sim chunk (techRules) exists once; the first-load test pins it.
+- [x] Caps in `tests/portable.test.ts` lowered (main 321 000 to 315 700; total stays 391 000, see DECISIONS) and a first-load cap plus a lazy-chunk test added.
+- [x] e2e green alone: artifact, hud, setup, perfScene, devpanel.
+- [x] `npm run verify:fast` (result in `docs/DECISIONS.md`).
+
+### M13c-1: sea transport in the sim (headless, no Chromium; ENGINE 26, FORMAT 17; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+
+GÖR
+- [x] 1. The ship table (`src/sim/shipTable.ts`): SoA, 32 slots, lowest-free-slot allocation, hashed and serialised (FORMAT 17), typed deserialize guards.
+- [x] 2. Intent `LaunchShip{seat, port, targetCell, troops}` (wire kind 23), codec, shape check, the refusal block SHIP_REASON_BASE + n (121..133), gold fee, `validateLaunchShip` in `src/sim/public.ts` (the sim runs the same `checkLaunchShip`).
+- [x] 3. Sea route (`src/sim/shipRoute.ts`): deterministic A* over water, string-pulled to at most 48 waypoints, work limit SHIP_ROUTE_MAX_CELLS, wrapX; the flight time follows from the route length and SHIP_CELLS_PER_TICK_Q.
+- [x] 4. Landing = the helicopter landing (`landTroops` in `src/sim/heliLanding.ts`, shared); treaty under way turns the ship back; eliminated owner scrapped; Port lost: sails on, lands, is scrapped.
+- [x] 5. No air defence against ships in v1 (DECISIONS, BACKLOG).
+- [x] 6. Outbox events SHIP_LAUNCHED / LANDED / RETURNED / SCRAPPED (+ RTB), `SimView.ships`, host snapshot and mirror (no render, no UI).
+- [x] 7. Tests with mutants (table in DECISIONS "M13c-1"), `ship-landing --seed N` CLI, perf test.
+
+ACCEPTANS
+- [x] Table, intent, codes, route, landing and events built; helicopter behaviour and tests unchanged (version words and hashes excepted).
+- [x] Parity between `validateLaunchShip` and the sim path; every refusal code has a test (`tests/sim/shipLaunch.test.ts`).
+- [x] Serialize / restore in the middle of a voyage, Node == worker, the CLI prints identical bytes (`tests/sim/shipState.test.ts`, `tests/sim/shipFlight.test.ts`, `tests/sim/shipLandingCli.test.ts`).
+- [x] ENGINE 26 / FORMAT 17, both golden files recomputed once (reason in DECISIONS "M13c-1").
+- [x] `npm run verify:fast` (result in DECISIONS "M13c-1").
+### Events-1: `ViewSnapshot.events`, a capped, drained side-fact list (headless host, view and mirror; no rule change, ENGINE and FORMAT unchanged, goldens untouched; one slice in its own worktree)
+
+GÖR
+- [x] 1. `ViewEvent`, `ViewEventsView`, `VIEW_EVENTS_CAP` (128) in `src/sim/view.ts`; `ViewSnapshot.events` (packed Int32Array) and `eventsDropped`; newest kept, drained into every diff, each fact in exactly one frame.
+- [x] 2. Source: every outbox event except paints and refusals, unknown kinds forwarded as they are (`src/host/viewEventFilter.ts`); the drain order of the host is unchanged.
+- [x] 3. Visibility: facts about hostile helicopters only while the helicopter is visible to the viewer (M17-pre mask), own and non-hostile always.
+- [x] 4. `ViewMirror.events` / `clearEvents()`, `SimView.events` (empty on a `StateView`), preallocated rings, transfer list in `src/host/remote.ts`.
+- [x] 5. Tests with mutants, allocation guard, perf budget, boundary pin.
+
+ACCEPTANS
+- [x] `ViewSnapshot.events` with cap, draining, `eventsDropped` and exactly-once delivery; mirror and view surface exist (`tests/host/viewEvents.test.ts`).
+- [x] No hidden enemy fact leaks; the state hash is the same with and without readers.
+- [x] No ENGINE or FORMAT change, goldens untouched; perf (`tests/viewEvents.perf.test.ts`) and allocation (`tests/host/viewEventRing.test.ts`) green.
+- [x] `npm run verify:fast` (result in `docs/DECISIONS.md` "Events-1").
+
+### M14a: missiles and nukes in the sim (headless, no Chromium; ENGINE 27, FORMAT 18; the SAM interception is M14b; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+
+GÖR
+- [x] 1. Missile table (`src/sim/missileTable.ts`): SoA, 64 slots, lowest-free-slot allocation, launch counters per (owner, class), the FALLOUT layer; hashed and serialised (FORMAT 18) with typed deserialize guards.
+- [x] 2. Intent `LaunchMissile{seat, silo, missileClass, targetCell}` (wire kind 24), codec, shape check, refusal block MISSILE_REASON_BASE + n (141..151), price +25 % per earlier launch, Silo cooldown in `salvoTick`.
+- [x] 3. Flight (`src/sim/missileGeom.ts`): unit vectors from the Q15 sine table, range as a chord, flight time from a chord table, normalised-lerp position; no trig.
+- [x] 4. Blast (`src/sim/missilePhase.ts`, `src/sim/missileBlast.ts`): cell changes through `setOwner`, buildings, outer ring roll, troop loss, fallout (no Build, 1.5 x price), Tactical buildings only, spill on non-hostile land breaks the treaty.
+- [x] 5. `validateMissileLaunch`, `previewBlast`, `previewThreat` (empty list) in `src/sim/public.ts`; `OUTBOX_MISSILE_*` events forwarded as `ViewSnapshot.events`; `MissileView` in the host snapshot and mirror; `interceptPhase` hook (no-op).
+- [x] 6. Tests with mutants (table in DECISIONS "M14a"), `missiles --fixture plain-cruise|fusion-silo --seed N` CLI, perf test.
+
+ACCEPTANS
+- [x] Table, intent, codes, flight, blast, fallout and troop loss built; Tactical changes no owner.
+- [x] Every refusal code has a test and the page-side check agrees with the sim; the price rises 25 % per launch.
+- [x] Blast area within 1.5 % of the spherical cap at the equator, 45 N and 60 N; fallout ends exactly 1800 ticks after the blast; troop loss never above 60 %; derived structures equal a rebuild; a 104 000 cell blast inside budgetMs(50).
+- [x] OUTBOX_MISSILE_* reach the page once; `MissileView` in snapshot and mirror; `interceptPhase` exists as a no-op.
+- [x] ENGINE 27 / FORMAT 18, both golden files recomputed once; Node == worker; a save in the middle of a flight equals a straight run; the CLI prints identical bytes.
+- [x] `npm run verify:fast` (result in `docs/DECISIONS.md` "M14a").
+### Bundle-diet-2: only the active language is loaded (diet step 1; no rule change, ENGINE and FORMAT unchanged, goldens untouched; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+
+Measured before (gzip level 9, `npm run build` only to measure): first load 356 583 B (main 310 033), all chunks 395 317 B; the two tables were inside main (about 15 400 B).
+
+- [x] Measure per chunk before and after (numbers in `docs/DECISIONS.md` "Bundle-diet-2").
+- [x] `sv` and `en` are two modules (`src/ui/i18n.sv.ts`, `src/ui/i18n.en.ts`); `TextKey` is one type derived from `sv`, `en` stays `Record<TextKey, string>`; `t()` is unchanged and synchronous.
+- [x] The start language loads with `import()` before the first text is built (`loadStartLanguage`, `src/app/langPref.ts`); a failed load falls back to the other language with a visible notice (`app.langError`); test mode and the unit tests register both tables.
+- [x] The language buttons wait for a not-yet-loaded table with a busy state (`src/ui/langSwitch.ts`), a failed load is told to the player.
+- [x] Caps in `tests/portable.test.ts`: first load 359 500 to 351 500, main 315 700 to 303 500; the TOTAL cap had to go UP (396 000 to 400 500, see DECISIONS: the split costs 2 575 B in the sum); a test pins one chunk per language outside the first load.
+- [x] New e2e `e2e/langLazy.test.ts` (live page: requests, switch, remembered choice, load failures).
+- [x] e2e green alone: artifact, hud, setup, setupFix, fixLayout, gpuTip, matchEnd, langLazy.
+- [x] `npm run verify:fast` (result in `docs/DECISIONS.md` "Bundle-diet-2").
+
+### M14b: SAM interception of missiles (headless, no Chromium; ENGINE 28, FORMAT 19; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+
+GÖR
+- [x] 1. `src/sim/interceptor.ts`: `interceptPhase` (first in `missilePhase`): one interceptor per warhead and SAM, meeting tick by integer iteration (`meetingTick`), the hit rolled stateless at launch and applied at the meeting tick, stacking by independent rolls; interceptor rows in `MissileTable` (saved at the end of the missile block, hashed, dropped with their missile).
+- [x] 2. Rules: hostile finished SAM only (`atWar`, checked at launch and again at the meeting tick), shared `salvoTick` clock and period with the helicopter salvo, radius R(L) with the mountain bonus through `AaIndex` (new `AaIndex.collect`, also used by the helicopter rule), Tactical needs `Los.detected` and the site's own `Los.fireControl` (Low), Fission / Fusion always visible inside the radius.
+- [x] 3. `cellOfVector` (the inverse of `cellVector`, integer only), `previewThreat` (the SAM sites a flight crosses), events 25 and 26, fixtures `ridge-cruise` and `sam-stack` in `npm run sim:scenario -- missiles`.
+- [x] 4. `src/sim/rules.ts` + `docs/BALANCE.md`: `MISSILE_SAM_HIT_PCT`, `INTERCEPTOR_SPEED_ANGLE_PER_TICK`, `INTERCEPTOR_CAPACITY`.
+- [x] 5. ENGINE 28 / FORMAT 19, both golden files recomputed once; tests with mutants (table in `docs/DECISIONS.md` "M14b"); perf test; docs.
+
+ACCEPTANS
+- [x] A warhead is shot down at its meeting tick and never blows up; Tactical only when detection AND the site's own mask AND the radius allow it; Fission / Fusion always visible inside the radius.
+- [x] Pk Monte-Carlo (10 000 trials) 75 / 60 / 40 % within 2 points, two overlapping sites 1 - prod(1 - p) within 2 points; ridge-cruise cannot be engaged behind the ridge, can over plains.
+- [x] An ally or a treaty partner does not shoot; a salvo spent on a helicopter is not available; a treaty signed in flight voids the hit.
+- [x] `previewThreat` lists the crossed SAM sites; events 25 and 26 reach `ViewSnapshot.events` once; the fixtures give the same hash in Node and in a worker.
+- [x] A save with interceptors in the air equals a straight run; a step with 20 missiles and 12 SAM sites inside `budgetMs(4)`; ENGINE 28.
+- [x] `npm run verify:fast`: typecheck, lint and 3433 unit tests green after three fixes of the first run (a type guard in the new test, the BALANCE value format, one backticked path); the raised total gzip cap re-run alone (see `docs/DECISIONS.md` "M14b").
+
+### M13c-2: ships at sea and their control (render, UI and app; Chromium used one command at a time; no rule change, ENGINE and FORMAT unchanged, goldens untouched; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+
+GÖR
+- [x] 1. The ship layer (`src/render/shipLayer.ts`, `src/render/shipModel.ts`, `src/render/shaders/ships.ts`): one instanced mesh, 32 instances, 76 triangles each, one draw call (none without ships), on the sea surface, heading from the route, sunk while unloading, a minimum screen size, budget row "Fartyg (M13c-2)".
+- [x] 2. Control: "Skicka fartyg" (`sel-ship`) in the Port panel with the fee and the reason; the ship mode (pick a coast, route preview on the deploy layer, landing marker, troop slider capped by the owner's troops, confirm sends `LaunchShip`); key B in the registry and the help card.
+- [x] 3. Texts: all 13 `REJECT_SHIP_*` codes (sv and en), toasts for set sail, landed (failed, nothing), treaty turn-back and scrapped from `view.events` (`ShipEventWatcher`, the first consumer of the event list).
+- [x] 4. The ship card is out of scope (BACKLOG).
+- [x] 5. Tests with mutants (`docs/DECISIONS.md` "M13c-2"), e2e (`e2e/ships.test.ts`) and pictures looked at.
+- [x] 6. Leak test (`e2e/shipsLeak.serial.test.ts`).
+
+ACCEPTANS
+- [x] Ships in ONE instanced mesh (1 draw call, 76 triangles per ship), on the sea, with heading, visible from the earth view.
+- [x] "Skicka fartyg": route preview, marker, slider, confirm sends `LaunchShip`; text for all 13 refusals.
+- [x] Toasts through `ViewSnapshot.events` with a unit test.
+- [x] One shortcut (B) in the registry and the help card, which still fits 960x540 (the rows are 1.3 em).
+- [x] e2e and pictures; the touched existing e2e green when run alone.
+- [x] `npm run verify:fast` (result in `docs/DECISIONS.md` "M13c-2").
+
 
 ### Integration Sim-Growth + Look-1: the UI and render read the ten City levels and five district slots (one session on HEAD 7cfad4b; the orchestrator owns merging, pushing and the Artifact)
 - [x] 1. `structureInfo`, `cityViewModel`, `cityViewPanel`, `selectionPanel`, `src/render/structures.ts`, `src/render/rings.ts`, `src/render/cityTiers.ts` read `cityGoldMilli`, `cityTroopCap`, `maxLevelOf`, `upgradePriceGold`, `upgradeTicksOf`; five fixed district slots on a pentagon (`DISTRICT_SLOT_ANGLES`); the five failing unit tests follow the sim numbers (details in `docs/DECISIONS.md`, Integration Sim-Growth + Look-1)
