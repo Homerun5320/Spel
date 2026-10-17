@@ -274,9 +274,11 @@ describe('proposals to you', () => {
       expect(await relationOf(page, 2)).toBe('war');
       expect(await page.locator(`${tid('diplo-card-in')}[data-from="1"]:visible`).count()).toBe(0);
       expect(await page.locator(`${tid('diplo-card-in')}[data-from="2"]:visible`).count()).toBe(0);
-      expect(await page.locator(`${tid('diplo-card-in')}:visible`).count()).toBe(3);
+      expect(await page.locator(`${tid('diplo-card-in')}:visible`).count(), 'Fix-5B: the cards hide while the panel is open (its rows answer instead)').toBe(0);
       // the rest run out after 60 seconds and the cards go; expiry says nothing
       await page.keyboard.press('Escape');
+      await tt.advance(0.1, 2);
+      expect(await page.locator(`${tid('diplo-card-in')}:visible`).count(), 'the cards are back when the panel closes').toBe(3);
       const after = await advanceCollecting(page, 20, 33);
       expect(await page.locator(`${tid('diplo-card-in')}:visible`).count()).toBe(0);
       expect(await page.locator(tid('diplo-signal')).isVisible()).toBe(false);

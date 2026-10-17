@@ -1875,3 +1875,39 @@ The first full `npm run verify` of the merged tree found four things; none neede
 2. **Result screen golden.** `e2e/goldens/result-screen.png` differs by 5 % because of the new Teknik column (M18d-2); the picture was looked at (table fits, columns readable, group rows absent in this match) and re-pinned once.
 3. **Two e2e expectations that count columns from the end.** `e2e/diplomacy.test.ts` read the last two result columns as the treaty columns; the Teknik column is now last, so it reads `slice(-3, -1)`. No assertion was weakened.
 4. **Heavy helicopter picture test moved to the serial project.** the heliFx pictures test (effects and chase camera pictures, formerly in the parallel e2e project) exceeded the 90 s screenshot timeout twice when three Chromium workers shared the four cores; alone it passes in about two minutes. It is now `e2e/heliFxPictures.serial.test.ts` (same content, one file at a time after the parallel stage, like the leak tests); docs references follow.
+
+## Fix-5B (audit 4, layout faults and the budget table)
+
+Findings checked against HEAD 01c0de9 first: all of 3.0, 3.1, 3.2, 3.3, 3.4, 3.5, 3.8, 3.9 and 1.4 / 3.10 were still open; none was already fixed. Finding 3.9 (6) (the 1 px route line, the 9 px far icon) is not a plain constant (a WebGL line has no width, the icon size is a shader uniform of the camera), so it went to BACKLOG.
+
+1. **Load slider (3.0).** `DeployBoxModel.maxTroops` (the page writes `heliMaxTroopsOf(view, seat)` into the one model object each frame, no allocation) drives `slider.max`, `troops()` and `update()`; `toast.heli.badTroops` takes `{max}` (`rejectText(reason, max)`, the deploy box and the mode's refusal pass it).
+2. **Leaderboard (3.1).** `.hud-board` has `max-height: calc(100% - top - BOARD_RESERVE_BOTTOM_EM)` (11 em, the controls panel is 8 to 9.5 em tall plus margins) and scrolls inside.
+3. **Result card (3.2).** The card (`.mp-card`) is the ONE scroll surface; `.mp-table-wrap` no longer scrolls, the group box lost its 9.5 em cap; cells do not wrap; the name is cut at `MATCH_PANELS.nameMaxEm` (11 em) with an ellipsis; the per-nation table shows the province only (`memberShort`, the full name is the tooltip). The golden `e2e/goldens/result-screen.png` is a single-nation match and stayed within the tolerance: NOT re-pinned.
+4. **Federation win rows (3.3).** `resultRows`: when the winner seat is the root of a group with more than one member, every member of that group is a winner and the table is ranked by score alone; otherwise the old winner-first rule stays (a fake view without groups behaves as before).
+5. **Cards (3.4).** The cards publish their stack height as the CSS variable `--diplo-stack-em` on the page wrapper; the selection panel's max height reads it, so the panel stops below the cards. While the D panel is open the cards hide (`DiploCards.setSuppressed`) and the row of the proposer shows the text with Accept / Decline (`diplo-incoming`). CHANGED EXPECTATION: `e2e/diplomacy.test.ts` ("cards (at most 3)...") asserted that three cards stay visible while the panel is open; that is exactly the fault of finding 3.4 (b), so the line now asserts 0 while open and adds that the three are back when the panel closes. No other assertion of that test changed. SECOND CHANGED ASSUMPTION: `tests/ui/fix3c.test.ts` (two `resultRows` cases) built its views without a `group` block, i.e. every seat in group 0, which is exactly the shape of a federation of all seats led by seat 0; with the federation rule of item 4 that reads as a federation win. The three `matchView(...)` calls now pass `group: [0, 1, 2, 3]` (no federation, what the cases always meant); their expectations are unchanged.
+6. **`?` card (3.5).** `HELP_OVERLAY.cardBg` 0.97; the e2e reads the computed alpha.
+7. **Top bar (3.8).** In the narrow layout `.hud-row2` wraps and the win meter takes a full row (`flex: 1 1 100%`), so the label, the bar and the text keep their width.
+8. **Small things (3.9).** (1) `deploy.info.one` (plural by `tn`); (2) the English alliance badge is "All" (Swedish stays "A"); (3) `.hud-name` has a 4.4 em minimum width (CSS only, no e2e, see BACKLOG); (4) the research chip text is "Research: ..." and may be 16 em (9 em on narrow windows, the buttons are tighter); (5) a compact T panel at window heights up to `TECH_UI.lowHeightPx` (720) in wide windows, the e2e asserts no scrolling at 960x540 and 1366x640; (7) the start card line `help.dev` now ends with T, D, N, L and `?` (the existing e2e `e2e/hud.test.ts` compares the five items with the table, so the text lives in an existing item, not a sixth).
+9. **Budget table (1.4 / 3.10).** Measured with `renderer.info` (`e2e/fix5bBudgets.test.ts`, on against off): helicopter effects 2 404 triangles and 3 calls with live dust (1 200 particle quads x 2 = 2 400, plus the shadow and the icon; worst case with flags about 2 800 and 4 calls); front arrows 6 triangles for one attack (6 x 16 = 96 at the cap), 1 call. Rows added (3 500 / 4 and 200 / 1), the eight module rows moved into the module table, and the pinned sums in `tests/budgets.test.ts` are 23 (1+1+1+10+1+1+3+4+1) in both places that summed all rows. This corrects a ceiling that was counted too low (two layers had no row); no limit of any layer was loosened. `readBudgets` now throws on a stray non-budget table row.
+
+Mutants (one line changed in the source, the named test run, restored with the saved copy):
+
+| Mutant | Killed by |
+|--------|-----------|
+| no `slider.max = String(cap)` | `e2e/fix5b.test.ts` slider follows the research |
+| no `.hud-board` max-height | `e2e/fix5b.test.ts` expanded group rows (960x540 en) |
+| `.mp-table-wrap` overflow auto again | `e2e/fix5b.test.ts` result headers, no nested scroll (960x540 sv) |
+| `isWinner` = the root seat only | `tests/ui/fix5b.test.ts` federation win rows |
+| winner-first sort kept for a federation | `tests/ui/fix5b.test.ts` federation win rows |
+| no `setSuppressed` call | `e2e/fix5b.test.ts` cards and D panel |
+| no `--diplo-stack-em` | `e2e/fix5b.test.ts` cards over the selection panel |
+| help card alpha 0.80 | `e2e/fix5b.test.ts` the `?` card is opaque |
+| no `.hud-row2` wrap in the narrow layout | `e2e/fix5b.test.ts` narrow top bar |
+| `lowHeightPx` 0 | `e2e/fix5b.test.ts` the T panel needs no scrolling |
+| `toast.heli.badTroops` hard-codes 600 | `tests/ui/fix5b.test.ts` texts |
+| `deploy.info.one` says "squares" | `tests/ui/fix5b.test.ts` texts |
+| Frontpilar row `<= 0` calls | `tests/budgets.test.ts` |
+
+`docs/ARCHITECTURE.md` is at 45 867 of 46 000 bytes, so no index row was added for the new test files; their detail is in `docs/arch/ui.md` (and BACKLOG says the next milestone must trim). `docs/BALANCE.md`: no rule number changed (the new numbers are UI constants in `src/ui/uiConfig.ts`).
+
+`npm run verify:fast` after Fix-5B: ALL STAGES PASSED (typecheck 25 s, lint 24 s, unit 1 min 27 s). Single e2e files green when run alone: `e2e/fix5b.test.ts`, `e2e/fix5bBudgets.test.ts`, `e2e/matchEnd.test.ts` (golden unchanged), `e2e/diplomacy.test.ts`, `e2e/research.test.ts`, `e2e/federationWin.test.ts`, `e2e/deploy.test.ts`, `e2e/m20aLite.test.ts`, `e2e/fixLayout.test.ts`, `e2e/fixUi.test.ts`, `e2e/hud.test.ts`. The full `npm run verify` was not run (the orchestrator does it after the merge).

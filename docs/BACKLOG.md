@@ -589,3 +589,11 @@ Not done in the Fix-UI slice (the sim, host and AI findings belong to Fix-Sim):
 - Shared research between allies; showing what an AI nation has researched (the result column is the only place now).
 - District upgrade prices have no technology discount in the sim; if one is wanted it needs a rule first, then the panel follows `districtUpgradePriceGold`.
 - A tooltip on a research cell with the full effect sentence (the cell line is short).
+
+## Fix-5B (from audit 4, layout)
+
+- Finding 3.9 (6): the 1 px route line and the 9 px far helicopter icon are not a plain constant in `uiConfig` / `render` config (the line width is a WebGL line, the icon size comes from a shader uniform and the camera), so they were left. A thicker route needs a quad strip (one more triangle budget line), the icon a size curve by altitude.
+- Finding 3.9 (3) (the name column of a board row with a badge) has only the CSS minimum width `.hud-name`, no e2e: a unit-level check needs a layout engine; the e2e of the expanded federation board would have to run with an alliance badge on a short name.
+- The research chip is still cut by an ellipsis at 540x960 with two buttons and a proposal signal on the row; a real fix is a third row or a chip inside the T panel only.
+- The result card and the pause card show the HUD faintly through them (`C.panel` is not opaque); the result card could use the 0.97 card colour of the tech and diplomacy cards.
+- The index `docs/ARCHITECTURE.md` is at 45 867 of 46 000 bytes: the next milestone has to trim long rows (move detail to `docs/arch/`) before it adds one.

@@ -53,6 +53,19 @@ Resume: Läs CLAUDE.md och docs/PROGRESS.md, kör git log -10 och npm run verify
 
 ## Now
 
+### Fix-5B: audit 4, layout faults in the HUD, the result card and the distribution boxes, plus the budget table (UI and e2e guards; no rule change, ENGINE and FORMAT unchanged; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+
+- [x] [3.0] The load slider, its clamps and the refusal text follow `heliMaxTroopsOf` (e2e: the max grows after Rotor Blades).
+- [x] [3.1] The leaderboard has a max height above the controls and scrolls inside; e2e with the federation row expanded, 960x540 and 1366x640, sv and en.
+- [x] [3.2] Federation result card: one scroll surface, member names cut to the province, no wrapping cells; e2e: every header inside the card on both sizes and languages. Golden: see DECISIONS Fix-5B.
+- [x] [3.3] `resultRows`: a federation win ranks by score alone and marks every member of the winning group (unit test).
+- [x] [3.4] Proposal cards: the selection panel stops below them, they hide while D is open and the rows of the D panel show Accept / Decline (e2e).
+- [x] [3.5] The `?` card has an almost opaque background from `uiConfig` (e2e reads the alpha).
+- [x] [3.8] The narrow top bar wraps its second row (e2e at 540x960 with a federation, a research chip and two proposals).
+- [x] [3.9] Small things: plural of the exposed cells, "All" badge, name column min width, shorter research chip, compact T panel on short windows (e2e), start card help names T, D, N, L. Item (6) not done (see DECISIONS).
+- [x] [1.4] Budget table: rows for the helicopter effects and the front arrows (measured, e2e), the pinned sum is 23, the eight module rows moved to the module table, `readBudgets` fails on a stray row.
+- [x] `npm run verify:fast` (result in DECISIONS Fix-5B).
+
 ### Fix-4C: docs that lied and were too large, downstream decisions (audit 3; docs only plus the docs test; no Chromium; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
 
 GÖR och ACCEPTANS:
