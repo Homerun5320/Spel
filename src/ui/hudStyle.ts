@@ -1,7 +1,7 @@
 // The style sheet of the match HUD and the start screen, built from the tokens in uiConfig.ts. One <style> element per root; the
 // classes are prefixed `hud-` / `start-`. No transitions or animations (CSS time is not the fx clock; tests/fxClock.test.ts
 // forbids them): every visible change is a state change driven from JS.
-import { BOARD_RESERVE_BOTTOM_EM, BUILD_BAR_TWO_ROWS_MIN_PX, CITY_VIEW, GPU_TIP, HELP_OVERLAY, MATCH_PANELS, NARROW_MAX_PX, TOPBAR, HUD_FONT_BIAS_PX, HUD_FONT_MAX_PX, HUD_FONT_MIN_PX, HUD_FONT_VW, SETUP_PANEL_EM, SETUP_SHEET_VH, TARGET_MIN_PX, DIPLO, FED_BOARD, TECH_UI, UI_COLORS as C, Z_HUD, Z_SETUP, Z_START_SCREEN } from './uiConfig';
+import { BOARD_RESERVE_BOTTOM_EM, NARROW_BAR_ROWS, NARROW_HINT_EM, BUILD_BAR_TWO_ROWS_MIN_PX, CITY_VIEW, GPU_TIP, HELP_OVERLAY, MATCH_PANELS, NARROW_MAX_PX, TOPBAR, HUD_FONT_BIAS_PX, HUD_FONT_MAX_PX, HUD_FONT_MIN_PX, HUD_FONT_VW, SETUP_PANEL_EM, SETUP_SHEET_VH, TARGET_MIN_PX, DIPLO, FED_BOARD, TECH_UI, UI_COLORS as C, Z_HUD, Z_SETUP, Z_START_SCREEN } from './uiConfig';
 
 export function hudCss(): string {
   const fontSize = `clamp(${HUD_FONT_MIN_PX}px, calc(${HUD_FONT_VW}vw + ${HUD_FONT_BIAS_PX}px), ${HUD_FONT_MAX_PX}px)`;
@@ -17,6 +17,7 @@ export function hudCss(): string {
 .hud-dim { color: ${C.textDim}; font-variant-numeric: tabular-nums; }
 
 .hud-banner { position: absolute; left: 50%; top: ${TOPBAR.wideEm + 0.4}em; transform: translateX(-50%); width: max-content; max-width: min(34em, calc(100vw - 33em)); display: flex; align-items: center; gap: 0.8em; text-align: left; padding: 0.35em 1em; } /* M20a-lite: one row (text, countdown), so it stays clear of the middle of the globe where a spawn click lands */
+.hud-root:has(.hud-board[data-labels="1"]) .hud-banner { max-width: min(34em, calc(100vw - 37em)); } /* Fix-6B: the wide federation board (17.5em) starts left of where the centred banner ended at 960 px */
 .hud-banner[data-tone="prompt"] { border-color: ${C.accent}; }
 .hud-banner[data-tone="missed"] { border-color: ${C.danger}; }
 .hud-banner-text { font-weight: 600; font-size: 1.05em; }
@@ -26,7 +27,7 @@ export function hudCss(): string {
 .hud-board { position: absolute; right: 0.6em; top: ${TOPBAR.wideEm + 0.4}em; width: 14.5em; padding: 0.45em 0.6em 0.5em; max-height: calc(100% - ${TOPBAR.wideEm + 0.4 + BOARD_RESERVE_BOTTOM_EM}em); overflow-y: auto; overflow-x: hidden; }
 .hud-board[data-labels="1"] { width: 17.5em; }
 .hud-board-title { color: ${C.textDim}; font-size: 0.8em; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.2em; }
-.hud-row { display: grid; grid-template-columns: 1.6em 0.9em 1fr auto auto; align-items: center; column-gap: 0.4em; min-height: 1.7em; padding: 0 0.3em; border-radius: 0.3em; }
+.hud-row { display: grid; grid-template-columns: 1.6em 0.9em minmax(0, 1fr) auto auto; align-items: center; column-gap: 0.4em; min-height: 1.7em; padding: 0 0.3em; border-radius: 0.3em; }
 .hud-row[data-you="1"] { background: ${C.youRow}; font-weight: 700; }
 .hud-row[data-group="1"] { cursor: pointer; border-left: 3px solid ${FED_BOARD.accent}; }
 .hud-row[data-group="1"]:hover { background: rgba(255, 255, 255, 0.07); }
@@ -39,7 +40,7 @@ export function hudCss(): string {
 .mp-flag { flex: none; display: block; border-radius: 2px; border: 1px solid rgba(255, 255, 255, 0.55); }
 .hud-rank { color: ${C.textDim}; text-align: right; font-variant-numeric: tabular-nums; }
 .hud-swatch { width: 0.9em; height: 0.9em; border-radius: 0.2em; border: 1px solid rgba(255, 255, 255, 0.7); }
-.hud-row[data-flag="1"] { grid-template-columns: 1.6em 0.9em auto 1fr auto auto; }
+.hud-row[data-flag="1"] { grid-template-columns: 1.6em 0.9em auto minmax(0, 1fr) auto auto; }
 .hud-rels { display: inline-flex; gap: 0.15em; }
 .hud-rel { font-size: 0.75em; font-weight: 800; line-height: 1.3; padding: 0 0.3em; border-radius: 0.3em; border: 1px solid currentColor; }
 .hud-rel[hidden] { display: none !important; }
@@ -55,7 +56,7 @@ export function hudCss(): string {
 .hud-nation[hidden] { display: none !important; }
 .hud-nation-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hud-name { min-width: 4.4em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.hud-share { font-variant-numeric: tabular-nums; }
+.hud-share { font-variant-numeric: tabular-nums; white-space: nowrap; } /* Fix-6B: "0,53 %" never wraps */
 .hud-empty { color: ${C.textDim}; font-size: 0.9em; padding: 0.2em 0.3em; }
 
 .hud-dock { position: absolute; left: 0.6em; right: 0.6em; bottom: 0.6em; display: flex; align-items: flex-end; justify-content: space-between; flex-wrap: wrap; gap: 0.6em; pointer-events: none; }
@@ -161,17 +162,18 @@ export function hudCss(): string {
   .hud-board { top: ${TOPBAR.narrowBoardEm}em; left: 8px; right: auto; width: 13em; padding: 0.35em 0.5em 0.4em; max-height: calc(100% - ${TOPBAR.narrowBoardEm + BOARD_RESERVE_BOTTOM_EM}em); }
   .hud-board[data-labels="1"] { width: 15.5em; }
   .hud-row { min-height: 1.5em; }
+  .hud-name { min-width: 2.4em; } /* Fix-6B: the name gives way (ellipsis) so that the share and the relation badge stay inside the 13 em board */
+  .hud-root:has(.hud-board[data-labels="1"]) .hud-banner { max-width: none; }
   .hud-row2 { flex-wrap: wrap; row-gap: 0.15em; } /* Fix-5B: win meter, fleet gauge and the buttons wrap instead of printing over each other */
   .hud-win { flex: 1 1 100%; }
   .hud-toast { bottom: 17em; }
-  /* M10-2 / M10-3: six buttons in two columns right of the gold panel, three rows growing upward; the hint and the toasts sit above them */
-  .build-wrap { left: auto; right: 8px; bottom: 11.5em; transform: none; align-items: flex-end; }
-  .build-bar { width: calc(100vw - 20em); max-width: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.3em; }
-  .build-bar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  /* Fix-6B: the nine buttons are a 3 x 3 grid across the whole width above the controls (a column of 110 px clipped every name at 390 px); the hint, the toasts and the selection panel sit above the grid */
+  .build-wrap { left: 8px; right: 8px; bottom: 11.5em; transform: none; align-items: center; }
+  .build-bar { width: 100%; max-width: none; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.3em; }
   .build-btn { min-width: 0; padding: 0.1em 0.4em; column-gap: 0.3em; }
-  .build-name { font-size: 0.8em; }
-  .toast-stack { bottom: 28em; }
-  .sel-panel { left: 8px; bottom: 11em; width: auto; max-width: min(17.5em, calc(100vw - 16px)); }
+  .build-name { font-size: 0.8em; overflow: hidden; text-overflow: ellipsis; }
+  .toast-stack { bottom: calc(11.5em + ${NARROW_BAR_ROWS * TARGET_MIN_PX}px + 1.4em + ${NARROW_HINT_EM}em); }
+  .sel-panel { left: 8px; bottom: calc(11em + ${NARROW_BAR_ROWS * TARGET_MIN_PX}px + 1.4em); width: auto; max-width: min(17.5em, calc(100vw - 16px)); max-height: calc(100% - 11em - ${NARROW_BAR_ROWS * TARGET_MIN_PX}px - 9em); }
 }
 
 .start-root { position: absolute; inset: 0; z-index: ${Z_START_SCREEN}; display: flex; align-items: safe center; justify-content: center; padding: 1em; background: radial-gradient(ellipse at center, ${C.scrim} 0%, ${C.scrimEdge} 100%); overflow: auto; }
@@ -368,6 +370,7 @@ export function hudCss(): string {
   .mp-scrim:has(.mp-small) { padding-top: ${MATCH_PANELS.pauseTopNarrowEm}em; }
   .mp-table th, .mp-table td { padding: 0.3em 0.25em; }
   .mp-table { font-size: 0.9em; }
+  .mp-name { min-width: 4em; } .mp-name-text { max-width: 7em; } /* Fix-6B: the last column (Teknik) fits a 540 px window */
 }
 
 /* M18c-2: the diplomacy panel and the proposal cards */

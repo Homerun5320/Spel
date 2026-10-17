@@ -183,10 +183,18 @@ export function registerGameHotkeys(registry: HotkeyRegistry, a: GameHotkeyActio
     // an Escape that opens the pause menu (empty stack) must not be swallowed before the browser's own full-screen exit
     return e.key === 'Escape' && depth === 0 ? 'quiet' : true;
   };
+  /**
+   * Fix-6B: the keys 7 to 9, L and B are plain `match` entries (not reserved), but they obey the stack like 1 to 6: a mode that swallows keys (the T, D and ? panels) or
+   * handles them itself (the placement mode ends on its own number) gets the key FIRST; only a key the stack leaves alone runs the action.
+   */
+  const viaStack = (e: HotkeyEvent, act: () => void): true => {
+    if (!a.stack.key({ key: e.key, ctrlKey: e.ctrlKey, altKey: e.altKey, metaKey: e.metaKey, repeat: e.repeat, typing: e.typing })) act();
+    return true;
+  };
   const add = (def: HotkeyDef): void => void registry.register(def, signal);
   add({ id: 'focus-capital', keys: ['f'], labelKey: 'hotkey.focus', scope: 'stack', run: toStack });
   add({ id: 'build', keys: ['1', '2', '3', '4', '5', '6'], labelKey: 'hotkey.build', scope: 'stack', run: toStack });
-  add({ id: 'build-extra', keys: ['7', '8', '9'], labelKey: 'hotkey.buildExtra', scope: 'match', noRepeat: true, run: (e) => (a.buildType?.(Number(e.key)), true) }); // M18e-1: not reserved keys, so a plain match entry
+  add({ id: 'build-extra', keys: ['7', '8', '9'], labelKey: 'hotkey.buildExtra', scope: 'match', noRepeat: true, run: (e) => viaStack(e, () => a.buildType?.(Number(e.key))) }); // M18e-1: not reserved keys, so a plain match entry
   add({ id: 'exposure', keys: ['e'], labelKey: 'hotkey.focus', scope: 'stack', run: toStack, hidden: true }); // reserved for M13
   add({ id: 'chase', keys: ['h'], labelKey: 'hotkey.chase', scope: 'stack', run: toStack, hidden: true }); // M13a-2: the chase camera (the base mode starts it, the chase mode ends it); not in the help overlay (two old tests pin H hidden), the list button "Åk med" is the visible way
   add({ id: 'escape', keys: ['Escape'], labelKey: 'hotkey.escape', scope: 'stack', run: toStack });
@@ -195,8 +203,8 @@ export function registerGameHotkeys(registry: HotkeyRegistry, a: GameHotkeyActio
   add({ id: 'faster', keys: ['.'], labelKey: 'hotkey.faster', scope: 'match', run: () => (a.faster(), true) });
   add({ id: 'commit-down', keys: ['[', '-'], labelKey: 'hotkey.commitDown', scope: 'match', run: () => (a.commit(-1), true) });
   add({ id: 'commit-up', keys: [']', '+'], labelKey: 'hotkey.commitUp', scope: 'match', run: () => (a.commit(1), true) });
-  add({ id: 'deploy', keys: ['l'], labelKey: 'hotkey.deploy', scope: 'match', noRepeat: true, run: () => (a.deploy?.(), true) });
-  add({ id: 'ship', keys: ['b'], labelKey: 'hotkey.ship', scope: 'match', noRepeat: true, run: () => (a.ship?.(), true) });
+  add({ id: 'deploy', keys: ['l'], labelKey: 'hotkey.deploy', scope: 'match', noRepeat: true, run: (e) => viaStack(e, () => a.deploy?.()) });
+  add({ id: 'ship', keys: ['b'], labelKey: 'hotkey.ship', scope: 'match', noRepeat: true, run: (e) => viaStack(e, () => a.ship?.()) });
   add({ id: 'diplomacy', keys: ['d'], labelKey: 'hotkey.diplo', scope: 'match', noRepeat: true, run: () => (a.toggleDiplomacy?.(), true) });
   add({ id: 'tech', keys: ['t'], labelKey: 'hotkey.tech', scope: 'match', noRepeat: true, run: () => (a.toggleTech?.(), true) });
   add({ id: 'labels', keys: ['n'], labelKey: 'hotkey.labels', scope: 'match', noRepeat: true, run: () => (a.toggleLabels?.(), true) });

@@ -4,7 +4,7 @@
 import { STRUCT_PORT, launchShipBody, type SimView } from '../sim/public';
 import { SHIP } from '../ui/uiConfig';
 import type { ShipBox, ShipBoxModel } from '../ui/shipBox';
-import { shipPanelInfo } from '../ui/shipInfo';
+import { ShipPanelInfoCache, shipPanelInfo } from '../ui/shipInfo';
 import { rejectKey } from '../ui/hudLogic';
 import type { TextKey } from '../ui/i18n';
 import type { InputStack } from './input';
@@ -63,6 +63,7 @@ export interface ShipController {
 }
 
 export function createShipController(host: ShipHost, getBox: () => ShipBox | null): ShipController {
+  const panelInfo = new ShipPanelInfoCache();
   let mode: ShipMode | null = null;
   let port = -1;
   let hover = -1;
@@ -175,7 +176,7 @@ export function createShipController(host: ShipHost, getBox: () => ShipBox | nul
       const box = getBox();
       const m = host.match();
       if (box === null || m === null) return;
-      const info = shipPanelInfo(m.view, m.localSeat, p);
+      const info = panelInfo.get(m.view, m.localSeat, p); // Fix-6B: once per tick, not per frame
       model.reason = info.reason;
       model.price = info.price;
       model.fleet = info.fleet;

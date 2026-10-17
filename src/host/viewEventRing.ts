@@ -11,6 +11,8 @@ export class ViewEventRing implements ViewEventsView {
   private count = 0;
   /** Events lost to the cap since the last `clear()`. */
   dropped = 0;
+  /** Events ever pushed (never reset, not even by `clear()`): the sequence number readers keep their cursor in (Fix-6B). */
+  pushed = 0;
 
   get length(): number {
     return this.count;
@@ -18,6 +20,7 @@ export class ViewEventRing implements ViewEventsView {
 
   push(kind: number, tick: number, a: number, b: number): void {
     const cap = VIEW_EVENTS_CAP;
+    this.pushed++;
     let slot: number;
     if (this.count === cap) {
       slot = this.start;
@@ -72,5 +75,62 @@ export class ViewEventRing implements ViewEventsView {
     this.start = 0;
     this.count = 0;
     this.dropped = 0;
+  }
+
+  /** The sequence number of the oldest event the ring still holds. */
+  oldestSeq(): number {
+    return this.pushed - this.count;
+  }
+}
+
+/**
+ * Fix-6B [2.7]: one consumer's window on the ring. Each reader keeps its OWN cursor (the sequence number of the first event it has not read), so any number of consumers
+ * can read the same stream in one frame in any order and none can empty it for another: `read()` is the unread events (oldest first; `dropped` = the ones the cap took before
+ * this reader looked), `commit()` marks them read at the end of the consumer's frame. The window object is reused: no allocation per frame. The ring itself is bounded (the
+ * cap), so nothing has to clear it.
+ */
+export class EventReader implements ViewEventsView {
+  private cursor = 0;
+  private skip = 0;
+  private count = 0;
+  /** Events the cap took from this reader since its last `commit()`. */
+  dropped = 0;
+
+  constructor(private readonly ring: ViewEventRing) {}
+
+  get length(): number {
+    return this.count;
+  }
+
+  /** The window on the unread events (this object; valid until the next `read()` or `commit()`). */
+  read(): ViewEventsView {
+    const ring = this.ring;
+    const oldest = ring.oldestSeq();
+    const from = Math.min(Math.max(this.cursor, oldest), ring.pushed);
+    this.skip = from - oldest;
+    this.count = ring.pushed - from;
+    this.dropped = from > this.cursor ? from - this.cursor : 0;
+    return this;
+  }
+
+  /** Marks everything pushed so far as read. */
+  commit(): void {
+    this.cursor = this.ring.pushed;
+    this.skip = 0;
+    this.count = 0;
+    this.dropped = 0;
+  }
+
+  kindAt(i: number): number {
+    return i >= 0 && i < this.count ? this.ring.kindAt(this.skip + i) : -1;
+  }
+  tickAt(i: number): number {
+    return i >= 0 && i < this.count ? this.ring.tickAt(this.skip + i) : -1;
+  }
+  aAt(i: number): number {
+    return i >= 0 && i < this.count ? this.ring.aAt(this.skip + i) : 0;
+  }
+  bAt(i: number): number {
+    return i >= 0 && i < this.count ? this.ring.bAt(this.skip + i) : 0;
   }
 }

@@ -325,6 +325,11 @@ export class MainThreadHost implements SimHost {
     return snapshotHelis(this.state.helis, ownerSlots(this.state.header.seats), sight);
   }
 
+  /** The seat this host filters helicopters and events for (null: unfiltered). Read by the match session's tests (Fix-6B). */
+  get viewer(): number | null {
+    return this.viewerSeat;
+  }
+
   /** What the viewer's seat may see of the helicopters (null without a viewer seat: everything). Computed once per change by the state's visibility. */
   private viewerSight(): HeliSight | null {
     return this.viewerSeat === null ? null : heliVisibilityOf(this.state).sight(this.viewerSeat);

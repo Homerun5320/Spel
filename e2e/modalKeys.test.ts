@@ -82,6 +82,35 @@ describe('modal key blocking', () => {
     }
   });
 
+  it('Fix-6B: with the research panel, the diplomacy panel or the ? card open the keys 7, 8, 9, L and B start nothing behind it; closed again, 9 places', async () => {
+    const { page } = await openPage(browser, baseUrl, 'test=1&seed=7&ai=0&hud=1', { width: 960, height: 540 });
+    try {
+      const p = (lat: number, lon: number) => page.evaluate(([a, o]) => (window as any).__test.project(a, o), [lat, lon] as const) as Promise<{ x: number; y: number }>;
+      await page.evaluate(() => (window as any).__test.setView({ lat: 48.5, lon: 11, distKm: 2600, heading: 0, tilt: 0 }));
+      const p0 = await p(48.5, 11);
+      await page.mouse.click(p0.x, p0.y);
+      await page.evaluate(() => (window as any).__test.advance(0.1, 260));
+      const placing = async (): Promise<number> => (await page.evaluate(() => (window as any).__test.props().placing)) as number;
+      // control: free, 9 arms the placement and 9 again ends it
+      await page.keyboard.press('9');
+      expect(await placing(), 'free map: 9 places').toBe(9);
+      await page.keyboard.press('9');
+      expect(await placing()).toBe(0);
+      for (const [open, close, label] of [['t', 't', 'research panel'], ['d', 'd', 'diplomacy panel'], ['?', '?', 'help card']] as const) {
+        await page.keyboard.press(open);
+        await render(page);
+        for (const k of ['7', '8', '9', 'b', 'l']) await page.keyboard.press(k);
+        expect(await placing(), `${label}: no placement behind it`).toBe(0);
+        await page.keyboard.press(close);
+        await render(page);
+      }
+      await page.keyboard.press('9');
+      expect(await placing(), 'after the panels are closed 9 places again').toBe(9);
+    } finally {
+      await page.close();
+    }
+  });
+
   it('__test.give refuses a gift above DEBUG_GIVE_MAX with a visible reason and accepts the maximum', async () => {
     const { page } = await openPage(browser, baseUrl, 'test=1&seed=7&hud=1&ai=0', { width: 960, height: 540 });
     try {

@@ -111,6 +111,19 @@ ACCEPTANS
 - [x] No existing test changed, no src change.
 - [x] `npm run verify:fast` green (result in `docs/DECISIONS.md` "Fix-6A2").
 
+### Fix-6B: audit 5, UI faults (HUD, build bar, key gating, load errors, narrow layouts, ships; UI, app and render; no rule change, ENGINE and FORMAT unchanged; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+
+- [x] [3.0] `MatchSession.create` (Play) builds its host with `viewerSeat: LOCAL_SEAT`; unit test of both start paths; e2e: press Play, an enemy helicopter in a far Factory is absent from `__test.helis()`, your own is drawn.
+- [x] [3.1] `BUILD_BAR_TWO_ROWS_MIN_PX` 1600 to 1800 (derived from the measured 886 px bar + 430 px controls + 400 px selection panel); e2e: bar, controls and selection panel do not intersect at 1600x900, 1680x1050, 1728x1117, sv and en.
+- [x] [3.2] The Factory tooltip shows the effective build time (`heliBuildTicksOf`); unit test with a level 8 Airfield.
+- [x] [3.3] / [2.6] 7, 8, 9, L and B ask the input stack first (like 1 to 6); unit test and a new e2e in `e2e/modalKeys.test.ts` (T, D, ? panels).
+- [x] [3.4] A failed host / AI chunk fetch shows `app.matchLoadError` on Play and in the setup message line; [3.7] the language notice sits in the start card under the title, one at a time (e2e against the production build, `e2e/fix6bLoad.test.ts`).
+- [x] [3.5] The federation board no longer runs under the centred banner (960x540, 1024x600).
+- [x] [3.6] Narrow layouts: 3 x 3 build grid across the width (no clipped names), toast stack and selection panel above it, result table fits 540 px, the share never wraps (e2e at 390x844, 412x915, 360x740, 540x960).
+- [x] [3.8] `SHIP_MIN_FRAC` 0.006 to 0.009: a ship is about 160 pixels at the earth view (was about 70), no new draw call (`e2e/fix6bShips.test.ts`).
+- [x] [2.5] `ShipPanelInfoCache`: a resting Port panel allocates nothing; [2.7] `EventReader` (one cursor per consumer) replaces the single clearing consumer for the ship news (`MatchSession.shipEvents`).
+- [x] `npm run verify:fast` (result in `docs/DECISIONS.md` "Fix-6B").
+
 ## Next
 
 - Audit 5 (against v36, 11ac641) is worked through by the Fix-6 slices and Ctx-1 (the right-click menu, a separate track); the merged result is published as v37.

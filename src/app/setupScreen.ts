@@ -23,6 +23,7 @@ import { CUSTOM_COLORS, DIFFICULTIES, federationMinAiNations, maxAiNations, type
 import type { CountryInfo, PreparedWorld } from './matchWorld';
 import type { CityStyle } from '../render/cityTiers';
 import { otherCityStyle } from './cityStyle';
+import { MatchLoadError } from './match';
 import { checkDraft, type DraftCheck, type SetupDraft, type SetupTab } from './setupModel';
 import { WIN_PRESETS, clampWinDraft, presetDraft, presetOf, winConfigOf, winInfoOfConfig, winSummaryText, type WinPreset } from './winSetup';
 
@@ -761,7 +762,7 @@ export function mountSetupScreen(parent: HTMLElement, world: PreparedWorld, init
       })
       .catch((err: unknown) => {
         starting = false;
-        message = { key: 'setup.error.start', params: { reason: err instanceof Error ? err.message : String(err) } };
+        message = err instanceof MatchLoadError ? { key: 'app.matchLoadError', params: {} } : { key: 'setup.error.start', params: { reason: err instanceof Error ? err.message : String(err) } };
         if (root.isConnected) refresh();
       });
   });

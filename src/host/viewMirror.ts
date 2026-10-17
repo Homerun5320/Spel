@@ -10,7 +10,7 @@ import { ownerSlots } from '../sim/state';
 import { PHASE_PLAY, phaseAt, phaseTicksLeft, type MatchPhase } from '../sim/flow';
 import type { StructureView } from '../sim/structureRules';
 import type { DistrictView } from '../sim/districtRules';
-import { ViewEventRing } from './viewEventRing';
+import { EventReader, ViewEventRing } from './viewEventRing';
 import { MirrorStructures } from './structureMirror';
 import { MirrorHelis } from './heliMirror';
 import { MirrorBeachheads } from './beachheadMirror';
@@ -74,9 +74,13 @@ export class ViewMirror implements SimView {
   get events(): ViewEventsView {
     return this.eventRing;
   }
-  /** The consumer calls this after reading `events` (one consumer per mirror: the frame loop). */
+  /** The single-consumer way (Events-1): the consumer calls this after reading `events`. Prefer `eventReader()`: it lets several consumers read the same stream. */
   clearEvents(): void {
     this.eventRing.clear();
+  }
+  /** Fix-6B: a reader with its own cursor over the events of this mirror (starting at the first event ever sent). Read it with `read()` and mark it with `commit()` at the end of the frame. */
+  eventReader(): EventReader {
+    return new EventReader(this.eventRing);
   }
 
   private constructor(v: ViewSnapshot) {

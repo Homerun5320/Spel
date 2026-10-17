@@ -597,6 +597,8 @@ export const sv = {
   'toast.ship.scrapEliminated': 'Fartyget skrotades.',
   'toast.ship.scrapNoPort': 'Fartyget skrotades: hamnen är förlorad.',
   'hotkey.ship': 'Skicka fartyg från markerad hamn',
+  // Fix-6B
+  'app.matchLoadError': 'Matchen kunde inte laddas. Kontrollera nätverket och ladda om sidan.',
 } as const;
 
 export type TextKey = keyof typeof sv;

@@ -4,6 +4,7 @@
 import type { MainThreadHost } from '../host/mainThreadHost';
 import type { Speed } from '../host/protocol';
 import { ViewMirror } from '../host/viewMirror';
+import type { EventReader } from '../host/viewEventRing';
 import type { IntentBody } from '../sim/intents';
 import { MATCH_AI_NATIONS, MATCH_TRIBES, TICK_MS } from '../sim/rules';
 import { seatToOwner } from '../sim/state';
@@ -49,8 +50,20 @@ export interface BuiltMatchOptions {
  * page. Both factories below are async already, so no caller changes; the sim modules the page also uses stay in one shared chunk.
  */
 async function loadHost(): Promise<{ MainThreadHost: typeof import('../host/mainThreadHost').MainThreadHost; AiDriver: typeof import('../host/aiDriver').AiDriver }> {
-  const [{ MainThreadHost }, { AiDriver }] = await Promise.all([import('../host/mainThreadHost'), import('../host/aiDriver')]);
-  return { MainThreadHost, AiDriver };
+  try {
+    const [{ MainThreadHost }, { AiDriver }] = await Promise.all([import('../host/mainThreadHost'), import('../host/aiDriver')]);
+    return { MainThreadHost, AiDriver };
+  } catch (cause) {
+    throw new MatchLoadError(cause); // Fix-6B: the screens tell the player to reload (a failed dynamic import is cached by the browser, a retry cannot succeed)
+  }
+}
+
+/** The sim host or AI chunk could not be fetched (network, a filter): the start screens show `app.matchLoadError`. */
+export class MatchLoadError extends Error {
+  constructor(cause: unknown) {
+    super(`the match chunk failed to load: ${cause instanceof Error ? cause.message : String(cause)}`);
+    this.name = 'MatchLoadError';
+  }
 }
 
 export class MatchSession {
@@ -90,6 +103,7 @@ export class MatchSession {
     this.localOwner = seatToOwner(this.localSeat);
     this.labels = built === null ? null : built.labels;
     this.stopMirror = stop;
+    this.shipEvents = view.eventReader();
     this.stats = new StatInterpolator(view.seats);
     this.stats.push(view.packedStats);
     this.stopFrames = view.onFrame((m) => {
@@ -109,7 +123,7 @@ export class MatchSession {
     });
     const { MainThreadHost, AiDriver } = await loadHost();
     const driver = options.ai === false ? undefined : new AiDriver(options.seed);
-    const host = new MainThreadHost(state, { speed: 1, driver });
+    const host = new MainThreadHost(state, { speed: 1, driver, viewerSeat: LOCAL_SEAT }); // Fix-6B: the Play path filters hostile helicopters and events too
     const { mirror, stop } = await ViewMirror.attach(host);
     return new MatchSession(host, mirror, stop, options.interpolate !== false);
   }
@@ -124,6 +138,13 @@ export class MatchSession {
     const host = new MainThreadHost(match.state, { speed: 1, driver, viewerSeat: match.humanSeat });
     const { mirror, stop } = await ViewMirror.attach(host);
     return new MatchSession(host, mirror, stop, options.interpolate !== false, match);
+  }
+
+  /** The ship news' own cursor over the mirror's events (Fix-6B): another consumer makes its own reader with `view.eventReader()`; none empties the stream for another. */
+  readonly shipEvents: EventReader;
+  /** The seat the host filters helicopters and events for: always the human seat (Fix-6B, both start paths). */
+  get viewerSeat(): number | null {
+    return this.host.viewer;
   }
 
   get speed(): Speed {

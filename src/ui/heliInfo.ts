@@ -4,7 +4,6 @@
 import {
   HELI_APPROACH,
   HELI_BUILDING,
-  HELI_BUILD_TICKS,
   HELI_CRUISE,
   HELI_DOWNED,
   HELI_FUEL_CELLS,
@@ -17,6 +16,7 @@ import {
   HELI_UNLOAD,
   fleetCapOf,
   fleetCountOf,
+  heliBuildTicksOf,
   seatToOwner,
   validateProduceHeli,
   validateRecallHeli,
@@ -39,7 +39,7 @@ export interface HeliPanelInfo {
   readonly queueSeconds: number;
 }
 
-/** The numbers of the build button for Factory `factory` and `seat`. */
+/** The numbers of the build button for Factory (Fix-6B: `buildSeconds` is the effective time, Airfields shorten it)  `factory` and `seat`. */
 export function heliPanelInfo(view: SimView, seat: number, factory: number): HeliPanelInfo {
   const h = view.helis;
   const owner = seatToOwner(seat);
@@ -50,7 +50,7 @@ export function heliPanelInfo(view: SimView, seat: number, factory: number): Hel
       break;
     }
   }
-  return { price: HELI_PRICE_GOLD, buildSeconds: HELI_BUILD_TICKS / TICK_HZ, reason: validateProduceHeli(view, seat, factory), fleet: fleetCountOf(view, seat), cap: fleetCapOf(view, seat), queueSeconds };
+  return { price: HELI_PRICE_GOLD, buildSeconds: heliBuildTicksOf(view, seat) / TICK_HZ, reason: validateProduceHeli(view, seat, factory), fleet: fleetCountOf(view, seat), cap: fleetCapOf(view, seat), queueSeconds };
 }
 
 // ---- M13b: sending a helicopter, the list of the seat's helicopters, the mission news ----------------------------------------------------------------
