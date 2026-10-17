@@ -243,6 +243,8 @@ function stubView(tick: number, p: { troops: number[]; cap: number[]; alive?: nu
     helis: { capacity: 0, highWater: 0, liveCount: 0, owner: [], state: [], factory: [], readyTick: [], x: [], y: [], alt: [], hp: [], load: [], fuel: [], countOf: () => 0 },
     beachheads: { capacity: 0, liveCount: 0, owner: [], seed: [], landTick: [], status: [], cellsOf: () => 0 },
     fronts: { count: 0, id: [], attacker: [], target: [], cell: [], dirX: [], dirY: [] },
+    visibleHelis: () => ({ count: 0, idAt: () => -1, has: () => false }),
+    navOf: () => null,
     falloutUntilAt: () => 0,
     match: matchViewOf(n, new Uint32Array(matchPackedLength(n))),
     diplomacy: new DiplomacyReader(new DiplomacyTable(n + 1), n, () => tick),

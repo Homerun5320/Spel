@@ -11,6 +11,7 @@ import { step, type StepFn } from '../sim/step';
 import { MAX_SEATS, ownerSlots, type GameState } from '../sim/state';
 import { snapshotStructures, structureSignature } from './structureSnapshot';
 import { heliSignature, snapshotHelis } from './heliSnapshot';
+import { heliVisibilityOf, type HeliSight } from '../sim/heliVisibility';
 import { beachheadSignature, snapshotBeachheads } from './beachheadSnapshot';
 import { frontSignature, snapshotFronts } from './frontSnapshot';
 import { snapshotDiplomacy } from './diplomacySnapshot';
@@ -57,6 +58,11 @@ export interface MainThreadHostOptions {
   readonly stepFn?: StepFn;
   /** The occluder layer of the world (M12a-1): a resumed state gets its Los / Nav environment from it, because the snapshot bytes do not hold it. */
   readonly maxElev?: ArrayLike<number>;
+  /**
+   * The seat whose eyes the page has (M17-pre): the helicopter table in the snapshots then holds only the rows this seat may see (src/sim/heliVisibility.ts). Without it
+   * (tests, debug pages) the table is sent whole.
+   */
+  readonly viewerSeat?: number;
 }
 
 export class MainThreadHost implements SimHost {
@@ -89,6 +95,8 @@ export class MainThreadHost implements SimHost {
   private readonly driver: TickDriver | null;
   /** The read-only window the driver reads (null without a driver). */
   private readonly driverView: StateView | null;
+  /** The helicopter visibility of the viewer's seat, or null (the whole table is sent). */
+  private readonly viewerSeat: number | null;
   private readonly submitBound = (body: IntentBody): void => this.submitIntent(body);
 
   /**
@@ -100,6 +108,7 @@ export class MainThreadHost implements SimHost {
     this.ids = new IdAllocator(resume?.idNext);
     if (resume !== undefined) for (const t of resume.pending) this.pending.set(t.turn, t.intents.map(copyIntent));
     this.statsScratch = new Uint32Array(statsLength(state.header.seats));
+    this.viewerSeat = options.viewerSeat ?? null;
     this.driver = options.driver ?? null;
     this.driverView = this.driver === null ? null : new StateView(state);
     this.stepFn = options.stepFn ?? step;
@@ -234,7 +243,7 @@ export class MainThreadHost implements SimHost {
       owner: full ? s.owner.slice() : null,
       terrain: full ? s.terrain.slice() : null,
       structures: full ? snapshotStructures(s.structures) : this.changedStructures(),
-      helis: full ? snapshotHelis(s.helis, ownerSlots(s.header.seats)) : this.changedHelis(),
+      helis: full ? snapshotHelis(s.helis, ownerSlots(s.header.seats), this.viewerSight()) : this.changedHelis(),
       diplomacy: full ? snapshotDiplomacy(s.diplo) : this.changedDiplomacy(),
       beachheads: full ? snapshotBeachheads(s) : this.changedBeachheads(),
       fronts: full ? snapshotFronts(s) : this.changedFronts(),
@@ -266,10 +275,16 @@ export class MainThreadHost implements SimHost {
 
   /** The helicopter table when it differs from the one the last diff carried, else null. */
   private changedHelis(): HeliSnapshot | null {
-    const sig = heliSignature(this.state.helis);
+    const sight = this.viewerSight();
+    const sig = heliSignature(this.state.helis, sight);
     if (sig === this.lastHeliSig) return null;
     this.lastHeliSig = sig;
-    return snapshotHelis(this.state.helis, ownerSlots(this.state.header.seats));
+    return snapshotHelis(this.state.helis, ownerSlots(this.state.header.seats), sight);
+  }
+
+  /** What the viewer's seat may see of the helicopters (null without a viewer seat: everything). Computed once per change by the state's visibility. */
+  private viewerSight(): HeliSight | null {
+    return this.viewerSeat === null ? null : heliVisibilityOf(this.state).sight(this.viewerSeat);
   }
 
   /** The structure table when it differs from the one the last diff carried, else null (the signature costs one pass over the used slots). */

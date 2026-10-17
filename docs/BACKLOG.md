@@ -621,3 +621,8 @@ One pass, three steps, in this order, before M15a and M24a (their sizes are in t
 - Setup, audit 4 [3.7] (b): clicking the map to choose the sub-nation gives no feedback in the setup (the outline stays the whole country); highlight the chosen sub-nation and name it in the status line. The option itself now says "no split" for India (Fix-5C) but is not disabled.
 - Audit 4 [1.8] (4) and (5): a registry test that all `REJECT_*` codes are unique and each has a text key (M14 needs seven more codes), the `LZ_REASON_BASE` comment in `src/sim/rules.ts` (diplomacy 80 to 94 and tech 110 to 117 are above 72), and the unused `MatchView.group` block (used by no UI; drop it or use it in `groupModel`). Sim files: not touched by Fix-5C.
 - The map labels and leaderboard still cut long names ("Khanty-Mansi Autonomous Okrug"); the names are shorter now (no country, no "Region") but a width fix is layout work.
+
+## M17-pre
+- Visibility: Defense Post radii as a sensor of the mask (a Post wears hostile helicopters down but does not "see" them); a soft fade-out when a hostile helicopter leaves sight instead of vanishing at once (the layer would need to keep a ghost row for a few frames); a "last seen" marker for the minimap (M20b).
+- Visibility: M17 (AI helicopters) must read `view.visibleHelis(seat)` and `view.navOf()` only (null = no planning); an AI that reads `view.helis` for enemy rows breaks the rule. A lint or boundary test that flags `.helis` in `src/ai` is worth adding with M17.
+- A remote (worker) host will need the same `viewerSeat` option when it exists; `MainThreadHost` is the only host today.

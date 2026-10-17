@@ -2075,3 +2075,40 @@ Three interactions between the slices, found by `verify:fast` and the federation
 3. 5C named a sub-nation by its province alone; `e2e/federation.test.ts` expected the old "Province (United States of America)" in the diplomacy rows. The two expectations now pin the new contract (non-empty name, no country in it). This is the one earlier assertion changed by the integration; the change is caused by 3.6 of audit 4 and nothing else is loosened.
 
 ENGINE_VERSION is 24 (5A1 only), FORMAT_VERSION stays 16, the golden hash files were recomputed once by 5A1 (the probe in its report: with the new rules and ENGINE 23 the old goldens still matched, so only the version word changes them).
+
+## M17-pre
+
+Headless slice (sim view, host snapshot, tests); decisions (a) and (c) of "Audit 3 downstream decisions" are built here, before the AI helicopters (M17) and the minimap (M20b). No rule change: ENGINE and FORMAT unchanged, both golden hash files untouched, `docs/BALANCE.md` has no new row (there is no new number).
+
+**What was built.**
+1. `SimView.navOf(): Nav | null` (no argument: the view owns its state). A `StateView` returns `navOf(state)` of `src/sim/access.ts`, the very object the state builds once (`GameState.env`), and null for a world without `maxElev` (the accessor of `navOf` of `src/sim/access.ts` throws there). A `ViewMirror` returns null: the AI reads null as "no helicopter planning". `Nav` was already in the pinned export list; the new pinned export is the type `HeliSight`.
+2. `src/sim/heliVisibility.ts`. For a viewer seat the rows it may see: own rows always; rows of owners that are not at war with the viewer (`atWar` false: ally, federation member (a bound alliance), truce partner) always; a hostile row that is airborne (LIFT to RETURN) or a wreck (DOWNED) only when `Los.detected(viewer, cell, mode)` holds, the very call the SAM sites make (Low only above the composite mask, High anywhere in range); a hostile row under production or parked on its pad never (it sits inside a Factory, the sensors look at the air). No occluder layer means no sensors: hostile rows are hidden. The mask is lazy and cached by a fingerprint of everything the rule reads (tick, relation table version, structure table version, high-water and live counts, the helicopter rows): it is recomputed exactly when one of them moved, so a relation signed in a test within one tick is seen at once and a real match recomputes once per tick. It is derived data (a field of `state.env`), never hashed or serialised. `StateView.visibleHelis(seat)` reads it.
+3. Host: `MainThreadHostOptions.viewerSeat`. With it, `snapshotHelis` / `heliSignature` take the viewer's `HeliSight`: a hidden row is sent as a free slot (all fields 0, not in `counts` or `liveCount`), so the page never receives it and ids stay in place. The signature folds only visible rows, so a relation or sensor change with a standing helicopter still makes a diff. `MatchSession.fromMatch` passes the human seat; `MatchSession.start` (the old test match) and `debugSim` pass none and send the whole table. `ViewMirror.visibleHelis` lists every row of its (already filtered) table.
+4. Page: `HeliLayer`, `HeliFx`, the list (`ownHeliRows`), the chase camera and `MissionWatcher` needed NO change. They already treat owner 0 as a free slot (the layer resets `lastX`, the blend reference is cleared by `slotOn`, the fx reset their accumulators on an owner change), and every own-seat reader filters by owner, and own rows are always visible, so a shot-down own helicopter stays in the table as a wreck for its 50 ticks and the loss notice fires as before (tested). A helicopter that leaves sight therefore vanishes at once (no fade; a soft fade is in BACKLOG). The prompt's wish to touch `src/render/heliLayer.ts` ("only the filter") is thus met by the table being filtered upstream.
+
+**Deviations.** (1) `navOf()` has no `state` argument. (2) Defense Post radii are NOT a sensor for the mask (the Posts shoot without detecting; a loop over the Posts per helicopter and viewer is the one non-constant cost): BACKLOG. (3) `tests/sim/pace.test.ts` builds a `SimView` literal; it got the two new members (`visibleHelis`, `navOf`) because the type change provably requires them; nothing else of it changed. (4) `src/app/match.ts` got one option on one line (`viewerSeat`); the bundle-diet track owns the boot code, the line is in `fromMatch` only. (5) `docs/ARCHITECTURE.md` was at its size cap: the new row was paid for by shortening three other rows (no information lost that the area files lack except the glide sentence of the effects row, which `docs/arch/render.md` has).
+
+**Costs.** Mask for 12 viewers x 64 helicopters with 36 SAM sites, recomputed from scratch: 0.08 ms median (the Los sync included), budget `budgetMs(0.5)` (`tests/heliVisibility.perf.test.ts`). The page's per-frame work is unchanged (fewer rows, if anything); no draw call added.
+
+**Mutants** (each: change one line, run the file, see it fail, restore).
+
+| Mutant | Killed by (`tests/sim/heliVisibility.test.ts` unless noted) |
+|---|---|
+| own rows no longer always visible (`o === me ||` removed) | ridge test, ally test, parked test, host test |
+| allied / federation / truce rows no longer visible (`!atWar` removed) | ally / federation / truce test, relation-change test |
+| the sensor check dropped (`detected` replaced by true) | ridge test, open-range test, ally test, relation test, host test |
+| flight mode ignored (always Low) | ridge test (High in range is seen) |
+| parked / building hostile rows run through the sensor check (`st < HELI_LIFT` guard off) | parked test |
+| diplomacy version missing from the fingerprint | ally test (same-tick relation change) |
+| the mask writes state (`hp[0] = 7`) | hash test (with and without readers) |
+| host sends the whole table (`null` instead of the sight, full or diff) | host test |
+| hidden row sent but not zeroed / counted | host test (owner, `countOf`, `liveCount`) |
+| signature not the viewer's (both folds) | standing-helicopter relation test |
+| `StateView.navOf` returns null | navOf test (the very object, same hash) |
+| `src/ui/heliInfo.ts`: loss notice off | `tests/render/heliVanish.test.ts` mission test |
+| `HeliLayer`: `slotOn` not cleared per rebuild | `tests/render/heliVanish.test.ts` |
+| `HeliLayer`: blend guard `refOn` dropped | SURVIVES, equivalent: `slotOn` already clears `refOn` and the teleport radius guards the same case |
+
+Single signature folds (liveCount alone, rows alone) survive by design: either one carries the change; the test kills the pair.
+
+**Result.** `npm run verify:fast` green (typecheck, lint, unit 3 205 tests, 93 s). The first run failed two `tests/sim/sourceRules.test.ts` rules (no `WeakMap`, seat/owner conversion only in `state.ts`): the cache moved into `SimEnv.heliVis` and the code uses `seatToOwner`; the tests were not touched. The perf file ran alone: 0.083 ms median.

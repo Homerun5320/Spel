@@ -117,6 +117,15 @@ GÖR och ACCEPTANS:
 - [x] 7. [1.3] is the orchestrator's (the prompt list is outside the repo): not touched.
 - [x] `npm run verify:fast` green (result in `docs/DECISIONS.md` "Fix-5C").
 
+
+### M17-pre: navOf and per-viewer helicopter visibility (headless sim, host and view; no rule change, ENGINE and FORMAT unchanged, goldens untouched; one slice in its own worktree)
+
+- [x] 1. `SimView.navOf()`: a StateView returns the Nav of `GameState.env` (null without `maxElev`), a ViewMirror null; `HeliSight` in the pinned list of `tests/ai/boundary.test.ts` (`Nav` was pinned since M11b).
+- [x] 2. `src/sim/heliVisibility.ts`: the mask per viewer (own and non-hostile always; hostile only under the viewer's `Los.detected`; hostile parked or under production never), lazy and exact (fingerprint), never hashed; `SimView.visibleHelis(seat)`.
+- [x] 3. Host: `viewerSeat` option, `snapshotHelis` / `heliSignature` filter, `MatchSession.fromMatch` passes the human seat; the page's layer, effects, list, chase and `MissionWatcher` read the filtered mirror (no change needed, tests in `tests/render/heliVanish.test.ts`).
+- [x] 4. Tests with mutants (table in `docs/DECISIONS.md` "M17-pre"); perf test `tests/heliVisibility.perf.test.ts`.
+- [x] ACCEPTANS: navOf with test and pinned export; mask with ridge, ally, federation, truce and relation-change tests; hash equal with and without readers; perf inside `budgetMs`; no console errors on a vanishing helicopter (fake-layer test); `npm run verify:fast` (result in DECISIONS "M17-pre").
+
 ## Next
 
 - Fix-5 (the audit 4 fixes) is merged on the branch and published as version 32; audit 5 follows after five more published versions (v33 to v37).

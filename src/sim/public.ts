@@ -321,3 +321,6 @@ export {
 export { AI_TECH_GOLD_RESERVE, AI_TECH_PERIOD_TICKS, AI_TECH_START_TICKS, TECH_BRANCHES, TECH_COUNT, TECH_FX, TECH_FX_CAP, TECH_FX_CHANNELS, TECH_PRICE_GOLD, TECH_STEPS, TECH_TICKS } from './rules';
 export { heliMaxTroopsOf } from './heliRules';
 export { upgradePriceMilliFor, upgradePriceNowMilli } from './structureRules';
+
+// M17-pre (append-only): the per-viewer helicopter list (`SimView.visibleHelis`) and the air-navigation grid the state owns (`SimView.navOf`, null on the page).
+export type { HeliSight } from './heliVisibility';
