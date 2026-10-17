@@ -9,6 +9,8 @@ import { MAX_INTENTS_PER_TURN } from '../sim/rules';
 import { deserialize, hashState, serialize } from '../sim/serialize';
 import { step, type StepFn } from '../sim/step';
 import { MAX_SEATS, ownerSlots, type GameState } from '../sim/state';
+import { ViewEventRing } from './viewEventRing';
+import { ViewEventFilter } from './viewEventFilter';
 import { snapshotStructures, structureSignature } from './structureSnapshot';
 import { heliSignature, snapshotHelis } from './heliSnapshot';
 import { heliVisibilityOf, type HeliSight } from '../sim/heliVisibility';
@@ -101,6 +103,9 @@ export class MainThreadHost implements SimHost {
   private readonly driverView: StateView | null;
   /** The helicopter visibility of the viewer's seat, or null (the whole table is sent). */
   private readonly viewerSeat: number | null;
+  /** The side facts collected since the last diff (Events-1); `buildView(false)` empties it. */
+  private readonly eventRing = new ViewEventRing();
+  private readonly eventFilter: ViewEventFilter;
   private readonly submitBound = (body: IntentBody): void => this.submitIntent(body);
 
   /**
@@ -113,6 +118,7 @@ export class MainThreadHost implements SimHost {
     if (resume !== undefined) for (const t of resume.pending) this.pending.set(t.turn, t.intents.map(copyIntent));
     this.statsScratch = new Uint32Array(statsLength(state.header.seats));
     this.viewerSeat = options.viewerSeat ?? null;
+    this.eventFilter = new ViewEventFilter(state, this.viewerSeat);
     this.driver = options.driver ?? null;
     this.driverView = this.driver === null ? null : new StateView(state);
     this.stepFn = options.stepFn ?? step;
@@ -190,6 +196,7 @@ export class MainThreadHost implements SimHost {
       }
       const intents = this.pending.get(turn) ?? [];
       this.pending.delete(turn);
+      this.eventFilter.beforeStep();
       const result = this.stepFn(this.state, { turn, intents });
       if (!result.ok) {
         // Cannot happen with turn = state.tick and a bounded list; stop rather than run on a broken state.
@@ -205,6 +212,7 @@ export class MainThreadHost implements SimHost {
           this.lastRejectReason = ev.a;
           this.lastRejectTick = ev.tick;
         }
+        if (this.eventFilter.accept(ev.kind, ev.a)) this.eventRing.push(ev.kind, ev.tick, ev.a, ev.b);
       }
       if (this.hashEvery > 0 && this.state.tick % this.hashEvery === 0) {
         hashes.push({ type: 'hash', tick: this.state.tick, hash: hashState(this.state) });
@@ -252,6 +260,7 @@ export class MainThreadHost implements SimHost {
       beachheads: full ? snapshotBeachheads(s) : this.changedBeachheads(),
       fronts: full ? snapshotFronts(s) : this.changedFronts(),
       ships: full ? snapshotShips(s.ships) : this.changedShips(),
+      ...this.drainEvents(full),
     };
   }
 
@@ -261,6 +270,14 @@ export class MainThreadHost implements SimHost {
     if (sig === this.lastShipSig) return null;
     this.lastShipSig = sig;
     return snapshotShips(this.state.ships);
+  }
+
+  /** The side facts of the diff (empty for the full view, which must not steal them from the stream), emptying the ring. */
+  private drainEvents(full: boolean): { events: Int32Array; eventsDropped: number } {
+    if (full) return { events: new Int32Array(0), eventsDropped: 0 };
+    const out = { events: this.eventRing.toPacked(), eventsDropped: this.eventRing.dropped };
+    this.eventRing.clear();
+    return out;
   }
 
   /** The attack fronts when they differ from the ones the last diff carried, else null (the signature costs nothing without attacks). */

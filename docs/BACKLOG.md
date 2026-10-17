@@ -650,3 +650,8 @@ Bundle-diet-1
 - A ship that is turned back by a treaty stops where it is and sails home along its own route; a way to unload at the nearest own coast (not only the home Port) is not built. A Port lost during a voyage loses the load (no docking at another own Port).
 - Route: a one-cell wide strait counts as passable; the string-pull may pass a land corner by one cell between two sea cells (cosmetic for the future render, harmless for the rules). A route with more than 48 waypoints (a long winding channel) is refused as NO_ROUTE instead of being split.
 - The golden scenario (`src/sim/scenario.ts`) sends no LaunchShip: the ship rules are pinned by their own tests and by the `ship-landing` hash in `tests/sim/shipLandingCli.test.ts`.
+Events-1
+- The watchers (Tech, Diplo, Beachhead, Match, Mission, Heli) still diff tables; move each to `events` when M14 / M15a / M20b needs the one-tick fact (detonation, cut-off, alarm). The facts are in the stream now.
+- `eventsDropped` counts only the ring's cap, not facts the 8192-slot outbox itself refused in a paint storm (`Outbox.dropped`); add it if a consumer needs to know.
+- The helicopter filter reads the viewer's mask at the end of each step. A facts consumer in a Worker host gets the same form (`ViewSnapshot` is copied or transferred whole); no Worker host exists to test it.
+- OUTBOX_SHIP_* (M13c-1) flow through as unknown kinds; if a ship event can reveal a hidden enemy ship, `ViewEventFilter.accept` needs a ship rule like the helicopter one.

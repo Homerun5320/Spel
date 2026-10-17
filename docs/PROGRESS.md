@@ -172,6 +172,20 @@ ACCEPTANS
 - [x] Serialize / restore in the middle of a voyage, Node == worker, the CLI prints identical bytes (`tests/sim/shipState.test.ts`, `tests/sim/shipFlight.test.ts`, `tests/sim/shipLandingCli.test.ts`).
 - [x] ENGINE 26 / FORMAT 17, both golden files recomputed once (reason in DECISIONS "M13c-1").
 - [x] `npm run verify:fast` (result in DECISIONS "M13c-1").
+### Events-1: `ViewSnapshot.events`, a capped, drained side-fact list (headless host, view and mirror; no rule change, ENGINE and FORMAT unchanged, goldens untouched; one slice in its own worktree)
+
+GÖR
+- [x] 1. `ViewEvent`, `ViewEventsView`, `VIEW_EVENTS_CAP` (128) in `src/sim/view.ts`; `ViewSnapshot.events` (packed Int32Array) and `eventsDropped`; newest kept, drained into every diff, each fact in exactly one frame.
+- [x] 2. Source: every outbox event except paints and refusals, unknown kinds forwarded as they are (`src/host/viewEventFilter.ts`); the drain order of the host is unchanged.
+- [x] 3. Visibility: facts about hostile helicopters only while the helicopter is visible to the viewer (M17-pre mask), own and non-hostile always.
+- [x] 4. `ViewMirror.events` / `clearEvents()`, `SimView.events` (empty on a `StateView`), preallocated rings, transfer list in `src/host/remote.ts`.
+- [x] 5. Tests with mutants, allocation guard, perf budget, boundary pin.
+
+ACCEPTANS
+- [x] `ViewSnapshot.events` with cap, draining, `eventsDropped` and exactly-once delivery; mirror and view surface exist (`tests/host/viewEvents.test.ts`).
+- [x] No hidden enemy fact leaks; the state hash is the same with and without readers.
+- [x] No ENGINE or FORMAT change, goldens untouched; perf (`tests/viewEvents.perf.test.ts`) and allocation (`tests/host/viewEventRing.test.ts`) green.
+- [x] `npm run verify:fast` (result in `docs/DECISIONS.md` "Events-1").
 
 ## Next
 

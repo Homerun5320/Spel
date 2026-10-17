@@ -10,6 +10,7 @@ import { ownerSlots } from '../sim/state';
 import { PHASE_PLAY, phaseAt, phaseTicksLeft, type MatchPhase } from '../sim/flow';
 import type { StructureView } from '../sim/structureRules';
 import type { DistrictView } from '../sim/districtRules';
+import { ViewEventRing } from './viewEventRing';
 import { MirrorStructures } from './structureMirror';
 import { MirrorHelis } from './heliMirror';
 import { MirrorBeachheads } from './beachheadMirror';
@@ -22,7 +23,7 @@ import type { HeliView } from '../sim/heliTable';
 import { ListSight, fillSightOfRows, type HeliSight } from '../sim/heliVisibility';
 import type { Nav } from '../sim/nav/grid';
 import { matchPackedLength, matchViewOf, type MatchView } from '../sim/matchView';
-import { countContacts, statsViewOf, type AttackView, type BeachheadView, type ReadonlyNumbers, type SeatStatsView, type SimView } from '../sim/view';
+import { countContacts, statsViewOf, type AttackView, type BeachheadView, type ReadonlyNumbers, type SeatStatsView, type SimView, type ViewEventsView } from '../sim/view';
 import type { HostEvent, SimHost, Speed, StateDiff, Unsubscribe, ViewSnapshot } from './protocol';
 
 export type FrameListener = (mirror: ViewMirror, diff: StateDiff) => void;
@@ -64,6 +65,16 @@ export class ViewMirror implements SimView {
   private readonly shipTable = new MirrorShips();
   private readonly frontTable = new MirrorFronts();
   private readonly diploTable: MirrorDiplomacy;
+  private readonly eventRing = new ViewEventRing();
+
+  /** The side facts the host sent since `clearEvents()` (Events-1), oldest first, newest kept at the cap. A page that applies several frames before it looks still sees each fact once. */
+  get events(): ViewEventsView {
+    return this.eventRing;
+  }
+  /** The consumer calls this after reading `events` (one consumer per mirror: the frame loop). */
+  clearEvents(): void {
+    this.eventRing.clear();
+  }
 
   private constructor(v: ViewSnapshot) {
     if (v.owner === null || v.terrain === null) throw new Error('a mirror needs the full view (requestView)');
@@ -263,6 +274,7 @@ export class ViewMirror implements SimView {
     if (d.view.ships != null) this.shipTable.adopt(d.view.ships);
     if (d.view.fronts !== null) this.frontTable.adopt(d.view.fronts);
     if (d.view.diplomacy !== null) this.diploTable.adopt(d.view.diplomacy);
+    this.eventRing.appendPacked(d.view.events, d.view.eventsDropped);
     this.frames++;
     for (const l of this.listeners) l(this, d);
   }

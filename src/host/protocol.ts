@@ -96,6 +96,13 @@ export interface ViewSnapshot {
   readonly fronts: AttackFrontSnapshot | null;
   /** The ship table (M13c-1): always present in the answer to `requestView`; in a frame's diff only when it changed since the last frame that carried it, else null. Optional so that older producers and test literals stay valid (absent = null). */
   readonly ships?: ShipSnapshot | null;
+  /**
+   * The side facts since the last frame (Events-1), packed 4 integers per event (kind, tick, a, b), oldest first, at most VIEW_EVENTS_CAP events: drained, so each fact is in exactly
+   * one frame. Empty in the answer to `requestView` (it does not drain). Never written to: an empty frame shares one empty array.
+   */
+  readonly events: Int32Array;
+  /** Events lost to the cap in this frame's span (the oldest are dropped, the newest kept). */
+  readonly eventsDropped: number;
 }
 
 /** The live ship rows as the page sees them (M13c-1), in slot order: `count` rows, `slot[k]` the table slot of row k, `route` holds SHIP_ROUTE_CAPACITY cells per row (routeLen of them are waypoints). */
@@ -230,6 +237,7 @@ export function cloneView(v: ViewSnapshot): ViewSnapshot {
     beachheads: v.beachheads === null ? null : cloneBeachheads(v.beachheads),
     fronts: v.fronts === null ? null : cloneFronts(v.fronts),
     ships: v.ships === undefined || v.ships === null ? null : cloneShips(v.ships),
+    events: v.events.slice(),
   };
 }
 

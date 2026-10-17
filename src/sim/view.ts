@@ -132,7 +132,48 @@ export interface SimView {
   readonly match: MatchView;
   /** Truces, alliances, open proposals, betrayal cooldowns and embargoes (M18c-1), read-only, by SEAT. A ViewMirror carries a copy of the table (the host sends it when it changed). */
   readonly diplomacy: DiplomacyView;
+  /**
+   * The one-tick side facts the page was sent (Events-1): outbox events other than paints and refusals (a helicopter downed, a beachhead formed, a seat eliminated, ...),
+   * oldest first, at most `VIEW_EVENTS_CAP`. Empty on a StateView (the sim side reads the outbox through the host, not here). A ViewMirror collects what the host
+   * sent since its consumer last called `clearEvents()`; hidden enemy helicopter facts are never in it (see src/host/viewEventFilter.ts).
+   */
+  readonly events: ViewEventsView;
 }
+
+/** A side fact as an object (for tests and tools; the views hand out the numbers through accessors, no object per event). */
+export interface ViewEvent {
+  /** OUTBOX_* kind (src/sim/outbox.ts); a kind this build does not know is passed on unchanged. */
+  readonly kind: number;
+  /** The tick of the step that produced it. */
+  readonly tick: number;
+  /** The outbox's own two integers for the kind. */
+  readonly a: number;
+  readonly b: number;
+}
+
+/** Events a snapshot or a mirror holds at most; a ring keeps the newest and counts the rest in `dropped`. A transport limit, not a rule: 128 events are 2 KB per snapshot and room for a full fleet's worth (64 helicopters) of facts in one tick. */
+export const VIEW_EVENTS_CAP = 128;
+
+/** A read-only list of `ViewEvent`s, oldest first, without an object per event. An index out of range answers -1 (kind, tick) or 0. */
+export interface ViewEventsView {
+  readonly length: number;
+  /** Events lost to the cap since the consumer last cleared. */
+  readonly dropped: number;
+  kindAt(i: number): number;
+  tickAt(i: number): number;
+  aAt(i: number): number;
+  bAt(i: number): number;
+}
+
+/** The empty list (what a StateView answers). */
+export const EMPTY_VIEW_EVENTS: ViewEventsView = Object.freeze({
+  length: 0,
+  dropped: 0,
+  kindAt: () => -1,
+  tickAt: () => -1,
+  aAt: () => 0,
+  bAt: () => 0,
+});
 
 /**
  * Counts the adjacencies between every pair of owners into `out` (slots * slots, the pair (a, b) with a < b at a * slots + b),
@@ -467,6 +508,7 @@ export class StateView implements SimView {
   readonly diplomacy: DiplomacyView;
   readonly beachheads: BeachheadView;
   readonly fronts: AttackView;
+  readonly events: ViewEventsView = EMPTY_VIEW_EVENTS;
   private readonly visibility: HeliVisibility;
   ownerVersion = 0;
   private lastOwnerStamp = -1;
