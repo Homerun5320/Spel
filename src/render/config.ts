@@ -518,7 +518,7 @@ export const SHIP_MODEL_MAX_TRIANGLES = 150;
 /** Metres per model unit (half the hull length) at true size: a 360 m transport, drawn larger than a real one so that it reads at 20 km. */
 export const SHIP_UNIT_M = 180;
 /** The smallest radius of a ship as a share of the camera distance (a few pixels at the globe view of 960x540): the scale policy never draws it smaller, and has no upper cap. */
-export const SHIP_MIN_FRAC = 0.008;
+export const SHIP_MIN_FRAC = 0.006;
 /** Metres the hull stands above the sea-level sphere (the sea surface radius is 1: the ground height under a sea cell is 0 and the ship ignores it). */
 export const SHIP_LIFT_M = 4;
 /** How far a ship that unloads (SHIP_LAND) sinks, in model units (the hull sits half under the water). */

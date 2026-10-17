@@ -674,3 +674,14 @@ Bundle-diet-2
 - A `modulepreload` for the Swedish table chunk (or starting the language `import()` from `index.html`) would remove the one-request wait after the main chunk; Vite does not preload dynamic imports by itself.
 - The total gzip grew 2 575 B because the two tables compress apart; an `en` table as values only (aligned with the `sv` key order) would drop the repeated key strings, at the cost of the `Record<TextKey, string>` typing the tables have now.
 - The language button exists only on the start and setup screens; a language switch inside a running match has no UI (the HUD still follows `onLanguageChange`, covered by the test-mode e2e).
+
+## M13c-2 (ships at sea and their control)
+
+- Ship card: a click on a ship shows owner, load, target and the time left (out of scope of M13c-2; the layer has no picking). The ship rows already carry everything (`ViewMirror.ships`).
+- Ship interpolation: positions hop from table to table (one tick of 0.125 cells is a fraction of a pixel at 3 km and invisible beyond, but the helicopter layer's `aDelta` blend would make it exact).
+- Fog for ships: every ship is visible to every viewer in v1 (`SimView.ships` has no `visibleShips`), so the toasts are the owner's news only; a masked table would need the M17-pre visibility rule for ships and the same filter in `src/host/viewEventFilter.ts`.
+- The route preview asks the sim's A* once per pinned cell and per slider step (a few ms on a wide sea, `SHIP_ROUTE_MAX_CELLS` caps it); a hover preview or a throttled previewer like `LaunchPreviewer` would show the route before the click.
+- The route line is the deploy layer's one-pixel line; a wide ribbon would read better on a 4K screen.
+- Docked ships (the Port's cool-down) are drawn at the water cell beside the Port: a berth beside the Port model would look better.
+- AI use of ships, air defence against ships and the minimap stay out (`docs/BACKLOG.md` M13c-1).
+

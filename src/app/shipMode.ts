@@ -1,7 +1,7 @@
 // The ship mode (M13c-2): an input mode on the stack while the player picks the coast cell a ship of the selected Port should land at (the pattern of the deploy mode, M13b). Escape
 // pops it (the stack does that), a RIGHT click leaves it, a left click PICKS the cell under the cursor (the page then shows the route, the marker and the verdict, and the box's
 // Send button sends LaunchShip). The mode holds no rule: the page asks the sim's own check (src/app/shipPreview.ts). Pure TypeScript over a small target interface.
-import type { ContextCommand, InputMode, PointerInput } from './input';
+import type { InputMode, PointerInput } from './input';
 
 export interface ShipTarget {
   /** The sim cell of the ground under a pixel, or null when the ray misses the globe. */
@@ -72,7 +72,7 @@ export function createShipMode(port: number, target: ShipTarget): ShipMode {
       if (c !== null) target.pin(c);
       return true;
     },
-    context(_command: ContextCommand): boolean {
+    context(): boolean {
       target.exit(); // a right click cancels
       return true;
     },

@@ -1,9 +1,8 @@
 // The ship preview (M13c-2): what the ship mode shows for a picked coast cell. NO RULE IS REPEATED HERE. The verdict is `validateLaunchShip` (the very `checkLaunchShip` the sim's
-// LaunchShip runs); the route is the sim's own `findShipRoute` from the water cell beside the Port, so the line drawn is the line the ship will sail (`tests/app/shipPreview.test.ts`
+// LaunchShip runs); the route is the sim's own `findShipRoute` from the water cell beside the Port, so the line drawn is the line the ship will sail (`tests/app/ship.test.ts`
 // proves both against the real step path). It is asked once per picked cell or slider step, never per frame, so it allocates its answer.
-import { validateLaunchShip, type SimView } from '../sim/public';
+import { findShipRoute, portWaterCell, ShipRoute, SHIP_ROUTE_OK, validateLaunchShip, type SimView } from '../sim/public';
 import { SHIP_CELLS_PER_TICK_Q, TICK_HZ } from '../sim/rules';
-import { findShipRoute, portWaterCell, ShipRoute, SHIP_ROUTE_OK } from '../sim/shipRoute';
 
 export interface ShipPreview {
   readonly port: number;

@@ -57,7 +57,7 @@ describe('the ship model', () => {
 
 describe('shipHeading: the way the route points', () => {
   it('sailing out it points at the waypoint it sails to (east 0, north +pi/2, west pi), across the date line the short way', () => {
-    const t = new ShipTable(4);
+    const t = new ShipTable(5);
     row(t, 0, 1, SHIP_SAIL, [cellAt(10, 5), cellAt(20, 5)], 1, cellAt(10, 5));
     expect(shipHeading(t, 0, W, H)).toBeCloseTo(0, 6);
     row(t, 1, 1, SHIP_SAIL, [cellAt(10, 5), cellAt(10, 0)], 1, cellAt(10, 5));
@@ -66,6 +66,8 @@ describe('shipHeading: the way the route points', () => {
     expect(Math.abs(shipHeading(t, 2, W, H))).toBeCloseTo(Math.PI, 6);
     row(t, 3, 1, SHIP_SAIL, [cellAt(1020, 5), cellAt(3, 5)], 1, cellAt(1020, 5));
     expect(shipHeading(t, 3, W, H)).toBeCloseTo(0, 6); // 7 cells east over the date line, not 1017 west
+    row(t, 4, 1, SHIP_SAIL, [cellAt(3, 5), cellAt(1020, 5)], 1, cellAt(3, 5));
+    expect(Math.abs(shipHeading(t, 4, W, H))).toBeCloseTo(Math.PI, 6); // 7 cells west over the date line, not 1017 east
   });
 
   it('returning it points back at the waypoint before; unloading along the last leg; docked back along the first leg', () => {

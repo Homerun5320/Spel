@@ -5,8 +5,7 @@
 // WHAT AN ENEMY FACT MAY SHOW. In v1 every ship is visible to every viewer (there is no fog for ships, `SimView.ships` is the whole table), but a TOAST is the owner's news only: a fact
 // about another seat's ship, or about a ship whose owner cannot be told (a scrapped row is gone from the table), gives no toast. The owner of a slot is remembered from the last table
 // the watcher saw, so a ship scrapped in the frame its row vanished is still told apart.
-import { OUTBOX_SHIP_LANDED, OUTBOX_SHIP_LAUNCHED, OUTBOX_SHIP_RTB, OUTBOX_SHIP_SCRAPPED } from '../sim/outbox';
-import type { ShipView } from '../sim/public';
+import { OUTBOX_SHIP_LANDED, OUTBOX_SHIP_LAUNCHED, OUTBOX_SHIP_RTB, OUTBOX_SHIP_SCRAPPED, type ShipView } from '../sim/public';
 import type { ViewEventsView } from '../sim/view';
 import type { TextKey } from './i18n';
 
