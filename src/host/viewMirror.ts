@@ -17,6 +17,8 @@ import { MirrorFronts } from './frontMirror';
 import { MirrorDiplomacy } from './diplomacyMirror';
 import type { DiplomacyView } from '../sim/diplomacyTable';
 import type { HeliView } from '../sim/heliTable';
+import { ListSight, fillSightOfRows, type HeliSight } from '../sim/heliVisibility';
+import type { Nav } from '../sim/nav/grid';
 import { matchPackedLength, matchViewOf, type MatchView } from '../sim/matchView';
 import { countContacts, statsViewOf, type AttackView, type BeachheadView, type ReadonlyNumbers, type SeatStatsView, type SimView } from '../sim/view';
 import type { HostEvent, SimHost, Speed, StateDiff, Unsubscribe, ViewSnapshot } from './protocol';
@@ -116,6 +118,20 @@ export class ViewMirror implements SimView {
   get helisVersion(): number {
     return this.heliTable.version;
   }
+  /** M17-pre: the host sent only the rows the local viewer may see, so every row of the table is visible (for any `seat`: the page asks for its own). */
+  visibleHelis(): HeliSight {
+    if (this.sightVersion !== this.heliTable.version) {
+      this.sightVersion = this.heliTable.version;
+      fillSightOfRows(this.heliTable, this.sight);
+    }
+    return this.sight;
+  }
+  /** M17-pre: the page has no terrain table of the sim, so no Nav. */
+  navOf(): Nav | null {
+    return null;
+  }
+  private readonly sight = new ListSight();
+  private sightVersion = -1;
 
   /** The beachhead rows (Fix-4B): the copy of the last table the host sent; `beachheadsVersion` moves when a new one arrived. */
   get beachheads(): BeachheadView {

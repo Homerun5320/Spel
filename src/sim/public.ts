@@ -348,3 +348,5 @@ export {
   MAX_PER_OWNER_BY_TYPE,
   PLANT_NEAR_CELLS,
 } from './rules';
+// M17-pre (append-only): the per-viewer helicopter list (`SimView.visibleHelis`) and the air-navigation grid the state owns (`SimView.navOf`, null on the page).
+export type { HeliSight } from './heliVisibility';

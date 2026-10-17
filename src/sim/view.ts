@@ -15,6 +15,9 @@ import { landShareQ15 } from './territory';
 import type { StructureView } from './structureRules';
 import type { DistrictView } from './districtRules';
 import type { BeachheadTable, HeliView } from './heliTable';
+import { hasOccluders, navOf as stateNavOf } from './access';
+import { heliVisibilityOf, type HeliSight, type HeliVisibility } from './heliVisibility';
+import type { Nav } from './nav/grid';
 import { clearCluster, scanCluster } from './beachheadCluster';
 import { DiplomacyReader, type DiplomacyView } from './diplomacyTable';
 import { fillMatchView, matchPackedLength, matchViewOf, type MatchView } from './matchView';
@@ -97,8 +100,19 @@ export interface SimView {
   readonly structures: StructureView;
   /** The district table (Districts-1), read-only: kind, level, readyTick and upgradeReadyTick per (structure, slot) at `structureId * DISTRICT_MAX_SLOTS + slot`, and `districtsOwned(ownerId, kind)`. A ViewMirror carries a copy of it with the structure table. */
   readonly districts: DistrictView;
-  /** The helicopter table (M12a-1), read-only: owner, state, factory, readyTick, position, hp, load and fuel by helicopter id, and `countOf(ownerId)`. A ViewMirror carries a copy of it (the host sends it when it changed). */
+  /** The helicopter table (M12a-1), read-only: owner, state, factory, readyTick, position, hp, load and fuel by helicopter id, and `countOf(ownerId)`. A ViewMirror carries a copy of it (the host sends it when it changed, M17-pre: only the rows the local viewer may see). On a StateView it is the truth for EVERY seat: the page and the AI never read it for an enemy's helicopters, they use `visibleHelis`. */
   readonly helis: HeliView;
+  /**
+   * The helicopters `seat` may see (M17-pre). On the sim side `helis` is the truth for EVERY seat: the page and the AI must never read it for an enemy's helicopters.
+   * A StateView answers from the per-viewer visibility mask (src/sim/heliVisibility.ts: own and non-hostile always, hostile only under the viewer's sensors); a ViewMirror's
+   * table is already the local viewer's, so it answers with every row it holds. The answer is reused: do not keep it across ticks.
+   */
+  visibleHelis(seat: number): HeliSight;
+  /**
+   * The air-navigation grid the state owns (built once per match), or null: a ViewMirror has no terrain table of the sim, and a world without the occluder layer cannot fly.
+   * The AI reads null as "no helicopter planning".
+   */
+  navOf(): Nav | null;
   /** The beachhead table (Fix-4B), read-only: who landed where and when, and how many cells the cluster holds now. A ViewMirror carries a copy of it (the host sends it when it changed). */
   readonly beachheads: BeachheadView;
   /** The fronts of the attacks running (M20a-2), read-only, at most `ATTACK_VIEW_CAP`: enough for an arrow per attack. A ViewMirror carries a copy of it (the host sends it when it changed). */
@@ -450,6 +464,7 @@ export class StateView implements SimView {
   readonly diplomacy: DiplomacyView;
   readonly beachheads: BeachheadView;
   readonly fronts: AttackView;
+  private readonly visibility: HeliVisibility;
   ownerVersion = 0;
   private lastOwnerStamp = -1;
 
@@ -463,6 +478,7 @@ export class StateView implements SimView {
     this.diplomacy = new DiplomacyReader(state.diplo, state.header.players, () => state.tick);
     this.beachheads = new BeachheadReader(state.beachheads, state);
     this.fronts = new AttackFrontReader(state);
+    this.visibility = heliVisibilityOf(state);
     this.refresh();
   }
 
@@ -527,6 +543,12 @@ export class StateView implements SimView {
   }
   falloutUntilAt(): number {
     return 0;
+  }
+  visibleHelis(seat: number): HeliSight {
+    return this.visibility.sight(seat);
+  }
+  navOf(): Nav | null {
+    return hasOccluders(this.state) ? stateNavOf(this.state) : null;
   }
   attackRunning(attacker: number, target: number): boolean {
     const slots = this.state.attacks.slots;

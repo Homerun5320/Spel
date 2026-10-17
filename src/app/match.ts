@@ -113,7 +113,7 @@ export class MatchSession {
    */
   static async fromMatch(match: BuiltMatch, options: BuiltMatchOptions = {}): Promise<MatchSession> {
     const driver = options.ai === false ? undefined : new AiDriver(match.config.seed, { humanSeats: [match.humanSeat] });
-    const host = new MainThreadHost(match.state, { speed: 1, driver });
+    const host = new MainThreadHost(match.state, { speed: 1, driver, viewerSeat: match.humanSeat });
     const { mirror, stop } = await ViewMirror.attach(host);
     return new MatchSession(host, mirror, stop, options.interpolate !== false, match);
   }

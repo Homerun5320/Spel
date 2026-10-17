@@ -631,3 +631,7 @@ One pass, three steps, in this order, before M15a and M24a (their sizes are in t
 - A Plant by a District or a research "efficiency" step; AI use of the Airfield once M17 gives it helicopters (`wantedExtra` in `src/ai/build.ts` has no Airfield on purpose).
 - A running research keeps the base time for its progress bar (the sim fixed its end tick when it started); the panel could keep the total in the match state to show an exact percent with a Lab.
 - A conquered Airfield, Lab or Plant is destroyed like a Silo, SAM or Post; handing them over (one level lower, like a Factory) is a design choice for the user.
+## M17-pre
+- Visibility: Defense Post radii as a sensor of the mask (a Post wears hostile helicopters down but does not "see" them); a soft fade-out when a hostile helicopter leaves sight instead of vanishing at once (the layer would need to keep a ghost row for a few frames); a "last seen" marker for the minimap (M20b).
+- Visibility: M17 (AI helicopters) must read `view.visibleHelis(seat)` and `view.navOf()` only (null = no planning); an AI that reads `view.helis` for enemy rows breaks the rule. A lint or boundary test that flags `.helis` in `src/ai` is worth adding with M17.
+- A remote (worker) host will need the same `viewerSeat` option when it exists; `MainThreadHost` is the only host today.
