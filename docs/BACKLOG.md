@@ -640,3 +640,9 @@ Bundle-diet-1
 - The total gzip cap (`JS_GZ_TOTAL_MAX`) cannot fall: lazy chunks add about 5 kB of per-chunk overhead to the sum, only the first load shrinks. Diet step 1 (language tables, about -8.8 kB) lowers it; then re-measure.
 - Prefetch hints for the host chunk (`modulepreload` after the start screen is shown) would hide the Play-press load on a slow managed network; not built.
 
+
+M18e-2
+- `__test.state().structures.byType` has no entries for the types 7 to 9 (it prints null); extend the hook where it is built (not in this slice: `src/app` is another track's).
+- Runway lights for the Airfield (night lamps along the runway) and a windsock; a rotating radar on the Lab; steam that moves on the Plant (one more spinning tint code).
+- If many Airfields, Labs and Plants stand in one match, split the shared mesh into one mesh per type (the vertex cost of the shared mesh is 590 triangles per instance, also for a type that needs only 154).
+- The 800 m camera of the original wish: a "model view" camera that frames one structure from the side at its true size.

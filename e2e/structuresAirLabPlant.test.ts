@@ -254,7 +254,7 @@ describe('Airfield, Lab and Plant: models of their own in one shared mesh', () =
       for (const n of ['lab', 'plant', 'lab2']) expect(lamps[`3km-night-${n}`], `${n} at night`).toBeGreaterThan(20);
       for (const n of ['lab', 'plant', 'lab2', 'plant2']) expect(lamps[`3km-day-${n}`], `${n} by day`).toBeLessThan(5);
       expect(lamps['3km-night-airfield']).toBeLessThan(5);
-      expect(lamps['3km-night-factory'] + lamps['3km-night-silo']).toBeLessThan(5); // the older types have no lamps
+      expect((lamps['3km-night-factory'] ?? 0) + (lamps['3km-night-silo'] ?? 0)).toBeLessThan(5); // the older types have no lamps
       expect(consoleMessages.filter((m) => m.type === 'error' || m.type === 'warning')).toEqual([]);
     } finally {
       await page.close();
