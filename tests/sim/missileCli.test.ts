@@ -13,7 +13,7 @@ import { MISSILE_FUSION, MISSILE_TACTICAL } from '../../src/sim/missileTable';
 import { missiles, parseMissilesArgs, runMissiles, type MissileFixtureName } from '../../tools/sim/missiles';
 
 // The final hashes of seed 1 (rewrite them only together with an ENGINE or FORMAT bump, DECISIONS M14a).
-const PINNED: Record<MissileFixtureName, string> = { 'plain-cruise': '01529d84', 'fusion-silo': 'ad9d8b69' };
+const PINNED: Record<MissileFixtureName, string> = { 'plain-cruise': '120ec259', 'fusion-silo': 'bed34779', 'ridge-cruise': 'dc297545', 'sam-stack': '6cb6a529' };
 
 describe('missiles', () => {
   it('prints the same bytes for the same arguments and different bytes for another seed or fixture', () => {
@@ -54,13 +54,16 @@ describe('missiles', () => {
   it('the final hashes of seed 1 are pinned', () => {
     expect(hex32(runMissiles('plain-cruise', 1).hash)).toBe(PINNED['plain-cruise']);
     expect(hex32(runMissiles('fusion-silo', 1).hash)).toBe(PINNED['fusion-silo']);
+    expect(hex32(runMissiles('ridge-cruise', 1).hash)).toBe(PINNED['ridge-cruise']);
+    expect(hex32(runMissiles('sam-stack', 1).hash)).toBe(PINNED['sam-stack']);
   });
 
   it('reads --fixture and --seed and refuses nonsense (the SAM fixtures are M14b)', () => {
     expect(parseMissilesArgs([])).toEqual({ fixture: 'plain-cruise', seed: 1 });
     expect(parseMissilesArgs(['--fixture', 'fusion-silo', '--seed', '7'])).toEqual({ fixture: 'fusion-silo', seed: 7 });
-    expect(() => parseMissilesArgs(['--fixture', 'sam-stack'])).toThrow();
-    expect(() => parseMissilesArgs(['--fixture', 'ridge-cruise'])).toThrow();
+    expect(parseMissilesArgs(['--fixture', 'sam-stack'])).toEqual({ fixture: 'sam-stack', seed: 1 }); // M14b: the SAM fixtures exist now
+    expect(parseMissilesArgs(['--fixture', 'ridge-cruise'])).toEqual({ fixture: 'ridge-cruise', seed: 1 });
+    expect(() => parseMissilesArgs(['--fixture', 'nope'])).toThrow();
     expect(() => parseMissilesArgs(['--seed', 'x'])).toThrow();
     expect(() => parseMissilesArgs(['--seed', '-1'])).toThrow();
     expect(() => parseMissilesArgs(['--nope'])).toThrow();
@@ -82,9 +85,9 @@ afterAll(async () => {
 });
 
 describe('missiles in a worker_threads Worker', () => {
-  it('prints the same lines and ends on the same state hash as the main thread, for both fixtures and three seeds', async () => {
+  it('prints the same lines and ends on the same state hash as the main thread, for all four fixtures and three seeds', async () => {
     let id = 0;
-    for (const fixture of ['plain-cruise', 'fusion-silo'] as const) {
+    for (const fixture of ['plain-cruise', 'fusion-silo', 'ridge-cruise', 'sam-stack'] as const) {
       for (let seed = 1; seed <= 3; seed++) {
         const here = runMissiles(fixture, seed);
         const mine = ++id;

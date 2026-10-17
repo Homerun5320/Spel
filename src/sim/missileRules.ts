@@ -18,13 +18,14 @@ import {
   REJECT_PHASE,
 } from './intents';
 import { blastRows, blastSpans, inBlast } from './missileBlast';
-import { inRange, newTrack, trackOf, type Track } from './missileGeom';
+import { cellVector, chordOfAngle, chordQ15, inRange, missilePosition, newTrack, trackOf, type Track } from './missileGeom';
 import { MISSILE_CLASS_COUNT, MISSILE_TACTICAL, type MissileView } from './missileTable';
 import { hostileOwners } from './hostile';
-import { MILLI_GOLD_PER_GOLD, MISSILE_BASE_GOLD, MISSILE_FUSION_SILO_LEVEL, MISSILE_PRICE_STEP_PCT, MISSILE_R_IN_KM, MISSILE_R_OUT_KM } from './rules';
+import { MILLI_GOLD_PER_GOLD, MISSILE_BASE_GOLD, MISSILE_FUSION_SILO_LEVEL, MISSILE_PRICE_STEP_PCT, MISSILE_R_IN_KM, MISSILE_R_OUT_KM, MISSILE_SAM_HIT_PCT } from './rules';
 import { ownerSlots, seatToOwner } from './state';
-import { STRUCT_SILO, type StructureView } from './structureRules';
-import { CLASS_PLAINS } from './terrain';
+import { samRadiusCells } from './structureEffects';
+import { STRUCT_SAM, STRUCT_SILO, type StructureView } from './structureRules';
+import { CLASS_MOUNTAIN, CLASS_PLAINS } from './terrain';
 import type { SimView } from './view';
 
 type Numbers = { readonly [index: number]: number };
@@ -162,24 +163,48 @@ export function previewBlast(view: SimView, cell: number, cls: number): BlastPre
   return { cells, hitCells, buildingsDestroyed: destroyed, buildingsAtRisk: atRisk, owners };
 }
 
-/** One air-defence site that can shoot at a warhead on its way (M14b fills this in). */
+/** One air-defence site whose radius a flight crosses (M14b). */
 export interface ThreatSite {
   readonly structure: number;
-  /** Chance in percent that the site's interceptor kills the warhead. */
+  /** Chance in percent that the site's interceptor kills the warhead (the class chance; the owner's SAM techs are not in a view, see BACKLOG M14b). */
   readonly pct: number;
+  /** The tick of the flight (0 = the launch) at which the warhead is first within the radius of the site. */
+  readonly fromTick: number;
 }
 
 /**
- * The air defence along the flight from `startCell` to `targetCell` for class `cls` (M14a: always the empty list, because no site fires at missiles yet; M14b lists the SAM sites whose
- * radius the flight crosses, with their kill chance).
+ * The finished SAM sites that are hostile to the owner of `startCell` (the launching Silo's cell; nobody's land counts everybody as hostile) and whose radius the flight from
+ * `startCell` to `targetCell` crosses, by ascending structure id. It is the geometry of the flight only: a Tactical missile behind a ridge is still listed (the site may not see it, BACKLOG),
+ * and whether an interceptor would be in time is the sim's own question at the moment of firing. Pure and read-only; it allocates (the sampled flight), so it is for a preview, not for a frame.
  */
 export function previewThreat(view: SimView, startCell: number, targetCell: number, cls: number): readonly ThreatSite[] {
-  void view;
-  void startCell;
-  void targetCell;
-  void cls;
-  return NO_THREAT;
+  const w = view.width;
+  const h = view.height;
+  const st = view.structures;
+  const track = trackOf(startCell, targetCell, w, h, cls, newTrack());
+  const f = track.ticks;
+  const path = new Int32Array((f + 1) * 3);
+  const one = new Int32Array(3);
+  for (let t = 0; t <= f; t++) {
+    missilePosition(startCell, targetCell, 0, f, t, w, h, one);
+    path.set(one, t * 3);
+  }
+  const launcher = view.owner[startCell] as number;
+  const sam = new Int32Array(3);
+  const out: ThreatSite[] = [];
+  for (let id = 0; id < st.highWater; id++) {
+    const so = st.owner[id] as number;
+    if (so === 0 || st.type[id] !== STRUCT_SAM || view.tick < (st.readyTick[id] as number) || !hostileOwners(view, launcher, so)) continue;
+    const cell = st.cell[id] as number;
+    const r = samRadiusCells(st.level[id] as number, (view.terrainClass[cell] as number) === CLASS_MOUNTAIN);
+    const rAngle = Math.floor((r * 65536) / w);
+    const radiusChord = chordOfAngle(rAngle > 32768 ? 32768 : rAngle);
+    cellVector(cell, w, h, sam, 0);
+    for (let t = 0; t <= f; t++) {
+      if (chordQ15(sam, 0, path, t * 3) > radiusChord) continue;
+      out.push({ structure: id, pct: MISSILE_SAM_HIT_PCT[cls] as number, fromTick: t });
+      break;
+    }
+  }
+  return out;
 }
-
-const NO_THREAT: readonly ThreatSite[] = Object.freeze([]);
-

@@ -7,7 +7,7 @@
 // The fallout layer (`fallout`) is one u32 per cell: the tick until which the cell is contaminated, 0 = never. An expired value stays in the array (it is part of the state and the hash as long as
 // it is there); `falloutCount` is the number of non-zero entries and keeps the hash and the save free of a scan when there are none.
 import { foldWord } from './hash';
-import { MISSILE_CAPACITY } from './rules';
+import { INTERCEPTOR_CAPACITY, MISSILE_CAPACITY } from './rules';
 
 /** Missile classes: the index into the per-class tables of rules.ts. Own names; the numbers are on the wire. */
 export const MISSILE_TACTICAL = 0;
@@ -52,6 +52,14 @@ export class MissileTable implements MissileView {
   readonly fallout: Uint32Array;
   /** Derived: the number of non-zero entries of `fallout`. */
   falloutCount = 0;
+  // The interceptors (M14b, game state): a dense list in firing order. A row is (missile slot, SAM structure id, fire tick, meeting tick, hit); it stays until its MISSILE ends (so a SAM
+  // never fires twice at the same warhead) and is dropped by `remove`. The outcome `iHit` was rolled when the interceptor left and applies at the meeting tick.
+  interceptorCount = 0;
+  readonly iMissile = new Uint8Array(INTERCEPTOR_CAPACITY);
+  readonly iSam = new Uint16Array(INTERCEPTOR_CAPACITY);
+  readonly iFire = new Uint32Array(INTERCEPTOR_CAPACITY);
+  readonly iMeet = new Uint32Array(INTERCEPTOR_CAPACITY);
+  readonly iHit = new Uint8Array(INTERCEPTOR_CAPACITY);
 
   constructor(cells: number, ownerSlotCount: number) {
     this.fallout = new Uint32Array(cells);
@@ -81,9 +89,47 @@ export class MissileTable implements MissileView {
     this.liveCount++;
   }
 
-  /** Frees a slot. */
+  /** Has SAM `sam` already fired at missile `missile`? */
+  hasInterceptor(missile: number, sam: number): boolean {
+    for (let i = 0; i < this.interceptorCount; i++) if (this.iMissile[i] === missile && this.iSam[i] === sam) return true;
+    return false;
+  }
+
+  /** Appends an interceptor row; false when the table is full. */
+  addInterceptor(missile: number, sam: number, fireTick: number, meetTick: number, hit: number): boolean {
+    const n = this.interceptorCount;
+    if (n >= INTERCEPTOR_CAPACITY) return false;
+    this.iMissile[n] = missile;
+    this.iSam[n] = sam;
+    this.iFire[n] = fireTick;
+    this.iMeet[n] = meetTick;
+    this.iHit[n] = hit;
+    this.interceptorCount = n + 1;
+    return true;
+  }
+
+  /** Drops every interceptor row of `missile`, keeping the order of the rest. */
+  dropInterceptors(missile: number): void {
+    let k = 0;
+    const n = this.interceptorCount;
+    for (let i = 0; i < n; i++) {
+      if (this.iMissile[i] === missile) continue;
+      if (k !== i) {
+        this.iMissile[k] = this.iMissile[i] as number;
+        this.iSam[k] = this.iSam[i] as number;
+        this.iFire[k] = this.iFire[i] as number;
+        this.iMeet[k] = this.iMeet[i] as number;
+        this.iHit[k] = this.iHit[i] as number;
+      }
+      k++;
+    }
+    this.interceptorCount = k;
+  }
+
+  /** Frees a slot (and the interceptors that were fired at it). */
   remove(id: number): void {
     if (this.owner[id] === 0) return;
+    if (this.interceptorCount !== 0) this.dropInterceptors(id);
     this.owner[id] = 0;
     this.cls[id] = 0;
     this.silo[id] = 0;
@@ -138,6 +184,14 @@ export function foldMissiles(h: number, t: MissileTable): number {
       x = foldWord(x, i);
       x = foldWord(x, v);
     }
+  }
+  x = foldWord(x, t.interceptorCount);
+  for (let i = 0; i < t.interceptorCount; i++) {
+    x = foldWord(x, t.iMissile[i] as number);
+    x = foldWord(x, t.iSam[i] as number);
+    x = foldWord(x, t.iFire[i] as number);
+    x = foldWord(x, t.iMeet[i] as number);
+    x = foldWord(x, t.iHit[i] as number);
   }
   return x;
 }

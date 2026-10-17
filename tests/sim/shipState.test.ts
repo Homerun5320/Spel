@@ -45,9 +45,9 @@ function patched(bytes: Uint8Array, edits: Array<[number, number, 'u32' | 'i32']
 }
 
 describe('the ship table in the state', () => {
-  it('ENGINE 27 and FORMAT 18 (M14a; the ship table is the same as in ENGINE 26 / FORMAT 17)', () => {
-    expect(ENGINE_VERSION).toBe(27);
-    expect(FORMAT_VERSION).toBe(18);
+  it('ENGINE 28 and FORMAT 19 (M14b; 27 and 18 on M14a; the ship table is the same as in ENGINE 26 / FORMAT 17)', () => {
+    expect(ENGINE_VERSION).toBe(28);
+    expect(FORMAT_VERSION).toBe(19);
   });
 
   it('round trip: the restored state has the same ship rows, the same hash and the same length; the derived fleet count is rebuilt', () => {

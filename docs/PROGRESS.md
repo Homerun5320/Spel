@@ -234,6 +234,23 @@ Measured before (gzip level 9, `npm run build` only to measure): first load 356 
 - [x] e2e green alone: artifact, hud, setup, setupFix, fixLayout, gpuTip, matchEnd, langLazy.
 - [x] `npm run verify:fast` (result in `docs/DECISIONS.md` "Bundle-diet-2").
 
+### M14b: SAM interception of missiles (headless, no Chromium; ENGINE 28, FORMAT 19; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+
+GÖR
+- [x] 1. `src/sim/interceptor.ts`: `interceptPhase` (first in `missilePhase`): one interceptor per warhead and SAM, meeting tick by integer iteration (`meetingTick`), the hit rolled stateless at launch and applied at the meeting tick, stacking by independent rolls; interceptor rows in `MissileTable` (saved at the end of the missile block, hashed, dropped with their missile).
+- [x] 2. Rules: hostile finished SAM only (`atWar`, checked at launch and again at the meeting tick), shared `salvoTick` clock and period with the helicopter salvo, radius R(L) with the mountain bonus through `AaIndex` (new `AaIndex.collect`, also used by the helicopter rule), Tactical needs `Los.detected` and the site's own `Los.fireControl` (Low), Fission / Fusion always visible inside the radius.
+- [x] 3. `cellOfVector` (the inverse of `cellVector`, integer only), `previewThreat` (the SAM sites a flight crosses), events 25 and 26, fixtures `ridge-cruise` and `sam-stack` in `npm run sim:scenario -- missiles`.
+- [x] 4. `src/sim/rules.ts` + `docs/BALANCE.md`: `MISSILE_SAM_HIT_PCT`, `INTERCEPTOR_SPEED_ANGLE_PER_TICK`, `INTERCEPTOR_CAPACITY`.
+- [x] 5. ENGINE 28 / FORMAT 19, both golden files recomputed once; tests with mutants (table in `docs/DECISIONS.md` "M14b"); perf test; docs.
+
+ACCEPTANS
+- [x] A warhead is shot down at its meeting tick and never blows up; Tactical only when detection AND the site's own mask AND the radius allow it; Fission / Fusion always visible inside the radius.
+- [x] Pk Monte-Carlo (10 000 trials) 75 / 60 / 40 % within 2 points, two overlapping sites 1 - prod(1 - p) within 2 points; ridge-cruise cannot be engaged behind the ridge, can over plains.
+- [x] An ally or a treaty partner does not shoot; a salvo spent on a helicopter is not available; a treaty signed in flight voids the hit.
+- [x] `previewThreat` lists the crossed SAM sites; events 25 and 26 reach `ViewSnapshot.events` once; the fixtures give the same hash in Node and in a worker.
+- [x] A save with interceptors in the air equals a straight run; a step with 20 missiles and 12 SAM sites inside `budgetMs(4)`; ENGINE 28.
+- [x] `npm run verify:fast`: typecheck, lint and 3433 unit tests green after three fixes of the first run (a type guard in the new test, the BALANCE value format, one backticked path); the raised total gzip cap re-run alone (see `docs/DECISIONS.md` "M14b").
+
 ## Next
 
 - Fix-5 (the audit 4 fixes) is merged on the branch and published as version 32; audit 5 follows after five more published versions (v33 to v37).

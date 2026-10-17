@@ -411,3 +411,6 @@ Three new structure types in the same table, with the same Build / Upgrade / Del
 | `FALLOUT_COST_PCT` | 150 | % of the usual price | plan | M14a: conquering a fallout cell costs 1.5 x. |
 | `MISSILE_MAX_FLIGHT_TICKS` | 200 | ticks | eget val | M14a: the longest flight a state may hold (a guard of deserialize); half the globe at 192 units/tick is 171. |
 | `MISSILE_REASON_BASE` | 140 | code offset | eget val | M14a: the refusals of LaunchMissile are 141..151 (MISSILE_REASON_BASE + 1..11), above the ship block (121..133). |
+| `MISSILE_SAM_HIT_PCT` | [75, 60, 40] | percent, by class (Tactical, Fission, Fusion) | plan | M14b: chance that one interceptor kills a Tactical, Fission or Fusion warhead (the roll is taken when the interceptor leaves and applies at the meeting tick). Several SAM sites stack as 1 - prod(1 - p); the SAM owner's `TECH_FX_SAM_HIT` points are added to each. |
+| `INTERCEPTOR_SPEED_ANGLE_PER_TICK` | 384 | angle units/tick | plan | M14b: 60 reference cells per second = 6 per tick x 64 units; it decides whether an interceptor reaches a warhead before the blast. |
+| `INTERCEPTOR_CAPACITY` | 256 | slots | eget val | M14b: the interceptor table (a row stays until its missile ends, so one SAM never fires twice at the same warhead); a full table means no new interceptor. |

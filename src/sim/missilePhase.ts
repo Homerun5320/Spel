@@ -5,9 +5,12 @@
 // destroyed); every owner with land within the outer radius loses min(60 % of its troops, 3 x troops x cellsHit / cells owned). A Tactical missile hits buildings only: no owner changes, no fallout,
 // no troop loss. Decision (DECISIONS M14a): a missile is refused at launch when its target cell belongs to a nation that is not hostile; a blast that still reaches such a nation's land or
 // buildings breaks the treaty (war again, the break cooldown, a betrayal in the statistics, as BreakTreaty), except a federation, which cannot be broken: it only counts the betrayal.
-// The SAM interception is M14b: `interceptPhase` runs in the right place of the tick and does nothing yet.
+// The SAM interception (M14b) is src/sim/interceptor.ts: `interceptPhase` runs first in `missilePhase` (after the launches of the tick, before the blasts), so a warhead shot down at its meeting tick never blows up.
 import { RELATION_ALLIANCE, RELATION_WAR, ALLIANCE_FEDERATION } from './diplomacyTable';
 import { atWar } from './diplomacy';
+import { interceptPhase } from './interceptor';
+
+export { interceptPhase };
 import { dirtyTrade } from './diplomacyClear';
 import { districtSlotsOf } from './districtRules';
 import { REJECT_NONE } from './intents';
@@ -74,14 +77,6 @@ export function applyLaunchMissile(state: GameState, seat: number, silo: number,
   const targetOwner = state.owner[targetCell] as number;
   if (targetOwner !== 0 && targetOwner !== ownerId) state.outbox.push(OUTBOX_MISSILE_WARNING, state.tick, id, ticks);
   return REJECT_NONE;
-}
-
-/**
- * The SAM interception hook (M14b). M14a: nothing. M14b fills this in; it must run BEFORE the blasts of the tick (a warhead that is shot down at its meeting tick never blows up), after
- * the launches of the tick (an interceptor can be fired in the tick of the launch) and after `heliPhase` (the shared salvo clock).
- */
-export function interceptPhase(state: GameState): void {
-  void state;
 }
 
 /** The stateless roll of the outer ring: 0..99 from the match seed, the tick, the missile and the cell. */
