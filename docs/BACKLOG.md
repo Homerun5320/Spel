@@ -684,4 +684,4 @@ Bundle-diet-2
 - The route line is the deploy layer's one-pixel line; a wide ribbon would read better on a 4K screen.
 - Docked ships (the Port's cool-down) are drawn at the water cell beside the Port: a berth beside the Port model would look better.
 - AI use of ships, air defence against ships and the minimap stay out (`docs/BACKLOG.md` M13c-1).
-
+- Bundle: the ship UI and app modules (`src/app/shipController.ts`, `src/app/shipMode.ts`, `src/app/shipPreview.ts`, `src/ui/shipBox.ts`, `src/ui/shipInfo.ts`, `src/ui/shipEvents.ts`) add about 5.9 kB gzip to the START load (START headroom is now 4 380 bytes); loading them with `import()` on the first own Port selection or the first ship in the table would give most of it back.
