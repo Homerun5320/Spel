@@ -289,7 +289,8 @@ export { HELI_DOWN_FUEL, HELI_DOWN_POST, HELI_DOWN_SAM } from './heliTable';
 export { POST_AA_DPS, POST_AA_RADIUS_CELLS, SAM_HIT_PCT, SAM_SALVO_PERIOD_TICKS } from './rules';
 // M20a-2 (append-only): the read-only description of the attacks running (a front cell and a direction per attack, at most ATTACK_VIEW_CAP).
 export type { AttackView } from './view';
-export { ATTACK_VIEW_CAP } from './view';
+export { ATTACK_VIEW_CAP, VIEW_EVENTS_CAP } from './view';
+export type { ViewEvent, ViewEventsView } from './view';
 
 // M18d-1 (append-only block): technology. The research tree (`TECH_*` tables of rules.ts, the pure helpers of techTable.ts), the Research / CancelResearch bodies and constructors,
 // the refusal codes 110 to 117, the checks (the very functions the sim runs), the researched state per seat (`SimView.match`: `techMask`, `techCurrent1`, `techDone`, `techCount`,

@@ -245,6 +245,7 @@ function stubView(tick: number, p: { troops: number[]; cap: number[]; alive?: nu
     fronts: { count: 0, id: [], attacker: [], target: [], cell: [], dirX: [], dirY: [] },
     visibleHelis: () => ({ count: 0, idAt: () => -1, has: () => false }),
     navOf: () => null,
+    events: { length: 0, dropped: 0, kindAt: () => -1, tickAt: () => -1, aAt: () => 0, bAt: () => 0 },
     falloutUntilAt: () => 0,
     match: matchViewOf(n, new Uint32Array(matchPackedLength(n))),
     diplomacy: new DiplomacyReader(new DiplomacyTable(n + 1), n, () => tick),

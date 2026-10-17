@@ -640,3 +640,8 @@ Bundle-diet-1
 - The total gzip cap (`JS_GZ_TOTAL_MAX`) cannot fall: lazy chunks add about 5 kB of per-chunk overhead to the sum, only the first load shrinks. Diet step 1 (language tables, about -8.8 kB) lowers it; then re-measure.
 - Prefetch hints for the host chunk (`modulepreload` after the start screen is shown) would hide the Play-press load on a slow managed network; not built.
 
+Events-1
+- The watchers (Tech, Diplo, Beachhead, Match, Mission, Heli) still diff tables; move each to `events` when M14 / M15a / M20b needs the one-tick fact (detonation, cut-off, alarm). The facts are in the stream now.
+- `eventsDropped` counts only the ring's cap, not facts the 8192-slot outbox itself refused in a paint storm (`Outbox.dropped`); add it if a consumer needs to know.
+- The helicopter filter reads the viewer's mask at the end of each step. A facts consumer in a Worker host gets the same form (`ViewSnapshot` is copied or transferred whole); no Worker host exists to test it.
+- OUTBOX_SHIP_* (M13c-1) flow through as unknown kinds; if a ship event can reveal a hidden enemy ship, `ViewEventFilter.accept` needs a ship rule like the helicopter one.

@@ -94,6 +94,13 @@ export interface ViewSnapshot {
   readonly beachheads: BeachheadSnapshot | null;
   /** The fronts of the attacks running (M20a-2): always present in the answer to `requestView`; in a frame's diff only when they changed (the attacks, or every FRONT_REFRESH_TICKS ticks while one runs), else null. */
   readonly fronts: AttackFrontSnapshot | null;
+  /**
+   * The side facts since the last frame (Events-1), packed 4 integers per event (kind, tick, a, b), oldest first, at most VIEW_EVENTS_CAP events: drained, so each fact is in exactly
+   * one frame. Empty in the answer to `requestView` (it does not drain). Never written to: an empty frame shares one empty array.
+   */
+  readonly events: Int32Array;
+  /** Events lost to the cap in this frame's span (the oldest are dropped, the newest kept). */
+  readonly eventsDropped: number;
 }
 
 /** The attack fronts as the page sees them (M20a-2): `count` rows, each array `count` long (see `AttackView` in src/sim/view.ts). */
@@ -210,6 +217,7 @@ export function cloneView(v: ViewSnapshot): ViewSnapshot {
     diplomacy: v.diplomacy === null ? null : cloneDiplomacy(v.diplomacy),
     beachheads: v.beachheads === null ? null : cloneBeachheads(v.beachheads),
     fronts: v.fronts === null ? null : cloneFronts(v.fronts),
+    events: v.events.slice(),
   };
 }
 

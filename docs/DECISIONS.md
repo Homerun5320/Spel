@@ -2182,3 +2182,33 @@ Mutants (each run on its own test file and restored):
 
 `npm run verify:fast`: the first run failed three tests of mine (docs path mentions, the Swedish-literal scan of `src/app`); fixed by full paths and by moving the Swedish dev strings to `src/app/debugLoad.ts` (a developer-tool file name); the files then passed alone (docs, i18n, portable, boundary, lint, matchFromBuilt), typecheck and lint green.
 
+
+## Events-1: ViewSnapshot.events, a capped, drained side-fact list
+
+Headless slice (host snapshot, mirror, read-only view surface, tests). Decision (d) of "Audit 3 downstream decisions" is built for the outbox kinds that exist; NO existing watcher (Tech, Diplo, Beachhead, Match, Mission, Heli) is migrated. No rule change: ENGINE and FORMAT unchanged, both golden hash files untouched, `docs/BALANCE.md` has no new row (`VIEW_EVENTS_CAP` is a transport limit in `src/sim/view.ts`, not a game number).
+
+1. **Format.** `ViewEvent { kind, tick, a, b }` (integers). A `ViewSnapshot` carries `events: Int32Array` (4 integers per event, oldest first) and `eventsDropped`. The cap `VIEW_EVENTS_CAP` is 128 (2 KB per snapshot; room for a whole 64-helicopter fleet's facts in one tick). At overflow the OLDEST are dropped, the newest kept, and `eventsDropped` counts them. An empty frame shares one empty array (no allocation); a frame with facts allocates one small packed copy (it must be a copy: messages are copied or transferred).
+2. **Drained, exactly once.** `MainThreadHost` pushes each step's facts into a preallocated ring (`src/host/viewEventRing.ts`); `buildView(false)` (the diff) packs and empties it, so a diff for many ticks (a paused tab catching up) holds every fact up to the cap. `requestView()` (the full view) neither carries nor drains events (a late mirror starts "now"; draining there would steal from the stream). `ViewMirror` appends each diff's facts to its own ring and keeps them until its single consumer calls `clearEvents()` (several frames before a look lose nothing, until the cap).
+3. **Source.** Deny-list, not allow-list: everything except `OUTBOX_PAINT` (the diff's cells carry it) and `OUTBOX_REJECT` (the last-refusal fields carry it) goes, with the outbox's own `a` and `b`. A kind this build does not know is forwarded unchanged, so M13c-1's `OUTBOX_SHIP_*` flow without a change here. The host still drains the outbox with `Outbox.drain()` in the same place and order; `src/sim/outbox.ts` is untouched.
+4. **Visibility.** For a host with `viewerSeat`: an event about a helicopter (`a` = helicopter id: queued, produced, scrapped, launched, landed, downed, rtb, home) of an owner that is the viewer or not at war with it is sent; of a hostile owner only when `heliVisibilityOf(state).sight(viewerSeat)` holds that helicopter at the end of that step. Evaluated per STEP, not once per snapshot (deviation from "in the same snapshot": it is exact for the tick of the event, and a helicopter that is seen when it is shot down is reported). A slot freed in the step (scrapped, downed wreck removed) is judged by its owner from before the step (`ViewEventFilter.beforeStep` copies the 64 owners); QUEUED / PRODUCED read the owner as it is now. An unknown owner hides the event. Facts that are not about a helicopter (beachheads, eliminated, capital lost, match end) are public, as the tables they mirror already are. No viewer seat (tests, debug pages) sends everything.
+5. **Cost.** No draw call, no per-frame page work added. Host: 64 helicopter events per tick with the mask recomputed, filtered, pushed and packed: 0.18 ms median here, budget `budgetMs(0.5)` (`tests/viewEvents.perf.test.ts`, median of 40 after 5 warm-ups). Ring and filter build no typed array per event (`tests/host/viewEventRing.test.ts` counts `Int32Array` constructions over 6 000 ticks: 0; raw heap reads are banned in tests by `tests/rawHeap.test.ts`, so a heap number is not used).
+6. **Deviations.** (a) `tests/sim/pace.test.ts` builds a `SimView` literal and got `events` because the type change requires it. (b) `eventsDropped` counts only the ring's cap, not facts the outbox itself refused (BACKLOG). (c) Visibility per step, see 4.
+
+**Mutants** (each: change one line, run the two test files, see it fail, restore).
+
+| Mutant | Killed by |
+|---|---|
+| full ring drops the NEWEST instead of the oldest | `tests/host/viewEventRing.test.ts` "keeps order across the wrap" |
+| paints pass the filter (`OUTBOX_PAINT` check removed) | `tests/host/viewEvents.test.ts` "delivers every side fact exactly once" |
+| hostile helicopter events always sent (no mask) | "the enemy viewer gets only the neutral fact" |
+| the diff does not empty the ring | "delivers every side fact exactly once" |
+| a freed slot is judged by the table after the step | "a helicopter whose slot was freed in the step is judged by its owner before the step" |
+| the mirror keeps only the last frame's facts | "collects the facts of several frames until the consumer clears them" |
+| helicopter filter skipped for every kind | "the enemy viewer gets only the neutral fact" |
+| a kind number above 19 is dropped (unknown kinds not forwarded) | "delivers every side fact exactly once" (kind 99) |
+| `new Int32Array(1)` added to `ViewEventRing.push` | `tests/host/viewEventRing.test.ts` "allocates nothing per event" |
+| `requestView` also returns (not drains) the ring | equivalent in a main-thread host: the ring is empty outside `runTicks`; not killable, kept as a guard in the code |
+
+State hash with and without a listening mirror or a viewer seat: equal after 60 ticks ("the state does not know the readers"); the events never touch the state, so no mutant of the host can change it except by writing to it, which the lint boundary forbids.
+
+`npm run verify:fast`: first run, typecheck and lint PASS, 300 of 301 unit files PASS; the one failure was my own heap read in `tests/host/viewEventRing.test.ts` (banned by `tests/rawHeap.test.ts`), replaced by the construction counter above. After the fix: typecheck, lint, `tests/rawHeap.test.ts`, `tests/docs.test.ts` and the new test files pass; the full stage was not run a second time (one run allowed, shared cores).
