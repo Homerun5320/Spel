@@ -63,6 +63,11 @@ export interface DevPanelOptions {
   getRaw: () => RawParams;
   /** Writes the hash body and reloads. The default sets `location.hash` and calls `location.reload()`. */
   navigate?: (hashBody: string) => void;
+  /**
+   * An existing corner button to adopt instead of creating one (Bundle-diet-1 integration): the page puts a plain stand-in button there before this chunk is
+   * loaded, and the same element stays when the panel mounts, so the button is never removed and re-inserted (a test or a thumb that hits it at that moment lost it).
+   */
+  button?: HTMLButtonElement;
 }
 
 export interface DevPanel {
@@ -86,7 +91,7 @@ function defaultNavigate(hashBody: string): void {
 
 export function mountDevPanel(opts: DevPanelOptions): DevPanel {
   const navigate = opts.navigate ?? defaultNavigate;
-  const button = document.createElement('button');
+  const button = opts.button ?? document.createElement('button');
   button.type = 'button';
   button.textContent = 'Dev';
   button.setAttribute('aria-label', 'Öppna Dev-panelen (F2)');
@@ -100,7 +105,8 @@ export function mountDevPanel(opts: DevPanelOptions): DevPanel {
   panel.style.cssText =
     'position:fixed;right:8px;top:64px;z-index:40;box-sizing:border-box;width:min(300px,calc(100vw - 16px));max-height:calc(100vh - 80px);overflow:auto;' +
     'padding:10px;border-radius:8px;border:1px solid #2a3d63;background:rgba(10,16,28,0.94);color:#e8f0ff;font:14px system-ui,sans-serif;';
-  opts.parent.append(button, panel);
+  if (button.isConnected && button.parentElement === opts.parent) opts.parent.append(panel);
+  else opts.parent.append(button, panel);
 
   const refresh = (): void => {
     panel.replaceChildren();

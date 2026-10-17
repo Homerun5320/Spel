@@ -227,8 +227,7 @@ function boot(): void {
   const loadPanel = (): Promise<DevPanel> => {
     loading ??= loadDevPanelModules().then(({ panel: mod, modes }) => {
       modes.registerAppModes();
-      standIn.remove();
-      const p = mod.mountDevPanel({ parent: root, getRaw: () => parseRaw(window.location.search, window.location.hash) });
+      const p = mod.mountDevPanel({ parent: root, button: standIn, getRaw: () => parseRaw(window.location.search, window.location.hash) });
       p.setButtonVisible(buttonVisible);
       panel = p;
       return p;

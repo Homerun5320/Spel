@@ -343,4 +343,23 @@ describe('showReport (Kopiera rapport)', () => {
       await page.close();
     }
   });
+
+  it('the corner button is ONE element from the first frame on: loading the panel chunk adopts it instead of swapping it (Bundle-diet-1 integration)', async () => {
+    const { page, messages } = await open('?quality=low', { viewport: { width: 390, height: 844 }, waitTest: false });
+    try {
+      const btn = page.locator('[data-dev-button]');
+      await btn.waitFor({ state: 'visible' });
+      await page.evaluate(() => ((document.querySelector('[data-dev-button]') as HTMLElement & { __mark?: number }).__mark = 7));
+      // the panel chunk is fetched when the page is idle (or on the first click); either way the same node stays
+      await page.locator('[data-dev-panel]').waitFor({ state: 'attached', timeout: 15_000 });
+      expect(await page.locator('[data-dev-button]').count()).toBe(1);
+      expect(await page.evaluate(() => (document.querySelector('[data-dev-button]') as HTMLElement & { __mark?: number }).__mark)).toBe(7);
+      expect((await btn.boundingBox()) !== null).toBe(true);
+      await btn.click();
+      await page.locator('[data-dev-panel]').waitFor({ state: 'visible' });
+      expect(messages).toEqual([]);
+    } finally {
+      await page.close();
+    }
+  });
 });
