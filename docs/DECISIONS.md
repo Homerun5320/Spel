@@ -2149,7 +2149,7 @@ Headless slice (sim view, host snapshot, tests); decisions (a) and (c) of "Audit
 
 Single signature folds (liveCount alone, rows alone) survive by design: either one carries the change; the test kills the pair.
 
-**Result.** `npm run verify:fast` green (typecheck, lint, unit 3 205 tests, 93 s). The first run failed two `tests/sim/sourceRules.test.ts` rules (no `WeakMap`, seat/owner conversion only in `state.ts`): the cache moved into `SimEnv.heliVis` and the code uses `seatToOwner`; the tests were not touched. The perf file ran alone: 0.083 ms median.
+**Result.** `npm run verify:fast` green (typecheck, lint, unit 3 205 tests, 93 s). The first run failed two `tests/sim/sourceRules.test.ts` rules (no `WeakMap`, seat/owner conversion only in `src/sim/state.ts`): the cache moved into `SimEnv.heliVis` and the code uses `seatToOwner`; the tests were not touched. The perf file ran alone: 0.083 ms median.
 ## Bundle-diet-1 (diet steps 2 and 3 of "Bundle diet"; no rule change, ENGINE and FORMAT unchanged, goldens untouched)
 
 Base af33a30. Measured with `npm run build` (only to measure), gzip level 9 per file, the first load being the script and the modulepreload chunks of `index.html`.
