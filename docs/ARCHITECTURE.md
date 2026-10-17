@@ -108,11 +108,12 @@ One short row per module; the last column links to the full row (milestone story
 | `src/ai/memory.ts`, `src/ai/place.ts`, `src/ai/think.ts`, `src/ai/index.ts` | AI v0 (M05 part C, D102 to D104). Pure functions over a `SimView`; they import ONLY `src/sim/public.ts` (ESLint allow-list... | `think`, `createAiMemory`, `pickSpawnCell`, `AiMemory`  | [ai](arch/ai.md) |
 | `src/host/aiDriver.ts` | `AiDriver implements TickDriver`: one `AiMemory` per non-human seat, ONE random stream PER SEAT (`createRng(aiSeatSeed(seed, seat))`... | `AiDriver` (`onTick`, `memoryOf`, `plays`, `streamOf`, `sent`)... | [host](arch/host.md) |
 | `src/sim/structureEffects.ts` (M09 part B) | The effects of FINISHED structures: `cityLevelsOf` (troop cap, via `cityLevels(state, owner)` in economy.ts)... |  | [sim](arch/sim.md) |
-| `src/ai/build.ts` (M09 part B) | `buildMove(view, memory, rng)`: the AI's build move (City, Factory per 2 Cities, Port, Post; an Upgrade when it is cheaper than the next City)... |  | [ai](arch/ai.md) |
+| `src/ai/build.ts` (M09 part B) | `buildMove(view, memory, rng)`: the AI's build move (City, Factory, Port, Post, Upgrade)... |  | [ai](arch/ai.md) |
 | `tests/sim/structureLevels.test.ts`, `tests/ai/richUpgrade.test.ts` (M09c) | Level effects of Factory and Port (`FACTORY_*_BY_LEVEL`, `PORT_*_BY_LEVEL`, `PORT_INCOME_MAX_MILLI_PER_SEC` in rules.ts... |  | [tests](arch/tests.md) |
 | `src/sim/districtRules.ts`, `src/sim/districts.ts` (Districts-1) | City districts. `districtRules` (pure, read-only, for UI and AI through `src/sim/public.ts`): the kinds `DISTRICT_HOUSING` 1, `DISTRICT_MARKET` 2... |  | [sim](arch/sim.md) |
 | `tests/sim/fix3a1State.test.ts`, `tests/sim/fix3a1Match.test.ts` (Fix-3A1) | Audit 2 test holes: effects cache after RemoveDistrict / finished district upgrade, Housing regeneration, exact-tick district and win boundaries... |  | [tests](arch/tests.md) |
-| `src/ai/build.ts` districts (Districts-1) | `districtMove` inside `buildMove`: fills free slots in slot order Market, Barracks, Housing, Walls, then upgrades the cheapest; only when rich... |  | [ai](arch/ai.md) |
+| `src/sim/structureRules.ts` Airfield, Lab, Plant (M18e-1) | Types 7 to 9: `STRUCT_AIRFIELD`, `STRUCT_LAB`, `STRUCT_PLANT`; refusals 118, 119; render models by `alias`. |  | [sim](arch/sim.md) |
+| `src/ai/build.ts` districts (Districts-1) | `districtMove` inside `buildMove`: fills free slots, then upgrades the cheapest; only when rich... |  | [ai](arch/ai.md) |
 | `src/ui/cityViewModel.ts`, `src/ui/cityViewPanel.ts`, `src/app/cityViewMode.ts` (Districts-2a) | The city view. `cityViewModel` (pure): `cityInfo(view, seat, id)` -> `CityInfo` (level, slots, upgrade price / reason... |  | [ui](arch/ui.md) |
 | `src/sim/homeRules.ts`, `src/sim/setup.ts`, `src/sim/spawn.ts` (M06) | The match setup in the sim (D112 to D114). `homeRules`: the optional state `state.home` of a match whose config has `homeRules` (config flag bit 8):... | `HomeRules`, `createHomeRules`, `setOwnerRules`, `traitMilli`... | [sim](arch/sim.md) |
 | `src/data/regions.ts` (M06) | The playable regions: the whole world or a Skirmish cut-out (Europe, East Asia, Americas, Africa and the Middle East)... | `REGIONS`, `REGION_IDS`, `RegionId`, `isRegionId`, `cellInRect`... | [data](arch/data.md) |
@@ -183,9 +184,9 @@ Budgets per layer in the test tier (`?test=1`, 960x540, DPR 1). `tests/budgets.t
 
 ## Roadmap
 
-See `docs/CHARTER.md` section 8. Planned modules (later): `src/ai` (M05 part C), `server/`.
+See `docs/CHARTER.md` section 8. Planned: `server/` (later).
 
 
 ## Aktuella versioner
 
-ENGINE_VERSION 25 (`src/sim/state.ts`), FORMAT_VERSION 16 (`src/sim/serialize.ts`). A change bumps them and re-pins both golden hash files once (`UPDATE_GOLDENS=1`). Check the constants in the code before trusting this line.
+ENGINE_VERSION 25 (`src/sim/state.ts`), FORMAT_VERSION 16 (`src/sim/serialize.ts`). A change bumps them and re-pins both golden files once (`UPDATE_GOLDENS=1`).

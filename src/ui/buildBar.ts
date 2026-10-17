@@ -33,6 +33,11 @@ const BUILD_ITEMS: readonly BuildItem[] = [
   { type: STRUCT_PLANT, testid: 'build-plant', key: '9', nameKey: 'hud.build.plant', tipKey: 'hud.build.plantTip', poorKey: 'hud.build.tooPoorOf' },
 ];
 
+/** The type and key of each button of the bar, in order (a test pins that the key digit is the type number and that 7 to 9 are registry entries). */
+export function buildBarKeys(): ReadonlyArray<{ readonly type: number; readonly key: string }> {
+  return BUILD_ITEMS.map((i) => ({ type: i.type, key: i.key }));
+}
+
 export interface BuildBar {
   readonly root: HTMLElement;
   /** Per frame: the prices and the dimming follow the snapshot; `active` is the type being placed (0 = none). */

@@ -191,12 +191,12 @@ The structure table, the prices and the placement numbers. The base prices and t
 | `STRUCT_MAX_LEVEL` | 3 | level | plan | Sim-Levels2: LEGACY visual reference level of Factory, Port, Silo, SAM and Post (models reach full size here). NOT a limit any more: `maxLevelOf(type)` is `STRUCT_LEVEL_HARD_CAP` for every type. |
 | `STRUCT_LEVEL_HARD_CAP` | 999 | level | eget val | Sim-Levels2: the practical top level of EVERY structure type and district kind (`maxLevelOf(type)`, `districtMaxLevel()`); u16 in the tables. The dearest upgrade, Silo base 1000 x 999, is 999 000 000 milli, inside Int32 and the Uint32 purse. |
 | `LEVEL_CONQUEST_KEEP_PCT` | 75 | percent | eget val | Sim-Levels2: a conquered City, Factory, Port or district keeps this percent of its level, rounded down, at least 1 (`levelAfterConquest`): 1, 2, 4, 10, 100, 999 become 1, 1, 3, 7, 75, 749. |
-| `BUILD_BASE_GOLD` | [0, 400, 500, 400, 1000, 600, 250] | gold | plan | Base price per type (City 400, Factory 500, Port 400, Silo 1000, SAM 600, Post 250); provisional. An upgrade to level L costs base * L, no escalation. |
-| `BUILD_TICKS` | [0, 150, 200, 120, 250, 200, 80] | ticks | plan | Build time per type: City 15 s, Factory 20 s, Port 12 s, Silo 25 s, SAM 20 s, Post 8 s. An upgrade takes the same time (own choice). |
+| `BUILD_BASE_GOLD` | [0, 400, 500, 400, 1000, 600, 250, 700, 600, 250] | gold | plan | Base price per type (City 400, Factory 500, Port 400, Silo 1000, SAM 600, Post 250); provisional. An upgrade to level L costs base * L, no escalation. |
+| `BUILD_TICKS` | [0, 150, 200, 120, 250, 200, 80, 220, 180, 100] | ticks | plan | Build time per type: City 15 s, Factory 20 s, Port 12 s, Silo 25 s, SAM 20 s, Post 8 s. An upgrade takes the same time (own choice). |
 | `PRICE_ESCALATION_ONE_HALVES` | 2 | halves | plan | 1.0 in halves; price = base * min(12, 2 + n) / 2, so the n-th extra structure costs 0.5 base more. |
 | `PRICE_ESCALATION_MAX_HALVES` | 12 | halves | plan | The escalation stops at x6. |
 | `DELETE_COOLDOWN_TICKS` | 300 | ticks | plan | A seat may Delete once per 30 s. |
-| `SPACING_CELLS_BY_TYPE` | [0, 3, 3, 3, 6, 5, 3] | sim cells | eget val | Sim-Growth: minimum distance between two structures of the same type (City, Factory, Port, Silo, SAM, Post; Euclidean, x wrapping; closer than this is refused). A cell is about 39 km, so this is towns, not countries (was 16 for every type, which left room for one or two of each type on a start nation's 197 cells). Silo and SAM are wider because their reach is. |
+| `SPACING_CELLS_BY_TYPE` | [0, 3, 3, 3, 6, 5, 3, 6, 4, 3] | sim cells | eget val | Sim-Growth: minimum distance between two structures of the same type (City, Factory, Port, Silo, SAM, Post; Euclidean, x wrapping; closer than this is refused). A cell is about 39 km, so this is towns, not countries (was 16 for every type, which left room for one or two of each type on a start nation's 197 cells). Silo and SAM are wider because their reach is. |
 | `SPACING_SCOPE` | 0 | scope | plan | 0 = same type any owner, 1 = same type same owner, 2 = any type. M19 may change it. |
 
 ## Structure effects and the AI build move (M09 part B)
@@ -362,3 +362,24 @@ Economy script result (M09c, Russia, seed 1, 10 minutes, `npm run sim:scenario -
 | `AI_TECH_GOLD_RESERVE` | 300 | gold | eget val | M18d-1: a nation starts a research only when this much gold is left after the price. |
 | `AI_TECH_PERIOD_TICKS` | 100 | ticks | eget val | M18d-1: a nation looks at research once per 100 ticks (staggered by seat): its back-off. |
 | `AI_TECH_START_TICKS` | 1500 | ticks | eget val | M18d-1: no AI research before tick 1500 (2.5 minutes): expansion first. |
+
+## M18e-1: Airfield, Lab and Plant (structure types 7, 8, 9)
+
+Three new structure types in the same table, with the same Build / Upgrade / Delete intents. The entries of `BUILD_BASE_GOLD`, `BUILD_TICKS` and `SPACING_CELLS_BY_TYPE` above carry their index 7 (Airfield), 8 (Lab) and 9 (Plant): Airfield 700 gold / 22 s / 6 cells apart, Lab 600 gold / 18 s / 4 cells, Plant 250 gold / 10 s / 3 cells. Prices escalate like the others (x1.5 for the second, up to x6) and an upgrade to level L costs base * L. No technology gate yet (BACKLOG). A conquered Airfield, Lab or Plant is destroyed, like a Silo, SAM or Post.
+
+| Constant | Value | Unit | Source | Note |
+|---|---|---|---|---|
+| `STRUCT_TYPE_COUNT` | 9 | types | eget val | M18e-1: structure types 1 to 9; a Build with another type fails the shape check (STRUCT_TYPE_SLOTS = 10 is the length of the per-type arrays). |
+| `MAX_PER_OWNER_BY_TYPE` | [0, 0, 0, 0, 0, 0, 0, 3, 3, 6] | structures, by type | eget val | M18e-1: the most structures of a type one owner may have (0 = no limit): Airfield 3, Lab 3, Plant 6 (an unfinished one counts). The 4th Airfield is refused with REJECT_BUILD_MAX_COUNT (118). |
+| `HELI_FLEET_PER_AIRFIELD_LEVEL` | 1 | helicopters | eget val | M18e-1: each level of each FINISHED Airfield adds one helicopter to the fleet cap (an Airfield at level 3 = +3). |
+| `HELI_FLEET_AIRFIELD_MAX` | 6 | helicopters | eget val | M18e-1: all Airfields together add at most 6, on top of the cap of 12 that the base 2 and the Factories give (so at most 18, and 20 with the AIR techs' 2). |
+| `AIRFIELD_HELI_TIME_PCT_PER_LEVEL` | 5 | percent | eget val | M18e-1: each level of each finished Airfield shortens the production of a helicopter, in every Factory of the owner, by 5 percent of 120 ticks (rounded down: level 1 = 114 ticks, level 2 = 108). |
+| `AIRFIELD_HELI_TIME_MAX_PCT` | 40 | percent | eget val | M18e-1: the cap of that shortening (72 ticks, 7.2 s). |
+| `LAB_RESEARCH_PCT_PER_LEVEL` | 5 | percent | eget val | M18e-1: each level of each finished Lab shortens a research that STARTS now by 5 percent (level 1: 600 -> 570 ticks). The end tick is fixed when the research starts; Labs stack. |
+| `LAB_RESEARCH_MAX_PCT` | 40 | percent | eget val | M18e-1: the cap of the shortening (the first tech 600 -> 360 ticks, the last 1500 -> 900). |
+| `PLANT_GOLD_MILLI_BASE` | 800 | milli-gold/s | eget val | M18e-1: a finished level 1 Plant pays 0.8 gold/s for 250 gold: a payback of 312 s against 267 s for a level 1 City (400 gold, 1.5 gold/s). The economy techs' gold percent applies to it like to a City. |
+| `PLANT_GOLD_EXTRA_MILLI` | 800 | milli-gold/s | eget val | M18e-1: the extra at the asymptote of the usual level curve (1.6 gold/s in all; level 2 = 1.0). One Plant never nears the 15 gold/s of ten level 1 Cities, and the six a player may own pay at most 9.6 gold/s together (`tests/sim/m18e1.test.ts`). |
+| `PLANT_NEAR_CELLS` | 8 | sim cells | eget val | M18e-1: a Plant may only be built within 8 cells (Euclidean, x wrapping, edge included) of a City or Port of the same owner, finished or not; otherwise REJECT_BUILD_NO_NEIGHBOUR (119). |
+| `AI_BUILD_CITIES_PER_PLANT` | 4 | cities | eget val | M18e-1: the AI buys a Plant per 4 Cities it owns (the first at 4 Cities), only from the gold left after its next wanted structure, so it never delays a City. |
+| `AI_BUILD_CITIES_PER_LAB` | 6 | cities | eget val | M18e-1: and a Lab per 6 Cities (the first at 6), at most the 3 the rules allow. The AI builds no Airfield (it uses no helicopters before M17). |
+| `AI_BUILD_EXTRA_START_TICKS` | 3000 | ticks | eget val | M18e-1: no AI Plant or Lab before 5 minutes (expansion first; its research starts at tick 1500). |

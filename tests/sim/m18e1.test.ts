@@ -1,7 +1,7 @@
 // M18e-1: Airfield, Lab and Plant (structure types 7, 8, 9). Every test drives the real sim path (applyIntent / step / the real phases), so a rule removed from
 // structureRules.ts, heliRules.ts, heliPhase.ts, tech.ts or structureEffects.ts fails here. The mutants are tabulated in the M18e-1 block of docs/DECISIONS.md.
 import { describe, expect, it } from 'vitest';
-import { fleetCapOf, heliBuildTicksOf } from '../../src/sim/heliRules';
+import { HELI_BUILD_TICKS_MIN, fleetCapOf, heliBuildTicksOf } from '../../src/sim/heliRules';
 import {
   REJECT_BUILD_GOLD,
   REJECT_BUILD_MAX_COUNT,
@@ -279,6 +279,23 @@ describe('Airfield: the fleet cap and the helicopter production time with exact 
     // the helicopter is a pad helicopter by now (the production phase has run)
     expect(s.helis.readyTick[0]).toBe(t0 + 108);
     expect(s.helis.state[0]).not.toBe(1 /* HELI_BUILDING */);
+  });
+});
+
+describe('a saved queued helicopter: the production time must be one the rules can set', () => {
+  it('readyTick - stateTick below HELI_BUILD_TICKS_MIN or above HELI_BUILD_TICKS is refused (air-range), the two edges are accepted', () => {
+    const forged = (delta: number): string => {
+      const s = world();
+      const f = builtAndReady(s, STRUCT_FACTORY, at(10, 10));
+      expect(applyIntent(s, withId({ kind: 'ProduceHeli', seat: 0, factory: f }, nextId++))).toBe(REJECT_NONE);
+      s.helis.readyTick[0] = (s.helis.stateTick[0] as number) + delta;
+      const r = deserialize(serialize(s));
+      return r.ok ? 'ok' : r.error;
+    };
+    expect(forged(HELI_BUILD_TICKS)).toBe('ok');
+    expect(forged(HELI_BUILD_TICKS_MIN)).toBe('ok');
+    expect(forged(HELI_BUILD_TICKS_MIN - 1)).toBe('air-range');
+    expect(forged(HELI_BUILD_TICKS + 1)).toBe('air-range');
   });
 });
 

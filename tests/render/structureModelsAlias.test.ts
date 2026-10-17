@@ -1,6 +1,6 @@
 // M18e-1: the provisional models of the Airfield, Lab and Plant are registry entries that reuse the geometry of an existing type (instance size and colour only):
 // the layer makes no mesh of its own for them, so a match with all nine types draws with the same number of meshes (draw calls) as one with six.
-import { Vector3 } from 'three';
+import { Vector3, type InstancedBufferAttribute } from 'three';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { bindHeightSource } from '../../src/render/detail';
 import { STRUCTURE_MODELS, modelledTypes } from '../../src/render/structureModels';
@@ -65,10 +65,21 @@ describe('the layer draws them without a mesh of their own', () => {
     const six = layerWith([STRUCT_FACTORY, STRUCT_SILO]);
     const nine = layerWith([STRUCT_FACTORY, STRUCT_SILO, STRUCT_AIRFIELD, STRUCT_LAB, STRUCT_PLANT]);
     expect(nine.meshes.length).toBe(six.meshes.length);
+    // one mesh per type that has a model of its own, plus the ring, the far icons and the ghost: an aliased type adds none
+    expect(nine.meshes.length).toBe(modelledTypes().filter((ty) => STRUCTURE_MODELS[ty]?.alias === undefined).length + 3);
     expect(nine.instances().map((d) => d.type)).toEqual([STRUCT_FACTORY, STRUCT_SILO, STRUCT_AIRFIELD, STRUCT_LAB, STRUCT_PLANT]);
     const counts = nine.counts();
     expect(counts[STRUCT_FACTORY]).toBe(3); // the Factory, the Airfield and the Plant share one instanced mesh
     expect(counts[STRUCT_SILO]).toBe(2); // the Silo and the Lab
+    // the instance data of the Factory mesh (index 1: City, Factory, ...): the Factory, the Airfield and the Plant in id order, with their own size and colour
+    const factoryMesh = nine.meshes[1] as (typeof nine.meshes)[number];
+    const params = (factoryMesh.geometry.getAttribute('aParams') as InstancedBufferAttribute).array;
+    const owner = (factoryMesh.geometry.getAttribute('aOwner') as InstancedBufferAttribute).array;
+    const base = params[0] as number;
+    expect((params[4] as number) / base).toBeCloseTo(STRUCTURE_MODELS[STRUCT_AIRFIELD]?.scale as number, 5);
+    expect((params[8] as number) / base).toBeCloseTo(STRUCTURE_MODELS[STRUCT_PLANT]?.scale as number, 5);
+    const mul = STRUCTURE_MODELS[STRUCT_AIRFIELD]?.ownerMul as readonly number[];
+    for (let c = 0; c < 3; c++) expect((owner[3 + c] as number) / (owner[c] as number)).toBeCloseTo(mul[c] as number, 5);
     expect(nine.trianglesOf(STRUCT_AIRFIELD)).toBe(nine.trianglesOf(STRUCT_FACTORY));
     expect(nine.trianglesOf(STRUCT_LAB)).toBe(nine.trianglesOf(STRUCT_SILO));
     // the triangle budget counts the aliased instances with the triangles of the model they reuse

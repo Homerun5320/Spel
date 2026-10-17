@@ -59,6 +59,23 @@ describe('the AI Plant and Lab', () => {
     }
   });
 
+  it('it is bought only from what is left after the next wanted structure: with exactly the price of the City the seat wants it builds the City, not the Plant', () => {
+    const probe = plain(7, 1000000);
+    let think = AI_BUILD_EXTRA_START_TICKS;
+    while ((think + probe.memory.phase) % 100 !== 0) think++;
+    const run = (gold: number): number => {
+      const p = plain(7, gold);
+      give(p.state, [[STRUCT_CITY, 4], [STRUCT_FACTORY, 2], [STRUCT_PORT, 1], [STRUCT_POST, 1]], think - 1);
+      p.state.tick = think;
+      p.view.refresh();
+      return typeOf(buildMove(p.view, p.memory, p.rng));
+    };
+    const cityPrice = 1200; // base 400 x min(12, 2 + 4) / 2 with four Cities
+    expect(run(cityPrice)).toBe(STRUCT_CITY);
+    expect(run(cityPrice + 1)).toBe(STRUCT_CITY); // one gold of spare does not pay a 250-gold Plant
+    expect(run(cityPrice + 250)).toBe(STRUCT_PLANT);
+  });
+
   it('the Plant is placed within PLANT_NEAR_CELLS of a City or Port (the intent is legal), and the Lab wanted at 6 Cities comes when the Plants of the ratio are there', () => {
     const p = plain(11, 1000000);
     give(p.state, [[STRUCT_CITY, 6], [STRUCT_FACTORY, 3], [STRUCT_PORT, 2], [STRUCT_POST, 1], [STRUCT_PLANT, 1]], 2999);
@@ -71,6 +88,25 @@ describe('the AI Plant and Lab', () => {
     const move = buildMove(p.view, p.memory, p.rng);
     expect(move).toMatchObject({ kind: 'Build', type: STRUCT_LAB });
     expect(applyIntent(p.state, withId(move as IntentBody, 1))).toBe(REJECT_NONE);
+  });
+
+  it('the Plant stands near a host: with the Cities far from the capital the AI still finds a place (the tries are made around its Cities and Ports, not in the capital window)', () => {
+    const probe = plain(1, 1000000);
+    let think = AI_BUILD_EXTRA_START_TICKS;
+    while ((think + probe.memory.phase) % 100 !== 0) think++;
+    let found = 0;
+    for (let seed = 1; seed <= 20; seed++) {
+      const p = plain(seed, 1000000);
+      give(p.state, [[STRUCT_CITY, 4], [STRUCT_FACTORY, 2], [STRUCT_PORT, 1], [STRUCT_POST, 1]], think - 1);
+      p.state.tick = think;
+      p.view.refresh();
+      const move = buildMove(p.view, p.memory, p.rng);
+      if (typeOf(move) === STRUCT_PLANT) {
+        found++;
+        expect(applyIntent(p.state, withId(move as IntentBody, 1))).toBe(REJECT_NONE);
+      }
+    }
+    expect(found).toBeGreaterThanOrEqual(18);
   });
 
   it('never beyond the rule limits and never an Airfield: 20 seeds, 9000 ticks, a huge purse, every Build the AI asks for is accepted by the sim', () => {
