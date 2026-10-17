@@ -692,3 +692,8 @@ M14b
 - Docked ships (the Port's cool-down) are drawn at the water cell beside the Port: a berth beside the Port model would look better.
 - AI use of ships, air defence against ships and the minimap stay out (`docs/BACKLOG.md` M13c-1).
 - Bundle: the ship UI and app modules (`src/app/shipController.ts`, `src/app/shipMode.ts`, `src/app/shipPreview.ts`, `src/ui/shipBox.ts`, `src/ui/shipInfo.ts`, `src/ui/shipEvents.ts`) add about 5.9 kB gzip to the START load (START headroom is now 4 380 bytes); loading them with `import()` on the first own Port selection or the first ship in the table would give most of it back.
+
+## terrainLeak driver hint (round 24)
+
+- `e2e/terrainLeak.serial.test.ts` fails by chance (about 1 run in 10) on "GL Driver Message (OpenGL, Performance, ...): Running out of reserved outsideRenderPass queueSerial" even on the published v33; the leak measurement itself is fine. Options for the owner: (a) treat ANGLE performance hints as non-failing in the console collector of `scripts/shot.mjs` (loosens a check, but only for a driver hint), (b) rerun the file once in `scripts/verify.mjs` for this one message (a documented retry, like the perf project's), (c) leave it and rerun by hand as now.
+
