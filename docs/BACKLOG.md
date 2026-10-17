@@ -600,3 +600,10 @@ Not done in the Fix-UI slice (the sim, host and AI findings belong to Fix-Sim):
 - AI test holes of audit 4 [2.12], for the `src/ai` owners: the peaceful research order after ECONOMY (R10), "waits, never drifts" when a later step is unaffordable but another branch's first step is affordable (R13: gold between price + reserve of ECONOMY step 1 and LAND step 0), `fleetCountOf` in the AIRBORNE test (R16), and the diplomacy "most frequent attacker" order with two attackers that both have `AI_TRUCE_MIN_HITS` hits but different counts (AI07).
 - A two-pass fill of the attack rows (the local owner first) if the cap of 32 ever proves too small; it would need the local owner in the host's front snapshot.
 - Test holes named by audit 4 but not closed here: `LabelLayout` ties by id and the gap against HUD panels (L02, L07 to L11), `TechWatcher` against the real sim for two techs finished in one tick.
+## Fix-5B (from audit 4, layout)
+
+- Finding 3.9 (6): the 1 px route line and the 9 px far helicopter icon are not a plain constant in `uiConfig` / `render` config (the line width is a WebGL line, the icon size comes from a shader uniform and the camera), so they were left. A thicker route needs a quad strip (one more triangle budget line), the icon a size curve by altitude.
+- Finding 3.9 (3) (the name column of a board row with a badge) has only the CSS minimum width `.hud-name`, no e2e: a unit-level check needs a layout engine; the e2e of the expanded federation board would have to run with an alliance badge on a short name.
+- The research chip is still cut by an ellipsis at 540x960 with two buttons and a proposal signal on the row; a real fix is a third row or a chip inside the T panel only.
+- The result card and the pause card show the HUD faintly through them (`C.panel` is not opaque); the result card could use the 0.97 card colour of the tech and diplomacy cards.
+- The index `docs/ARCHITECTURE.md` is at 45 867 of 46 000 bytes: the next milestone has to trim long rows (move detail to `docs/arch/`) before it adds one.

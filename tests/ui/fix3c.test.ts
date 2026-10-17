@@ -146,7 +146,7 @@ const colorOf = (s: number): string => `c${s}`;
 
 describe('resultRows', () => {
   it('the winner is first even when another seat has the higher score and the most land', () => {
-    const { m } = matchView({ score: [10, 50, 30], landStd: [1, 90, 5] }, 1 /* seat 0 won */);
+    const { m } = matchView({ score: [10, 50, 30], landStd: [1, 90, 5], group: [0, 1, 2, 3] }, 1 /* seat 0 won */);
     const rows = resultRows(m, 3, 0, nameOf, colorOf, () => 0);
     expect(rows.map((r) => r.seat)).toEqual([0, 1, 2]);
     expect(rows[0]?.winner).toBe(true);
@@ -154,9 +154,9 @@ describe('resultRows', () => {
   });
 
   it('the others follow by falling score, then falling land, then the lower seat', () => {
-    const { m } = matchView({ score: [10, 20, 30], landStd: [0, 0, 0] }, 1);
+    const { m } = matchView({ score: [10, 20, 30], landStd: [0, 0, 0], group: [0, 1, 2, 3] }, 1);
     expect(resultRows(m, 3, 0, nameOf, colorOf, () => 0).map((r) => r.seat)).toEqual([0, 2, 1]);
-    const tie = matchView({ score: [0, 5, 5], landStd: [0, 1, 9] }, 1);
+    const tie = matchView({ score: [0, 5, 5], landStd: [0, 1, 9], group: [0, 1, 2, 3] }, 1);
     expect(resultRows(tie.m, 3, 0, nameOf, colorOf, () => 0).map((r) => r.seat)).toEqual([0, 2, 1]);
   });
 });

@@ -16,10 +16,10 @@ describe('docs/ARCHITECTURE.md "Budgetar"', () => {
 });
 
 describe('Fix-Audit2: per-layer draw-call rows pin the real total, not only the 100 ceiling', () => {
-  it('the per-layer draw-call allowances (terrain, shell, stars, structures, districts, helicopters, deploy) add up to at most 18 (M13b: +3 for the deploy layer; was 16), so the global 100 stays a ceiling and not a licence', () => {
+  it('the per-layer draw-call allowances (terrain, shell, stars, structures, districts, helicopters, deploy) add up to at most 23 (M13b: +3 for the deploy layer, was 16; Fix-5B: +4 helicopter effects and +1 front arrows, the table now holds every layer: 1+1+1+10+1+1+3+4+1), so the global 100 stays a ceiling and not a licence', () => {
     const [, ...layers] = readBudgets();
     const sum = layers.reduce((s, l) => s + l.drawCalls, 0);
-    expect(sum).toBeLessThanOrEqual(18);
+    expect(sum).toBeLessThanOrEqual(23);
     expect(layers.every((l) => l.drawCalls <= 10)).toBe(true);
   });
 });
@@ -29,7 +29,7 @@ describe('M13a-1: the helicopter layer has its own row', () => {
     const [, ...layers] = readBudgets();
     const row = layers.find((l) => l.layer.startsWith('Helikoptrar'));
     expect(row).toEqual({ layer: expect.stringContaining('Helikoptrar'), triangles: 7_000, drawCalls: 1 });
-    expect(layers.reduce((s, l) => s + l.drawCalls, 0)).toBeLessThanOrEqual(18); // M13b: 17 + the deploy layer's 3 = 18 after the helicopter layer's own 1 is already in 17
+    expect(layers.reduce((s, l) => s + l.drawCalls, 0)).toBeLessThanOrEqual(23); // M13b: 18 with the deploy layer's 3; Fix-5B: 23 with the helicopter effects (4) and the front arrows (1), see the test above
   });
 });
 
@@ -40,5 +40,14 @@ describe('M13b: the deploy layer has its own row', () => {
     expect(row).toEqual({ layer: expect.stringContaining('Utplaceringslagret'), triangles: 1_000, drawCalls: 3 });
     const heli = layers.find((l) => l.layer.startsWith('Helikoptrar')) as { drawCalls: number };
     expect(heli.drawCalls + (row as { drawCalls: number }).drawCalls).toBeLessThanOrEqual(4);
+  });
+});
+
+describe('Fix-5B: the table is clean and has a row for every layer that draws', () => {
+  it('the helicopter effects (<= 3 500 triangles, <= 4 calls) and the front arrows (<= 200 triangles, <= 1 call) have rows, and the per-layer calls add up to exactly 23', () => {
+    const [, ...layers] = readBudgets();
+    expect(layers.find((l) => l.layer.startsWith('Helikoptereffekter'))).toMatchObject({ triangles: 3_500, drawCalls: 4 });
+    expect(layers.find((l) => l.layer.startsWith('Frontpilar'))).toMatchObject({ triangles: 200, drawCalls: 1 });
+    expect(layers.reduce((s, l) => s + l.drawCalls, 0)).toBe(23);
   });
 });

@@ -28,7 +28,7 @@ const sv = {
   'help.drag': 'Dra med musen: snurra globen. Mushjul: zooma',
   'help.commit': '[ och ]: insats i steg om 5 % (även - och + fungerar)',
   'help.speed': 'Mellanslag: paus. , och .: långsammare och snabbare',
-  'help.dev': 'F2: Dev-panelen. F3: bildfrekvens',
+  'help.dev': 'F2: Dev-panelen. F3: bildfrekvens. T: forskning. D: diplomati. N: etiketter. L: skicka helikopter. ?: alla genvägar',
   'start.gpuChosen': 'Spelet kör på {name} och har valt låg grafik för jämn bildfrekvens.',
   'start.gpuBetter': 'Vill du ha finare grafik? Öppna Dev-panelen (F2) och välj Kvalitet: medel, eller skriv #quality-medium sist i adressen.',
   'start.gpuSeparate': 'Har datorn ett separat grafikkort: Windows Inställningar, System, Bildskärm, Grafik, välj webbläsaren, Alternativ, Hög prestanda. Starta om webbläsaren.',
@@ -299,7 +299,7 @@ const sv = {
   'toast.lz.outOfFuel': 'För långt bort, bränslet räcker inte.',
   'toast.lz.noRoute': 'Det finns ingen flygrutt dit.',
   'toast.heli.noPad': 'Ingen helikopter står redo på fabriken.',
-  'toast.heli.badTroops': 'Välj mellan 1 och 600 trupper, och högst så många du har.',
+  'toast.heli.badTroops': 'Välj mellan 1 och {max} trupper, och högst så många du har.',
   'toast.heli.noRoute': 'Helikoptern hittar ingen flygrutt dit.',
   'toast.heli.notFlying': 'Den helikoptern är inte på uppdrag i luften.',
   'toast.district.occupied': 'Platsen är upptagen.',
@@ -563,6 +563,8 @@ const sv = {
   'tech.fx.10': 'Murar och poster +{n} %',
   'tech.fx.11': 'SAM-salvotid -{n} %',
   'setup.error.federationNeedsAi': 'Ett uppdelat land behöver minst {min} AI-nation som motståndare, annars vinner ni direkt.',
+  // Fix-5B
+  'deploy.info.one': 'Flygtid {s} s, bränsle {fuel} celler, synlig i {exposed} ruta',
 } as const;
 
 export type TextKey = keyof typeof sv;
@@ -583,7 +585,7 @@ const en: Record<TextKey, string> = {
   'help.drag': 'Drag with the mouse: rotate the globe. Mouse wheel: zoom',
   'help.commit': '[ and ]: commitment in steps of 5 % (- and + work too)',
   'help.speed': 'Space: pause. , and .: slower and faster',
-  'help.dev': 'F2: the Dev panel. F3: frame rate',
+  'help.dev': 'F2: the Dev panel. F3: frame rate. T: research. D: diplomacy. N: labels. L: send a helicopter. ?: all shortcuts',
   'start.gpuChosen': 'The game runs on {name} and chose low graphics to keep the frame rate smooth.',
   'start.gpuBetter': 'Want nicer graphics? Open the Dev panel (F2) and pick Quality: medium, or add #quality-medium at the end of the address.',
   'start.gpuSeparate': 'If the computer has a separate graphics card: Windows Settings, System, Display, Graphics, pick the browser, Options, High performance. Restart the browser.',
@@ -853,7 +855,7 @@ const en: Record<TextKey, string> = {
   'toast.lz.outOfFuel': 'Too far away, the fuel will not last.',
   'toast.lz.noRoute': 'There is no flight route there.',
   'toast.heli.noPad': 'No helicopter is ready on the factory.',
-  'toast.heli.badTroops': 'Pick between 1 and 600 troops, and no more than you have.',
+  'toast.heli.badTroops': 'Pick between 1 and {max} troops, and no more than you have.',
   'toast.heli.noRoute': 'The helicopter finds no flight route there.',
   'toast.heli.notFlying': 'That helicopter is not on a mission in the air.',
   'toast.district.occupied': 'The slot is taken.',
@@ -1001,7 +1003,7 @@ const en: Record<TextKey, string> = {
   'diplo.name.alliance': 'Alliance',
   'diplo.name.embargo': 'Trade embargo',
   'diplo.badge.truce': 'T',
-  'diplo.badge.alliance': 'Al',
+  'diplo.badge.alliance': 'All',
   'diplo.badge.embargo': 'Emb',
   'diplo.btn.truce': 'Propose truce',
   'diplo.btn.alliance': 'Propose alliance',
@@ -1079,7 +1081,7 @@ const en: Record<TextKey, string> = {
   'tech.cancel': 'Cancel',
   'tech.cancelConfirm': 'Confirm: cancel',
   'tech.cancelWarn': 'If you cancel, the gold is not given back. Click again to confirm.',
-  'tech.running': 'Researching: {name} {time}',
+  'tech.running': 'Research: {name} {time}',
   'toast.tech.done': 'Research {name} is complete.',
   'result.col.techs': 'Techs',
   'tech.name.0': 'Trade Routes',
@@ -1115,6 +1117,8 @@ const en: Record<TextKey, string> = {
   'tech.fx.10': 'Walls and posts +{n}%',
   'tech.fx.11': 'SAM salvo time -{n}%',
   'setup.error.federationNeedsAi': 'A split country needs at least {min} AI nation as an opponent, or you win at once.',
+  // Fix-5B
+  'deploy.info.one': 'Flight {s} s, fuel {fuel} cells, seen in {exposed} square',
 };
 
 /** The two tables, for the parity test and for tools. Treat as read-only. */

@@ -6,7 +6,7 @@ import { HELI_LIFT, HELI_MAX_TROOPS, HELI_RETURN } from '../sim/public';
 import { DEPLOY } from './uiConfig';
 import { heliStateKey, type HeliRow } from './heliInfo';
 import { rejectKey } from './hudLogic';
-import { formatInt, languageVersion, t } from './i18n';
+import { formatInt, languageVersion, t, tn } from './i18n';
 
 export interface DeployBoxActions {
   /** The button was pressed (starts the mode, or leaves it when it is already on). */
@@ -30,6 +30,8 @@ export interface DeployBoxModel {
   readonly etaSeconds: number;
   readonly fuelCells: number;
   readonly exposedCells: number;
+  /** The seat's troop cap per helicopter (`heliMaxTroopsOf`: the base cap plus the load techs); the slider and the clamps follow it. */
+  readonly maxTroops: number;
 }
 
 export interface DeployBox {
@@ -85,6 +87,8 @@ export function createDeployBox(parent: HTMLElement, actions: DeployBoxActions):
   parent.appendChild(root);
 
   let mode: 0 | 1 = 0;
+  let cap = HELI_MAX_TROOPS;
+  const clampTroops = (): number => Math.max(1, Math.min(cap, Math.round(Number(slider.value))));
   // what the block shows now, as numbers: a frame compares them one by one and builds no signature string (Fix-4B)
   let dirty = true;
   let sCanOpen = false;
@@ -130,10 +134,15 @@ export function createDeployBox(parent: HTMLElement, actions: DeployBoxActions):
 
   return {
     root,
-    troops: () => Math.max(1, Math.min(HELI_MAX_TROOPS, Math.round(Number(slider.value)))),
+    troops: clampTroops,
     mode: () => mode,
     update(m, rows): void {
-      const troops = Math.max(1, Math.min(HELI_MAX_TROOPS, Math.round(Number(slider.value))));
+      if (m.maxTroops !== cap) {
+        cap = m.maxTroops;
+        slider.max = String(cap);
+        dirty = true;
+      }
+      const troops = clampTroops();
       const lang = languageVersion();
       if (dirty || m.canOpen !== sCanOpen || m.openReason !== sOpenReason || m.active !== sActive || m.status !== sStatus || m.reason !== sReason || m.etaSeconds !== sEta || m.fuelCells !== sFuel || m.exposedCells !== sExposed || troops !== sTroops || mode !== sMode || lang !== sLang) {
         dirty = false;
@@ -172,10 +181,10 @@ export function createDeployBox(parent: HTMLElement, actions: DeployBoxActions):
         cancelBtn.textContent = t('deploy.cancel');
         status.dataset.state = m.status;
         status.dataset.reason = String(m.reason);
-        status.textContent = m.status === 'valid' ? t('deploy.valid') : m.status === 'invalid' ? t(rejectKey(m.reason), { code: m.reason }) : m.status === 'pending' ? t('deploy.pending') : '';
+        status.textContent = m.status === 'valid' ? t('deploy.valid') : m.status === 'invalid' ? t(rejectKey(m.reason), { code: m.reason, max: cap }) : m.status === 'pending' ? t('deploy.pending') : '';
         status.hidden = status.textContent === '';
         const hasRoute = m.fuelCells > 0;
-        info.textContent = hasRoute ? t('deploy.info', { s: m.etaSeconds, fuel: m.fuelCells, exposed: m.exposedCells }) : '';
+        info.textContent = hasRoute ? tn('deploy.info', 'deploy.info.one', m.exposedCells, { s: m.etaSeconds, fuel: m.fuelCells, exposed: m.exposedCells }) : '';
         info.hidden = !hasRoute;
         info.dataset.eta = String(m.etaSeconds);
         info.dataset.fuel = String(m.fuelCells);

@@ -78,15 +78,20 @@ export interface ResultRow {
 
 /**
  * The result table: one row per PLAYER seat (tribes are not nations that can win). Rank 1 is the winner; the others follow by the sim's own
- * tiebreak (higher score, then more land, then the lower seat id). Every number is read from the `MatchView`; the land percent comes from
+ * tiebreak (higher score, then more land, then the lower seat id); in a federation win the table is ranked by score alone and every member of the winning group is marked. Every number is read from the `MatchView`; the land percent comes from
  * `landPctOf` (the sim's land-share statistic).
  */
 export function resultRows(m: MatchView, players: number, localSeat: number, nameOf: (seat: number) => string, colorOf: (seat: number) => string, landPctOf: (seat: number) => number): ResultRow[] {
   const seats: number[] = [];
   for (let s = 0; s < players && s < m.seats; s++) seats.push(s);
+  // Fix-5B: a federation win names the group's root seat; every living member of the group is a winner and the table is ranked by score alone
+  const w = m.winnerSeat;
+  let fedWin = false;
+  if (w >= 0 && w < m.seats && m.group[w] === w) for (let s = 0; s < m.seats && !fedWin; s++) fedWin = s !== w && m.group[s] === w;
+  const isWinner = (s: number): boolean => (fedWin ? m.group[s] === w : s === w);
   seats.sort((a, b) => {
-    const wa = a === m.winnerSeat ? 1 : 0;
-    const wb = b === m.winnerSeat ? 1 : 0;
+    const wa = !fedWin && a === w ? 1 : 0;
+    const wb = !fedWin && b === w ? 1 : 0;
     if (wa !== wb) return wb - wa;
     const sa = m.score[a] as number;
     const sb = m.score[b] as number;
@@ -102,7 +107,7 @@ export function resultRows(m: MatchView, players: number, localSeat: number, nam
     name: nameOf(s),
     color: colorOf(s),
     you: s === localSeat,
-    winner: s === m.winnerSeat,
+    winner: isWinner(s),
     eliminated: (m.eliminated[s] ?? 0) === 1,
     landPct: landPctOf(s),
     score: m.score[s] as number,

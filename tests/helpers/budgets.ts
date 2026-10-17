@@ -17,7 +17,11 @@ export function readBudgets(file = 'docs/ARCHITECTURE.md'): Budget[] {
   for (const line of text.slice(start).split('\n').slice(1)) {
     if (/^## /.test(line)) break;
     const cells = line.split('|').map((c) => c.trim());
-    if (cells.length < 5 || !/^[<\d]/.test(cells[2] ?? '') || !/^[<\d]/.test(cells[3] ?? '')) continue;
+    if (cells.length < 5 || !/^[<\d]/.test(cells[2] ?? '') || !/^[<\d]/.test(cells[3] ?? '')) {
+      // Fix-5B: a table row that is not a budget row is a module row that landed in the wrong section: fail instead of skipping it
+      if (line.startsWith('|') && !/^\|[-| ]+\|$/.test(line) && cells[1] !== 'Lager') throw new Error(`docs/ARCHITECTURE.md "Budgetar": not a budget row: ${line.slice(0, 80)}`);
+      continue;
+    }
     rows.push({ layer: cells[1] as string, triangles: num(cells[2] as string), drawCalls: num(cells[3] as string) });
   }
   return rows;
