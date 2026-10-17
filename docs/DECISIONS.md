@@ -2275,3 +2275,10 @@ Mutants of M18e-2 (each run on its own test, restored):
 | `iconShapeOf` returns the owner type of the shared mesh | `tests/render/structureModelsShared.test.ts` "the far icon of each new type has its own shape index" |
 | the ghost writes kind 0 | `tests/render/structureModelsShared.test.ts` "the ghost of a new type wears its kind" |
 | the vertex shader draws every model of the shared mesh (mask always 1) | `e2e/structuresAirLabPlant.test.ts` (the Airfield shows the lamps of the others, 767 warm pixels against at most 4) |
+
+## Round 22 integration (orchestrator)
+
+Merge order M13c-1 (ENGINE 26, FORMAT 17), Events-1, M18e-2; conflicts only in the shared docs (both sides kept), in `src/host/mainThreadHost.ts` and `src/host/protocol.ts` (the ship table and the event ring both ride in the diff: the snapshot carries `ships` and `events`/`eventsDropped`, merged by hand) and in `docs/ARCHITECTURE.md` (two tracks had shortened the same rows differently: the shorter M13c-1 wording was taken and the budget note 3 was condensed; the index is now about 200 bytes under its 46 000 cap, so the next pass must move detail to `docs/arch/` before it adds a row).
+
+One cap raise, by the rule of "Bundle diet" 3: the gzip total of `tests/portable.test.ts` went from 393 000 to 396 000 (measured 395 288 after the ship code, the shared three-model mesh and the event ring). The payback is diet step 1 (the language tables load only the active language, about -8.8 kB), which is the next pass and must lower the cap by at least 8 000; no other raise is allowed before it. The main-chunk cap (315 700) is unchanged.
+
