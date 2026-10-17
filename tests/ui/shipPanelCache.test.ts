@@ -11,7 +11,7 @@ function countInt32(): void {
   made = 0;
   class Counting extends RealInt32 {
     constructor(...args: ConstructorParameters<typeof Int32Array>) {
-      super(...(args as [never]));
+      super(...(args as unknown as [number]));
       made++;
     }
   }

@@ -697,3 +697,9 @@ M14b
 
 - `e2e/terrainLeak.serial.test.ts` fails by chance (about 1 run in 10) on "GL Driver Message (OpenGL, Performance, ...): Running out of reserved outsideRenderPass queueSerial" even on the published v33; the leak measurement itself is fine. Options for the owner: (a) treat ANGLE performance hints as non-failing in the console collector of `scripts/shot.mjs` (loosens a check, but only for a driver hint), (b) rerun the file once in `scripts/verify.mjs` for this one message (a documented retry, like the perf project's), (c) leave it and rerun by hand as now.
 
+## Fix-6B
+
+- `validateLaunchShip` in `src/sim/shipRules.ts` makes a probe, closures and a plan with a route buffer per call; a module-level reusable probe and plan would make the per-tick recomputation of the Port panel allocation-free (`ShipPanelInfoCache` only removes the per-frame part).
+- The three-column build bar overlaps the controls panel at 800x600 (audit 5 [3.1], last sentence): needs a layout decision for small landscape windows (e.g. the narrow layout up to 800 px).
+- The ship layer has no far icon of its own (the larger minimum size is the fix of [3.8]); an owner-coloured far icon like the helicopter's is a possible later step if ships still get lost on a 4K screen.
+- The first Play press fetches the sim chunk without a retry; a failed dynamic import stays failed in the browser until a reload (the notice says so). A reload-button inside the notice is possible (it needs a new key and a test).
