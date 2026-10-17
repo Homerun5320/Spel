@@ -59,7 +59,7 @@ Resume: Läs CLAUDE.md och docs/PROGRESS.md, kör git log -10 och npm run verify
 | M18d-2 | (set after the squash merge) | Technology part 2: the research panel (key T, top-bar button), the discounted upgrade price in UI and AI, the result column "Teknik". Branch merge commit b87cf1d (round 20 track 1). |
 | M18b-3 | (set after the squash merge) | Federations part 3: shared victory derived from the bound diplomacy pairs (no new state), federation rows in the leaderboard, the win meter and the result by group, one flag per federation. Branch merge commit bd0e1b0 (round 20 track 2). Round 20 integration: 8c34429 (ENGINE 23) and 15a71a0 (goldens re-pinned once). |
 | Audit 4 | (no merge) | Independent review of the pushes v27 to v31 against 01c0de9 (sim, fit, mutation, feel). Its findings are worked through by Fix-5A1, 5A2, 5B and 5C (below); the rest is in `docs/BACKLOG.md`. |
-| Fix-5 (pågår) | (set after the squash merge) | Audit 4 fixes in parallel slices: 5C is docs, the setup texts and sub-nation names (see Now); the other slices add their own blocks under Now. Not merged yet. |
+| Fix-5 | (set after the squash merge) | Audit 4 fixes in five slices: 5A1 rule faults and tests (ENGINE 24: Los memo version, cell-based air-defence columns, federation hold timer follows the group, research cleared at elimination), 5A2 set-up barrier for a split country with 0 AI nations, tighter deserialize guards, AI leader per group, tech-tree guard test, 5A3 test holes in app, render and UI models and the attack arrow cap 32, 5B layout faults (deploy load cap, leaderboard, result card, proposal cards, help overlay, narrow top bar) and the budget table, 5C docs, bundle diet decision, setup texts, sub-nation names. Integration: `startableSubNations` asks for the least AI nations, the AI slider minimum is 1 for a split country. Branch tip: see `git log`. |
 
 ## Now
 
@@ -119,7 +119,7 @@ GÖR och ACCEPTANS:
 
 ## Next
 
-- In progress: Fix-5 (the audit 4 fixes in parallel slices 5A1, 5A2, 5B and 5C); the orchestrator merges them and runs `npm run verify` once.
+- Fix-5 (the audit 4 fixes) is merged on the branch and published as version 32; audit 5 follows after five more published versions (v33 to v37).
 - Next slices, in this order: the bundle diet ("Bundle diet 1-3" in `docs/BACKLOG.md`, decided in `docs/DECISIONS.md` "Bundle diet"; it must come before M15a, whose SMAAPass alone is 35.6 kB gz, and before M24a), M13c (travel over land, sea and air), M14 (the events array and `navOf` are preconditions, see "Audit 3 downstream decisions" in `docs/DECISIONS.md`), M15a and M15b, M16, M17, M18e (more building types and a city map).
 - Already done and no longer next: M12b, M13a-2, M20a-2, M18b (federations, three parts) and M18d (technology, two parts): see Done.
 - Before the first CI run that matters: wire the three verify shards into `.github/workflows/ci.yml` (D156 (8)): a GitHub runner has 2 cores and `npm run verify` takes 12 minutes on 4.

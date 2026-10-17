@@ -2064,3 +2064,14 @@ Base 01c0de9. Every finding was checked against HEAD first; none was already sol
 | a duplicated item id (`17bk.` -> `17bd.`) in `docs/PREVIEW.md` | `tests/docs.test.ts` "every section id ... occurs once" |
 
 Not covered by a unit test: that `src/app/setupScreen.ts` calls `federationLineModel` with the cached count (DOM); the existing `e2e/federation.test.ts` reads `data-members` (still the pack count) and `data-sub`, and was not run (no Chromium in this slice).
+
+## Fix-5 integration (orchestrator)
+
+The five slices of the audit 4 round (base 01c0de9) were merged in the order 5A1, 5A2, 5A3, 5B, 5C. Conflicts were only in the shared docs (kept both sides), in `src/ui/i18n.ts` (different keys, kept both), in `src/ui/diploPanel.ts` (imports of 5B and 5C combined) and in `docs/ARCHITECTURE.md` (5B moved the eight misplaced module rows out of the budget table, 5A3 had changed "16" to "32" in two of them; the moved rows got the 32 by hand). `docs/PROGRESS.md`: the finished Now blocks that 5C had moved to Archive were dropped from the Now side of the merge (checked: every dropped heading exists in the Archive of 5C), the blocks of 5A1, 5A2, 5A3, 5B and 5C stay under Now.
+
+Three interactions between the slices, found by `verify:fast` and the federation e2e, fixed here:
+1. 5A2 made `createMatch` refuse a split country with fewer than `FEDERATION_MIN_AI_NATIONS` AI nations; 5C's `startableSubNations` asked `createMatch` with 0 AI nations, so every count became 0. It now asks with `FEDERATION_MIN_AI_NATIONS` (the count does not depend on the AI nations; the existing test compares it with a match of 12 AI nations).
+2. 5A2 exported `federationMinAiNations` for the set-up screen but no slice used it: the AI slider of `src/app/setupScreen.ts` now has the minimum 1 while the option is on for a country that really splits (cached per area, seed and option; `data-min` on the slider), so the refusal is never first seen after pressing Start. `e2e/federation.test.ts` asserts the minimum on and off.
+3. 5C named a sub-nation by its province alone; `e2e/federation.test.ts` expected the old "Province (United States of America)" in the diplomacy rows. The two expectations now pin the new contract (non-empty name, no country in it). This is the one earlier assertion changed by the integration; the change is caused by 3.6 of audit 4 and nothing else is loosened.
+
+ENGINE_VERSION is 24 (5A1 only), FORMAT_VERSION stays 16, the golden hash files were recomputed once by 5A1 (the probe in its report: with the new rules and ENGINE 23 the old goldens still matched, so only the version word changes them).
