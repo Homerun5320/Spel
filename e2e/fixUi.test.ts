@@ -6,6 +6,7 @@ import type { Browser, Page } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
 import { OUT_DIR, launchBrowser, openPage } from '../scripts/shot.mjs';
 import { cellToLatLon } from '../src/render/transforms';
+import { STRUCT_TYPE_COUNT } from '../src/sim/rules';
 import { STRUCT_CITY } from '../src/sim/structureRules';
 
 let browser: Browser;
@@ -82,7 +83,7 @@ describe('Fix-UI', () => {
         try {
           await T(page).settle();
           const cut = await page.evaluate(() => [...document.querySelectorAll('.build-name')].map((e) => ({ text: e.textContent, cut: e.scrollWidth > e.clientWidth })));
-          expect(cut.length).toBe(6);
+          expect(cut.length).toBe(STRUCT_TYPE_COUNT); // one button per structure kind (six until M18e-1 added the Airfield, Lab and Plant)
           expect(cut.filter((c) => c.cut)).toEqual([]);
           const box = await page.evaluate(() => {
             const r = (document.querySelector('[data-testid="build-bar"]') as HTMLElement).getBoundingClientRect();
