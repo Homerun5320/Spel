@@ -621,3 +621,9 @@ One pass, three steps, in this order, before M15a and M24a (their sizes are in t
 - Setup, audit 4 [3.7] (b): clicking the map to choose the sub-nation gives no feedback in the setup (the outline stays the whole country); highlight the chosen sub-nation and name it in the status line. The option itself now says "no split" for India (Fix-5C) but is not disabled.
 - Audit 4 [1.8] (4) and (5): a registry test that all `REJECT_*` codes are unique and each has a text key (M14 needs seven more codes), the `LZ_REASON_BASE` comment in `src/sim/rules.ts` (diplomacy 80 to 94 and tech 110 to 117 are above 72), and the unused `MatchView.group` block (used by no UI; drop it or use it in `groupModel`). Sim files: not touched by Fix-5C.
 - The map labels and leaderboard still cut long names ("Khanty-Mansi Autonomous Okrug"); the names are shorter now (no country, no "Region") but a width fix is layout work.
+
+Bundle-diet-1
+- `frameStats`, `gpuTimer` and `detailProbe` stay in the first load: the live loop uses FrameStats, the adaptive resolution uses the GPU timer, and the `__test` probe hooks are synchronous. Splitting them needs async probe hooks (an e2e change); about 2.3 kB gz.
+- The total gzip cap (`JS_GZ_TOTAL_MAX`) cannot fall: lazy chunks add about 5 kB of per-chunk overhead to the sum, only the first load shrinks. Diet step 1 (language tables, about -8.8 kB) lowers it; then re-measure.
+- Prefetch hints for the host chunk (`modulepreload` after the start screen is shown) would hide the Play-press load on a slow managed network; not built.
+

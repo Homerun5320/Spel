@@ -2075,3 +2075,36 @@ Three interactions between the slices, found by `verify:fast` and the federation
 3. 5C named a sub-nation by its province alone; `e2e/federation.test.ts` expected the old "Province (United States of America)" in the diplomacy rows. The two expectations now pin the new contract (non-empty name, no country in it). This is the one earlier assertion changed by the integration; the change is caused by 3.6 of audit 4 and nothing else is loosened.
 
 ENGINE_VERSION is 24 (5A1 only), FORMAT_VERSION stays 16, the golden hash files were recomputed once by 5A1 (the probe in its report: with the new rules and ENGINE 23 the old goldens still matched, so only the version word changes them).
+
+## Bundle-diet-1 (diet steps 2 and 3 of "Bundle diet"; no rule change, ENGINE and FORMAT unchanged, goldens untouched)
+
+Base af33a30. Measured with `npm run build` (only to measure), gzip level 9 per file, the first load being the script and the modulepreload chunks of `index.html`.
+
+| Chunk | before | after |
+| --- | --- | --- |
+| main | 314 964 | 306 484 |
+| techRules (shared sim, exists once) | 38 063 | 38 063 |
+| mainThreadHost (host plus AI) | 12 659 (first load) | 11 515 (lazy) |
+| data, paths, public, params | 2 880 | 4 391 (params is now its own small chunk) |
+| **first load** | **368 566** | **348 938** (-19 628 B, -5.3 %) |
+| all chunks | 381 002 | 386 179 (+5 177: seven new lazy chunks) |
+
+1. **What loads on demand.** The Dev panel and `registerAppModes` (`src/app/debugLoad.ts` `loadDevPanelModules`), the perf overlay and the performance scene with the report modal (`loadPerfModules`, only for `?perf`, `?scene=perf` and test mode, whose hooks `runPerfScene` / `perfReport` are synchronous), the spike scene (only `?scene=spike`), and `MainThreadHost`, `AiDriver` and `src/ai` (`MatchSession.create` / `fromMatch`, async already, so Play and Start load them). `hashBuiltMatch` moved to `src/app/matchHash.ts` (the `buildHash` hook is async); the one unit test that imported it from `match.ts` now imports it from `matchHash.ts` (an import path, nothing weakened) and `matchHash.ts` joined the two lists that allow a file to build a sim (`eslint.config.js`, `tests/boundary.test.ts`). A failed import shows a Swedish error (dev tools are Swedish only, D98): the panel through an alert and "Dev: fel" on the button, the scene through the usual error text.
+2. **Deviations from the prompt.** (a) The first load is -19.6 kB, not -25: `frameStats`, `gpuTimer` and `detailProbe` stay (the live loop, the adaptive resolution and the synchronous probe hooks use them; BACKLOG). (b) A normal page fetches the panel chunks (about 3.4 kB gz) when the browser is idle, because `e2e/hud.test.ts` presses the Dev button and asserts the panel at once (it failed when the panel was loaded only on the click); before the idle fetch has run, a stand-in button with the same attributes and the F2 listener load it on demand. The idle fetch is not part of the first load. (c) The F3 key toggles the small text overlay of `main.ts`, not the perf overlay, so it loads nothing. (d) `?test=1` loads the panel and the perf modules before the first scene start, so every `__test` hook and the F2 tests behave as before; no e2e test was changed.
+3. **Caps.** `JS_GZ_MAIN_MAX` 321 000 to 315 700 (measured 306 484 + 3 %). `JS_GZ_TOTAL_MAX` stays 391 000: measured 386 179 + 3 % would be 397 800, a raise, which the rule forbids; the sum of all chunks cannot fall by lazy loading (it rose 5 177 B), only the first load does. New `JS_GZ_START_MAX` 359 500 (348 938 + 3 %). Diet step 1 (language tables) is what lowers the total.
+4. **Shared sim.** `techRules` is one chunk used by the page and by the lazy host chunk (the portable test counts it once and caps the host chunk at 13 000 B, so a copied sim of about 38 kB fails).
+5. **Time and drawing.** Chromium on this machine against `vite preview` on localhost (3 runs, logged only): first contentful paint about 150 ms before and after, ready (Spela visible) about 890 ms before and 900 to 1000 ms after, test mode first frame 865 ms before and 916 ms after (one more round trip for the lazy dev chunks; localhost has no network cost, so the byte saving does not show). `renderer.info` after one test render: 3 calls, 37 184 triangles, 9 textures, before and after.
+6. **e2e** (alone): artifact 9, hud 19, setup 18, perfScene 3, devpanel 10 passed. `e2e/artifact.test.ts` unchanged and green with the extra chunks.
+
+Mutants (each run on its own test file and restored):
+
+| Mutant | Killed by |
+| --- | --- |
+| `import '../host/aiDriver'` added to `match.ts` (AI back in the first load) | `tests/portable.test.ts` "aiDriver must be a chunk of its own" |
+| `import './devpanel'` added to `main.ts` | `tests/portable.test.ts` "devpanel must be a chunk of its own" |
+| `JS_GZ_START_MAX` 359 500 to 340 000 | `tests/portable.test.ts` first-load cap |
+| panel loaded only on click (no idle fetch) | `e2e/hud.test.ts` "the Dev button opens the Dev panel" (it failed before the idle fetch was added) |
+| the sim copied into the host chunk | `tests/portable.test.ts` "keeps the shared sim chunk in one place" (cap 13 000, not run as a mutant: reasoned from the 38 kB size) |
+
+`npm run verify:fast`: the first run failed three tests of mine (docs path mentions, the Swedish-literal scan of `src/app`); fixed by full paths and by moving the Swedish dev strings to `src/app/debugLoad.ts` (a developer-tool file name); the files then passed alone (docs, i18n, portable, boundary, lint, matchFromBuilt), typecheck and lint green.
+

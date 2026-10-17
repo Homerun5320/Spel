@@ -108,7 +108,7 @@ const AI_IMPORTS = {
 // functions and any TYPE. Everything else (step, serialize, conquest, territory, spawn, attacks, economy, units, world, ...) is an error.
 // The files that really run or build a sim are named in FRONT_END_SIM_FILES and nowhere else is exempt.
 const FRONT_END_FILES = ['src/ui/**/*.ts', 'src/render/**/*.ts', 'src/app/**/*.ts'];
-const FRONT_END_SIM_FILES = ['src/app/debugSim.ts', 'src/app/match.ts', 'src/app/matchWorld.ts', 'src/app/matchSetup.ts'];
+const FRONT_END_SIM_FILES = ['src/app/debugSim.ts', 'src/app/match.ts', 'src/app/matchHash.ts', 'src/app/matchWorld.ts', 'src/app/matchSetup.ts'];
 const FRONT_END_IMPORTS = {
   patterns: [
     {

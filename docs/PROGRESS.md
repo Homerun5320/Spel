@@ -117,6 +117,18 @@ GÖR och ACCEPTANS:
 - [x] 7. [1.3] is the orchestrator's (the prompt list is outside the repo): not touched.
 - [x] `npm run verify:fast` green (result in `docs/DECISIONS.md` "Fix-5C").
 
+### Bundle-diet-1: dev modules, host and AI load on demand (diet steps 2 and 3; no rule change, ENGINE and FORMAT unchanged, goldens untouched; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+
+Measured before (gzip level 9, `npm run build` only to measure): first load 368 566 B (main 314 964, techRules 38 063, mainThreadHost 12 659, data 2 146, paths 469, public 265), all chunks 381 002 B.
+
+- [x] Measure before and after per chunk (in `docs/DECISIONS.md` "Bundle-diet-1").
+- [x] Step 2: Dev panel, mode list, perf overlay, perf scene (and so report, perfSceneReport) and the spike scene load with `import()` (`src/app/debugLoad.ts`, Swedish error on failure).
+- [x] Step 3: `MainThreadHost`, `AiDriver` and the AI load with `import()` when a match starts; `hashBuiltMatch` moved to `src/app/matchHash.ts`.
+- [x] The shared sim chunk (techRules) exists once; the first-load test pins it.
+- [x] Caps in `tests/portable.test.ts` lowered (main 321 000 to 315 700; total stays 391 000, see DECISIONS) and a first-load cap plus a lazy-chunk test added.
+- [x] e2e green alone: artifact, hud, setup, perfScene, devpanel.
+- [x] `npm run verify:fast` (result in `docs/DECISIONS.md`).
+
 ## Next
 
 - Fix-5 (the audit 4 fixes) is merged on the branch and published as version 32; audit 5 follows after five more published versions (v33 to v37).

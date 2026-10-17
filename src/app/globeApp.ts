@@ -27,9 +27,10 @@ import { isQualityTier, resolveQualityChoice } from '../render/quality';
 import type { TerrainMode } from '../render/terrainMaterial';
 import { FrameStats } from '../ui/frameStats';
 import { latLonOfCell } from './cellGeo';
-import { buildPerfReport, createPerfOverlay, type PerfContext, type PerfOverlay, type PerfReport } from '../ui/perfOverlay';
+import type { PerfContext, PerfOverlay, PerfReport } from '../ui/perfOverlay';
+import { loadPerfModules } from './debugLoad';
 import type { PerfSceneSection } from '../ui/perfSceneReport';
-import { PerfSceneRun, type PerfSceneHost } from './perfScene';
+import type { PerfSceneRun, PerfSceneHost } from './perfScene';
 import { createBuildBar, type BuildBar } from '../ui/buildBar';
 import { buildRejectKey, spawnPhaseBlocks } from '../ui/buildReasons';
 import { REJECT_PHASE } from '../ui/hudCodes';
@@ -77,7 +78,6 @@ import { regionMask, type RegionId } from '../data/regions';
 import { prepareWorld, type PreparedWorld } from './matchWorld';
 import { mountSetupScreen, type SetupScreen } from './setupScreen';
 import { SETUP_PREF_KEY, checkDraft, defaultDraft, draftFromStored, isStoredSetup, parseSeed, storedOf, type SetupDraft, type StoredSetup } from './setupModel';
-import { hashBuiltMatch } from './match';
 import { createMatchPanels, type MatchPanels, type ResultView } from '../ui/matchPanels';
 import { MatchWatcher, RESTART_PREF, humanStatus, reasonLine, resultRows } from '../ui/matchFlow';
 import { resultGroups, sideInfoOf } from '../ui/groupModel';
@@ -1168,10 +1168,12 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     cssHeight: globe.info().height,
   });
   // `?scene=perf` turns the overlay on by itself: it carries the progress line and the button that copies the report.
-  if (ctx.state.perf || isPerfScene) perf = createPerfOverlay(wrapper, perfContext);
-  if (isPerfScene && !params.test) {
+  // The perf modules load with import() only when something asks for them: the address, the performance scene or test mode (whose hooks are synchronous).
+  const perfMods = ctx.state.perf || isPerfScene || params.test ? await loadPerfModules() : null;
+  if (perfMods !== null && (ctx.state.perf || isPerfScene)) perf = perfMods.overlay.createPerfOverlay(wrapper, perfContext);
+  if (perfMods !== null && isPerfScene && !params.test) {
     gpuTimerOk = globe.enableGpuTimer();
-    perfRun = new PerfSceneRun(perfHost, { quick: false, now: fxNow });
+    perfRun = new perfMods.scene.PerfSceneRun(perfHost, { quick: false, now: fxNow });
   }
   if (adaptiveOn && !params.test && !isPerfScene) gpuTimerOk = globe.enableGpuTimer();
   const disposeAll = (): void => {
@@ -2023,9 +2025,10 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       flightActive: () => globe.flight.active,
       cameraMix: () => globe.rig.rtsWeight,
       runPerfScene(o = {}): PerfSceneSection {
+        if (perfMods === null) throw new Error('runPerfScene needs test mode');
         const dt = o.dt ?? 0.1;
         gpuTimerOk = globe.enableGpuTimer();
-        const run = new PerfSceneRun(perfHost, { quick: true, now: fxNow });
+        const run = new perfMods.scene.PerfSceneRun(perfHost, { quick: true, now: fxNow });
         perfRun = run;
         let prev = performance.now();
         for (let i = 0; i < (o.maxFrames ?? 2000) && !run.done; i++) {
@@ -2041,7 +2044,10 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
         perf?.update();
         return run.section();
       },
-      perfReport: () => buildPerfReport(perfContext),
+      perfReport: () => {
+        if (perfMods === null) throw new Error('perfReport needs test mode');
+        return perfMods.overlay.buildPerfReport(perfContext);
+      },
       adaptive: {
         enable: (on) => {
           adaptiveOn = on;
@@ -2235,6 +2241,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
         const r = createMatch(prepared, config);
         if (!r.ok) return { ok: false, code: r.error.code, key: r.error.key };
         const seats = r.match.seats.length;
+        const { hashBuiltMatch } = await import('./matchHash');
         const h = hashBuiltMatch(r.match, ticks);
         return { ok: true, initial: h.initial, after: h.after, seats };
       },
