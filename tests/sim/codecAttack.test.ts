@@ -17,7 +17,7 @@ import {
 
 describe('Attack and CancelAttack on the wire', () => {
   it('kind codes 3 and 4, appended after Noop, DebugPaint and Spawn (published codes never change)', () => {
-    expect(INTENT_KINDS).toEqual(['Noop', 'DebugPaint', 'Spawn', 'Attack', 'CancelAttack', 'DebugGive', 'Build', 'Upgrade', 'Delete', 'BuildDistrict', 'UpgradeDistrict', 'RemoveDistrict', 'ProduceHeli', 'LaunchHeli', 'RecallHeli', 'ProposeTreaty', 'AcceptTreaty', 'DeclineTreaty', 'BreakTreaty', 'ImposeEmbargo', 'LiftEmbargo', 'Research', 'CancelResearch']); // M18d-1 appended Research (21) and CancelResearch (22); M18c-1 appended 15 to 20 (the six diplomacy intents); M12a-2 appended LaunchHeli (13) and RecallHeli (14), M12a-1 ProduceHeli (12), Districts-1 9 to 11; M05 appended DebugGive (kind 5), M09 part A Build, Upgrade, Delete (6 to 8); the first five codes are unchanged
+    expect(INTENT_KINDS).toEqual(['Noop', 'DebugPaint', 'Spawn', 'Attack', 'CancelAttack', 'DebugGive', 'Build', 'Upgrade', 'Delete', 'BuildDistrict', 'UpgradeDistrict', 'RemoveDistrict', 'ProduceHeli', 'LaunchHeli', 'RecallHeli', 'ProposeTreaty', 'AcceptTreaty', 'DeclineTreaty', 'BreakTreaty', 'ImposeEmbargo', 'LiftEmbargo', 'Research', 'CancelResearch', 'LaunchShip']); // M18d-1 appended Research (21) and CancelResearch (22); M18c-1 appended 15 to 20 (the six diplomacy intents); M12a-2 appended LaunchHeli (13) and RecallHeli (14), M12a-1 ProduceHeli (12), Districts-1 9 to 11; M05 appended DebugGive (kind 5), M09 part A Build, Upgrade, Delete (6 to 8); the first five codes are unchanged
     expect([kindCode('Attack'), kindCode('CancelAttack')]).toEqual([3, 4]);
   });
 
