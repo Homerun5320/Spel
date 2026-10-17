@@ -13,6 +13,7 @@ import {
   TECH_STEPS,
   TECH_TICKS,
   TICK_HZ,
+  researchTicksNow,
   techBranchOf,
   techPrereqOf,
   techStepOf,
@@ -82,7 +83,8 @@ export function techCell(view: SimView, seat: number, tech: number): TechCell {
   const reason = validateResearch(view, seat, tech);
   const done = (mask & (1 << tech)) !== 0;
   const active = current === tech;
-  const ticks = TECH_TICKS[tech] as number;
+  // M18e-1: the time the seat would get NOW (its finished Labs applied) for a tech that has not started; a running one keeps the base time for its bar (the sim fixed its end when it started)
+  const ticks = active ? (TECH_TICKS[tech] as number) : researchTicksNow(view, seat, tech);
   const ticksLeft = active ? Math.max(0, (m.techDone[seat] as number) - view.tick) : 0;
   const status: TechStatus = done ? 'done' : active ? 'active' : reason === REJECT_NONE ? 'available' : reason === REJECT_TECH_PREREQ ? 'locked' : 'blocked';
   return {

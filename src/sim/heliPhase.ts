@@ -3,11 +3,11 @@
 import { airDefensePhase } from './airDefense';
 import { flyHelis, heliFuelMaxQ8 } from './heliFlight';
 import { beachheadPhase } from './heliLanding';
-import { checkProduceHeli, HELI_PRICE_MILLI } from './heliRules';
+import { checkProduceHeli, heliBuildTicksOf, HELI_PRICE_MILLI } from './heliRules';
 import { HELI_BUILDING, HELI_PAD, cellCentreQ8 } from './heliTable';
 import { REJECT_HELI_TABLE_FULL, REJECT_NONE } from './intents';
 import { OUTBOX_HELI_PRODUCED, OUTBOX_HELI_QUEUED, OUTBOX_HELI_SCRAPPED } from './outbox';
-import { HELI_BUILD_TICKS, HELI_HP_TENTHS } from './rules';
+import { HELI_HP_TENTHS } from './rules';
 import { seatToOwner, type GameState } from './state';
 import { spawnPhaseRefuses } from './structures';
 
@@ -16,7 +16,7 @@ export function applyProduceHeli(state: GameState, seat: number, factory: number
   const ownerId = seatToOwner(seat);
   const why = checkProduceHeli(state, state.gold[ownerId] as number, spawnPhaseRefuses(state), seat, factory);
   if (why !== REJECT_NONE) return why;
-  const id = state.helis.addBuilding(ownerId, factory, state.tick, state.tick + HELI_BUILD_TICKS);
+  const id = state.helis.addBuilding(ownerId, factory, state.tick, state.tick + heliBuildTicksOf(state, seat));
   if (id < 0) return REJECT_HELI_TABLE_FULL; // unreachable after checkProduceHeli (it tests the table), kept as a guard
   state.gold[ownerId] = (state.gold[ownerId] as number) - HELI_PRICE_MILLI;
   state.outbox.push(OUTBOX_HELI_QUEUED, state.tick, id, factory);

@@ -1,7 +1,7 @@
 // The helicopter rules that UI and AI may read (M12a-1): the fleet cap and count and the ProduceHeli check. Pure and read-only: everything takes a
 // read-only window (`HeliSource`) and returns numbers. The sim's own ProduceHeli (src/sim/heliPhase.ts) calls `checkProduceHeli` below, the SAME
 // function `validateProduceHeli` wraps, so there is one implementation (the pattern of `checkBuild` / `validateBuild`).
-import { HELI_FLEET_BASE, HELI_FLEET_MAX, HELI_MAX_TROOPS, HELI_PRICE_GOLD, HELI_ROUTE_CAPACITY, MILLI_GOLD_PER_GOLD, QT_PER_TROOP } from './rules';
+import { AIRFIELD_HELI_TIME_MAX_PCT, HELI_BUILD_TICKS, HELI_FLEET_BASE, HELI_FLEET_MAX, HELI_MAX_TROOPS, HELI_PRICE_GOLD, HELI_ROUTE_CAPACITY, MILLI_GOLD_PER_GOLD, QT_PER_TROOP } from './rules';
 import {
   REJECT_HELI_BAD_TROOPS,
   REJECT_HELI_FACTORY_BUILDING,
@@ -24,7 +24,7 @@ import type { AltMode } from './los/cache';
 
 import { RELATION_WAR } from './diplomacyTable';
 import { seatToOwner } from './state';
-import { STRUCT_FACTORY, type StructureView } from './structureRules';
+import { STRUCT_FACTORY, airfieldFleetBonusOf, airfieldTimePctOf, type StructureView } from './structureRules';
 import type { Nav } from './nav/grid';
 import { scoreLz, type LzResult } from './nav/lz';
 import { planRoute, type RouteOk, type RouteResult } from './nav/route';
@@ -55,11 +55,11 @@ export function heliMaxTroopsOf(src: HeliSource, seat: number): number {
 /** Price of a helicopter in milli-gold. */
 export const HELI_PRICE_MILLI = HELI_PRICE_GOLD * MILLI_GOLD_PER_GOLD;
 
-/** The fleet cap of a seat: HELI_FLEET_BASE + the sum of the levels of its FINISHED Factories, at most HELI_FLEET_MAX. */
+/** The fleet cap of a seat: HELI_FLEET_BASE + the sum of the levels of its FINISHED Factories, at most HELI_FLEET_MAX, plus the Airfield bonus (M18e-1, at most HELI_FLEET_AIRFIELD_MAX) and the AIR techs' extra helicopters. */
 export function fleetCapOf(src: HeliSource, seat: number): number {
   const s = src.structures;
   const ownerId = seatToOwner(seat);
-  const bonus = techFxOf(src, seat, TECH_FX_FLEET);
+  const bonus = techFxOf(src, seat, TECH_FX_FLEET) + airfieldFleetBonusOf(src, ownerId);
   let sum = HELI_FLEET_BASE;
   for (let i = 0; i < s.highWater; i++) {
     if (s.owner[i] === ownerId && s.type[i] === STRUCT_FACTORY && src.tick >= (s.readyTick[i] as number)) {
@@ -69,6 +69,15 @@ export function fleetCapOf(src: HeliSource, seat: number): number {
   }
   return sum + bonus;
 }
+
+/** M18e-1: ticks the production of one helicopter takes for `seat` now: HELI_BUILD_TICKS shortened by the percent its finished Airfields give (rounded down, so it is never longer than HELI_BUILD_TICKS). */
+export function heliBuildTicksOf(src: HeliSource, seat: number): number {
+  const pct = airfieldTimePctOf(src, seatToOwner(seat));
+  return pct === 0 ? HELI_BUILD_TICKS : HELI_BUILD_TICKS - Math.floor((HELI_BUILD_TICKS * pct) / 100);
+}
+
+/** M18e-1: the shortest production time any Airfield level can give (what a saved state may hold at least). */
+export const HELI_BUILD_TICKS_MIN = HELI_BUILD_TICKS - Math.floor((HELI_BUILD_TICKS * AIRFIELD_HELI_TIME_MAX_PCT) / 100);
 
 /** Helicopters a seat has, also those under production. */
 export function fleetCountOf(src: HeliSource, seat: number): number {

@@ -270,20 +270,47 @@ export const STRUCT_MAX_LEVEL = 3;
 export const LEVEL_CONQUEST_KEEP_PCT = 75;
 /** Sim-Levels2: the practical hard cap of every structure and district level (u16 in the tables). The dearest price, base 1000 * 999 gold = 999 000 000 milli, fits both Int32 and the Uint32 purse. */
 export const STRUCT_LEVEL_HARD_CAP = 999;
-/** Base price in gold per type (City, Factory, Port, Silo, SAM, Post). */
-export const BUILD_BASE_GOLD = [0, 400, 500, 400, 1000, 600, 250];
-/** Build time in ticks per type (tick = 0.1 s): City 15 s, Factory 20 s, Port 12 s, Silo 25 s, SAM 20 s, Post 8 s. An upgrade of ANY level takes the same time (Sim-Levels2: one rule for all types). */
-export const BUILD_TICKS = [0, 150, 200, 120, 250, 200, 80];
+/** Base price in gold per type (City, Factory, Port, Silo, SAM, Post, M18e-1: Airfield, Lab, Plant). */
+export const BUILD_BASE_GOLD = [0, 400, 500, 400, 1000, 600, 250, 700, 600, 250];
+/** Build time in ticks per type (tick = 0.1 s): City 15 s, Factory 20 s, Port 12 s, Silo 25 s, SAM 20 s, Post 8 s, M18e-1: Airfield 22 s, Lab 18 s, Plant 10 s. An upgrade of ANY level takes the same time (Sim-Levels2: one rule for all types). */
+export const BUILD_TICKS = [0, 150, 200, 120, 250, 200, 80, 220, 180, 100];
 /** Price escalation in halves: the price of the next structure of a type is base * min(PRICE_ESCALATION_MAX_HALVES, PRICE_ESCALATION_ONE_HALVES + n) / PRICE_ESCALATION_ONE_HALVES, n = structures of that type the seat owns (also unfinished ones). */
 export const PRICE_ESCALATION_ONE_HALVES = 2;
 /** The cap of the escalation in halves (12 halves = x6). */
 export const PRICE_ESCALATION_MAX_HALVES = 12;
 /** After a Delete the same seat may not Delete again for this many ticks (30 s). */
 export const DELETE_COOLDOWN_TICKS = 300;
-/** Two structures of a type in the spacing scope must be at least this many sim cells apart (a Euclidean distance, x wrapping, no latitude weight), by type (City, Factory, Port, Silo, SAM, Post). A cell is about 39 km: towns, not countries (Sim-Growth: was 16 for every type). */
-export const SPACING_CELLS_BY_TYPE = [0, 3, 3, 3, 6, 5, 3];
+/** Two structures of a type in the spacing scope must be at least this many sim cells apart (a Euclidean distance, x wrapping, no latitude weight), by type (City, Factory, Port, Silo, SAM, Post, Airfield, Lab, Plant). A cell is about 39 km: towns, not countries (Sim-Growth: was 16 for every type). */
+export const SPACING_CELLS_BY_TYPE = [0, 3, 3, 3, 6, 5, 3, 6, 4, 3];
 /** Which structures the spacing applies between: 0 = the same type, any owner; 1 = the same type, same owner; 2 = any type, any owner. M19 may change it. */
 export const SPACING_SCOPE = 0;
+
+// ---------------------------------------------------------------------------------------------------------------
+// M18e-1: Airfield, Lab and Plant (structure types 7, 8, 9). Every constant has a row in docs/BALANCE.md. Provisional: the M18e-1 block of docs/DECISIONS.md.
+// The arrays above (prices, build times, spacing) carry their entries; these are the limits and the effects. No tech gate yet (BACKLOG).
+
+/** The number of structure types (1..9: City, Factory, Port, Silo, SAM, Post, Airfield, Lab, Plant); a Build intent of a type outside 1..STRUCT_TYPE_COUNT fails the shape check. STRUCT_TYPE_SLOTS is this plus one. */
+export const STRUCT_TYPE_COUNT = 9;
+/** The most structures of a type one owner may have, by type (index = type; 0 = no limit; City, Factory, Port, Silo, SAM and Post are unlimited as before): Airfield 3, Lab 3, Plant 6. */
+export const MAX_PER_OWNER_BY_TYPE = [0, 0, 0, 0, 0, 0, 0, 3, 3, 6];
+/** Airfield: each level of each FINISHED Airfield of the owner adds this many helicopters to the fleet cap. */
+export const HELI_FLEET_PER_AIRFIELD_LEVEL = 1;
+/** Airfield: the most helicopters all Airfields together add to the fleet cap (on top of HELI_FLEET_MAX of the Factories). */
+export const HELI_FLEET_AIRFIELD_MAX = 6;
+/** Airfield: each level of each finished Airfield shortens the production of a helicopter (in every Factory of the owner) by this many percent. */
+export const AIRFIELD_HELI_TIME_PCT_PER_LEVEL = 5;
+/** Airfield: the most the production time can be shortened, in percent (all Airfields together). */
+export const AIRFIELD_HELI_TIME_MAX_PCT = 40;
+/** Lab: each level of each finished Lab shortens a research that STARTS now by this many percent (Labs stack). */
+export const LAB_RESEARCH_PCT_PER_LEVEL = 5;
+/** Lab: the most a research can be shortened, in percent (all Labs together). */
+export const LAB_RESEARCH_MAX_PCT = 40;
+/** Plant: gold per second (milli) of a finished level 1 Plant (0.8 gold/s, against 1.5 for a City at 400 gold). */
+export const PLANT_GOLD_MILLI_BASE = 800;
+/** Plant: the extra at the curve's asymptote (1.6 gold/s in all). */
+export const PLANT_GOLD_EXTRA_MILLI = 800;
+/** Plant: it may only be built within this many sim cells (Euclidean, x wrapping) of a City or Port of the same owner. */
+export const PLANT_NEAR_CELLS = 8;
 
 // ---------------------------------------------------------------------------------------------------------------
 // Structure effects (M09 part B). Gold is counted in milli-gold per second here (the economy turns it into milli-gold per tick).
@@ -402,6 +429,11 @@ export const AI_DISTRICT_LEVEL_CAP = 3;
 /** One Port per this many Cities (from the second City on); one Post per this many Cities (from the fourth). */
 export const AI_BUILD_CITIES_PER_PORT = 3;
 export const AI_BUILD_CITIES_PER_POST = 4;
+/** M18e-1: the AI builds a Plant per this many Cities it owns (the first at 4 Cities, the next at 8, ...; the rule limit of 6 stops it) and a Lab per this many (the first at 6 Cities, at most 3). It builds no Airfield (it uses no helicopters before M17). */
+export const AI_BUILD_CITIES_PER_PLANT = 4;
+export const AI_BUILD_CITIES_PER_LAB = 6;
+/** M18e-1: the AI buys no Plant or Lab before this tick (5 minutes: expansion first, and its research starts at AI_TECH_START_TICKS). */
+export const AI_BUILD_EXTRA_START_TICKS = 3000;
 
 // ---------------------------------------------------------------------------------------------------------------
 // City districts (Districts-1). A City of level L has DISTRICT_SLOTS_BY_LEVEL[L] slots, each holds one district of a kind (1 Housing, 2 Market,

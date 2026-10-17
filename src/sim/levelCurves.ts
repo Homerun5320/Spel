@@ -20,6 +20,8 @@ import {
   LEVEL_SAT_K,
   MARKET_GOLD_EXTRA_MILLI,
   MARKET_GOLD_MILLI_BASE,
+  PLANT_GOLD_EXTRA_MILLI,
+  PLANT_GOLD_MILLI_BASE,
   PORT_GOLD_EXTRA_MILLI,
   PORT_GOLD_MILLI_PER_SEC,
   PORT_TRADE_EXTRA_PCT,
@@ -94,3 +96,7 @@ export const FACTORY_CITY_BONUS_PCT_BY_LEVEL = tableOf(factoryCityBonusPctAt);
 export const FACTORY_RADIUS_CELLS_BY_LEVEL = tableOf(factoryRadiusCellsAt);
 export const PORT_GOLD_MILLI_BY_LEVEL = tableOf(portGoldMilliAt);
 export const PORT_TRADE_PCT_BY_LEVEL = tableOf(portTradePctAt);
+/** M18e-1: gold per second (milli) of a finished Plant: 0.8 at level 1, towards 1.6. */
+export function plantGoldMilliAt(level: number): number {
+  return level < 1 ? 0 : lift(PLANT_GOLD_MILLI_BASE, PLANT_GOLD_EXTRA_MILLI, level);
+}

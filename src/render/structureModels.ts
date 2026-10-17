@@ -7,7 +7,7 @@
 // by it, by the level scale and by the scale policy. Every vertex has a colour and a TINT: tint 1 takes the owner's colour, 0 keeps the
 // model's own. Normals are not stored: the fragment shader takes the flat normal from screen derivatives (the stylised look of the terrain).
 import type { CityStyle } from './cityTiers';
-import { STRUCT_CITY, STRUCT_FACTORY, STRUCT_PORT, STRUCT_POST, STRUCT_SAM, STRUCT_SILO } from '../sim/public';
+import { STRUCT_AIRFIELD, STRUCT_CITY, STRUCT_FACTORY, STRUCT_LAB, STRUCT_PLANT, STRUCT_PORT, STRUCT_POST, STRUCT_SAM, STRUCT_SILO } from '../sim/public';
 
 export interface ModelData {
   /** x, y, z per vertex, three vertices per triangle (non-indexed). */
@@ -28,6 +28,15 @@ export interface StructureModel {
   /** True when the model has a front (a pier) that should point to the sea: the layer turns it to the water instead of a pseudo-random yaw. Its front is model +x. */
   readonly seaward?: boolean;
   build(style?: CityStyle): ModelData;
+  /**
+   * M18e-1 (provisional models until M18e-2): the type whose instanced mesh, far icon and geometry this type reuses. The layer makes NO mesh of its own for it (so no new draw
+   * call, and no new triangles in the budget beyond the instances), it writes the instance into the layer of `alias` with `scale` and `ownerMul` applied.
+   */
+  readonly alias?: number;
+  /** Instance scale on top of the level scale (an aliased type only; default 1). */
+  readonly scale?: number;
+  /** Per-channel factor on the owner colour of the instance, so the provisional model reads as another building (an aliased type only; default 1). */
+  readonly ownerMul?: Rgb;
 }
 
 export type Rgb = readonly [number, number, number];
@@ -398,6 +407,10 @@ export const STRUCTURE_MODELS: Readonly<Record<number, StructureModel>> = {
   [STRUCT_SILO]: { name: 'silo', radiusM: 560, build: buildSilo },
   [STRUCT_SAM]: { name: 'sam', radiusM: 520, build: buildSam },
   [STRUCT_POST]: { name: 'post', radiusM: 450, build: buildPost },
+  // M18e-1: provisional models, the geometry of an existing type with another size and colour (instance data only); the real models come with M18e-2.
+  [STRUCT_AIRFIELD]: { name: 'airfield', radiusM: 805, alias: STRUCT_FACTORY, scale: 1.15, ownerMul: [0.7, 0.85, 1], build: buildFactory },
+  [STRUCT_LAB]: { name: 'lab', radiusM: 504, alias: STRUCT_SILO, scale: 0.9, ownerMul: [1, 0.75, 0.55], build: buildSilo },
+  [STRUCT_PLANT]: { name: 'plant', radiusM: 490, alias: STRUCT_FACTORY, scale: 0.7, ownerMul: [1, 0.9, 0.45], build: buildFactory },
 };
 
 /** The type numbers that have a model, ascending. */

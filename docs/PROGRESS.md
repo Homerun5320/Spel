@@ -117,6 +117,25 @@ GÖR och ACCEPTANS:
 - [x] 7. [1.3] is the orchestrator's (the prompt list is outside the repo): not touched.
 - [x] `npm run verify:fast` green (result in `docs/DECISIONS.md` "Fix-5C").
 
+### M18e-1: Airfield, Lab and Plant in the sim, the AI and the build bar model (headless, no Chromium, ENGINE 25, FORMAT 16 unchanged; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+
+GÖR
+- [x] 1. Three types in the existing structure table: Airfield (fleet cap +1 per level up to +6, helicopter production up to 40 percent shorter), Lab (research up to 40 percent shorter, stacking), Plant (gold, near an own City or Port); prices, curves, limits (3 / 3 / 6) and the refusals 118 and 119 in `src/sim/rules.ts` and `docs/BALANCE.md`; effects through the cached economy code (no new hashed cache).
+- [x] 2. Build bar and keys 7, 8 and 9 in the hotkey registry and the `?` overlay; texts sv + en; selection panel and research panel read the new effects through pure functions of `src/sim/public.ts`; provisional models by alias (no new draw call), with a unit test.
+- [x] 3. AI: Plant and Lab from spare gold after tick 3000 (never an Airfield); no illegal intent in 20 seeds; solo band and pace unchanged.
+- [x] 4. Serialize / restore guards, Node == worker, a replay with all nine types.
+- [x] 5. A test per effect with exact numbers and per refusal; mutants in the M18e-1 block of `docs/DECISIONS.md`.
+
+ACCEPTANS
+- [x] Three types with levels, prices and effects in `src/sim/rules.ts` and `docs/BALANCE.md`; Build / Upgrade / Delete work for them with the new refusal codes (`tests/sim/m18e1.test.ts`).
+- [x] Fleet cap, production time, research time and gold tested with exact numbers; the 10x limit and the payback tests are green.
+- [x] Keys 7, 8, 9 in the registry and the overlay; texts sv + en; the registry has provisional models without new draw calls (`tests/render/structureModelsAlias.test.ts`).
+- [x] The AI builds Lab and Plant without an illegal intent; the solo band and `tests/sim/pace.test.ts` are unchanged.
+- [x] ENGINE 25 (FORMAT stays 16), both golden files recomputed once (only the version word moved), Node == worker, serialize round trip.
+- [x] `npm run verify:fast` green: typecheck, lint and 297 unit files (3228 tests) PASS, 1 min 55 s wall (the full `npm run verify` is the orchestrator's).
+
+Note for the user: the Airfield, Lab and Plant look like a bigger Factory, a smaller Silo and a small Factory in another colour until M18e-2 brings real models.
+
 ## Next
 
 - Fix-5 (the audit 4 fixes) is merged on the branch and published as version 32; audit 5 follows after five more published versions (v33 to v37).

@@ -1719,6 +1719,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       slower: () => session?.slower(),
       faster: () => session?.faster(),
       toggleHelp: () => toggleHelp(),
+      buildType: (type) => enterPlacement(type),
       toggleDiplomacy: () => toggleDiplomacy(),
       toggleTech: () => toggleTech(),
       deploy: () => (deployMode !== null ? exitDeploy() : enterDeploy(selectedId)),

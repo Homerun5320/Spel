@@ -1,10 +1,13 @@
 // The AI's build move (M09 part B): once per think a nation asks for ONE structure, in this order of need: a Factory when it has fewer
 // than cities / AI_BUILD_CITIES_PER_FACTORY, a City, a Port (from the second City, one per AI_BUILD_CITIES_PER_PORT Cities), a Defense Post
-// (from the fourth City, one per AI_BUILD_CITIES_PER_POST). SAM and Silo do nothing before M14 and are not built. The AI waits until it can
+// (from the fourth City, one per AI_BUILD_CITIES_PER_POST), a Plant (one per AI_BUILD_CITIES_PER_PLANT Cities) and a Lab (one per AI_BUILD_CITIES_PER_LAB; M18e-1). SAM and Silo do nothing before M14 and are not built. The AI waits until it can
 // pay the next one (no cheaper substitute: that would starve the Cities), a City also needs troops of AI_BUILD_CITY_TROOP_PCT of the cap.
 // Places are sampled in a window around the capital and checked with validateBuild, the very function the sim runs on the Build.
 import {
   AI_BUILD_CITIES_PER_FACTORY,
+  AI_BUILD_CITIES_PER_LAB,
+  AI_BUILD_CITIES_PER_PLANT,
+  AI_BUILD_EXTRA_START_TICKS,
   AI_CITY_LEVEL_CAP,
   AI_DISTRICT_LEVEL_CAP,
   AI_STRUCT_LEVEL_CAP,
@@ -35,8 +38,12 @@ import {
   upgradeDistrictBody,
   PHASE_SPAWN,
   REJECT_NONE,
+  MAX_PER_OWNER_BY_TYPE,
+  PLANT_NEAR_CELLS,
   STRUCT_CITY,
   STRUCT_FACTORY,
+  STRUCT_LAB,
+  STRUCT_PLANT,
   STRUCT_PORT,
   STRUCT_POST,
   buildBody,
@@ -65,6 +72,20 @@ function wantedType(view: SimView, owner: number): number {
   if (cities >= 2 && (ports + 1) * AI_BUILD_CITIES_PER_PORT <= cities + 1) return STRUCT_PORT;
   if (cities >= 4 && (posts + 1) * AI_BUILD_CITIES_PER_POST <= cities) return STRUCT_POST;
   return STRUCT_CITY;
+}
+
+/**
+ * M18e-1: the extra structure a rich seat may add: a Plant per AI_BUILD_CITIES_PER_PLANT Cities, else a Lab per AI_BUILD_CITIES_PER_LAB Cities, never beyond the rule
+ * limit (the sim would refuse it), or 0. It is bought only from what is left after the next wanted structure (like the districts), so it never delays a City, and not before AI_BUILD_EXTRA_START_TICKS. No Airfield.
+ */
+function wantedExtra(view: SimView, owner: number): number {
+  const s = view.structures;
+  const cities = s.ownedCount(owner, STRUCT_CITY);
+  const plants = s.ownedCount(owner, STRUCT_PLANT);
+  if ((plants + 1) * AI_BUILD_CITIES_PER_PLANT <= cities && plants < (MAX_PER_OWNER_BY_TYPE[STRUCT_PLANT] as number)) return STRUCT_PLANT;
+  const labs = s.ownedCount(owner, STRUCT_LAB);
+  if ((labs + 1) * AI_BUILD_CITIES_PER_LAB <= cities && labs < (MAX_PER_OWNER_BY_TYPE[STRUCT_LAB] as number)) return STRUCT_LAB;
+  return 0;
 }
 
 /** The level the AI lets its Cities rise to while it owns `cities` of them: 1 + cities * AI_CITY_UPGRADE_LEVELS_PER_CITY, at most AI_CITY_LEVEL_CAP. A City below it may be upgraded; the limit rises with every new City. */
@@ -197,6 +218,14 @@ export function buildMove(view: SimView, memory: AiMemory, rng: Uint32Array): In
     const district = districtMove(view, memory, spare);
     if (district !== null) return district;
   }
+  const extra = view.tick >= AI_BUILD_EXTRA_START_TICKS ? wantedExtra(view, owner) : 0;
+  if (extra !== 0 && spare >= buildPriceMilli(view.structures, owner, extra)) {
+    const extraCell = findPlace(view, memory, rng, extra);
+    if (extraCell >= 0) {
+      memory.builds++;
+      return buildBody(seat, extra, extraCell);
+    }
+  }
   if ((stats.goldMilli[seat] as number) < price) return null;
   if (type === STRUCT_CITY && (stats.troopsQt[seat] as number) * 100 < (stats.capQt[seat] as number) * AI_BUILD_CITY_TROOP_PCT) return null;
   // The wanted type first; when it finds no place (a Port without a coast cell in the window) a City is tried instead, so the seat never stalls.
@@ -235,6 +264,7 @@ function findPlace(view: SimView, memory: AiMemory, rng: Uint32Array, type: numb
   const cx = capital % w;
   const cy = (capital - cx) / w;
   const span = 2 * AI_BUILD_WINDOW_CELLS + 1;
+  if (type === STRUCT_PLANT) return findPlantPlace(view, owner, seat, rng);
   // A Port needs a coast cell, which is rare in a square window: it gets more tries.
   const tries = type === STRUCT_PORT ? 4 * AI_BUILD_TRIES : AI_BUILD_TRIES;
   for (let i = 0; i < tries; i++) {
@@ -245,6 +275,37 @@ function findPlace(view: SimView, memory: AiMemory, rng: Uint32Array, type: numb
     // A cell without a foreign neighbour only: the Build runs 2 ticks later and a border cell may be conquered by then (REJECT_BUILD_NOT_OWNED).
     if (!interior(view, owner, cell, x, y)) continue;
     if (validateBuild(view, seat, type, cell) === REJECT_NONE) return cell;
+  }
+  return -1;
+}
+
+/** A cell for a Plant (M18e-1): it must stand within PLANT_NEAR_CELLS of a City or Port of the seat, so the tries are made around one of those (picked by the stream), not in the capital window. */
+function findPlantPlace(view: SimView, owner: number, seat: number, rng: Uint32Array): number {
+  const s = view.structures;
+  const w = view.width;
+  const hosts = s.ownedCount(owner, STRUCT_CITY) + s.ownedCount(owner, STRUCT_PORT);
+  if (hosts === 0) return -1;
+  const span = 2 * PLANT_NEAR_CELLS + 1;
+  for (let i = 0; i < AI_BUILD_TRIES; i++) {
+    let pick = nextBelow(rng, hosts);
+    let host = -1;
+    for (let id = 0; id < s.highWater; id++) {
+      if (s.owner[id] !== owner || (s.type[id] !== STRUCT_CITY && s.type[id] !== STRUCT_PORT)) continue;
+      if (pick-- === 0) {
+        host = id;
+        break;
+      }
+    }
+    if (host < 0) continue;
+    const hc = s.cell[host] as number;
+    const hx = hc % w;
+    const hy = (hc - hx) / w;
+    const x = (hx + nextBelow(rng, span) - PLANT_NEAR_CELLS + w) % w;
+    const y = hy + nextBelow(rng, span) - PLANT_NEAR_CELLS;
+    if (y < 0 || y >= view.height) continue;
+    const cell = y * w + x;
+    if (!interior(view, owner, cell, x, y)) continue;
+    if (validateBuild(view, seat, STRUCT_PLANT, cell) === REJECT_NONE) return cell;
   }
   return -1;
 }

@@ -565,6 +565,19 @@ const sv = {
   'setup.error.federationNeedsAi': 'Ett uppdelat land behöver minst {min} AI-nation som motståndare, annars vinner ni direkt.',
   // Fix-5B
   'deploy.info.one': 'Flygtid {s} s, bränsle {fuel} celler, synlig i {exposed} ruta',
+  // M18e-1
+  'hud.build.airfield': 'Flygfält',
+  'hud.build.airfieldTip': 'Bygg ett flygfält (tangent 7). Fler helikoptrar och snabbare tillverkning. Pris: {price} guld.',
+  'hud.build.lab': 'Laboratorium',
+  'hud.build.labTip': 'Bygg ett laboratorium (tangent 8). Snabbare forskning. Pris: {price} guld.',
+  'hud.build.plant': 'Kraftverk',
+  'hud.build.plantTip': 'Bygg ett kraftverk (tangent 9). Litet guldtillskott. Måste stå nära en egen stad eller hamn. Pris: {price} guld.',
+  'toast.build.maxCount': 'Du har redan så många av den här byggnaden som reglerna tillåter.',
+  'toast.build.noNeighbour': 'Ett kraftverk måste stå nära en egen stad eller hamn.',
+  'sel.fx.airfield': 'Ger {fleet} fler helikoptrar i flottan och {pct} % kortare helikoptertillverkning (högst {fleetMax} och {pctMax} % för alla flygfält tillsammans).',
+  'sel.fx.lab': 'Gör ny forskning {pct} % snabbare (högst {pctMax} % för alla laboratorier tillsammans).',
+  'sel.fx.plant': 'Ger {gold} guld/s. Måste stå inom {radius} rutor från en egen stad eller hamn.',
+  'hotkey.buildExtra': 'Bygg (7 flygfält, 8 laboratorium, 9 kraftverk)',
 } as const;
 
 export type TextKey = keyof typeof sv;
@@ -1119,6 +1132,19 @@ const en: Record<TextKey, string> = {
   'setup.error.federationNeedsAi': 'A split country needs at least {min} AI nation as an opponent, or you win at once.',
   // Fix-5B
   'deploy.info.one': 'Flight {s} s, fuel {fuel} cells, seen in {exposed} square',
+  // M18e-1
+  'hud.build.airfield': 'Airfield',
+  'hud.build.airfieldTip': 'Build an airfield (key 7). More helicopters and faster production. Price: {price} gold.',
+  'hud.build.lab': 'Laboratory',
+  'hud.build.labTip': 'Build a laboratory (key 8). Faster research. Price: {price} gold.',
+  'hud.build.plant': 'Power plant',
+  'hud.build.plantTip': 'Build a power plant (key 9). A small gold bonus. Must stand near one of your cities or ports. Price: {price} gold.',
+  'toast.build.maxCount': 'You already have as many of this building as the rules allow.',
+  'toast.build.noNeighbour': 'A power plant must stand near one of your cities or ports.',
+  'sel.fx.airfield': 'Gives {fleet} more helicopters in the fleet and {pct} % shorter helicopter production (at most {fleetMax} and {pctMax} % for all airfields together).',
+  'sel.fx.lab': 'Makes new research {pct} % faster (at most {pctMax} % for all laboratories together).',
+  'sel.fx.plant': 'Gives {gold} gold/s. Must stand within {radius} cells of one of your cities or ports.',
+  'hotkey.buildExtra': 'Build (7 airfield, 8 laboratory, 9 power plant)',
 };
 
 /** The two tables, for the parity test and for tools. Treat as read-only. */

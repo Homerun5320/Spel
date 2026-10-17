@@ -621,3 +621,13 @@ One pass, three steps, in this order, before M15a and M24a (their sizes are in t
 - Setup, audit 4 [3.7] (b): clicking the map to choose the sub-nation gives no feedback in the setup (the outline stays the whole country); highlight the chosen sub-nation and name it in the status line. The option itself now says "no split" for India (Fix-5C) but is not disabled.
 - Audit 4 [1.8] (4) and (5): a registry test that all `REJECT_*` codes are unique and each has a text key (M14 needs seven more codes), the `LZ_REASON_BASE` comment in `src/sim/rules.ts` (diplomacy 80 to 94 and tech 110 to 117 are above 72), and the unused `MatchView.group` block (used by no UI; drop it or use it in `groupModel`). Sim files: not touched by Fix-5C.
 - The map labels and leaderboard still cut long names ("Khanty-Mansi Autonomous Okrug"); the names are shorter now (no country, no "Region") but a width fix is layout work.
+
+## M18e-1 (Airfield, Lab, Plant)
+
+- Technology gate for the three types (an AIR / ECONOMY step that unlocks Airfield, Lab and Plant): not built, "no research lock this time"; add it when the tech tree gets a building step.
+- The Radar building comes with the visibility mask (M17-pre) and is not part of M18e-1.
+- Real models for the Airfield, Lab and Plant (M18e-2); until then they are an aliased Factory / Silo with another size and colour (`alias` in `src/render/structureModels.ts`), and the far icon is the one of the alias.
+- Owner totals (all finished Airfields / Labs / Plants, with the caps applied) in the top bar or a HUD tooltip; the selection panel shows what ONE structure gives and names the caps.
+- A Plant by a District or a research "efficiency" step; AI use of the Airfield once M17 gives it helicopters (`wantedExtra` in `src/ai/build.ts` has no Airfield on purpose).
+- A running research keeps the base time for its progress bar (the sim fixed its end tick when it started); the panel could keep the total in the match state to show an exact percent with a Lab.
+- A conquered Airfield, Lab or Plant is destroyed like a Silo, SAM or Post; handing them over (one level lower, like a Factory) is a design choice for the user.

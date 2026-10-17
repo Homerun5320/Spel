@@ -4,7 +4,7 @@
 // Every intent has a seat (0-based) and an id (unsigned 32 bit, unique per seat, handed out by an IdAllocator).
 // Inside one turn intents run in the canonical order (seat, id, kind, payload); the id is the tie-break between the
 // intents of one seat, so the result never depends on the order in which they arrived.
-import { DISTRICT_MAX_SLOTS, HELI_CAPACITY, STRUCT_CAPACITY, TECH_COUNT } from './rules';
+import { DISTRICT_MAX_SLOTS, HELI_CAPACITY, STRUCT_CAPACITY, STRUCT_TYPE_COUNT, TECH_COUNT } from './rules';
 import { MAX_SEATS } from './state';
 
 export type IntentKind = 'Noop' | 'DebugPaint' | 'Spawn' | 'Attack' | 'CancelAttack' | 'DebugGive' | 'Build' | 'Upgrade' | 'Delete' | 'BuildDistrict' | 'UpgradeDistrict' | 'RemoveDistrict' | 'ProduceHeli' | 'LaunchHeli' | 'RecallHeli' | 'ProposeTreaty' | 'AcceptTreaty' | 'DeclineTreaty' | 'BreakTreaty' | 'ImposeEmbargo' | 'LiftEmbargo' | 'Research' | 'CancelResearch';
@@ -487,7 +487,7 @@ export function validateIntent(x: unknown, ctx: ValidateContext): number {
     if (!ctx.debugIntents) return REJECT_DISABLED;
     if (!isIntegerIn(o.gold, 0, DEBUG_GIVE_MAX) || !isIntegerIn(o.troops, 0, DEBUG_GIVE_MAX)) return REJECT_AMOUNT;
   } else if (o.kind === 'Build') {
-    if (!isIntegerIn(o.type, 1, 6)) return REJECT_BUILD_TYPE;
+    if (!isIntegerIn(o.type, 1, STRUCT_TYPE_COUNT)) return REJECT_BUILD_TYPE;
     if (!isIntegerIn(o.cell, 0, ctx.cells - 1)) return REJECT_CELL;
   } else if (o.kind === 'Upgrade' || o.kind === 'Delete') {
     if (!isIntegerIn(o.structure, 0, STRUCT_CAPACITY - 1)) return REJECT_STRUCT_ID;
@@ -672,3 +672,9 @@ export class IdAllocator {
     return id;
   }
 }
+
+// M18e-1: the refusals of the Airfield, Lab and Plant (codes 118 and 119, after the technology block).
+/** Build of a type (Airfield, Lab, Plant) the seat already owns the most of (MAX_PER_OWNER_BY_TYPE). */
+export const REJECT_BUILD_MAX_COUNT = 118;
+/** Build of a Plant farther than PLANT_NEAR_CELLS from every City and Port of the seat. */
+export const REJECT_BUILD_NO_NEIGHBOUR = 119;

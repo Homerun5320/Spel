@@ -67,6 +67,7 @@ import { TECH_FX_CAP, TECH_TICKS } from './rules';
 import { federationRoots } from './groups';
 import { TECH_FX_FUEL, TECH_FX_LOAD, techMaskValid, techPrereqOf } from './techTable';
 import { STRUCT_CITY, STRUCT_FACTORY, STRUCT_SAM, STRUCT_TYPE_SLOTS, maxLevelOf } from './structureRules';
+import { HELI_BUILD_TICKS_MIN } from './heliRules';
 import { districtSlotsOf, isDistrictKind } from './districtRules';
 import { StructureTable } from './structures';
 import {
@@ -890,8 +891,8 @@ export function deserialize(bytes: Uint8Array, options?: DeserializeOptions): De
     if (id <= lastHeli || id >= helis.highWater || ownerId < 1 || ownerId > seats || hs < HELI_BUILDING || hs > HELI_STATE_MAX || factory >= STRUCT_CAPACITY) return fail('air-range');
     if (hx < 0 || hx >= width * 256 || hy < 0 || hy >= height * 256 || alt < 0 || alt > 65535) return fail('air-range');
     if (hp > HELI_HP_TENTHS || load > HELI_MAX_TROOPS + Math.floor((HELI_MAX_TROOPS * (TECH_FX_CAP[TECH_FX_LOAD] as number)) / 100) || fuel > HELI_FUEL_MAX_Q8 + Math.floor((HELI_FUEL_MAX_Q8 * (TECH_FX_CAP[TECH_FX_FUEL] as number)) / 100) || mode > 1 || target > worldCells || routeLen > HELI_ROUTE_CAPACITY || routeIdx > routeLen) return fail('air-range');
-    // A queued helicopter has the production time the rules set (its Factory is checked below, once the structure table is read).
-    if (hs === HELI_BUILDING && readyTick !== stateTick + HELI_BUILD_TICKS) return fail('air-range');
+    // A queued helicopter has a production time the rules can set (HELI_BUILD_TICKS, shortened by Airfields down to HELI_BUILD_TICKS_MIN: M18e-1) (its Factory is checked below, once the structure table is read).
+    if (hs === HELI_BUILDING && (readyTick < stateTick + HELI_BUILD_TICKS_MIN || readyTick > stateTick + HELI_BUILD_TICKS)) return fail('air-range');
     // Fix-4A2: a state cannot have been entered in the future, and a ready tick is at most one production time ahead (a forged future stateTick would overflow the altitude, or keep a DOWNED helicopter for ever).
     if (stateTick > nowTick || readyTick > nowTick + HELI_BUILD_TICKS) return fail('air-range');
     if (hs >= HELI_LIFT && hs <= HELI_RETURN) airborne = true;

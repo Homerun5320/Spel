@@ -7,7 +7,9 @@ import {
   REJECT_BUILD_HILLS,
   REJECT_BUILD_MOUNTAIN,
   REJECT_BUILD_NO_COAST,
+  REJECT_BUILD_MAX_COUNT,
   REJECT_BUILD_NO_FACTORY,
+  REJECT_BUILD_NO_NEIGHBOUR,
   REJECT_BUILD_NOT_OWNED,
   REJECT_BUILD_OCCUPIED,
   REJECT_BUILD_PEAK,
@@ -76,6 +78,10 @@ export function buildRejectKey(reason: number): TextKey {
       return 'toast.build.fallout';
     case REJECT_BUILD_NO_FACTORY:
       return 'toast.build.noFactory';
+    case REJECT_BUILD_MAX_COUNT:
+      return 'toast.build.maxCount';
+    case REJECT_BUILD_NO_NEIGHBOUR:
+      return 'toast.build.noNeighbour';
     case REJECT_BUILD_GOLD:
       return 'toast.build.gold';
     case REJECT_BUILD_FULL:

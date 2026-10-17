@@ -16,6 +16,8 @@ import {
 } from './intents';
 import { MILLI_GOLD_PER_GOLD, TECH_PRICE_GOLD, TECH_TICKS } from './rules';
 import { isTech, techPrereqOf } from './techTable';
+import { labResearchPctOf } from './structureRules';
+import { seatToOwner } from './state';
 import type { SimView } from './view';
 
 /** What a rule that depends on the researched techs reads: a MatchState (the sim) and a MatchView (the page) both have it. */
@@ -31,6 +33,18 @@ export function techPriceMilli(tech: number): number {
 /** Research time of a tech in ticks. */
 export function techTicksOf(tech: number): number {
   return TECH_TICKS[tech] as number;
+}
+
+/** M18e-1: the research time of a tech with `labPct` percent off (the finished Labs of the seat at the moment it starts), rounded down but at least 1 tick. */
+export function techTicksWithLab(tech: number, labPct: number): number {
+  const base = TECH_TICKS[tech] as number;
+  const t = labPct === 0 ? base : base - Math.floor((base * labPct) / 100);
+  return t < 1 ? 1 : t;
+}
+
+/** M18e-1: the research time `seat` would get for `tech` if it started now in the snapshot `view` (the Labs of the seat applied). */
+export function researchTicksNow(view: SimView, seat: number, tech: number): number {
+  return techTicksWithLab(tech, labResearchPctOf(view, seatToOwner(seat)));
 }
 
 /**

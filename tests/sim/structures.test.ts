@@ -157,7 +157,7 @@ describe('placement rules', () => {
   it('a type outside 1..6 is refused', () => {
     const s = world();
     expect(build(s, 0, at(10, 30))).toBe(REJECT_BUILD_TYPE);
-    expect(build(s, 7, at(10, 30))).toBe(REJECT_BUILD_TYPE);
+    expect(build(s, 10, at(10, 30))).toBe(REJECT_BUILD_TYPE); // M18e-1: types 7 to 9 exist now, 10 is the first outside
   });
 
   it('only on the seat\'s own cells', () => {
@@ -217,7 +217,7 @@ describe('placement rules', () => {
   });
 
   it('spacing: structures of the same type must be SPACING_CELLS_BY_TYPE apart (any owner, x wrapping); other types are free', () => {
-    expect(SPACING_CELLS_BY_TYPE).toEqual([0, 3, 3, 3, 6, 5, 3]);
+    expect(SPACING_CELLS_BY_TYPE).toEqual([0, 3, 3, 3, 6, 5, 3, 6, 4, 3]); // M18e-1: Airfield 6, Lab 4, Plant 3
     const s = world();
     mustBuild(s, STRUCT_CITY, at(10, 30));
     expect(build(s, STRUCT_CITY, at(10 + 2, 30))).toBe(REJECT_BUILD_SPACING);
@@ -304,7 +304,7 @@ describe('the intents', () => {
     const ok = bodies.map((b, n) => withId(b, n));
     for (const i of ok) expect(validateIntent(i, ctx)).toBe(REJECT_NONE);
     expect(validateIntent({ ...ok[0], type: 0 }, ctx)).toBe(REJECT_BUILD_TYPE);
-    expect(validateIntent({ ...ok[0], type: 7 }, ctx)).toBe(REJECT_BUILD_TYPE);
+    expect(validateIntent({ ...ok[0], type: 10 }, ctx)).toBe(REJECT_BUILD_TYPE); // M18e-1: types 7 to 9 are valid now
     expect(validateIntent({ ...ok[0], type: 1.5 }, ctx)).toBe(REJECT_BUILD_TYPE);
     expect(validateIntent({ ...ok[0], cell: W * H }, ctx)).not.toBe(REJECT_NONE);
     expect(validateIntent({ ...ok[1], structure: STRUCT_CAPACITY }, ctx)).toBe(REJECT_STRUCT_ID);
