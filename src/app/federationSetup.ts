@@ -12,6 +12,7 @@ import type { CountryInfo } from './matchWorld';
  * "Region" the data names carry ("Khabarovsk Krai Region" -> "Khabarovsk Krai"). The country is not part of it: the group row of the
  * federation already names it, in the language of the UI (D-Fix-5C). The `country` argument is kept for callers of the old API and is not used.
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- kept for the callers of the old two-argument form
 export function subNationName(sub: SubNation, _country?: CountryInfo): string {
   return sub.name.replace(/ Region$/, '');
 }

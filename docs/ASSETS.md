@@ -8,5 +8,5 @@ Committed binaries today:
 
 Downloaded data (M01), credited in `CREDITS.md` and checksummed in `public/data/checksums.json`:
 - **Terrarium elevation tiles, zoom 4** (Mapzen terrain tiles from AWS: USGS SRTM, NOAA ETOPO1 and others). Attribution required; the exact Joerd source page could not be reached from the build sandbox, so `CREDITS.md` carries a general line (see Known issues in `docs/PROGRESS.md`).
-- **Natural Earth** 50m admin 0 countries, 10m populated places simple, 10m ports, public domain, pinned to one commit SHA (recorded in `public/data/meta.json` and `CREDITS.md`).
+- **Natural Earth** 50m admin 0 countries, 50m admin 1 states and provinces (M18b-1: the sub-nations of the federations pack `public/data/federations.bin.gz`), 10m populated places simple, 10m ports, public domain, pinned to one commit SHA (recorded in `public/data/meta.json` and `CREDITS.md`).
 - The terrain is stylised (smoothed z4 elevation, game classes), and says so.

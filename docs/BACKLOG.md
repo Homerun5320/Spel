@@ -558,7 +558,7 @@ Not done in the Fix-UI slice (the sim, host and AI findings belong to Fix-Sim):
 
 ## M18b-3 (from M18b-2)
 
-- Shared victory for a federation: `src/sim/win.ts` counts land share, last-alive and score per OWNER; a federation needs a group id per seat in the match header (hashed, so a format bump), the land condition on the SUM of the members' shares, "last alive" when only members of one group remain, and the score ranking by group. `MatchView` and the result rows (`resultRows`) need the group, the leaderboard (`src/ui/matchHud.ts`) a grouped row or a bracket, and the HUD win meter the group's share.
+- DONE in M18b-3 (kept for the record; nothing here is open): shared victory for a federation was built DERIVED from the bound diplomacy pairs (`src/sim/groups.ts`), with no group id in the match header and no format bump. It was planned as: `src/sim/win.ts` counts land share, last-alive and score per OWNER; a federation needed a group id per seat in the match header (hashed, so a format bump), the land condition on the SUM of the members' shares, "last alive" when only members of one group remain, and the score ranking by group. `MatchView` and the result rows (`resultRows`) need the group, the leaderboard (`src/ui/matchHud.ts`) a grouped row or a bracket, and the HUD win meter the group's share.
 - Procedural flags per federation and Swedish names of the sub-nations (the pack has English names only); labels of whole federations on the map (nation labels could draw one for a group).
 - Per-sub-nation home land (the discount on the sub-nation's own ground only): needs more than one byte per cell for the country map or a separate sub-nation map in the state.
 - Skipped sub-nations (USA 3 of 12, CHN 8 of 12, CAN 1 of 10, BRA 1 of 8, IND 4 of 5) could be MERGED into a neighbouring sub-nation instead of staying neutral, or the baker could size them by playable width; a start disc that is allowed to spill a few cells over a border would also keep more.
@@ -589,3 +589,18 @@ Not done in the Fix-UI slice (the sim, host and AI findings belong to Fix-Sim):
 - Shared research between allies; showing what an AI nation has researched (the result column is the only place now).
 - District upgrade prices have no technology discount in the sim; if one is wanted it needs a rule first, then the panel follows `districtUpgradePriceGold`.
 - A tooltip on a research cell with the full effect sentence (the cell line is short).
+
+## Bundle diet 1-3 (Fix-5C, audit 4 [1.1]; decided in `docs/DECISIONS.md` "Bundle diet", not built)
+
+One pass, three steps, in this order, before M15a and M24a (their sizes are in the decision). Acceptance: the numbers below are measured again with `npm run build` and gzip -9 per chunk; the gzip caps in `tests/portable.test.ts` are LOWERED by at least the measured kB of each step (a lowered cap, never a raised one); `npm run verify` is green; the first paint still waits for the active language table.
+- Step 1, language tables: only the active language table is loaded (`t()` stays synchronous; the table is loaded before the first paint; the unit tests load both). Gain about 8.8 kB gz.
+- Step 2, dev and diagnostic modules behind `import()` on F2 / F3 / `?perf` / `?scene`: devpanel, perfOverlay, perfSceneReport, perfScene, report, spike, detailProbe, gpuTimer, frameStats. Gain about 12.3 kB gz.
+- Step 3, the host, `aiDriver` and `src/ai` behind `import()` when Spela or Start is pressed. Gain about 18.6 kB gz.
+- Not part of the pass, known future items: M15a's SMAAPass (35.6 kB gz; prefer MSAA targets or OutputPass) and M24a's worker bundle (about 50 kB gz of a second sim copy).
+
+## Fix-5C (from audit 4)
+
+- Georgia: the sub-nation "Georgia" (USA) now has the same display name as the country Georgia; a match with both would show two rows of one name. Disambiguate with `subNationLabel` where both can occur.
+- Setup, audit 4 [3.7] (b): clicking the map to choose the sub-nation gives no feedback in the setup (the outline stays the whole country); highlight the chosen sub-nation and name it in the status line. The option itself now says "no split" for India (Fix-5C) but is not disabled.
+- Audit 4 [1.8] (4) and (5): a registry test that all `REJECT_*` codes are unique and each has a text key (M14 needs seven more codes), the `LZ_REASON_BASE` comment in `src/sim/rules.ts` (diplomacy 80 to 94 and tech 110 to 117 are above 72), and the unused `MatchView.group` block (used by no UI; drop it or use it in `groupModel`). Sim files: not touched by Fix-5C.
+- The map labels and leaderboard still cut long names ("Khanty-Mansi Autonomous Okrug"); the names are shorter now (no country, no "Region") but a width fix is layout work.

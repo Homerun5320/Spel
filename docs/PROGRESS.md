@@ -49,157 +49,38 @@ Resume: Läs CLAUDE.md och docs/PROGRESS.md, kör git log -10 och npm run verify
 | M13b | (set after the squash merge) | Deploy mode, landing zone preview and route preview; merged with the round 16 sim tracks, treaty landing ban. Branch merge commit 719b212. Previous merge SHA: f29121a8d1607ca169e6675b5f22a52d76c42ef7 |
 | M18c-2 | (set after the squash merge) | Diplomacy panel, proposals, badges, a livelier AI negotiator (ENGINE_VERSION 18, FORMAT_VERSION 13). Branch merge commit c672abe. Previous merge SHA: f29121a8d1607ca169e6675b5f22a52d76c42ef7 |
 | Fix-3A1 / 3A2 / 3B / 3C | (set after the squash merge) | Audit 2 fixes: sim test holes (b3e59f4), radar reach / navigation / AI limits / MatchView (8985b22), visible render, app and UI faults (b8d8503), docs and hygiene (51e30b3). Previous merge SHA: f29121a8d1607ca169e6675b5f22a52d76c42ef7 |
-| Fix-4 (pågår) | (set after the squash merge) | Audit 3 fixes, four parallel slices (4A1, 4A2, 4B, 4C: docs split into `docs/arch/`, status docs and downstream decisions); not merged yet, set when the orchestrator merges them. Previous merge SHA (origin/main at start): f29121a8d1607ca169e6675b5f22a52d76c42ef7 (nothing is merged to main; pull request #1 is a draft). |
+| Fix-4 | (set after the squash merge) | Audit 3 fixes, four slices: sim and treaty rules (2f515bb), deserialize guards and AI diplomacy tests (5df757f), the beachhead shown, deploy garbage and app test holes (34161f6), and 4C: the ARCHITECTURE index split into `docs/arch/`, status docs and "Audit 3 downstream decisions" (5a5e05e). Previous merge SHA (origin/main at start): f29121a8d1607ca169e6675b5f22a52d76c42ef7 (nothing is merged to main; pull request #1 is a draft). |
+| M12b | (set after the squash merge) | Air defence against helicopters (Defense Post and SAM site engage hostile helicopters, salvo clock, `hostile` predicate), raid statistics, `heli-raid` replay CLI (ENGINE 20, FORMAT 14). Branch merge commit bc16f45 (round 18 track 1). Previous merge SHA: f29121a8d1607ca169e6675b5f22a52d76c42ef7 |
+| M18b-1 | (set after the squash merge) | Federations part 1: the baked admin-1 provinces and sub-nations of the seven big countries (`public/data/federations.bin.gz`), pure loader, report tool. Branch merge commit 0af5f52 (round 18 track 2). |
+| M20a-2 | (set after the squash merge) | Nation labels on the map and attack front arrows (host snapshot, render, UI). Branch merge commit b39cc59 (round 18 track 3); the gzip cap was raised once in a874ab0. |
+| M13a-2 | (set after the squash merge) | Helicopter effects, the chase camera on H, the far icon. Branch merge commit 057f640 (round 19). |
+| M18d-1 | (set after the squash merge) | Technology part 1: the 16-node research tree, Research intents, effects in the sim and AI research. Branch merge commit 1c4e78e (round 19). |
+| M18b-2 | (set after the squash merge) | Federations part 2: the setup option "Dela upp stormakter" and the match with allied sub-nations (final ENGINE 22 / FORMAT 16 together with M18d-1). Branch merge commit 62813f7 (round 19). Round 19 integration: 95e6923 (gzip cap 391k) and 752be0f. |
+| M18d-2 | (set after the squash merge) | Technology part 2: the research panel (key T, top-bar button), the discounted upgrade price in UI and AI, the result column "Teknik". Branch merge commit b87cf1d (round 20 track 1). |
+| M18b-3 | (set after the squash merge) | Federations part 3: shared victory derived from the bound diplomacy pairs (no new state), federation rows in the leaderboard, the win meter and the result by group, one flag per federation. Branch merge commit bd0e1b0 (round 20 track 2). Round 20 integration: 8c34429 (ENGINE 23) and 15a71a0 (goldens re-pinned once). |
+| Audit 4 | (no merge) | Independent review of the pushes v27 to v31 against 01c0de9 (sim, fit, mutation, feel). Its findings are worked through by Fix-5A1, 5A2, 5B and 5C (below); the rest is in `docs/BACKLOG.md`. |
+| Fix-5 (pågår) | (set after the squash merge) | Audit 4 fixes in parallel slices: 5C is docs, the setup texts and sub-nation names (see Now); the other slices add their own blocks under Now. Not merged yet. |
 
 ## Now
 
-### Fix-4C: docs that lied and were too large, downstream decisions (audit 3; docs only plus the docs test; no Chromium; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+### Fix-5C: audit 4, stale docs, bundle diet, sub-nation names and the setup texts (docs plus a few texts and `src/app/federationStarts.ts`; no Chromium; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
 
 GÖR och ACCEPTANS:
 
-- [x] ARCHITECTURE.md split: one short row per module (under 450 characters), full rows and the long sections moved verbatim to `docs/arch/<area>.md`; the file is about 40 kB (was 199 kB).
-- [x] `tests/docs.test.ts` checks the arch files too, caps ARCHITECTURE.md (46 000 bytes, rows 450 characters) and compares the version line with the code.
-- [x] CLAUDE.md Read order point 3 points at the index and `docs/arch/`.
-- [x] PROGRESS.md: Done rows added, finished passes moved from Now to the end of Archive word for word, Next rewritten, version line follows the code (ENGINE 18, FORMAT 13).
-- [x] DECISIONS.md: blocks "Fix-4C" and "Audit 3 downstream decisions (for M12b, M14, M17, M20b)"; BACKLOG.md: the proposed CHARTER change.
-- [x] `npm run verify:fast` green (see the result in the Fix-4C block of `docs/DECISIONS.md`).
-
-### Fix-4A1: audit 3, the helicopter, beachhead and treaty rules (headless sim, ENGINE 19; one slice in its own worktree; the orchestrator owns merging, pushing and the Artifact)
-- [x] [0.0] An eliminated seat's helicopters are scrapped in the elimination tick; a landing for an eliminated owner does nothing.
-- [x] [0.1] A landing that touches the owner's land makes no beachhead; a cluster with the capital cell is established.
-- [x] [0.2] Tests for the neighbour guard and the page-side `validateLaunchHeli` treaty refusal.
-- [x] [0.6] `REJECT_HELI_TABLE_FULL` 57 and `REJECT_HELI_BEACHHEAD_FULL` 58 (texts sv and en); comment and `BEACHHEAD_CAPACITY` fixed.
-- [x] [1.10] Allied Ports trade at `TRADE_ALLIANCE_PCT` 125 %.
-- [x] [1.1] to [1.4] Mutation killers (table in DECISIONS, block Fix-4A1).
-- [x] ENGINE_VERSION 19 once; sim-hashes.json and match-hashes.json recomputed once. FORMAT unchanged (13).
-- [x] `npm run verify:fast` (see DECISIONS Fix-4A1 for the result).
-
-### Fix-4A2: audit 3, deserialize guards, curve pins, AI diplomacy tests (headless, no rule change, ENGINE_VERSION and FORMAT_VERSION unchanged; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
-
-- [x] 0.3 One test per guard of the air and diplomacy blocks (`tests/sim/fix4a2Forged.test.ts`)
-- [x] 0.4 stateTick / landTick / readyTick, embargo cross check, eliminated consistency refused
-- [x] 0.5 `no-occluders` for airborne helicopters without `maxElev`
-- [x] 1.0 Exact level curve tables (`tests/sim/levelCurveTable.test.ts`)
-- [x] 1.5 AI diplomacy tests in constructed positions (`tests/ai/diplomacyPositions.test.ts`, `tests/ai/diplomacyThresholds.test.ts`)
-- [x] 1.9 Upper payback bands and the REJECT_DIPLO pin in the driver test
-- [x] 0.7 (partly) diplomacy side effects (`tests/sim/fix4a2Misc.test.ts`); heli mutants wait for Fix-4A1
-- [x] 2.10 `tests/helpers/saveLayout.ts` replaces the hard-coded tail arithmetic
-- [x] DECISIONS "Fix-4A2" with the mutant tables, BACKLOG, ARCHITECTURE row
-- [x] `npm run verify:fast` green (typecheck, lint, unit)
-
-### Fix-4B: the beachhead is shown and explained, the deploy mode stops making garbage, the test holes of the app and UI layer (audit 3; render, app, UI and one small read view in the sim; one slice in its own worktree; the orchestrator owns merging, pushing and the Artifact)
-Previous merge SHA: nothing of this branch is merged (pull request #1 is a draft); base commit c672abe (M18c-2).
-GÖR
-- [x] 1. [2.1] `BeachheadView` in `SimView` (`src/sim/view.ts`, exported by `src/sim/public.ts`, pinned in `tests/ai/boundary.test.ts`), the host snapshot, signature and mirror, the pulsing ring in the existing ring mesh (no new draw call), the count-down chip in the top bar, the two toasts, `docs/PREVIEW.md` 17ao / 17as rewritten, unit tests and `e2e/beachhead.test.ts` with a picture
-- [x] 2. [2.6] the deploy mode and the Factory panel stop allocating per frame (no pick under a resting camera, integer keys instead of strings, one reused model object, reused rows, no drawn list outside test mode), measured before and after in `e2e/deployAlloc.serial.test.ts`
-- [x] 3. [1.6] the app layer faults (previewer, resolver, hotkeys, deploy mode): checked against HEAD, the one real fault fixed test first, the rest pinned with mutants
-- [x] 4. [1.7] `tests/host/heliTransport.test.ts`: helicopter and diplomacy snapshot, signature, mirror, every pure function of `src/ui/heliInfo.ts` and `src/ui/diploReasons.ts`, both watchers
-- [x] 5. [1.8] `cityFitFlight` computed by projection in `tests/app/cityFitProject.test.ts` (three window sizes and more), the vertical centring made exact
-- [x] 6. [2.0] `PLAYER_FACING` in `tests/i18n.test.ts` discovers the files itself
-- [x] 7. [2.5] the false gzip justification of M13b corrected in `docs/DECISIONS.md` and `docs/BACKLOG.md`
-- [x] 8. Docs: DECISIONS "Fix-4B" (mutant table, allocation numbers), ARCHITECTURE row, PREVIEW 17ao / 17as, BACKLOG
-ACCEPTANS
-- [x] BeachheadView in SimView and host; ring with count-down and both toasts; the PREVIEW text is true
-- [x] Deploy mode and Factory panel do not allocate per frame (measured before / after: +137 kB a frame over a selected Factory before, none after)
-- [x] The app faults of item 3 fixed test first or shown to be right already; the helper tests of items 4 and 5 written with mutants
-- [x] `PLAYER_FACING` finds files by itself
-- [x] `npm run verify:fast` green; the touched e2e green (`beachhead`, `deploy`, `helis`, `cityOpenFit`, `deployAlloc.serial`)
-
-### M12b: air defence against helicopters and raid statistics (headless sim and the scenario CLI; ENGINE 20, FORMAT 14; one slice in its own worktree; the orchestrator owns merging, pushing and the Artifact)
-
-GÖR och ACCEPTANS:
-
-- [x] `hostile(a, b)` (`src/sim/hostile.ts`): used by `planRoute`, `scoreLz` (`ENEMY_CITY_NEAR`), the route preview colour and the guns; one test per use that fails when it is replaced by "other seat" (`tests/sim/airDefense.test.ts`).
-- [x] Defense Post: 15 dps within 12 cells, stacks, both modes; 7 s +-1 for one Post, half for two (test).
-- [x] SAM: layer detection AND own mask AND range; salvo every 90 ticks, the first at once; 55 % from the splitmix32 mixer on (seed, tick, SAM id); Low never engaged behind the ridge, High 55 % +-3 over 10 000 rolls; out of range / destroyed / unfinished never fire; reverse visiting order gives equal hashes.
-- [x] A shot-down helicopter: `HELI_DOWNED` with cause SAM / Post, load lost, no territory, troops after = before minus load.
-- [x] Spatial hash (typed arrays) for Posts and SAM sites; `tests/airDefense.perf.test.ts`: 12 helicopters + 40 structures, median over 200 ticks after 50 warm-ups well under `budgetMs(0.5)`.
-- [x] `heli-raid --fixture <alps|plains-sam|ridge-sam> --seed N` in the scenario CLI (`tools/sim/heliRaid.ts`): deterministic, a smoke test per fixture.
-- [x] Scripted raids, 50 trials each, Low: alps 100 %, plains with two SAM sites 2 %, ridge 100 % (numbers in `docs/BALANCE.md` and the M12b block of `docs/DECISIONS.md`; no constant had to be tuned).
-- [x] ENGINE_VERSION 20 once, FORMAT_VERSION 14 (the salvo clock `salvoTick` per structure row); sim-hashes.json and match-hashes.json recomputed once.
-- [ ] Toast texts that say WHY (SAM / Post): not done, the page does not see the cause (BACKLOG "M12b").
-- [x] `npm run verify:fast` green (see the M12b block of `docs/DECISIONS.md`).
-### M18b-1: federations part 1 of 3, the baked provinces and sub-nations (headless tools and data; no sim, ai, render, ui or app change; previous merge SHA f29121a8d1607ca169e6675b5f22a52d76c42ef7)
-
-- [x] Source: Natural Earth admin-1 50 m (same repo and commit as the rest of the bake), fetched through the allowed host raw.githubusercontent.com, file in `NE_FILES.admin1`.
-- [x] Province raster (u16, sim grid) and province table, gaps flood-filled per country in a fixed order; tiny provinces flagged.
-- [x] Candidates (`FEDERATION_MIN_AREA_CELLS`) and sub-nations (`FEDERATION_MIN_PROVINCE_CELLS`, `FEDERATION_MAX_SUBNATIONS`) with a u8 raster.
-- [x] New pack `public/data/federations.bin.gz`; manifest and checksums get NEW rows, every old hash unchanged, `e2e/goldens` untouched.
-- [x] `src/data/federations.ts` (pure parser, writer, `loadFederations`, `federationOfCell`, `membersOfCountry`, `isFederationCandidate`); not wired into the game.
-- [x] `npm run bake` (also `-- --only=federations`), `npm run bake:check`, `npm run bake:federations` (report and `--png=`).
-- [x] Tests `tests/bake/federations.test.ts` (round trip, corrupt packs, raster invariants, candidates, min size, determinism, old hashes pinned), mutants shown in DECISIONS.
-- [x] Picture looked at (RUS, USA, CHN, IND, BRA); report in DECISIONS block M18b-1.
-- [x] `npm run verify:fast` green (see DECISIONS M18b-1).
-### M20a-2: nation labels and front arrows (host snapshot, render and UI; one slice in its own worktree; the orchestrator owns merging, pushing and the Artifact)
-
-GÖR och ACCEPTANS:
-
-- [x] AttackView in SimView (`SimView.fronts`, read-only, at most 16 attacks: id, attacker, target, a front cell and a direction), a host snapshot sent only when it changed (signature, refreshed every 10 ticks while an attack runs) and a ViewMirror copy; the new export in `src/sim/public.ts` and the pinned list of `tests/ai/boundary.test.ts`.
-- [x] Nation labels: a pool of at most 32 DOM elements (name, troops, relation badge, owner colour), placed at the nation's centroid, faded by zoom, no overlap, never outside the screen, never behind the horizon, cleared when a nation dies; DOM written only on change.
-- [x] Front arrows: one instanced draw call, at most 16 arrows, pulsing with the fx clock, own attacks brightest, faded out at globe distance.
-- [x] Hotkey N (`Nationsetiketter`) in the registry, saved with getPref / setPref, default on; listed in the `?` overlay.
-- [x] Tests: layout (40 candidates), arrows (count, gone when the attack ends, draw calls <= 1, no allocation), three window sizes, both languages.
-- [x] Screenshots looked at (three zoom levels, arrows during an attack, both languages).
-- [x] `npm run verify:fast` green; the touched e2e files green.
-
-Result: see the block "M20a-2" at the end of `docs/DECISIONS.md`. Main-chunk gzip cap raised to 311 000 (`tests/portable.test.ts`). No golden changed (labels and arrows are off in a test page unless `labels=1`).
-
-### M18b-2: federations part 2 of 3, the setup option "Dela upp stormakter" and the match with sub-nations (app plus a small sim and AI part; ENGINE 21, FORMAT 15; one slice in its own worktree; the orchestrator owns merging, pushing and the Artifact)
-
-GÖR och ACCEPTANS:
-
-- [x] The setup option "Dela upp stormakter" (checkbox `setup-federation`, sv and en, stored through getPref / setPref with the setup draft, OFF by default, with an info line); a click in a split country picks the sub-nation under the pointer.
-- [x] `createMatch`: a candidate country you play or an AI nation picks becomes seats, one per sub-nation that can have a whole fair start INSIDE its own land (the rest are skipped); names "Name (Country)"; related colours per federation; the seat cap respected by limiting the AI nations of other countries.
-- [x] Alliance from tick 0 that cannot be broken: an ALLIANCE pair with `until` 1 (`bindFederation`), `REJECT_DIPLO_FEDERATION` 94 (texts sv and en), the attack ban as for any ally; the AI never breaks or proposes to a member.
-- [x] ENGINE 21 and FORMAT 15 raised once, both golden hash files recomputed once (the option OFF gives the same match: shown with ENGINE 20 first).
-- [x] Home-land discount: sub-nations get no home land (DECISIONS M18b-2).
-- [x] Tests: `tests/app/federationMatch.test.ts`, `tests/app/federationSetup.test.ts`, `tests/ai/federation.test.ts`, `e2e/federation.test.ts`; mutants in DECISIONS.
-- [x] `npm run verify:fast` green and `e2e/federation.test.ts`, `e2e/setup.test.ts`, `e2e/diplomacy.test.ts` green (result in the M18b-2 block of `docs/DECISIONS.md`).
-- Not done (BACKLOG "M18b-3"): shared victory, grouping in the leaderboard and result, flags and Swedish names, labels of federations on the map.
-### M13a-2: helicopter effects, chase camera and far icon (render, app and UI; one slice in its own worktree; the orchestrator owns merging, pushing and the Artifact; previous merge SHA f29121a8d1607ca169e6675b5f22a52d76c42ef7)
-
-GOR
-- [x] Effects layer `src/render/heliFx.ts`: shadow blob (1 draw call), particle pool (dust, ropes, smoke, flash; 1 draw call, <= 1 200 particles), beachhead flag (1 draw call); fx clock only, local seeded render RNG, no allocation per frame; test pages have it OFF unless `fx=1`.
-- [x] Far icon of an airborne helicopter (1 draw call), owner colour, fades when the model takes over.
-- [x] Chase camera: key H (stack entry `chase`), mode on the InputStack, Esc / H / drag / wheel end it, terrain clearance, toast `toast.heli.noneAirborne`; button `heli-chase` per flying row in the helicopter list.
-- [x] ETA in the list: not derivable (HeliView has no target table): left in BACKLOG, as the prompt allowed.
-- [x] Tests: caps (draw calls, particles), allocation, chase, modal keys, sim hash unchanged, leak, e2e with screenshots.
-
-ACCEPTANS
-- [x] Six effects visible on screenshots; caps held (<= 3 + 1 draw calls, <= 1 200 particles); 0 allocation per frame.
-- [x] Chase camera: clearance, ending, toast without helicopter, modal blocking.
-- [x] Sim hash unchanged by the effects; goldens unchanged (fx flag).
-- [x] Leak test green; both languages; verify:fast green; affected e2e green.
-
-Result (details and numbers in `docs/DECISIONS.md` "M13a-2"): effects, chase camera, far icon and the glide between tables are in; `e2e/heliFxPictures.serial.test.ts` (4 tests: pictures, enemy SAM crash, chase, sim hash with and without the layer) and `e2e/heliFx.serial.test.ts` (leak and allocation) pass; unit tests `tests/render/heliFx.test.ts` and `tests/app/chaseMode.test.ts`. Not done: ETA per list row, the cause colour of a downing, H in the help overlay (BACKLOG "M13a-2"). The full `npm run verify` was NOT run here (the orchestrator runs it after the merge).
-
-### M18b-3: federations part 3 of 3, shared victory, grouping in the leaderboard and result, federation flags (sim win rules plus UI; one slice in its own worktree; the orchestrator owns merging, pushing and the Artifact)
-
-GOR och ACCEPTANS:
-
-- [x] Group concept in the sim derived from the bound diplomacy pairs (`src/sim/groups.ts`, no new state, ENGINE and FORMAT untouched), a seat without a federation is a group of one.
-- [x] Win conditions count groups (land sum and hold timer, last alive, score sum, anti-snowball by group share, elimination per seat); a match without a federation takes the old code path (golden hashes unchanged).
-- [x] MatchView: `group` per seat, leader / hold / winner are group representatives, `groupMembers`.
-- [x] UI: leaderboard shows a federation as ONE expandable row with a flag; win meter follows the group; result screen shows the winning group and rows per group and member.
-- [x] Tests: groups, every condition with and without federation, 40 % federation vs 40 % nation, round trip and snapshot, 20 AI seeds, UI models, e2e.
-- [x] `npm run verify:fast` green; affected e2e green (federationWin, federation).
-### M18d-2: technology, part 2 of 2 (the research panel; app, UI and the price display; one slice in its own worktree; the orchestrator owns merging, pushing and the Artifact)
-
-GÖR och ACCEPTANS:
-
-- [x] Research panel: key T and the top-bar button "Teknik" open an input mode (Esc closes, modal block respected); 4 columns x 4 rows; name, effect line from `TECH_FX`, price through `formatGold`, time, status (Forskad / Pågår with countdown and bar / Tillgänglig / Låst with the prerequisite / Kan inte nu with the `validateResearch` reason); Forska sends Research, Avbryt (two clicks, no refund) sends CancelResearch.
-- [x] The running research in the top bar ("Forskar: Namn 0:42", written only on change); toast `toast.tech.done` for the own finished research (`TechWatcher`).
-- [x] Texts: 16 names, 12 effect channels, branches and statuses in sv and en (own block at the end of both tables).
-- [x] Discounted upgrade price: the selection panel, the city view and the AI (`src/ai/build.ts`) use `upgradePriceNowMilli` (the sim's own `upgradePriceMilliFor` with the seat's researched discount); shown == debited (unit test, e2e). Districts have no tech discount in the sim, so they keep the base price.
-- [x] Result screen: the column "Teknik" (MatchView `techCount`).
-- [x] Tests: `tests/ui/techModel.test.ts`, `tests/ai/upgradeDiscount.test.ts`, `tests/app/techKey.test.ts`, `e2e/research.test.ts`.
-- [x] `npm run verify:fast` green; the affected e2e green (result in `docs/DECISIONS.md` "M18d-2").
-
+- [x] 1. PROGRESS.md: Done has rows for M12b, M18b-1/2/3, M18d-1/2, M13a-2, M20a-2, the rounds 18 to 20, Fix-4 and audit 4; Next lists what is really next; the finished Now blocks are in Archive word for word (audit 4 [1.0]).
+- [x] 2. Bundle diet decided with measured sizes and a rule for the gzip caps in `docs/DECISIONS.md` "Bundle diet"; the BACKLOG pass "Bundle diet 1-3" has the acceptance ([1.1]).
+- [x] 3. PREVIEW.md: unique section ids, research items in their own section, typos, M12b air defence section ([1.6]).
+- [x] 4. BACKLOG: the M18b-3 bullet about the group id corrected; ASSETS and CLAUDE.md command drift fixed ([1.8]).
+- [x] 5. Setup texts agree with `createMatch` (only startable sub-nations count; India is shown as "no split"), `diplo.hint` takes `{s}` from the rule ([1.7]); test `tests/app/federationTexts.test.ts`.
+- [x] 6. Sub-nation names are the province alone, the country in the language of the UI where needed (`subNationLabel`); `subNationName` keeps its signature ([3.6]).
+- [x] 7. [1.3] is the orchestrator's (the prompt list is outside the repo): not touched.
+- [x] `npm run verify:fast` green (result in `docs/DECISIONS.md` "Fix-5C").
 
 ## Next
 
-- Next slices: M12b (anti-air against helicopters and raid statistics; must follow "Audit 3 downstream decisions" in `docs/DECISIONS.md`), M13a-2 (effects, the H camera), M20a-2 (nation labels and front arrows), M18b (federations), M18d (technology), M18e (more building types and a city map), M13c (travel over land, sea and air), M14 and onwards.
-- Audit 4 runs after five more pushes (audit 3 covered the pushes v22 to v26; its findings are worked through by Fix-4A1, 4A2, 4B and 4C, leftovers in `docs/BACKLOG.md`).
+- In progress: Fix-5 (the audit 4 fixes in parallel slices 5A1, 5A2, 5B and 5C); the orchestrator merges them and runs `npm run verify` once.
+- Next slices, in this order: the bundle diet ("Bundle diet 1-3" in `docs/BACKLOG.md`, decided in `docs/DECISIONS.md` "Bundle diet"; it must come before M15a, whose SMAAPass alone is 35.6 kB gz, and before M24a), M13c (travel over land, sea and air), M14 (the events array and `navOf` are preconditions, see "Audit 3 downstream decisions" in `docs/DECISIONS.md`), M15a and M15b, M16, M17, M18e (more building types and a city map).
+- Already done and no longer next: M12b, M13a-2, M20a-2, M18b (federations, three parts) and M18d (technology, two parts): see Done.
 - Before the first CI run that matters: wire the three verify shards into `.github/workflows/ci.yml` (D156 (8)): a GitHub runner has 2 cores and `npm run verify` takes 12 minutes on 4.
 - The USER GATEs of the camera (M08, CamFix) and the real-GPU tuning are the user's, see Known issues and `docs/PREVIEW.md`.
 
@@ -1608,3 +1489,148 @@ ACCEPTANS
 - [x] `npm run verify:fast` green
 
 verify:fast: see the last result in the final report of the slice. Not run here: the full `npm run verify`, the Artifact pack, a pull request (the orchestrator). The orchestrator sets the final ENGINE / FORMAT values and recomputes the goldens (`e2e/goldens/sim-hashes.json`, `e2e/goldens/match-hashes.json`) and the pinned replay hash in `tests/sim/airDefense.test.ts` at the merge.
+
+
+### Finished passes moved out of Now by Fix-5C (text kept word for word)
+
+### Fix-4C: docs that lied and were too large, downstream decisions (audit 3; docs only plus the docs test; no Chromium; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+
+GÖR och ACCEPTANS:
+
+- [x] ARCHITECTURE.md split: one short row per module (under 450 characters), full rows and the long sections moved verbatim to `docs/arch/<area>.md`; the file is about 40 kB (was 199 kB).
+- [x] `tests/docs.test.ts` checks the arch files too, caps ARCHITECTURE.md (46 000 bytes, rows 450 characters) and compares the version line with the code.
+- [x] CLAUDE.md Read order point 3 points at the index and `docs/arch/`.
+- [x] PROGRESS.md: Done rows added, finished passes moved from Now to the end of Archive word for word, Next rewritten, version line follows the code (ENGINE 18, FORMAT 13).
+- [x] DECISIONS.md: blocks "Fix-4C" and "Audit 3 downstream decisions (for M12b, M14, M17, M20b)"; BACKLOG.md: the proposed CHARTER change.
+- [x] `npm run verify:fast` green (see the result in the Fix-4C block of `docs/DECISIONS.md`).
+
+### Fix-4A1: audit 3, the helicopter, beachhead and treaty rules (headless sim, ENGINE 19; one slice in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+- [x] [0.0] An eliminated seat's helicopters are scrapped in the elimination tick; a landing for an eliminated owner does nothing.
+- [x] [0.1] A landing that touches the owner's land makes no beachhead; a cluster with the capital cell is established.
+- [x] [0.2] Tests for the neighbour guard and the page-side `validateLaunchHeli` treaty refusal.
+- [x] [0.6] `REJECT_HELI_TABLE_FULL` 57 and `REJECT_HELI_BEACHHEAD_FULL` 58 (texts sv and en); comment and `BEACHHEAD_CAPACITY` fixed.
+- [x] [1.10] Allied Ports trade at `TRADE_ALLIANCE_PCT` 125 %.
+- [x] [1.1] to [1.4] Mutation killers (table in DECISIONS, block Fix-4A1).
+- [x] ENGINE_VERSION 19 once; sim-hashes.json and match-hashes.json recomputed once. FORMAT unchanged (13).
+- [x] `npm run verify:fast` (see DECISIONS Fix-4A1 for the result).
+
+### Fix-4A2: audit 3, deserialize guards, curve pins, AI diplomacy tests (headless, no rule change, ENGINE_VERSION and FORMAT_VERSION unchanged; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+
+- [x] 0.3 One test per guard of the air and diplomacy blocks (`tests/sim/fix4a2Forged.test.ts`)
+- [x] 0.4 stateTick / landTick / readyTick, embargo cross check, eliminated consistency refused
+- [x] 0.5 `no-occluders` for airborne helicopters without `maxElev`
+- [x] 1.0 Exact level curve tables (`tests/sim/levelCurveTable.test.ts`)
+- [x] 1.5 AI diplomacy tests in constructed positions (`tests/ai/diplomacyPositions.test.ts`, `tests/ai/diplomacyThresholds.test.ts`)
+- [x] 1.9 Upper payback bands and the REJECT_DIPLO pin in the driver test
+- [x] 0.7 (partly) diplomacy side effects (`tests/sim/fix4a2Misc.test.ts`); heli mutants wait for Fix-4A1
+- [x] 2.10 `tests/helpers/saveLayout.ts` replaces the hard-coded tail arithmetic
+- [x] DECISIONS "Fix-4A2" with the mutant tables, BACKLOG, ARCHITECTURE row
+- [x] `npm run verify:fast` green (typecheck, lint, unit)
+
+### Fix-4B: the beachhead is shown and explained, the deploy mode stops making garbage, the test holes of the app and UI layer (audit 3; render, app, UI and one small read view in the sim; one slice in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+Previous merge SHA: nothing of this branch is merged (pull request #1 is a draft); base commit c672abe (M18c-2).
+GÖR
+- [x] 1. [2.1] `BeachheadView` in `SimView` (`src/sim/view.ts`, exported by `src/sim/public.ts`, pinned in `tests/ai/boundary.test.ts`), the host snapshot, signature and mirror, the pulsing ring in the existing ring mesh (no new draw call), the count-down chip in the top bar, the two toasts, `docs/PREVIEW.md` 17ao / 17as rewritten, unit tests and `e2e/beachhead.test.ts` with a picture
+- [x] 2. [2.6] the deploy mode and the Factory panel stop allocating per frame (no pick under a resting camera, integer keys instead of strings, one reused model object, reused rows, no drawn list outside test mode), measured before and after in `e2e/deployAlloc.serial.test.ts`
+- [x] 3. [1.6] the app layer faults (previewer, resolver, hotkeys, deploy mode): checked against HEAD, the one real fault fixed test first, the rest pinned with mutants
+- [x] 4. [1.7] `tests/host/heliTransport.test.ts`: helicopter and diplomacy snapshot, signature, mirror, every pure function of `src/ui/heliInfo.ts` and `src/ui/diploReasons.ts`, both watchers
+- [x] 5. [1.8] `cityFitFlight` computed by projection in `tests/app/cityFitProject.test.ts` (three window sizes and more), the vertical centring made exact
+- [x] 6. [2.0] `PLAYER_FACING` in `tests/i18n.test.ts` discovers the files itself
+- [x] 7. [2.5] the false gzip justification of M13b corrected in `docs/DECISIONS.md` and `docs/BACKLOG.md`
+- [x] 8. Docs: DECISIONS "Fix-4B" (mutant table, allocation numbers), ARCHITECTURE row, PREVIEW 17ao / 17as, BACKLOG
+ACCEPTANS
+- [x] BeachheadView in SimView and host; ring with count-down and both toasts; the PREVIEW text is true
+- [x] Deploy mode and Factory panel do not allocate per frame (measured before / after: +137 kB a frame over a selected Factory before, none after)
+- [x] The app faults of item 3 fixed test first or shown to be right already; the helper tests of items 4 and 5 written with mutants
+- [x] `PLAYER_FACING` finds files by itself
+- [x] `npm run verify:fast` green; the touched e2e green (`beachhead`, `deploy`, `helis`, `cityOpenFit`, `deployAlloc.serial`)
+
+### M12b: air defence against helicopters and raid statistics (headless sim and the scenario CLI; ENGINE 20, FORMAT 14; one slice in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+
+GÖR och ACCEPTANS:
+
+- [x] `hostile(a, b)` (`src/sim/hostile.ts`): used by `planRoute`, `scoreLz` (`ENEMY_CITY_NEAR`), the route preview colour and the guns; one test per use that fails when it is replaced by "other seat" (`tests/sim/airDefense.test.ts`).
+- [x] Defense Post: 15 dps within 12 cells, stacks, both modes; 7 s +-1 for one Post, half for two (test).
+- [x] SAM: layer detection AND own mask AND range; salvo every 90 ticks, the first at once; 55 % from the splitmix32 mixer on (seed, tick, SAM id); Low never engaged behind the ridge, High 55 % +-3 over 10 000 rolls; out of range / destroyed / unfinished never fire; reverse visiting order gives equal hashes.
+- [x] A shot-down helicopter: `HELI_DOWNED` with cause SAM / Post, load lost, no territory, troops after = before minus load.
+- [x] Spatial hash (typed arrays) for Posts and SAM sites; `tests/airDefense.perf.test.ts`: 12 helicopters + 40 structures, median over 200 ticks after 50 warm-ups well under `budgetMs(0.5)`.
+- [x] `heli-raid --fixture <alps|plains-sam|ridge-sam> --seed N` in the scenario CLI (`tools/sim/heliRaid.ts`): deterministic, a smoke test per fixture.
+- [x] Scripted raids, 50 trials each, Low: alps 100 %, plains with two SAM sites 2 %, ridge 100 % (numbers in `docs/BALANCE.md` and the M12b block of `docs/DECISIONS.md`; no constant had to be tuned).
+- [x] ENGINE_VERSION 20 once, FORMAT_VERSION 14 (the salvo clock `salvoTick` per structure row); sim-hashes.json and match-hashes.json recomputed once.
+- [ ] Toast texts that say WHY (SAM / Post): not done, the page does not see the cause (BACKLOG "M12b").
+- [x] `npm run verify:fast` green (see the M12b block of `docs/DECISIONS.md`).
+### M18b-1: federations part 1 of 3, the baked provinces and sub-nations (headless tools and data; no sim, ai, render, ui or app change; previous merge SHA f29121a8d1607ca169e6675b5f22a52d76c42ef7)
+
+- [x] Source: Natural Earth admin-1 50 m (same repo and commit as the rest of the bake), fetched through the allowed host raw.githubusercontent.com, file in `NE_FILES.admin1`.
+- [x] Province raster (u16, sim grid) and province table, gaps flood-filled per country in a fixed order; tiny provinces flagged.
+- [x] Candidates (`FEDERATION_MIN_AREA_CELLS`) and sub-nations (`FEDERATION_MIN_PROVINCE_CELLS`, `FEDERATION_MAX_SUBNATIONS`) with a u8 raster.
+- [x] New pack `public/data/federations.bin.gz`; manifest and checksums get NEW rows, every old hash unchanged, `e2e/goldens` untouched.
+- [x] `src/data/federations.ts` (pure parser, writer, `loadFederations`, `federationOfCell`, `membersOfCountry`, `isFederationCandidate`); not wired into the game.
+- [x] `npm run bake` (also `-- --only=federations`), `npm run bake:check`, `npm run bake:federations` (report and `--png=`).
+- [x] Tests `tests/bake/federations.test.ts` (round trip, corrupt packs, raster invariants, candidates, min size, determinism, old hashes pinned), mutants shown in DECISIONS.
+- [x] Picture looked at (RUS, USA, CHN, IND, BRA); report in DECISIONS block M18b-1.
+- [x] `npm run verify:fast` green (see DECISIONS M18b-1).
+### M20a-2: nation labels and front arrows (host snapshot, render and UI; one slice in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+
+GÖR och ACCEPTANS:
+
+- [x] AttackView in SimView (`SimView.fronts`, read-only, at most 16 attacks: id, attacker, target, a front cell and a direction), a host snapshot sent only when it changed (signature, refreshed every 10 ticks while an attack runs) and a ViewMirror copy; the new export in `src/sim/public.ts` and the pinned list of `tests/ai/boundary.test.ts`.
+- [x] Nation labels: a pool of at most 32 DOM elements (name, troops, relation badge, owner colour), placed at the nation's centroid, faded by zoom, no overlap, never outside the screen, never behind the horizon, cleared when a nation dies; DOM written only on change.
+- [x] Front arrows: one instanced draw call, at most 16 arrows, pulsing with the fx clock, own attacks brightest, faded out at globe distance.
+- [x] Hotkey N (`Nationsetiketter`) in the registry, saved with getPref / setPref, default on; listed in the `?` overlay.
+- [x] Tests: layout (40 candidates), arrows (count, gone when the attack ends, draw calls <= 1, no allocation), three window sizes, both languages.
+- [x] Screenshots looked at (three zoom levels, arrows during an attack, both languages).
+- [x] `npm run verify:fast` green; the touched e2e files green.
+
+Result: see the block "M20a-2" at the end of `docs/DECISIONS.md`. Main-chunk gzip cap raised to 311 000 (`tests/portable.test.ts`). No golden changed (labels and arrows are off in a test page unless `labels=1`).
+
+### M18b-2: federations part 2 of 3, the setup option "Dela upp stormakter" and the match with sub-nations (app plus a small sim and AI part; ENGINE 21, FORMAT 15; one slice in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+
+GÖR och ACCEPTANS:
+
+- [x] The setup option "Dela upp stormakter" (checkbox `setup-federation`, sv and en, stored through getPref / setPref with the setup draft, OFF by default, with an info line); a click in a split country picks the sub-nation under the pointer.
+- [x] `createMatch`: a candidate country you play or an AI nation picks becomes seats, one per sub-nation that can have a whole fair start INSIDE its own land (the rest are skipped); names "Name (Country)"; related colours per federation; the seat cap respected by limiting the AI nations of other countries.
+- [x] Alliance from tick 0 that cannot be broken: an ALLIANCE pair with `until` 1 (`bindFederation`), `REJECT_DIPLO_FEDERATION` 94 (texts sv and en), the attack ban as for any ally; the AI never breaks or proposes to a member.
+- [x] ENGINE 21 and FORMAT 15 raised once, both golden hash files recomputed once (the option OFF gives the same match: shown with ENGINE 20 first).
+- [x] Home-land discount: sub-nations get no home land (DECISIONS M18b-2).
+- [x] Tests: `tests/app/federationMatch.test.ts`, `tests/app/federationSetup.test.ts`, `tests/ai/federation.test.ts`, `e2e/federation.test.ts`; mutants in DECISIONS.
+- [x] `npm run verify:fast` green and `e2e/federation.test.ts`, `e2e/setup.test.ts`, `e2e/diplomacy.test.ts` green (result in the M18b-2 block of `docs/DECISIONS.md`).
+- Not done (BACKLOG "M18b-3"): shared victory, grouping in the leaderboard and result, flags and Swedish names, labels of federations on the map.
+### M13a-2: helicopter effects, chase camera and far icon (render, app and UI; one slice in its own worktree; the orchestrator owns merging, pushing and the Artifact; previous merge SHA f29121a8d1607ca169e6675b5f22a52d76c42ef7)
+
+GOR
+- [x] Effects layer `src/render/heliFx.ts`: shadow blob (1 draw call), particle pool (dust, ropes, smoke, flash; 1 draw call, <= 1 200 particles), beachhead flag (1 draw call); fx clock only, local seeded render RNG, no allocation per frame; test pages have it OFF unless `fx=1`.
+- [x] Far icon of an airborne helicopter (1 draw call), owner colour, fades when the model takes over.
+- [x] Chase camera: key H (stack entry `chase`), mode on the InputStack, Esc / H / drag / wheel end it, terrain clearance, toast `toast.heli.noneAirborne`; button `heli-chase` per flying row in the helicopter list.
+- [x] ETA in the list: not derivable (HeliView has no target table): left in BACKLOG, as the prompt allowed.
+- [x] Tests: caps (draw calls, particles), allocation, chase, modal keys, sim hash unchanged, leak, e2e with screenshots.
+
+ACCEPTANS
+- [x] Six effects visible on screenshots; caps held (<= 3 + 1 draw calls, <= 1 200 particles); 0 allocation per frame.
+- [x] Chase camera: clearance, ending, toast without helicopter, modal blocking.
+- [x] Sim hash unchanged by the effects; goldens unchanged (fx flag).
+- [x] Leak test green; both languages; verify:fast green; affected e2e green.
+
+Result (details and numbers in `docs/DECISIONS.md` "M13a-2"): effects, chase camera, far icon and the glide between tables are in; `e2e/heliFxPictures.serial.test.ts` (4 tests: pictures, enemy SAM crash, chase, sim hash with and without the layer) and `e2e/heliFx.serial.test.ts` (leak and allocation) pass; unit tests `tests/render/heliFx.test.ts` and `tests/app/chaseMode.test.ts`. Not done: ETA per list row, the cause colour of a downing, H in the help overlay (BACKLOG "M13a-2"). The full `npm run verify` was NOT run here (the orchestrator runs it after the merge).
+
+### M18b-3: federations part 3 of 3, shared victory, grouping in the leaderboard and result, federation flags (sim win rules plus UI; one slice in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+
+GOR och ACCEPTANS:
+
+- [x] Group concept in the sim derived from the bound diplomacy pairs (`src/sim/groups.ts`, no new state, ENGINE and FORMAT untouched), a seat without a federation is a group of one.
+- [x] Win conditions count groups (land sum and hold timer, last alive, score sum, anti-snowball by group share, elimination per seat); a match without a federation takes the old code path (golden hashes unchanged).
+- [x] MatchView: `group` per seat, leader / hold / winner are group representatives, `groupMembers`.
+- [x] UI: leaderboard shows a federation as ONE expandable row with a flag; win meter follows the group; result screen shows the winning group and rows per group and member.
+- [x] Tests: groups, every condition with and without federation, 40 % federation vs 40 % nation, round trip and snapshot, 20 AI seeds, UI models, e2e.
+- [x] `npm run verify:fast` green; affected e2e green (federationWin, federation).
+### M18d-2: technology, part 2 of 2 (the research panel; app, UI and the price display; one slice in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+
+GÖR och ACCEPTANS:
+
+- [x] Research panel: key T and the top-bar button "Teknik" open an input mode (Esc closes, modal block respected); 4 columns x 4 rows; name, effect line from `TECH_FX`, price through `formatGold`, time, status (Forskad / Pågår with countdown and bar / Tillgänglig / Låst with the prerequisite / Kan inte nu with the `validateResearch` reason); Forska sends Research, Avbryt (two clicks, no refund) sends CancelResearch.
+- [x] The running research in the top bar ("Forskar: Namn 0:42", written only on change); toast `toast.tech.done` for the own finished research (`TechWatcher`).
+- [x] Texts: 16 names, 12 effect channels, branches and statuses in sv and en (own block at the end of both tables).
+- [x] Discounted upgrade price: the selection panel, the city view and the AI (`src/ai/build.ts`) use `upgradePriceNowMilli` (the sim's own `upgradePriceMilliFor` with the seat's researched discount); shown == debited (unit test, e2e). Districts have no tech discount in the sim, so they keep the base price.
+- [x] Result screen: the column "Teknik" (MatchView `techCount`).
+- [x] Tests: `tests/ui/techModel.test.ts`, `tests/ai/upgradeDiscount.test.ts`, `tests/app/techKey.test.ts`, `e2e/research.test.ts`.
+- [x] `npm run verify:fast` green; the affected e2e green (result in `docs/DECISIONS.md` "M18d-2").
