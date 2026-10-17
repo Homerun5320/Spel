@@ -88,6 +88,16 @@ describe('fillAttackFronts', () => {
     g.owner[cells[3]! - W] = A;
     o = run(g);
     expect([o.dirX[0], o.dirY[0]]).toEqual([100, 33]);
+    // the other way round: two west pushes against three north pushes gives dirX 67 (the x component is rounded too)
+    const k = fake([{ id: 1, attacker: A, target: T, bag: [cells[0]!, cells[1]!, cells[3]!, cells[4]!, at(4, 8)] }]);
+    for (const c of [cells[0]!, cells[1]!, cells[3]!, cells[4]!, at(4, 8)]) k.owner[c] = T;
+    k.owner[cells[0]! - 1] = A;
+    k.owner[cells[1]! - 1] = A;
+    k.owner[cells[3]! - W] = A;
+    k.owner[cells[4]! - W] = A;
+    k.owner[at(4, 8) - W] = A;
+    o = run(k);
+    expect([o.dirX[0], o.dirY[0]]).toEqual([67, 100]);
   });
 
   it('skips cells of another owner, cells that no longer touch the attacker, and an attack with no usable cell', () => {
@@ -126,6 +136,14 @@ describe('fillAttackFronts', () => {
     const o = run(f);
     expect(o.cell[0]).toBe(at(0, 2)); // mean x = 10 = 0; without the wrap the mean is 3.3 and x = 1 would win
     expect(o.dirY[0]).toBe(-100);
+    // the same across the date line with the first sample east of the mean's side: x = 0, 9, 8 -> the cell x = 9
+    const cells2 = [at(0, 2), at(9, 2), at(8, 2)];
+    const g = fake([{ id: 1, attacker: A, target: T, bag: cells2 }]);
+    for (const c of cells2) {
+      g.owner[c] = T;
+      g.owner[c + W] = A;
+    }
+    expect(run(g).cell[0]).toBe(at(9, 2));
   });
 
   it('keeps the own attack among at most ATTACK_VIEW_CAP rows: 20 attacks, the own one the 19th, and 40 attacks fill exactly the cap', () => {
