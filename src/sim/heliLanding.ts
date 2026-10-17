@@ -2,7 +2,7 @@
 //
 // LANDING (`performLanding`, called by heliFlight when the HELI_UNLOAD ticks are over). The landing zone is taken first, then its neighbours in the
 // fixed order N, E, S, W, NE, SE, SW, NW (at most BEACHHEAD_LANDING_CELLS cells in all), each at the price of an Attack cell at depth 0 on level
-// ground (`captureCostMilliQt`; terrain, the home trait and a Defense Post or Walls of the defender included), doubled when the cell is somebody
+// ground (`captureCostMilliQt`; terrain, the home trait and a Defense Post or Walls of the defender included; fallout x FALLOUT_COST_PCT, Fix-6A1), doubled when the cell is somebody
 // else's (LANDING_ENEMY_COST_PCT), paid from the load with the same fractional carry as an Attack, until the load cannot pay for the next cell.
 // A landing zone that cannot be taken (not enough troops for the first cell, an unplayable cell) fails and the load is lost. What is left of the load
 // goes on as an ordinary Attack from the beachhead on the owner the landing zone had (or comes back to the seat when there is no contact).
@@ -23,6 +23,7 @@ import {
   BEACHHEAD_ESTABLISH_CELLS,
   BEACHHEAD_LANDING_CELLS,
   BEACHHEAD_REVERT_TICKS,
+  FALLOUT_COST_PCT,
   LANDING_ENEMY_COST_PCT,
   MILLI_QT_PER_QT,
   QT_PER_TROOP,
@@ -65,6 +66,8 @@ export function landingCostMilli(state: GameState, cell: number, targetOwner: nu
     const walled = wallAdjustedCost(state.structures, w, cell, cost);
     cost = posts !== 0 ? Math.max(walled, postAdjustedCost(state.structures, w, cell, cost)) : walled;
   } else if (posts !== 0) cost = postAdjustedCost(state.structures, w, cell, cost);
+  // Fix-6A1: a fallout cell costs FALLOUT_COST_PCT percent from the sea and the air too, applied after the defence multipliers exactly as advanceAttack does.
+  if (state.missiles.falloutCount !== 0 && (state.missiles.fallout[cell] as number) > state.tick) cost = Math.floor((cost * FALLOUT_COST_PCT) / 100);
   return cost;
 }
 

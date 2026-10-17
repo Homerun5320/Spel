@@ -387,6 +387,7 @@ export function applyDelete(state: GameState, seat: number, id: number): number 
   const why = checkDelete(state.structures, state.tick, seat, id);
   if (why !== REJECT_NONE) return why;
   if (state.structures.type[id] === STRUCT_FACTORY) scrapFactoryHelis(state, id);
+  if (state.missiles.interceptorCount !== 0) state.missiles.dropInterceptorsOfSam(id); // Fix-6A1: the id may be recycled by a new site
   state.structures.remove(id);
   state.structures.deleteReady[seatToOwner(seat)] = state.tick + DELETE_COOLDOWN_TICKS;
   return REJECT_NONE;
@@ -434,6 +435,7 @@ export function structureCellChanged(state: GameState, cell: number, newOwner: n
     if (type === STRUCT_CITY) t.conquerDistricts(id, newOwner, newLevel, state.tick);
     t.transfer(id, newOwner, newLevel);
   } else {
+    if (state.missiles.interceptorCount !== 0) state.missiles.dropInterceptorsOfSam(id); // Fix-6A1: a destroyed SAM's interceptors in flight are void
     t.remove(id);
   }
 }

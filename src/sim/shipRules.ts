@@ -25,7 +25,7 @@ import {
 } from './intents';
 import { RELATION_WAR } from './diplomacyTable';
 import { MILLI_GOLD_PER_GOLD, QT_PER_TROOP, SHIP_FLEET_MAX, SHIP_LAUNCH_GOLD, SHIP_MAX_TROOPS, SHIP_MIN_TROOPS } from './rules';
-import { findShipRoute, portWaterCell, ShipRoute, SHIP_ROUTE_BAD_TARGET, SHIP_ROUTE_OK } from './shipRoute';
+import { findPortRoute, portWaterCell, ShipRoute, SHIP_ROUTE_BAD_TARGET, SHIP_ROUTE_OK } from './shipRoute';
 import { SHIP_LAND, SHIP_OFF, SHIP_SAIL, type ShipView } from './shipTable';
 import { seatToOwner } from './state';
 import { STRUCT_PORT, type StructureView } from './structureRules';
@@ -125,9 +125,8 @@ export function checkLaunchShip(src: ShipSource, phaseRefuses: boolean, seat: nu
   if (!Number.isInteger(targetCell) || targetCell < 0 || targetCell >= src.width * src.height) return REJECT_SHIP_BAD_TARGET;
   if (!isPlayableClass(src.terrainClass[targetCell] as number) || src.owner[targetCell] === ownerId) return REJECT_SHIP_BAD_TARGET;
   if (probe.zoneBound(targetCell)) return REJECT_DIPLO_TREATY_BOUND;
-  const start = portWaterCell(src.width, src.height, src.terrainClass, s.cell[port] as number);
-  if (start < 0) return REJECT_SHIP_NO_ROUTE;
-  const why = findShipRoute(src.width, src.height, src.terrainClass, start, targetCell, plan.route);
+  if (portWaterCell(src.width, src.height, src.terrainClass, s.cell[port] as number) < 0) return REJECT_SHIP_NO_ROUTE;
+  const why = findPortRoute(src.width, src.height, src.terrainClass, s.cell[port] as number, targetCell, plan.route); // Fix-6A1: from every water neighbour of the Port
   if (why === SHIP_ROUTE_BAD_TARGET) return REJECT_SHIP_BAD_TARGET;
   if (why !== SHIP_ROUTE_OK) return REJECT_SHIP_NO_ROUTE;
   plan.ship = slot;

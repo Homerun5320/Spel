@@ -3,7 +3,7 @@
 //
 // WATER is terrain class DEEP_SEA or SHALLOWS (the sea and the lakes of the baked world). The grid wraps in x (the date line), not in y. Moves are the eight neighbours in the fixed
 // order N, NE, E, SE, S, SW, W, NW; a diagonal move needs both orthogonal cells to be water (no squeezing through a land corner). Costs are integers (10 straight, 14 diagonal). The open set is
-// a binary heap (two Int32Arrays side by side) ordered by (f, cell index): a tie in f always goes to the lower cell index, so the result is a pure function of the map. At most SHIP_ROUTE_MAX_CELLS cells are expanded.
+// a binary heap (three Int32Arrays side by side) ordered by (f, h, cell index): a tie in f goes to the smaller heuristic h (the larger g, so the search keeps running toward the goal instead of fanning out over the whole f-plateau, Fix-6A1), then to the lower cell index, so the result is a pure function of the map. A route from a Port starts from ALL its water neighbours at once (`findPortRoute`, g = 0 each). At most SHIP_ROUTE_MAX_CELLS cells are expanded.
 // The goal is any water cell within SHIP_LAND_REACH_CELLS (Chebyshev, x wrapping) of the target cell.
 import { CLASS_DEEP_SEA, CLASS_SHALLOWS } from './terrain';
 import { SHIP_LAND_REACH_CELLS, SHIP_ROUTE_CAPACITY, SHIP_ROUTE_MAX_CELLS } from './rules';
@@ -73,6 +73,7 @@ let parent: Int32Array = new Int32Array(0);
 let run = 0;
 let heapF: Int32Array = new Int32Array(0); // the open set: f cost and cell index side by side, ordered by (f, cell)
 let heapC: Int32Array = new Int32Array(0);
+let heapH: Int32Array = new Int32Array(0); // the heuristic part of each entry (the second sort key)
 let path: Int32Array = new Int32Array(0);
 
 function ensureScratch(cells: number): void {
@@ -87,6 +88,7 @@ function ensureScratch(cells: number): void {
   if (heapF.length === 0) {
     heapF = new Int32Array(8 * SHIP_ROUTE_MAX_CELLS + 16);
     heapC = new Int32Array(8 * SHIP_ROUTE_MAX_CELLS + 16);
+    heapH = new Int32Array(8 * SHIP_ROUTE_MAX_CELLS + 16);
   }
   run++;
   if (run >= 0x7fffffff) {
@@ -153,21 +155,23 @@ function lineClear(width: number, terrain: Numbers, a: number, b: number): boole
   return true;
 }
 
-/** Is entry (f1, c1) before (f2, c2)? Lower f first; a tie goes to the lower cell index. */
-function before(f1: number, c1: number, f2: number, c2: number): boolean {
-  return f1 < f2 || (f1 === f2 && c1 < c2);
+/** Is entry (f1, h1, c1) before (f2, h2, c2)? Lower f first; a tie goes to the lower h (the higher g), then to the lower cell index. */
+function before(f1: number, h1: number, c1: number, f2: number, h2: number, c2: number): boolean {
+  return f1 < f2 || (f1 === f2 && (h1 < h2 || (h1 === h2 && c1 < c2)));
 }
 
-function heapPush(n: number, f: number, c: number): void {
+function heapPush(n: number, f: number, h: number, c: number): void {
   let i = n;
   while (i > 0) {
     const p = (i - 1) >> 1;
-    if (!before(f, c, heapF[p] as number, heapC[p] as number)) break;
+    if (!before(f, h, c, heapF[p] as number, heapH[p] as number, heapC[p] as number)) break;
     heapF[i] = heapF[p] as number;
+    heapH[i] = heapH[p] as number;
     heapC[i] = heapC[p] as number;
     i = p;
   }
   heapF[i] = f;
+  heapH[i] = h;
   heapC[i] = c;
 }
 
@@ -177,19 +181,22 @@ function heapPop(n: number): void {
   poppedC = heapC[0] as number;
   const m = n - 1;
   const lf = heapF[m] as number;
+  const lh = heapH[m] as number;
   const lc = heapC[m] as number;
   let i = 0;
   while (true) {
     let c = 2 * i + 1;
     if (c >= m) break;
-    if (c + 1 < m && before(heapF[c + 1] as number, heapC[c + 1] as number, heapF[c] as number, heapC[c] as number)) c++;
-    if (!before(heapF[c] as number, heapC[c] as number, lf, lc)) break;
+    if (c + 1 < m && before(heapF[c + 1] as number, heapH[c + 1] as number, heapC[c + 1] as number, heapF[c] as number, heapH[c] as number, heapC[c] as number)) c++;
+    if (!before(heapF[c] as number, heapH[c] as number, heapC[c] as number, lf, lh, lc)) break;
     heapF[i] = heapF[c] as number;
+    heapH[i] = heapH[c] as number;
     heapC[i] = heapC[c] as number;
     i = c;
   }
   if (m > 0) {
     heapF[i] = lf;
+    heapH[i] = lh;
     heapC[i] = lc;
   }
 }
@@ -200,22 +207,49 @@ function heapPop(n: number): void {
  * SHIP_ROUTE_CAPACITY waypoints after the string-pull).
  */
 export function findShipRoute(width: number, height: number, terrain: Numbers, start: number, target: number, out: ShipRoute): number {
+  return search(width, height, terrain, start, -1, -1, -1, target, out);
+}
+
+/**
+ * The route of a ship leaving Port `portCell` (Fix-6A1, audit 5 [0.0]): the search starts from EVERY water 4-neighbour of the Port at once (g = 0 each, lowest cell index on a tie), so a 1-cell pocket
+ * beside the Port no longer hides the open sea on its other side. Waypoint 0 is the neighbour the best route starts from. SHIP_ROUTE_NONE when the Port touches no water.
+ */
+export function findPortRoute(width: number, height: number, terrain: Numbers, portCell: number, target: number, out: ShipRoute): number {
+  const x = portCell % width;
+  const y = (portCell - x) / width;
+  const west = y * width + (x === 0 ? width - 1 : x - 1);
+  const east = y * width + (x + 1 === width ? 0 : x + 1);
+  const north = y > 0 ? portCell - width : -1;
+  const south = y + 1 < height ? portCell + width : -1;
+  return search(width, height, terrain, north, west, east, south, target, out); // ascending cell index
+}
+
+function seed(width: number, terrain: Numbers, target: number, c: number, n: number): number {
+  if (c < 0 || !isWaterClass(terrain[c] as number)) return n;
+  mark[c] = run * 2;
+  gCost[c] = 0;
+  parent[c] = -1;
+  const h = Math.max(0, octile(width, c, target) - 14 * SHIP_LAND_REACH_CELLS);
+  heapPush(n, h, h, c);
+  return n + 1;
+}
+
+function search(width: number, height: number, terrain: Numbers, s0: number, s1: number, s2: number, s3: number, target: number, out: ShipRoute): number {
   out.count = 0;
   out.pathCells = 0;
   out.expanded = 0;
   if (!hasWaterWithinReach(width, height, terrain, target)) return SHIP_ROUTE_BAD_TARGET;
-  if (start < 0 || !isWaterClass(terrain[start] as number)) return SHIP_ROUTE_NONE;
+  if ((s0 < 0 || !isWaterClass(terrain[s0] as number)) && (s1 < 0 || !isWaterClass(terrain[s1] as number)) && (s2 < 0 || !isWaterClass(terrain[s2] as number)) && (s3 < 0 || !isWaterClass(terrain[s3] as number))) return SHIP_ROUTE_NONE;
   const cells = width * height;
   ensureScratch(cells);
   const open = run * 2;
   const closed = open + 1;
   const slack = 14 * SHIP_LAND_REACH_CELLS;
   let heapN = 0;
-  mark[start] = open;
-  gCost[start] = 0;
-  parent[start] = -1;
-  const h0 = Math.max(0, octile(width, start, target) - slack);
-  heapPush(heapN++, h0, start);
+  heapN = seed(width, terrain, target, s0, heapN);
+  heapN = seed(width, terrain, target, s1, heapN);
+  heapN = seed(width, terrain, target, s2, heapN);
+  heapN = seed(width, terrain, target, s3, heapN);
   let goal = -1;
   let expanded = 0;
   while (heapN > 0) {
@@ -254,8 +288,8 @@ export function findShipRoute(width: number, height: number, terrain: Numbers, s
       mark[n] = open;
       gCost[n] = ng;
       parent[n] = c;
-      const f = ng + Math.max(0, octile(width, n, target) - slack);
-      heapPush(heapN++, f, n);
+      const h = Math.max(0, octile(width, n, target) - slack);
+      heapPush(heapN++, ng + h, h, n);
     }
   }
   out.expanded = expanded;

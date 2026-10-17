@@ -126,6 +126,24 @@ export class MissileTable implements MissileView {
     this.interceptorCount = k;
   }
 
+  /** Drops every interceptor row fired by SAM structure `sam`, keeping the order of the rest (Fix-6A1: the site was destroyed, so its id may be recycled by another site). */
+  dropInterceptorsOfSam(sam: number): void {
+    let k = 0;
+    const n = this.interceptorCount;
+    for (let i = 0; i < n; i++) {
+      if (this.iSam[i] === sam) continue;
+      if (k !== i) {
+        this.iMissile[k] = this.iMissile[i] as number;
+        this.iSam[k] = this.iSam[i] as number;
+        this.iFire[k] = this.iFire[i] as number;
+        this.iMeet[k] = this.iMeet[i] as number;
+        this.iHit[k] = this.iHit[i] as number;
+      }
+      k++;
+    }
+    this.interceptorCount = k;
+  }
+
   /** Frees a slot (and the interceptors that were fired at it). */
   remove(id: number): void {
     if (this.owner[id] === 0) return;
