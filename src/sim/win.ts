@@ -162,7 +162,19 @@ export function winPhase(state: GameState): void {
     const cap = state.capital[o] as number;
     if (m.eliminated[o] === 0 && (area[o] as number) === 0 && (cap !== 0 || (m.peakLand[o] as number) > 0)) {
       m.eliminated[o] = 1;
+      // Fix-5A1: the land hold timer of a federation sits under its root seat. If the holder is knocked out, the timer moves to the lowest remaining
+      // member of its former group (found before the treaties are cleared); the count is kept, and the land check below resets it when the group no longer qualifies.
+      let heir = 0;
+      if (m.holdOwner === o) {
+        const roots = federationRoots(state);
+        if (roots !== null) {
+          for (let p = 1; p <= state.header.players && heir === 0; p++) if (p !== o && roots[p] === roots[o] && (area[p] as number) > 0) heir = p;
+        }
+      }
+      m.techCurrent[o] = 0; // Fix-5A1: an eliminated seat has no running research (no refund; CancelResearch is refused for it)
+      m.techDone[o] = 0;
       clearDiplomacyOf(state, o);
+      if (heir !== 0) m.holdOwner = heir;
       scrapOwnerHelis(state, o); // Fix-4A1: no helicopter may land and revive an eliminated seat
       state.outbox.push(OUTBOX_ELIMINATED, state.tick - 1, o - 1, 0);
     }

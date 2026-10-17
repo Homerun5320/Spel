@@ -40,6 +40,8 @@ export class AaIndex {
   readonly fired = new Int32Array(STRUCT_CAPACITY);
   /** Reach in buckets (rounded up) of the largest radius of the last rebuild. */
   reach = 1;
+  /** Largest indexed radius in cells of the last rebuild (the exact column range of a helicopter is derived from it, in cells, so a width that is no multiple of BUCKET still wraps right). */
+  maxR = 0;
   count = 0;
   private readonly fill: Int32Array;
   private readonly bucketOf = new Int32Array(STRUCT_CAPACITY);
@@ -89,6 +91,7 @@ export class AaIndex {
       this.fill[b] = (this.fill[b] as number) + 1;
     }
     this.reach = Math.max(1, Math.ceil(maxR / BUCKET));
+    this.maxR = maxR;
     this.count = n;
     return n;
   }
@@ -151,7 +154,8 @@ export function airDefensePhase(state: GameState, reverse = false): void {
     KILLED[id] = 0;
   }
   idx.pick.fill(0);
-  const cols = 2 * idx.reach + 1 >= idx.bx ? idx.bx : 2 * idx.reach + 1;
+  const bxN = idx.bx;
+  const maxR = idx.maxR;
   for (let id = 0; id < hw; id++) {
     const s = t.state[id] as number;
     const heliOwner = t.owner[id] as number;
@@ -161,24 +165,59 @@ export function airDefensePhase(state: GameState, reverse = false): void {
     const hy = t.y[id] as number;
     const cell = (hy >> 8) * w + (hx >> 8);
     const mode = (t.mode[id] === 1 ? ALT_MODE_HIGH : ALT_MODE_LOW) as AltMode;
-    const bx = Math.floor((hx >> 8) / BUCKET);
     const by = Math.floor((hy >> 8) / BUCKET);
-    const col0 = cols === idx.bx ? 0 : bx - idx.reach;
+    // The bucket columns that can hold a structure within maxR cells, derived from the distance in CELLS across the date line (Fix-5A1): up to two
+    // column ranges [a0, a1] and [b0, b1]; the last bucket of a width that is no multiple of BUCKET is narrower, so index arithmetic would skip it.
+    const hxc = hx >> 8;
+    const lo = hxc - maxR;
+    const hi = hxc + maxR;
+    let a0 = 0;
+    let a1 = bxN - 1;
+    let b0 = 1;
+    let b1 = 0;
+    if (hi - lo + 1 < w) {
+      if (lo < 0) {
+        a1 = Math.floor(hi / BUCKET);
+        b0 = Math.floor((lo + w) / BUCKET);
+        b1 = bxN - 1;
+        if (b0 <= a1) {
+          a1 = bxN - 1;
+          b0 = 1;
+          b1 = 0;
+        }
+      } else if (hi >= w) {
+        a0 = Math.floor(lo / BUCKET);
+        b0 = 0;
+        b1 = Math.floor((hi - w) / BUCKET);
+        if (b1 >= a0) {
+          a0 = 0;
+          b0 = 1;
+          b1 = 0;
+        }
+      } else {
+        a0 = Math.floor(lo / BUCKET);
+        a1 = Math.floor(hi / BUCKET);
+      }
+    }
     for (let dy = -idx.reach; dy <= idx.reach; dy++) {
       const yy = by + dy;
       if (yy < 0 || yy >= idx.by) continue;
-      for (let i = 0; i < cols; i++) {
-        const b = yy * idx.bx + ((((col0 + i) % idx.bx) + idx.bx) % idx.bx);
-        for (let k = idx.start[b] as number; k < (idx.start[b + 1] as number); k++) {
-          const sid = idx.items[k] as number;
-          const so = st.owner[sid] as number;
-          if (so === heliOwner || !atWar(state, so, heliOwner)) continue; // hostile(): not an ally's, not a truce partner's
-          if (!within(w, hx, hy, st.cell[sid] as number, idx.radius[sid] as number)) continue;
-          if (st.type[sid] === STRUCT_POST) {
-            DAMAGE[id] = (DAMAGE[id] as number) + POST_AA_TENTHS_PER_TICK;
-          } else if (los !== null && tick >= (st.salvoTick[sid] as number) && idx.pick[sid] === 0 && los.detected(so, cell, mode) && los.fireControl(sid, cell, mode)) {
-            idx.pick[sid] = id + 1; // helicopters are tested in ascending id: the first to pick is the lowest id
-            idx.fired[nFired++] = sid;
+      for (let seg = 0; seg < 2; seg++) {
+        const c0 = seg === 0 ? a0 : b0;
+        const c1 = seg === 0 ? a1 : b1;
+        for (let col = c0; col <= c1; col++) {
+          const b = yy * bxN + col;
+          for (let k = idx.start[b] as number; k < (idx.start[b + 1] as number); k++) {
+            const sid = idx.items[k] as number;
+            const so = st.owner[sid] as number;
+            if (so === heliOwner || !atWar(state, so, heliOwner)) continue; // hostile(): not an ally's, not a truce partner's
+            if (!within(w, hx, hy, st.cell[sid] as number, idx.radius[sid] as number)) continue;
+            if (st.type[sid] === STRUCT_POST) {
+              DAMAGE[id] = (DAMAGE[id] as number) + POST_AA_TENTHS_PER_TICK;
+            } else if (los !== null && tick >= (st.salvoTick[sid] as number) && idx.pick[sid] === 0 && los.detected(so, cell, mode) && los.fireControl(sid, cell, mode)) {
+              idx.pick[sid] = id + 1; // helicopters are tested in ascending id: the first to pick is the lowest id
+              idx.fired[nFired++] = sid;
+            }
           }
         }
       }
