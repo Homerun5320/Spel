@@ -669,3 +669,8 @@ M14a
 - `missilePosition` is the normalised lerp: slower near the ends than in the middle (a renderer may smooth it); `cellOf` for a missile (the cell it is over now) needs an inverse of the vector, a column search with cross products, not built (M14b needs it for the SAM hash).
 - No missile is scrapped when its launcher is eliminated; it blasts as planned. No interception of a cruise missile by terrain masking yet (M14b).
 - Blast radii are km constants converted per row with the row's cell width; the disc uses the row of the cell for east-west, so a disc near the pole is a little wider than a true circle in the last rows (area within 1.5 % of the cap, tested at 60 N).
+
+Bundle-diet-2
+- A `modulepreload` for the Swedish table chunk (or starting the language `import()` from `index.html`) would remove the one-request wait after the main chunk; Vite does not preload dynamic imports by itself.
+- The total gzip grew 2 575 B because the two tables compress apart; an `en` table as values only (aligned with the `sv` key order) would drop the repeated key strings, at the cost of the `Record<TextKey, string>` typing the tables have now.
+- The language button exists only on the start and setup screens; a language switch inside a running match has no UI (the HUD still follows `onLanguageChange`, covered by the test-mode e2e).

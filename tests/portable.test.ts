@@ -39,8 +39,8 @@ describe('the forbidden-address scanner itself', () => {
 });
 
 /** Size caps in bytes of gzipped JavaScript (Fix-3C): measured plus about 5 %. Raise them only with a line in docs/DECISIONS.md. */
-const JS_GZ_TOTAL_MAX = 401_000; // M14a: 396_000 before; measured 398_867 with the missile table, the flight, the blast and the missile snapshot (rule of DECISIONS "Bundle diet" 3: paid back by diet step 1, the language tables, about 8.8 kB, in the pass Bundle-diet-2, which must lower this cap by at least 8_000 in all). Older: // Round 22 merge: 393_000 before; measured 395_288 with the ship code, the three structure models in one shared mesh and the event ring (rule of DECISIONS "Bundle diet" 3: paid back by diet step 1, the language tables, about 8.8 kB, which is the NEXT pass and must lower this cap by at least 8_000). Older: // M13c-1: 391_000 before; measured 392_934 with the ship table, the sea route, LaunchShip and the ship snapshot (rule of DECISIONS "Bundle diet" 3: paid back by diet step 1, the language tables, about 8.8 kB, in the pass "Bundle diet 1-3"). Older: 391_000 // Round 19 merge: 370_000 before; measured 372_309 with the technology rules, the federation setup and the helicopter effects, + 5 %
-const JS_GZ_MAIN_MAX = 315_700; // Bundle-diet-1: 321_000 before; measured 306_484 after the dev modules left the main chunk (steps 2 and 3 of the diet), + 3 %. Older notes: // M18d-2: 311_000 before; measured 311_035 with the research panel, + 3 %. M20a-2: 294_500 before, measured 296_501 with the nation labels, the front arrows and the attack-front snapshot, + 5 %. M13b: 277_000 before; measured 280_318 + 5 % (the page now carries Los, Nav, planRoute and scoreLz for the preview; before, they lived only in the sim worker)
+const JS_GZ_TOTAL_MAX = 402_000; // Round 23 merge (M14a + Bundle-diet-2): measured 401_424; the total counts the lazy chunks and both language tables, so the payback of the diet shows in the START and MAIN caps (lowered by 8_000 and 12_200), not here: see DECISIONS "Round 23 integration". Older: // Bundle-diet-2: 396_000 before; measured 397_892 (+2_575: the two tables gzip separately, 8_779 + 9_141, instead of 15_4xx inside main; the total counts the lazy chunks too, so the payback of diet step 1 shows in the START and MAIN caps below, not here; see DECISIONS "Bundle-diet-2"). Older: // Round 22 merge: 393_000 before; measured 395_288 with the ship code, the three structure models in one shared mesh and the event ring (rule of DECISIONS "Bundle diet" 3: paid back by diet step 1, the language tables, about 8.8 kB, which is the NEXT pass and must lower this cap by at least 8_000). Older: // M13c-1: 391_000 before; measured 392_934 with the ship table, the sea route, LaunchShip and the ship snapshot (rule of DECISIONS "Bundle diet" 3: paid back by diet step 1, the language tables, about 8.8 kB, in the pass "Bundle diet 1-3"). Older: 391_000 // Round 19 merge: 370_000 before; measured 372_309 with the technology rules, the federation setup and the helicopter effects, + 5 %
+const JS_GZ_MAIN_MAX = 303_500; // Bundle-diet-2: 315_700 before; measured 294_681 after the two language tables left the main chunk (own chunks, import()), + 3 %. Older: // Bundle-diet-1: 321_000 before; measured 306_484 after the dev modules left the main chunk (steps 2 and 3 of the diet), + 3 %. Older notes: // M18d-2: 311_000 before; measured 311_035 with the research panel, + 3 %. M20a-2: 294_500 before, measured 296_501 with the nation labels, the front arrows and the attack-front snapshot, + 5 %. M13b: 277_000 before; measured 280_318 + 5 % (the page now carries Los, Nav, planRoute and scoreLz for the preview; before, they lived only in the sim worker)
 
 describe('portable build (relative addresses only)', () => {
   let dist = '';
@@ -81,7 +81,7 @@ describe('portable build (relative addresses only)', () => {
 });
 
 /** Bundle-diet-1: the first load (the script and the modulepreload chunks of index.html), gzip level 9, measured 348_938 + 3 %. */
-const JS_GZ_START_MAX = 359_500;
+const JS_GZ_START_MAX = 351_500; // Bundle-diet-2: 359_500 before; measured 341_231 (the start load no longer carries a language table; the active one is fetched at boot, about 9 kB), + 3 %
 /** Chunks that must exist (the dynamic import() targets) and must NOT be in the first load. */
 const LAZY_CHUNKS = ['devpanel', 'modes', 'perfOverlay', 'perfScene', 'spike', 'mainThreadHost', 'aiDriver', 'matchHash'];
 
@@ -105,6 +105,23 @@ describe('portable build: the first load stays small (Bundle-diet-1)', () => {
     }
     const gz = start.reduce((sum, f) => sum + gzipSync(fs.readFileSync(path.join(dist, 'assets', f)), { level: 9 }).length, 0);
     expect(gz).toBeLessThanOrEqual(JS_GZ_START_MAX);
+  });
+
+  // Bundle-diet-2: a unique Swedish and a unique English string of the tables. Each lives in a chunk of its own (loaded by import() for the ACTIVE language only), in
+  // none of the first-load chunks and in no other chunk, so the start load never carries both languages.
+  it('keeps each language table in a chunk of its own, outside the first load', () => {
+    const html = fs.readFileSync(path.join(dist, 'index.html'), 'utf8');
+    const start = new Set([...html.matchAll(/assets\/([^"]+\.js)/g)].map((m) => m[1] as string));
+    const all = fs.readdirSync(path.join(dist, 'assets')).filter((f) => f.endsWith('.js'));
+    const holders = (needle: string): string[] => all.filter((f) => fs.readFileSync(path.join(dist, 'assets', f), 'utf8').includes(needle));
+    const sv = holders('Erövra jorden');
+    const en = holders('Conquer the Earth');
+    expect(sv.length, 'the Swedish table is in exactly one chunk').toBe(1);
+    expect(en.length, 'the English table is in exactly one chunk').toBe(1);
+    expect(sv[0]).not.toBe(en[0]);
+    expect(sv[0]).toMatch(/^i18n\.sv-/);
+    expect(en[0]).toMatch(/^i18n\.en-/);
+    expect(start.has(sv[0] as string) || start.has(en[0] as string), 'no table in the first load').toBe(false);
   });
 
   it('keeps the shared sim chunk in one place (not copied into the lazy host chunk)', () => {

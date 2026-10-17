@@ -578,6 +578,7 @@ describe('the live page: the start screen first, Play, language, Dev', () => {
     const { page, messages } = await live('#seed-7');
     try {
       await fastClick(page, '[data-testid="start-language"]');
+      await page.waitForFunction(() => document.querySelector('[aria-busy="true"]') === null); // Bundle-diet-2: the other table may still be loading
       expect(await page.locator('[data-testid="play"]').textContent()).toBe('Play');
       expect(await page.locator('[data-testid="start-title"]').textContent()).toBe('Conquer the Earth');
       expect(await page.locator('[data-testid="start-language"]').textContent()).toBe('Svenska');
@@ -585,8 +586,10 @@ describe('the live page: the start screen first, Play, language, Dev', () => {
       expect(helpEn).toEqual([TABLES.en['help.click'], TABLES.en['help.drag'], TABLES.en['help.commit'], TABLES.en['help.speed'], TABLES.en['help.dev']]);
       fs.writeFileSync(path.join(SHOT_DIR, 'start-en.png'), await page.screenshot({ type: 'png' }));
       await fastClick(page, '[data-testid="start-language"]');
+      await page.waitForFunction(() => document.querySelector('[aria-busy="true"]') === null); // Bundle-diet-2: the other table may still be loading
       expect(await page.locator('[data-testid="play"]').textContent()).toBe('Spela');
       await fastClick(page, '[data-testid="start-language"]');
+      await page.waitForFunction(() => document.querySelector('[aria-busy="true"]') === null); // Bundle-diet-2: the other table may still be loading
       expect(await page.locator('[data-dev-panel]').isVisible()).toBe(false);
       await fastClick(page, '[data-testid="start-dev"]');
       expect(await page.locator('[data-dev-panel]').isVisible()).toBe(true);

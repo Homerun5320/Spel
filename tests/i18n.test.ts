@@ -164,7 +164,7 @@ function listTs(dir: string): string[] {
 const KEY_LITERAL = /'((?:app|start|help|hotkey|hud|phase|reject|toast|tooltip|class|setup|sel|win|pause|result|elim|spectator|deploy|heli|diplo|tech)\.[A-Za-z0-9]+(?:\.[A-Za-z0-9]+)?)'/g;
 
 describe('the source and the tables agree', () => {
-  const files = listTs(SRC).filter((f) => !f.endsWith(path.join('ui', 'i18n.ts')));
+  const files = listTs(SRC).filter((f) => !/i18n(\.(sv|en))?\.ts$/.test(f));
   const used = new Map<string, string>();
   for (const f of files) {
     const text = fs.readFileSync(f, 'utf8');
@@ -198,7 +198,7 @@ describe('no Swedish text hides in the player-facing code', () => {
   // src/ui and src/app that is not on this explicit list of developer tools (the Dev panel and its mode registry `modes.ts`, the perf and debug files, the report) and of the translation tables themselves), so a new file is covered by default.
   const DEV_TOOLS = /^(?:app\/(?:devpanel|modes|debug[A-Za-z]*|perf[A-Za-z]*|probe[A-Za-z]*)\.ts|ui\/(?:perf[A-Za-z]*|report|debug[A-Za-z]*|probe[A-Za-z]*)\.ts)$/;
   /** The translation tables hold the Swedish text on purpose. */
-  const TABLE_FILES = new Set(['ui/i18n.ts']);
+  const TABLE_FILES = new Set(['ui/i18n.ts', 'ui/i18n.sv.ts', 'ui/i18n.en.ts']);
   const discover = (): string[] => {
     const found: string[] = [];
     for (const dir of ['ui', 'app']) {

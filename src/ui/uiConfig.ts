@@ -239,6 +239,14 @@ export const CITY_VIEW = {
  */
 export const GOLD_DISPLAY_FACTOR = 100;
 
+/** Bundle-diet-2: the language-load notice (a failed table fetch) and the busy look of a language button while the other table loads. */
+export const LANG_NOTICE = {
+  background: 'rgba(60, 20, 20, 0.92)',
+  color: '#ffd9d9',
+  font: '14px system-ui, sans-serif',
+  busyOpacity: 0.55,
+} as const;
+
 /**
  * M13b: the deploy mode (send a helicopter). The sliders' defaults and steps, the preview's rate, and the colours of the route line and the landing-zone
  * marker (RGB 0..1, handed to `DeployLayer.setStyle`): the route runs from `routeCool` where an enemy sensor cannot see it to `routeHot` where one can.

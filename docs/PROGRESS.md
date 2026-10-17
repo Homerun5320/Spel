@@ -221,6 +221,18 @@ ACCEPTANS
 - [x] OUTBOX_MISSILE_* reach the page once; `MissileView` in snapshot and mirror; `interceptPhase` exists as a no-op.
 - [x] ENGINE 27 / FORMAT 18, both golden files recomputed once; Node == worker; a save in the middle of a flight equals a straight run; the CLI prints identical bytes.
 - [x] `npm run verify:fast` (result in `docs/DECISIONS.md` "M14a").
+### Bundle-diet-2: only the active language is loaded (diet step 1; no rule change, ENGINE and FORMAT unchanged, goldens untouched; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+
+Measured before (gzip level 9, `npm run build` only to measure): first load 356 583 B (main 310 033), all chunks 395 317 B; the two tables were inside main (about 15 400 B).
+
+- [x] Measure per chunk before and after (numbers in `docs/DECISIONS.md` "Bundle-diet-2").
+- [x] `sv` and `en` are two modules (`src/ui/i18n.sv.ts`, `src/ui/i18n.en.ts`); `TextKey` is one type derived from `sv`, `en` stays `Record<TextKey, string>`; `t()` is unchanged and synchronous.
+- [x] The start language loads with `import()` before the first text is built (`loadStartLanguage`, `src/app/langPref.ts`); a failed load falls back to the other language with a visible notice (`app.langError`); test mode and the unit tests register both tables.
+- [x] The language buttons wait for a not-yet-loaded table with a busy state (`src/ui/langSwitch.ts`), a failed load is told to the player.
+- [x] Caps in `tests/portable.test.ts`: first load 359 500 to 351 500, main 315 700 to 303 500; the TOTAL cap had to go UP (396 000 to 400 500, see DECISIONS: the split costs 2 575 B in the sum); a test pins one chunk per language outside the first load.
+- [x] New e2e `e2e/langLazy.test.ts` (live page: requests, switch, remembered choice, load failures).
+- [x] e2e green alone: artifact, hud, setup, setupFix, fixLayout, gpuTip, matchEnd, langLazy.
+- [x] `npm run verify:fast` (result in `docs/DECISIONS.md` "Bundle-diet-2").
 
 ## Next
 

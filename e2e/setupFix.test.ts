@@ -261,6 +261,7 @@ describe('the language is remembered (the live page, no test mode)', () => {
     try {
       expect(await text(page, 'play')).toBe(TABLES.sv['start.play']);
       await fastClick(page, tid('start-language'));
+      await page.waitForFunction(() => document.querySelector('[aria-busy="true"]') === null); // Bundle-diet-2: the other table may still be loading
       expect(await text(page, 'play')).toBe(TABLES.en['start.play']);
       await page.reload({ waitUntil: 'load' });
       await ready(page);
@@ -276,6 +277,7 @@ describe('the language is remembered (the live page, no test mode)', () => {
       expect(await text(page, 'play')).toBe(TABLES.en['start.play']); // still the stored one
       // and back to Swedish by the button, remembered again
       await fastClick(page, tid('start-language'));
+      await page.waitForFunction(() => document.querySelector('[aria-busy="true"]') === null); // Bundle-diet-2: the other table may still be loading
       await page.reload({ waitUntil: 'load' });
       await ready(page);
       expect(await text(page, 'play')).toBe(TABLES.sv['start.play']);
@@ -300,6 +302,7 @@ describe('the language is remembered (the live page, no test mode)', () => {
       await page.goto(`${baseUrl}/?quality=low`, { waitUntil: 'load' });
       await waitVisible(page, tid('start-screen'), 60_000);
       await fastClick(page, tid('start-language'));
+      await page.waitForFunction(() => document.querySelector('[aria-busy="true"]') === null); // Bundle-diet-2: the other table may still be loading
       expect(await text(page, 'play')).toBe(TABLES.en['start.play']);
       expect(messages).toEqual([]);
     } finally {
