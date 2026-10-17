@@ -105,7 +105,7 @@ export function hudCss(): string {
 .build-key { color: ${C.textDim}; font-size: 0.8em; }
 .build-price { color: ${C.gold}; font-variant-numeric: tabular-nums; }
 .build-btn[data-state="locked"] { opacity: 0.45; border-style: dashed; }
-@media (max-width: 1100px) { .build-btn { padding: 0.1em 0.4em; column-gap: 0.3em; } .build-name { font-size: 0.85em; } .build-bar { gap: 0.3em; } } /* M18e-1 integration: a little tighter, so the nine buttons keep clear of the controls panel at 960 px */
+@media (max-width: 1100px) { .build-btn { padding: 0.1em 0.4em; column-gap: 0.3em; } .build-name { font-size: 0.85em; } .build-bar { gap: 0.3em; } .build-wrap { left: calc(50% - 0.9em); } } /* M18e-1 integration: a little tighter and a little to the left, so the nine buttons keep clear of the controls panel at 960 px (the English names are the widest: 340 px against 332 free) */
 @media (min-width: ${BUILD_BAR_TWO_ROWS_MIN_PX}px) and (min-aspect-ratio: 1/1) { .build-bar { grid-template-columns: repeat(5, max-content); } } /* nine buttons in two rows where the bar still fits beside the controls panel; below that three rows */
 .build-hint { width: max-content; max-width: min(20em, calc(100vw - 2em)); text-align: center; padding: 0.35em 0.9em; pointer-events: none; font-size: 0.9em; }
 .toast-stack { position: absolute; left: 50%; bottom: 17em; transform: translateX(-50%); display: flex; flex-direction: column; gap: 0.35em; align-items: center; z-index: ${Z_HUD + 1}; pointer-events: none; font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; font-size: ${fontSize}; }
