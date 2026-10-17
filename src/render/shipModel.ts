@@ -11,11 +11,11 @@ const DECK: Rgb = [0.72, 0.74, 0.76];
 const HOUSE: Rgb = [0.86, 0.87, 0.88];
 const GLASS: Rgb = [0.3, 0.45, 0.58];
 const HATCH: Rgb = [0.25, 0.27, 0.3];
-const WAKE: Rgb = [0.92, 0.97, 1];
+const WAKE: Rgb = [0.78, 0.88, 0.94];
 
 /** The bow tip and the far end of the wake in model units (x forward). */
 export const SHIP_BOW_X = 1.12;
-export const SHIP_WAKE_X = -2.6;
+export const SHIP_WAKE_X = -2.2;
 
 type Section = readonly [number, number, number];
 
@@ -64,7 +64,7 @@ export function buildShip(): ModelData {
   m.box(0.4, 0, 0.3, 0.26, 0.2, 0.27, 0, HATCH, DECK, SHIP_PART_OWNER);
   // the wake: a wedge widening behind the stern and two streaks along the hull sides
   const wy = 0.03;
-  m.quad([-1.0, wy, 0.1], [-1.0, wy, -0.1], [SHIP_WAKE_X, wy, -0.55], [SHIP_WAKE_X, wy, 0.55], WAKE, SHIP_PART_NEUTRAL);
+  m.quad([-1.0, wy, 0.1], [-1.0, wy, -0.1], [SHIP_WAKE_X, wy, -0.42], [SHIP_WAKE_X, wy, 0.42], WAKE, SHIP_PART_NEUTRAL);
   m.quad([-0.2, wy, 0.3], [-1.0, wy, 0.24], [-1.9, wy, 0.62], [-1.5, wy, 0.66], WAKE, SHIP_PART_NEUTRAL);
   m.quad([-0.2, wy, -0.3], [-1.0, wy, -0.24], [-1.9, wy, -0.62], [-1.5, wy, -0.66], WAKE, SHIP_PART_NEUTRAL);
   return m.done();

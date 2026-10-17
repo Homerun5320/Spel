@@ -1,7 +1,9 @@
 // M13c-2: the ship preview (the sim's own verdict and route, proven against the real launch), the ship mode (an input mode with synthetic events) and the ship controller (the page glue,
 // driven with a fake host). The world is the M13c-1 fixture of tools/sim/shipLanding.ts.
 import { describe, expect, it } from 'vitest';
-import { InputStack, type InputMode } from '../../src/app/input';
+import { HotkeyRegistry, registerGameHotkeys } from '../../src/app/hotkeys';
+import { InputStack, isReservedKey, type InputMode } from '../../src/app/input';
+import { TABLES } from '../../src/ui/i18n';
 import { createShipController, type ShipHost, type ShipMatch } from '../../src/app/shipController';
 import { createShipMode, type ShipTarget } from '../../src/app/shipMode';
 import { previewShip, routeLengthQ8, shipEtaSeconds } from '../../src/app/shipPreview';
@@ -243,3 +245,24 @@ describe('the ship controller', () => {
   });
 });
 
+
+describe('the one shortcut of the ship mode', () => {
+  it('B is a match entry (not a reserved key) with a text in both languages, it calls the page, and it is behind a modal and in a text field dead like the others', () => {
+    const reg = new HotkeyRegistry();
+    const log: string[] = [];
+    reg.context = { matchOn: () => true, modalOpen: () => false };
+    registerGameHotkeys(reg, { stack: new InputStack({ id: 'base' } as InputMode), toggleOverlay: () => undefined, commit: () => undefined, togglePause: () => undefined, slower: () => undefined, faster: () => undefined, toggleHelp: () => undefined, ship: () => log.push('ship') });
+    const def = reg.find('b');
+    expect(def?.id).toBe('ship');
+    expect([def?.scope, def?.labelKey, def?.hidden]).toEqual(['match', 'hotkey.ship', undefined]);
+    expect(isReservedKey('b')).toBe(false);
+    expect(reg.listed().map((d) => d.id)).toContain('ship'); // it is in the help overlay
+    expect(TABLES.sv['hotkey.ship']).toBeTruthy();
+    expect(TABLES.en['hotkey.ship']).toBeTruthy();
+    const ev = { key: 'B', ctrlKey: false, altKey: false, metaKey: false, repeat: false, typing: false };
+    expect(reg.handle(ev)).toBe(true);
+    expect(reg.handle({ ...ev, typing: true })).toBe(false);
+    expect(reg.handle({ ...ev, repeat: true })).toBe(false);
+    expect(log).toEqual(['ship']);
+  });
+});

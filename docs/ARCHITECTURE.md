@@ -174,7 +174,7 @@ Budgets per layer in the test tier (`?test=1`, 960x540, DPR 1). `tests/budgets.t
 
 | Lager | Test-tier trianglar | Test-tier draw calls | Uppmätt (M02) |
 |-------|---------------------|----------------------|---------------|
-| Glob (hela glob-scenen) | <= 150 000 | <= 100 | 74 560 trianglar, 3 anrop (Fix-UI: taket för anrop höjdes från 30 till 100, M21-målet, se DECISIONS Fix-UI) |
+| Glob (hela glob-scenen) | <= 150 000 | <= 100 | 74 560 trianglar, 3 anrop (taket 30 -> 100: DECISIONS Fix-UI) |
 | Jordterräng (chunk-trädet: terräng, hav, kust, gränser, nattljus; `?terrain=fixed` ger det gamla jordnätet, 65 536 trianglar) | <= 100 000 | <= 1 | M07a: 37 184 trianglar i standardvyn, högst 96 000 (taket 150 chunks), 1 anrop |
 | Atmosfärskal (baksides-additiv) | <= 10 000 | <= 1 | 9 024 trianglar, 1 anrop |
 | Stjärnor (punkter) | 0 | <= 1 | 0 trianglar, 1 anrop |
@@ -184,6 +184,7 @@ Budgets per layer in the test tier (`?test=1`, 960x540, DPR 1). `tests/budgets.t
 | Utplaceringslagret (M13b: ruttlinjen ritas två gånger, ljust med djuptest och dämpat utan, plus landningsmarkören en gång) | <= 1 000 | <= 3 | M13b: ruttlinjerna har 0 trianglar (linjer, högst 768 hörn), markören 84; 3 anrop när en rutt och en markör visas, 0 annars (mätt av `e2e/deploy.test.ts`) |
 | Helikoptereffekter (M13a-2: damm, rep, trupprickar, flaggor, skugga, ikon; lagret på mot av på en svävande helikopter) | <= 3 500 | <= 4 | Fix-5B: mätt på en svävande helikopter med levande damm: 2 404 trianglar, 3 anrop (1 200 dammkvadrater x 2 = 2 400 när partikellagret ritas, plus skugga och ikon); värsta fallet med alla fyra lagren och 64 skuggor, ikoner och flaggor är cirka 2 800 trianglar, 4 anrop |
 | Frontpilar (M20a-2: en instansierad mesh, högst 32 pilar) | <= 200 | <= 1 | Fix-5B: mätt med en attack: 6 trianglar, 1 anrop (pil med kontur 6 trianglar x högst 32 = 192; taket 16 -> 32 i Fix-5A3) |
+| Fartyg (M13c-2: ett lager, en instansierad mesh, högst 32 skepp) | <= 3 000 | <= 1 | M13c-2: modellen har 76 trianglar (högst 32 x 76 = 2 432), 1 anrop, 0 utan skepp (`e2e/ships.test.ts`) |
 
 
 ## Roadmap

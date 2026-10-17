@@ -977,6 +977,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       buildBar.setVisible(buildBarWanted && (session.view.stats.capital[L] as number) !== 0);
       buildBar.update(session.view, L, placing);
     }
+    shipCtl.frame(); // before the panel: the box shows this frame's preview
     if (selectedId >= 0) {
       const info = selectionInfo(session.view, L, selectedId);
       if (info === null || !info.owned) {
@@ -990,7 +991,6 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       }
     }
     deployFrame(session);
-    shipCtl.frame();
     shipToasts(session);
     if (cityId >= 0) {
       const ci = selectionInfo(session.view, L, cityId);
