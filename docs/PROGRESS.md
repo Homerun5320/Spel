@@ -279,6 +279,23 @@ ACCEPTANS
 - [x] [1.3] / [1.4] Test holes: same-tick double hit, Post does not fire missiles, blocked SAM mask, salvo cut, event cell, date line, Shallows, diagonal rule, portWaterCell west (`tests/sim/fix6a1.test.ts`, mutant table in DECISIONS "Fix-6A1").
 - [x] ENGINE 29 once; `e2e/goldens/sim-hashes.json` and `e2e/goldens/match-hashes.json` recomputed once; CLI and version pins follow.
 - [x] `npm run verify:fast` green (319 files, 3498 tests; run once at the end by the builder; the full `verify` by the orchestrator after the merge).
+### Fix-6A2: audit 5, test holes in host, missiles, ships, serialize guards, air defence, AI groups, loaders and UI models (headless, tests only, no rule change, ENGINE and FORMAT unchanged, goldens untouched; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+
+GOR
+- [x] [1.0] every OUTBOX_HELI_* kind is filtered and every column of a hidden helicopter snapshot is zero (`tests/host/fix6a2Extra.test.ts`, `tests/host/fix6a2Leaks.test.ts`).
+- [x] [1.1] snapshots share no buffer with the live tables; [1.13] a full view steals no pending side facts (same files).
+- [x] [1.2] missile launch, previewThreat and blast rules (`tests/sim/fix6a2Missiles.test.ts`); [1.3] interception details (same file).
+- [x] [1.4] date line and Shallows for ships; [1.5] elimination in every ship state and recycled Port slots (`tests/sim/fix6a2Ships.test.ts`).
+- [x] [1.6] Los memo version on conquest, hold-timer heir (`tests/sim/fix6a2Fix5.test.ts`).
+- [x] [1.7] deserialize guards forged one at a time (`tests/sim/fix6a2Deser.test.ts`, `tests/sim/fix6a2Bounds.test.ts`).
+- [x] [1.8] AaIndex.collect with SAM sites against an oracle (`tests/sim/fix6a2AaIndex.test.ts`).
+- [x] [1.9] AI group diplomacy (`tests/ai/fix6a2Diplomacy.test.ts`); [1.10] language loaders (`tests/app/fix6a2Loaders.test.ts`).
+- [x] [1.11] build bar, ship box, hotkey table (`tests/ui/fix6a2Ui.test.ts`); [1.12] model triangles (`tests/render/fix6a2ModelTriangles.test.ts`).
+
+ACCEPTANS
+- [x] The mutants of [1.0] to [1.13] (not 1.14) are killed or justified equivalent (table in `docs/DECISIONS.md` "Fix-6A2").
+- [x] No existing test changed, no src change.
+- [x] `npm run verify:fast` green (result in `docs/DECISIONS.md` "Fix-6A2").
 
 ## Next
 

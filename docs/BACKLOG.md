@@ -703,3 +703,10 @@ M14b
 - Property test for `findShipRoute`: random water maps (with the date line) against a reference Dijkstra with the 10/14 costs. Needs the cost of the found path exposed on `ShipRoute` (today only `pathCells` and the waypoints).
 - `previewShip` (src/app/shipPreview.ts) still calls `portWaterCell` for its early "no water beside the Port" exit; the route comes from `findPortRoute`. The two could share one helper when the app code is next touched.
 - The A* heap has three Int32Arrays of `8 * SHIP_ROUTE_MAX_CELLS + 16` entries; sizing them to the real maximum open set would save memory on the school laptop.
+
+## Fix-6A2 (audit 5 follow-ups)
+
+- A property test for `findShipRoute`: random water maps (with date-line wrap and Shallows) against a reference Dijkstra with the stated 10 / 14 costs (audit 5 finding 1.4).
+- `createBuildBar`: the placing hint is written once when it appears, so a language switch while placing keeps the old language until the next placement; rewrite it when `languageVersion()` changes (a UI change, Fix-6B territory).
+- A generic snapshot-copy test for the structure, beachhead, front and diplomacy snapshotters (the buffer-sharing test of `tests/host/fix6a2Extra.test.ts` covers missiles, helicopters and ships; the others build their arrays fresh).
+- List in `docs/arch/ui.md` which e2e file owns each `src/ui/uiConfig.ts` geometry number (audit 5 finding 1.11).
