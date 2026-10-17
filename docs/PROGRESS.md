@@ -269,6 +269,17 @@ ACCEPTANS
 - [x] e2e and pictures; the touched existing e2e green when run alone.
 - [x] `npm run verify:fast` (result in `docs/DECISIONS.md` "M13c-2").
 
+### Fix-6A1: audit 5, rule faults in the ship route, the landing price, the interceptors and the missile arc (headless, no Chromium; ENGINE 29, FORMAT 19 unchanged; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+
+- [x] [0.0] A ship leaves a Port from the best of ALL its water neighbours (`findPortRoute`, shared by the sim, `validateLaunchShip` and `previewShip`); test with a 1-cell pocket north and open sea east.
+- [x] [0.1] A* heap orders by (f, h, cell): an open voyage of (270,135) and more routes with a few hundred expansions; old route tests unchanged.
+- [x] [0.2] `landingCostMilli` pays FALLOUT_COST_PCT on fallout cells (helicopter and ship landings).
+- [x] [0.3] A destroyed SAM's interceptor rows are dropped (Delete, conquest) and a hit needs a finished site at the meeting tick.
+- [x] [2.4] `missilePosition` is a constant-angular-speed great-circle arc (unit vector, fixed perpendicular near 180 degrees); the flight time is unchanged.
+- [x] [1.3] / [1.4] Test holes: same-tick double hit, Post does not fire missiles, blocked SAM mask, salvo cut, event cell, date line, Shallows, diagonal rule, portWaterCell west (`tests/sim/fix6a1.test.ts`, mutant table in DECISIONS "Fix-6A1").
+- [x] ENGINE 29 once; `e2e/goldens/sim-hashes.json` and `e2e/goldens/match-hashes.json` recomputed once; CLI and version pins follow.
+- [x] `npm run verify:fast` green (319 files, 3498 tests; run once at the end by the builder; the full `verify` by the orchestrator after the merge).
+
 ## Next
 
 - Fix-5 (the audit 4 fixes) is merged on the branch and published as version 32; audit 5 follows after five more published versions (v33 to v37).

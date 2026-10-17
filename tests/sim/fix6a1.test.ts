@@ -315,7 +315,7 @@ describe('[1.3] the interception rules the audit found untested', () => {
   it('a Defense Post is in the AaIndex but never fires a missile interceptor; the same place with a SAM does', () => {
     const post = manualRaid();
     post.s.structures.remove(post.sam);
-    post.s.structures.add(STRUCT_POST, 2, post.samCell, 0);
+    post.s.structures.add(STRUCT_POST, 2, 250 * 1024 + 292, 0); // a Post right under the flight path
     interceptPhase(post.s);
     expect(post.s.missiles.interceptorCount).toBe(0);
     const sam = manualRaid();
@@ -433,17 +433,31 @@ describe('[1.4] ships over the date line, through the shallows, and the west nei
     expect(findShipRoute(m.w, m.h, m.t, m.at(4, 8), m.at(61, 8), r)).toBe(SHIP_ROUTE_OK);
   });
 
-  it('findShipRoute: the east edge wraps for the search and for the straight line (a route from x 250 to x 6 of a 256 wide map)', () => {
+  it('findShipRoute: a one-row channel over the date line is sailed both ways (the search wraps east and west, the straight line wraps too: two waypoints)', () => {
     const m = grid(256, 16, LAND);
-    for (let x = 249; x < 256; x++) for (let y = 0; y < 16; y++) m.t[m.at(x, y)] = SEA;
-    for (let x = 0; x < 8; x++) for (let y = 0; y < 16; y++) m.t[m.at(x, y)] = SEA;
+    for (let x = 249; x < 256; x++) m.t[m.at(x, 8)] = SEA;
+    for (let x = 0; x < 8; x++) m.t[m.at(x, 8)] = SEA;
     const r = new ShipRoute();
     expect(findShipRoute(m.w, m.h, m.t, m.at(250, 8), m.at(9, 8), r)).toBe(SHIP_ROUTE_OK);
     expect(r.count).toBe(2);
     expect((r.cells[1] as number) % 256, 'the sea ends at x 7, two cells from the target').toBe(7);
+    expect(findShipRoute(m.w, m.h, m.t, m.at(5, 8), m.at(247, 8), r)).toBe(SHIP_ROUTE_OK);
+    expect(r.count).toBe(2);
+    expect((r.cells[1] as number) % 256, 'west over x = 0: the sea ends at x 249').toBe(249);
   });
 
-  it('a diagonal needs both orthogonal cells to be water: a one-cell-thick diagonal wall of land cannot be crossed', () => {
+  it('a diagonal needs both orthogonal cells to be water: a staircase channel is sailed step by step (47 cells), a one-land-corner shortcut is not taken', () => {
+    const m = grid(40, 40, LAND);
+    for (let k = 0; k <= 24; k++) {
+      m.t[m.at(3 + k, 3 + k)] = SEA;
+      m.t[m.at(4 + k, 3 + k)] = SEA;
+    }
+    const r = new ShipRoute();
+    expect(findShipRoute(m.w, m.h, m.t, m.at(3, 3), m.at(28, 28), r)).toBe(SHIP_ROUTE_OK);
+    expect(r.pathCells).toBe(47);
+  });
+
+  it('a one-cell-thick diagonal wall of land cannot be crossed', () => {
     const m = grid(32, 32, SEA);
     for (let i = 0; i < 32; i++) m.t[m.at(i, i)] = LAND;
     const r = new ShipRoute();

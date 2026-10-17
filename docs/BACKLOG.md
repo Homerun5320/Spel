@@ -697,3 +697,9 @@ M14b
 
 - `e2e/terrainLeak.serial.test.ts` fails by chance (about 1 run in 10) on "GL Driver Message (OpenGL, Performance, ...): Running out of reserved outsideRenderPass queueSerial" even on the published v33; the leak measurement itself is fine. Options for the owner: (a) treat ANGLE performance hints as non-failing in the console collector of `scripts/shot.mjs` (loosens a check, but only for a driver hint), (b) rerun the file once in `scripts/verify.mjs` for this one message (a documented retry, like the perf project's), (c) leave it and rerun by hand as now.
 
+
+## Fix-6A1
+
+- Property test for `findShipRoute`: random water maps (with the date line) against a reference Dijkstra with the 10/14 costs. Needs the cost of the found path exposed on `ShipRoute` (today only `pathCells` and the waypoints).
+- `previewShip` (src/app/shipPreview.ts) still calls `portWaterCell` for its early "no water beside the Port" exit; the route comes from `findPortRoute`. The two could share one helper when the app code is next touched.
+- The A* heap has three Int32Arrays of `8 * SHIP_ROUTE_MAX_CELLS + 16` entries; sizing them to the real maximum open set would save memory on the school laptop.
