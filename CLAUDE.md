@@ -1,0 +1,116 @@
+# CLAUDE.md
+
+Project rules for every session. Keep this file under 200 lines. Constitution: `docs/CHARTER.md`.
+
+## Language
+- Reply to the user in Swedish. Code, comments, identifiers, docs and commit messages are in English.
+- Exceptions written in Swedish: `docs/PREVIEW.md`, `docs/LOCAL.md`, `docs/SERVER.md` (later), `README.md` (bilingual) and the summary at the top of `docs/BALANCE.md`.
+- Prompt section headings stay Swedish (see `docs/PROMPT_TEMPLATE.md`).
+
+## Clean room (hard invariant)
+- The genre is inspired by territory games in the style of OpenFront.io. NO code, names, maps, branding or assets are copied from it or from any other game. All formulas and numbers are our own.
+- Zero binary game assets. The only committed binaries are golden PNG fixtures in `e2e/goldens/` and (from M01) baked data packs.
+- Other hard invariants (determinism, purity boundary, one balance file, intents only, exact pins, i18n) are in `docs/CHARTER.md` section 2. If a prompt contradicts the charter, stop and ask the user.
+
+## Read order
+1. `docs/CHARTER.md`.
+2. Now / Next in `docs/PROGRESS.md`.
+3. `docs/ARCHITECTURE.md`: an INDEX of modules and public APIs (one short row per module) that each milestone's last step keeps current; details per area are in `docs/arch/` (sim, ai, host, render, ui, app, data, tools, tests): add new detail there, keep the index row short.
+4. Only the source files the index points to. Never read whole directories.
+
+## Commands
+- `npm ci` installs exactly the locked versions (Node >= 22.13, `.nvmrc` = 22).
+- `npm run verify:fast` = typecheck + lint + vitest unit, side by side (`scripts/verify.mjs --fast`, plain Node). The inner loop, target <= 60 s (about 70 s on the 4-core sandbox).
+- `npm run verify` (`scripts/verify.mjs`) = typecheck + lint + `vitest run --project unit` side by side, then `--project perf --passWithNoTests` alone, then `--project e2e` (headless WebGL2 shots and goldens), then `--project e2e-serial` (heap, leak and wall-clock tests: the files `e2e/*.serial.test.ts` and `e2e/heap.test.ts`, one file at a time). It stops at the first failing step and ends with a timing table. Budget <= 8 min (the sandbox floor and the measured times are in D144 of `docs/DECISIONS.md`); since M07b part B it takes 11 to 13 minutes here, so the budget is NOT met (D153, D154 (8), D156 (8): the e2e stage prints the test time per file; `node scripts/verify.mjs --shard i/n` runs the i-th n-th of the unit and e2e test files for CI machines, but `.github/workflows/ci.yml` still runs ONE `npm run verify` job: the three-shard matrix is not wired yet, see Next in `docs/PROGRESS.md` and `docs/BACKLOG.md`). `verify` is the only definition of done.
+- Chromium rule: in the e2e project at most `E2E_WORKERS` (default cores - 1, at most 3; floor(cores / 2), at most 4, with LOCAL_GPU) Chromium instances run side by side, because each SwiftShader frame already uses several cores; none runs during unit, perf or e2e-serial, and you never start a second Chromium command (`shots`, another vitest e2e run) while `verify` runs. A test that measures heap or time goes in a `*.serial.test.ts` file.
+- `npm run verify:local` = the same stages with `LOCAL_GPU=1` on a PC with a real GPU (no SwiftShader switches, `CHROME_PATH`, golden image comparison only warns, `UPDATE_GOLDENS` refused); writes `test-results/local-report.txt`. Steps for the user (Swedish): `docs/LOCAL.md`.
+- Never run a bare `vitest run` (it would mix the projects).
+- `npm test` = unit project, `npm run shots` = smoke screenshot into `test-results/shots/` (`npm run shots:local` = the same with LOCAL_GPU=1, `docs/LOCAL.md`), `npm run dev|build|preview` = Vite.
+- `npm run artifact:pack` (after `npm run build`) = packs `dist` into the gitignored artifact folder for the Claude Artifact preview; options `-- --container=png|wasm|b64 --prev=<file> --probe`. Procedure in `docs/PREVIEW.md`.
+- `npm run bake` (M01) re-bakes `public/data/` from the cached sources in the gitignored cache folder .cache/bake (network only for a cold cache: S3 and raw.githubusercontent.com); `npm run bake:check` verifies the committed packs against `public/data/checksums.json` without network. Never commit synthetic bake output.
+- `npm run sim:run -- --seed N --ticks T` (M03) prints the sim hashes at ticks 1/10/100/1000/6000 and the last tick (compare with `e2e/goldens/sim-hashes.json`; rewrite it only with `UPDATE_GOLDENS=1` through `tests/sim/golden.test.ts`, exact, never warn mode); `npm run gen:lut` rewrites `src/sim/sinLut.ts`.
+- `npm run sim:scenario -- --seed N --minutes 10 --players 12 --tribes 20` (M04) prints the territory per minute of a headless match on the real world (scripted bots in `tools/sim`, never in `src/sim`); `-- --solo` is the calibration scenario whose band `tools/sim/bands.ts` holds.
+- `npm run sim:pace` (D142) prints how fast the game feels in game seconds at 1x (solo, conquest, match; `-- --part`, `--seeds`, `--json`); `npm run sim:scenario -- heli-raid --fixture alps|plains-sam|ridge-sam --seed N` (M12b) replays and counts helicopter raids against air defence; `npm run bake:federations` (M18b-1) prints the report of the federations pack in `public/data/` (no network).
+- Runtime data and page addresses go through `siteUrl()` in `src/app/paths.ts`, never a hand-written relative or absolute data path and never `BASE_URL`.
+- Commands that may exceed 2 minutes run with `run_in_background` and a log file.
+
+## Working rules
+- Write GÖR and ACCEPTANS as a tickable checklist under "Now" in `docs/PROGRESS.md` first, and tick items off.
+- Commit and push WIP at every green sub-goal. If context or usage runs low, commit and write Now / Next.
+- Never weaken or rewrite a test to make it pass. Never delete a test.
+- No refactoring outside the deliverables.
+- Do not change earlier milestones' tests, tolerances or goldens except where your change provably causes the difference (justify it in `docs/DECISIONS.md`).
+- Ideas go to `docs/BACKLOG.md` instead of being built.
+- `src/ai` imports ONLY `src/sim/public.ts` (ESLint allow-list); a new export there must be added to the pinned export list in `tests/ai/boundary.test.ts`. The AI is on by default, also in `?test=1`; tests that need an empty match open with `ai=0` (`#test_ai-0_seed-7`).
+- Exact dependency pins, no `^` or `~`; never upgrade a dependency mid-milestone. A changed pin is explained in `docs/DECISIONS.md`.
+- Remembered choices (language, menu options, settings) go through `getPref` / `setPref` in `src/app/prefs.ts`, never through `localStorage` directly: the page must work with storage blocked (memory fallback).
+- A match is built by `createMatch(world, config)` in `src/app/matchSetup.ts` (pure and seeded, the fair start of `docs/DECISIONS.md` D112); `e2e/goldens/match-hashes.json` pins four built matches and follows the golden rule below (`UPDATE_GOLDENS=1`).
+- Docs may only mention files that exist or are created now; future files are marked "(later)". Gitignored generated folders (the bake cache, the Artifact pack folder, dist) are written without backticks: `tests/docs.test.ts` checks every backticked path, and a fresh checkout (CI) lacks them.
+- Input: pointer, wheel and key events go through the mode stack of `src/app/input.ts` (`InputStack`, M08); a later mode pushes itself and pops on Escape. The keys 1 to 6, E, H, F and Escape are reserved for it (`RESERVED_KEYS`): no other code binds them. The right click without a drag is `setContextHandler`, the pause menu is `setPauseHandler`.
+- `PROMPTLISTA.md` in the repo root is the user's own prompt list: do not read it, do not change it, do not reference it.
+
+## Time rule
+- Never assert SwiftShader wall-clock time. CPU budgets use `tests/perfguard.ts` (`budgetMs(x)`, factor clamped to [0.5, 4] and logged). Never hard-code a ms limit without perfguard.
+- Heap and memory asserts use `heapDelta(page, fn)` from `scripts/shot.mjs` (gc before/after, median of 3).
+- GPU load is asserted through `renderer.info` counters (calls, triangles, textures), not time.
+- `scripts/shot.mjs` logs times; its only hard limit is a 20 s hang guard.
+
+## Test placement, perf and leak rules
+- Lint rules apply to the source files in `src/sim`, `src/ai` and `src/data` but NOT to `**/*.test.ts`: all tests live in `tests/` (`tests/sim`, `tests/ai`, `*.perf.test.ts`) or `e2e/`, never next to the sources (vitest include: `tests/**/*.test.ts`, `tools/**/*.test.ts`).
+- CPU-budget tests are named `*.perf.test.ts` and run in their own vitest project (pool forks, fileParallelism false, maxWorkers 1). The perf project must always have at least one test.
+- Every perf assert uses the median of at least 5 measurements after 2 warm-ups. A p99 requirement applies only where it is stated explicitly, and then over at least 200 samples. `retry: 1` is allowed in the perf project only and is logged. Every budget states its statistic (median or p99).
+- Leak tests (all heapDelta / memory measurements in later milestones) render in a 320x180 viewport over 60 render calls (3 rounds x 20), threshold 5 MB, median of 3, are tagged `leak-test` in the e2e shell and live in a `*.serial.test.ts` file (open their page with `{ isolated: true }`).
+- e2e speed rules (D144): a wait where nobody looks at the pictures uses `__test.settle(dt, n)` (one draw, not n), a wait on a live page uses `waitFrames`, `waitVisible`, `fastClick` or a `polling` interval, never `waitForTimeout`; tests open pages with `openPage` / `newTestPage` (a tab of a shared context). A SwiftShader frame costs about 0.55 s at 960x540: render fewer or smaller frames before anything else.
+- Test mode `?test=1`: no rAF loop, fixed seed, DPR 1, 960x540 (override with `w`, `h`), MSAA off, preserveDrawingBuffer, `window.__test = { render(), info() }`. Hooks added by later milestones are listed in `docs/ARCHITECTURE.md`.
+
+## i18n
+- Every player-facing string goes through `t(key, params?)` from `src/ui/i18n.ts`. The two tables `sv` (default) and `en` change in the SAME commit; `en` is typed `Record<TextKey, string>` and `tests/i18n.test.ts` checks the keys, the `{placeholders}`, unused keys and Swedish text hiding in code.
+- Test mode (`?test=1`) throws on a key missing from either table (`__test.text(key)` probes it). Colours, sizes and slider steps of the UI live in `src/ui/uiConfig.ts`, never inline.
+- Developer tools (Dev panel, perf overlay and its report, debug pages) stay Swedish only (D98 in `docs/DECISIONS.md`). Country names follow the UI language.
+
+## Golden rule
+- Goldens (`e2e/goldens/*.png`) are authoritative in the cloud session's `verify`.
+- Two renders in one browser start must be byte-identical. Against a committed golden: pixelmatch threshold 0.1 and at most 0.2 % differing pixels (`GOLDEN_MAX_DIFF`, a fraction).
+- Update goldens only with `UPDATE_GOLDENS=1`. A missing golden fails with "kör UPDATE_GOLDENS=1 och committa e2e/goldens/*.png".
+- CI runs the golden comparison with `GOLDEN_COMPARE=warn` (actual/diff are uploaded as artifacts, the step does not fail); everything else fails CI as usual.
+- Never loosen a tolerance silently.
+
+## CI rule and workflow fallback
+- `.github/workflows/ci.yml` triggers on `pull_request` (opened, reopened, synchronize, ready_for_review), `workflow_dispatch` and push to main; drafts are skipped; concurrency per ref with cancel-in-progress.
+- If CI fails after the user marked the PR ready: read the job log with `get_job_logs`, fix, push, wait for the new run. Never merge red CI.
+- If pushing `.github/workflows/*` is refused (the token often lacks `workflow` permission): remove the file from the unpushed commit, move it to `docs/ci/ci.yml.txt` (only when this fallback was used), recommit, push again, and never push `.github/workflows/*` after a refusal. Tell the user exactly how to add it on GitHub (Add file, Create new file, `.github/workflows/ci.yml`, paste) and say which case occurred in `docs/PROGRESS.md`.
+
+## PR and merge flow
+- Always open a DRAFT pull request; a draft cannot be merged.
+- The user asks the SAME session: "Markera PR:en som redo, vänta på grön CI och squash-merga den till main", or does it on GitHub (Ready for review, green check, Squash and merge).
+- If GitHub refuses draft PRs (private repo on a free plan): open an ordinary PR and say so on the FIRST line of the reply; the user then goes straight to Squash and merge.
+- No tags and no SHAs cited from the branch (tag only after merge on main, if pushing tags works).
+- If you cannot open a PR: push and give `https://github.com/Homerun5320/Spel/compare/main...<branch>?expand=1`.
+- Record `git rev-parse origin/main` as the previous merge SHA in `docs/PROGRESS.md` at the start of a milestone.
+
+## Replies
+- Every reply after something playable or visible contains a short "Så spelar du" box (5-10 lines: what to click, keys so far) and the exact addresses in the form `docs/PREVIEW.md` specifies for the chosen path (Artifact: the link plus `#mode`, e.g. `#perf`; local / Netlify: `?param=value`), and always how the same mode is reached through the Dev panel (F2).
+- A final reply states what was done, what deviated, and exactly what the user should test next.
+
+## User lines
+Any of the user's opening lines (those before the text "Du bygger milestone") may be:
+- `Usage efter Mxx: 5h NN %, vecka NN %`: add it to the usage table in `docs/PROGRESS.md`.
+- `Hoppat över: Mxx`: note it under Skipped in `docs/PROGRESS.md` and count the requirement as met; parts that depend on it are skipped and noted in `docs/DECISIONS.md`.
+- `Endast tier 1–2`: stop in M21 after tier 2 and log tier 3 in `docs/BACKLOG.md`.
+- `Kapa djupet: högst ett justeringspass`: applies to M19.
+The lines may be stacked in any order.
+
+## Compact instruction
+When compacting the conversation keep: the current milestone id and branch, the exact state of the Now checklist, the last `verify` / `verify:fast` result, the list of files changed, open decisions, the user lines, and the commands above. Drop file dumps and logs.
+
+## Environment (SwiftShader)
+- The cloud container has no GPU: headless Chromium 141 renders WebGL2 in software (SwiftShader). Playwright 1.56.1 matches the installed `chromium-1194`; never upgrade Playwright.
+- `scripts/shot.mjs` passes the Chromium switches as an explicit array; `--enable-precise-memory-info` must be its own argument (see `docs/CHARTER.md` section 6).
+- Network: npm registry, raw.githubusercontent.com, S3 and `git ls-remote` are reachable; CDNs, github.com web/API and cdn.playwright.dev are blocked. Bundle everything.
+- The SessionStart hook (`.claude/session-start.sh`) prints one health line and runs `npm ci` when needed; errors go to `.claude/hook.log`.
+
+## Where things are
+- `docs/CHARTER.md` constitution; `docs/ARCHITECTURE.md` module and API index; `docs/PROGRESS.md` state (Done / Now / Next / Known issues / Skipped, Environment, usage); `docs/DECISIONS.md`; `docs/BACKLOG.md`; `docs/ASSETS.md`; `docs/PROMPT_TEMPLATE.md`; `docs/PREVIEW.md` (Swedish preview guide and Artifact update procedure, M00b); `docs/LOCAL.md` (Swedish: run and test on the user's own PC with a real GPU, `npm run verify:local`).
+- `CREDITS.md` (M01) credits Terrarium and Natural Earth; baked packs live in `public/data/`.
+- `docs/BALANCE.md` (M04) tabulates every constant of `src/sim/rules.ts`; a test keeps the two in step.
+- Later: `docs/SERVER.md`, `docs/ART.md` (both "(later)").

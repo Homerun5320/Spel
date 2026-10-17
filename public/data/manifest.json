@@ -1,0 +1,14 @@
+{
+ "federations": {
+  "enc": "raw",
+  "file": "federations.bin.gz"
+ },
+ "render": {
+  "enc": "raw",
+  "file": "render.bin.gz"
+ },
+ "sim": {
+  "enc": "raw",
+  "file": "sim.bin.gz"
+ }
+}

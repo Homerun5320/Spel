@@ -1,0 +1,52 @@
+{
+  "schema": 1,
+  "engineVersion": 29,
+  "formatVersion": 19,
+  "seed": 1,
+  "width": 128,
+  "height": 64,
+  "seats": 4,
+  "debugIntents": true,
+  "mapHash": "ffa491cd",
+  "ticks": [
+    1,
+    10,
+    100,
+    1000,
+    6000
+  ],
+  "hashes": {
+    "1": "f69ea307",
+    "10": "c343db01",
+    "100": "0a110639",
+    "1000": "81e84593",
+    "6000": "dd75d17f"
+  },
+  "canary": {
+    "values": 100000,
+    "hash": "50a514cc"
+  },
+  "alt": {
+    "seed": 2,
+    "mapHash": "af5c3682",
+    "ticks": [
+      10,
+      100,
+      1000
+    ],
+    "hashes": {
+      "10": "b2ce6fa9",
+      "100": "d747310a",
+      "1000": "c715585f"
+    }
+  },
+  "adversarial": {
+    "hashes": {
+      "1": "f69ea307",
+      "10": "09ca16a3",
+      "100": "e7b39ac6",
+      "1000": "05948209",
+      "6000": "98ec6bf1"
+    }
+  }
+}

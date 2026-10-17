@@ -1,0 +1,8 @@
+// AI v0 (M05 part C). The AI reads a SimView and answers with intents; it imports nothing from the sim but src/sim/public.ts.
+export { createAiMemory, type AiMemory } from './memory';
+export { pickSpawnCell } from './place';
+export { buildMove } from './build';
+export { think } from './think';
+export { memoryWords, loadMemoryWords, MEMORY_FIXED_WORDS, diplomacyWords, loadDiplomacyWords, diplomacyWordCount } from './memory';
+export { diplomacyMove } from './diplomacy';
+export { researchMove } from './research';

@@ -1,0 +1,397 @@
+// Compact binary codec of intents and turns. Unsigned LEB128 varints in their shortest form only (a longer encoding of
+// the same number is an error), so every accepted byte string has exactly one meaning and re-encodes to itself.
+//
+//   intent  = kind:u8  seat:u8  id:varint  [payload]
+//     payload: DebugPaint and Spawn: cell:varint;  Attack: target:varint pct:varint;  CancelAttack: target:varint;  DebugGive: gold:varint troops:varint;  Build: type:varint cell:varint;  Upgrade and Delete: structure:varint;  BuildDistrict: structure:varint slot:varint districtKind:varint;  UpgradeDistrict and RemoveDistrict: structure:varint slot:varint;  ProduceHeli: factory:varint;  LaunchHeli: factory:varint lzCell:varint troops:varint altMode:varint;  RecallHeli: heli:varint;  LaunchShip: port:varint targetCell:varint troops:varint;  LaunchMissile: silo:varint missileClass:varint targetCell:varint;  ProposeTreaty: to:varint treaty:varint;  AcceptTreaty and DeclineTreaty: from:varint;  BreakTreaty: with:varint;  ImposeEmbargo and LiftEmbargo: target:varint;  Research: tech:varint;  CancelResearch and Noop: none
+//   turn    = turn:varint  count:varint  intent*count
+//
+// Decoding is total: any bytes give either a value or an error result; nothing throws. The decoder checks only what the
+// bytes can show (known kind, number ranges, no trailing bytes); whether a seat or a cell exists is for step() to judge.
+import { INTENT_KINDS, kindCode, type Intent, type TurnIntents } from './intents';
+import { MAX_INTENTS_PER_TURN } from './rules';
+
+export type DecodeError = 'truncated' | 'varint' | 'kind' | 'count' | 'trailing' | 'input';
+
+export type DecodeResult<T> =
+  | { readonly ok: true; readonly value: T }
+  | { readonly ok: false; readonly error: DecodeError; readonly offset: number };
+
+/** Shortest wire size of an intent: kind, seat, one id byte. */
+const MIN_INTENT_BYTES = 3;
+
+function varintSize(v: number): number {
+  return v < 0x80 ? 1 : v < 0x4000 ? 2 : v < 0x200000 ? 3 : v < 0x10000000 ? 4 : 5;
+}
+
+function putVarint(out: Uint8Array, at: number, v: number): number {
+  let x = v;
+  let p = at;
+  while (x >= 0x80) {
+    out[p++] = (x % 128) | 0x80;
+    x = Math.floor(x / 128);
+  }
+  out[p++] = x;
+  return p;
+}
+
+function isU32(v: unknown): v is number {
+  return typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= 4294967295;
+}
+
+function isU8(v: unknown): v is number {
+  return typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= 255;
+}
+
+/** A new kind with a payload adds its case to intentSize, putIntent, assertEncodable and Reader.intent. */
+function intentSize(i: Intent): number {
+  const head = 2 + varintSize(i.id);
+  switch (i.kind) {
+    case 'DebugPaint':
+    case 'Spawn':
+      return head + varintSize(i.cell);
+    case 'Attack':
+      return head + varintSize(i.target) + varintSize(i.pct);
+    case 'CancelAttack':
+      return head + varintSize(i.target);
+    case 'DebugGive':
+      return head + varintSize(i.gold) + varintSize(i.troops);
+    case 'Build':
+      return head + varintSize(i.type) + varintSize(i.cell);
+    case 'Upgrade':
+    case 'Delete':
+      return head + varintSize(i.structure);
+    case 'ProduceHeli':
+      return head + varintSize(i.factory);
+    case 'LaunchHeli':
+      return head + varintSize(i.factory) + varintSize(i.lzCell) + varintSize(i.troops) + varintSize(i.altMode);
+    case 'RecallHeli':
+      return head + varintSize(i.heli);
+    case 'LaunchMissile':
+      return head + varintSize(i.silo) + varintSize(i.missileClass) + varintSize(i.targetCell);
+    case 'LaunchShip':
+      return head + varintSize(i.port) + varintSize(i.targetCell) + varintSize(i.troops);
+    case 'ProposeTreaty':
+      return head + varintSize(i.to) + varintSize(i.treaty);
+    case 'AcceptTreaty':
+    case 'DeclineTreaty':
+      return head + varintSize(i.from);
+    case 'BreakTreaty':
+      return head + varintSize(i.with);
+    case 'ImposeEmbargo':
+    case 'LiftEmbargo':
+      return head + varintSize(i.target);
+    case 'Research':
+      return head + varintSize(i.tech);
+    case 'BuildDistrict':
+      return head + varintSize(i.structure) + varintSize(i.slot) + varintSize(i.districtKind);
+    case 'UpgradeDistrict':
+    case 'RemoveDistrict':
+      return head + varintSize(i.structure) + varintSize(i.slot);
+    default:
+      return head;
+  }
+}
+
+function putIntent(out: Uint8Array, at: number, i: Intent): number {
+  out[at] = kindCode(i.kind);
+  out[at + 1] = i.seat;
+  let p = putVarint(out, at + 2, i.id);
+  if (i.kind === 'DebugPaint' || i.kind === 'Spawn') p = putVarint(out, p, i.cell);
+  else if (i.kind === 'Attack') {
+    p = putVarint(out, p, i.target);
+    p = putVarint(out, p, i.pct);
+  } else if (i.kind === 'CancelAttack') p = putVarint(out, p, i.target);
+  else if (i.kind === 'DebugGive') {
+    p = putVarint(out, p, i.gold);
+    p = putVarint(out, p, i.troops);
+  } else if (i.kind === 'Build') {
+    p = putVarint(out, p, i.type);
+    p = putVarint(out, p, i.cell);
+  } else if (i.kind === 'Upgrade' || i.kind === 'Delete') p = putVarint(out, p, i.structure);
+  else if (i.kind === 'ProduceHeli') p = putVarint(out, p, i.factory);
+  else if (i.kind === 'LaunchHeli') {
+    p = putVarint(out, p, i.factory);
+    p = putVarint(out, p, i.lzCell);
+    p = putVarint(out, p, i.troops);
+    p = putVarint(out, p, i.altMode);
+  } else if (i.kind === 'RecallHeli') p = putVarint(out, p, i.heli);
+  else if (i.kind === 'LaunchMissile') {
+    p = putVarint(out, p, i.silo);
+    p = putVarint(out, p, i.missileClass);
+    p = putVarint(out, p, i.targetCell);
+  } else if (i.kind === 'LaunchShip') {
+    p = putVarint(out, p, i.port);
+    p = putVarint(out, p, i.targetCell);
+    p = putVarint(out, p, i.troops);
+  }
+  else if (i.kind === 'ProposeTreaty') {
+    p = putVarint(out, p, i.to);
+    p = putVarint(out, p, i.treaty);
+  } else if (i.kind === 'AcceptTreaty' || i.kind === 'DeclineTreaty') p = putVarint(out, p, i.from);
+  else if (i.kind === 'BreakTreaty') p = putVarint(out, p, i.with);
+  else if (i.kind === 'ImposeEmbargo' || i.kind === 'LiftEmbargo') p = putVarint(out, p, i.target);
+  else if (i.kind === 'Research') p = putVarint(out, p, i.tech);
+  else if (i.kind === 'BuildDistrict') {
+    p = putVarint(out, p, i.structure);
+    p = putVarint(out, p, i.slot);
+    p = putVarint(out, p, i.districtKind);
+  } else if (i.kind === 'UpgradeDistrict' || i.kind === 'RemoveDistrict') {
+    p = putVarint(out, p, i.structure);
+    p = putVarint(out, p, i.slot);
+  }
+  return p;
+}
+
+function payloadEncodable(i: Intent): boolean {
+  switch (i.kind) {
+    case 'DebugPaint':
+    case 'Spawn':
+      return isU32(i.cell);
+    case 'Attack':
+      return isU32(i.target) && isU32(i.pct);
+    case 'CancelAttack':
+      return isU32(i.target);
+    case 'DebugGive':
+      return isU32(i.gold) && isU32(i.troops);
+    case 'Build':
+      return isU32(i.type) && isU32(i.cell);
+    case 'Upgrade':
+    case 'Delete':
+      return isU32(i.structure);
+    case 'ProduceHeli':
+      return isU32(i.factory);
+    case 'LaunchHeli':
+      return isU32(i.factory) && isU32(i.lzCell) && isU32(i.troops) && isU32(i.altMode);
+    case 'RecallHeli':
+      return isU32(i.heli);
+    case 'LaunchMissile':
+      return isU32(i.silo) && isU32(i.missileClass) && isU32(i.targetCell);
+    case 'LaunchShip':
+      return isU32(i.port) && isU32(i.targetCell) && isU32(i.troops);
+    case 'ProposeTreaty':
+      return isU32(i.to) && isU32(i.treaty);
+    case 'AcceptTreaty':
+    case 'DeclineTreaty':
+      return isU32(i.from);
+    case 'BreakTreaty':
+      return isU32(i.with);
+    case 'ImposeEmbargo':
+    case 'LiftEmbargo':
+      return isU32(i.target);
+    case 'Research':
+      return isU32(i.tech);
+    case 'BuildDistrict':
+      return isU32(i.structure) && isU32(i.slot) && isU32(i.districtKind);
+    case 'UpgradeDistrict':
+    case 'RemoveDistrict':
+      return isU32(i.structure) && isU32(i.slot);
+    default:
+      return true;
+  }
+}
+
+function assertEncodable(i: Intent): void {
+  if (kindCode(i.kind) < 0 || !isU8(i.seat) || !isU32(i.id) || !payloadEncodable(i)) {
+    throw new RangeError('intent is not representable on the wire (kind, seat 0..255, id, cell, target and pct 0..2^32-1)');
+  }
+}
+
+/** Encodes one intent. Throws RangeError for a value the wire cannot hold (a sender-side programming error). */
+export function encodeIntent(i: Intent): Uint8Array {
+  assertEncodable(i);
+  const out = new Uint8Array(intentSize(i));
+  putIntent(out, 0, i);
+  return out;
+}
+
+/** Encodes a turn. Throws RangeError for an unrepresentable intent or turn, or more than MAX_INTENTS_PER_TURN intents. */
+export function encodeTurn(t: TurnIntents): Uint8Array {
+  if (!isU32(t.turn) || t.intents.length > MAX_INTENTS_PER_TURN) throw new RangeError('turn is not representable on the wire');
+  let size = varintSize(t.turn) + varintSize(t.intents.length);
+  for (const i of t.intents) {
+    assertEncodable(i);
+    size += intentSize(i);
+  }
+  const out = new Uint8Array(size);
+  let p = putVarint(out, 0, t.turn);
+  p = putVarint(out, p, t.intents.length);
+  for (const i of t.intents) p = putIntent(out, p, i);
+  return out;
+}
+
+class Reader {
+  pos = 0;
+  error: DecodeError | null = null;
+  errorAt = 0;
+  constructor(readonly bytes: Uint8Array) {}
+
+  fail(error: DecodeError): 0 {
+    if (this.error === null) {
+      this.error = error;
+      this.errorAt = this.pos;
+    }
+    return 0;
+  }
+
+  u8(): number {
+    if (this.pos >= this.bytes.length) return this.fail('truncated');
+    return this.bytes[this.pos++] as number;
+  }
+
+  /** An unsigned 32-bit varint in its shortest form. */
+  varint(): number {
+    let value = 0;
+    let scale = 1;
+    for (let n = 0; n < 5; n++) {
+      if (this.pos >= this.bytes.length) return this.fail('truncated');
+      const b = this.bytes[this.pos++] as number;
+      value += (b & 0x7f) * scale;
+      if ((b & 0x80) === 0) {
+        if (n > 0 && b === 0) return this.fail('varint');
+        if (value > 4294967295) return this.fail('varint');
+        return value;
+      }
+      scale *= 128;
+    }
+    return this.fail('varint');
+  }
+
+  intent(): Intent | null {
+    const kindByte = this.u8();
+    if (this.error !== null) return null;
+    const kind = INTENT_KINDS[kindByte];
+    if (kind === undefined) {
+      this.pos--;
+      this.fail('kind');
+      return null;
+    }
+    const seat = this.u8();
+    const id = this.varint();
+    if (kind === 'DebugPaint' || kind === 'Spawn') {
+      const cell = this.varint();
+      return this.error === null ? { kind, seat, id, cell } : null;
+    }
+    if (kind === 'Attack') {
+      const target = this.varint();
+      const pct = this.varint();
+      return this.error === null ? { kind, seat, id, target, pct } : null;
+    }
+    if (kind === 'CancelAttack') {
+      const target = this.varint();
+      return this.error === null ? { kind, seat, id, target } : null;
+    }
+    if (kind === 'DebugGive') {
+      const gold = this.varint();
+      const troops = this.varint();
+      return this.error === null ? { kind, seat, id, gold, troops } : null;
+    }
+    if (kind === 'Build') {
+      const type = this.varint();
+      const cell = this.varint();
+      return this.error === null ? { kind, seat, id, type, cell } : null;
+    }
+    if (kind === 'Upgrade' || kind === 'Delete') {
+      const structure = this.varint();
+      return this.error === null ? { kind, seat, id, structure } : null;
+    }
+    if (kind === 'ProduceHeli') {
+      const factory = this.varint();
+      return this.error === null ? { kind, seat, id, factory } : null;
+    }
+    if (kind === 'LaunchHeli') {
+      const factory = this.varint();
+      const lzCell = this.varint();
+      const troops = this.varint();
+      const altMode = this.varint();
+      return this.error === null ? { kind, seat, id, factory, lzCell, troops, altMode } : null;
+    }
+    if (kind === 'RecallHeli') {
+      const heli = this.varint();
+      return this.error === null ? { kind, seat, id, heli } : null;
+    }
+    if (kind === 'LaunchMissile') {
+      const silo = this.varint();
+      const missileClass = this.varint();
+      const targetCell = this.varint();
+      return this.error === null ? { kind, seat, id, silo, missileClass, targetCell } : null;
+    }
+    if (kind === 'LaunchShip') {
+      const port = this.varint();
+      const targetCell = this.varint();
+      const troops = this.varint();
+      return this.error === null ? { kind, seat, id, port, targetCell, troops } : null;
+    }
+    if (kind === 'ProposeTreaty') {
+      const to = this.varint();
+      const treaty = this.varint();
+      return this.error === null ? { kind, seat, id, to, treaty } : null;
+    }
+    if (kind === 'AcceptTreaty' || kind === 'DeclineTreaty') {
+      const from = this.varint();
+      return this.error === null ? { kind, seat, id, from } : null;
+    }
+    if (kind === 'BreakTreaty') {
+      const withSeat = this.varint();
+      return this.error === null ? { kind, seat, id, with: withSeat } : null;
+    }
+    if (kind === 'ImposeEmbargo' || kind === 'LiftEmbargo') {
+      const target = this.varint();
+      return this.error === null ? { kind, seat, id, target } : null;
+    }
+    if (kind === 'Research') {
+      const tech = this.varint();
+      return this.error === null ? { kind, seat, id, tech } : null;
+    }
+    if (kind === 'BuildDistrict') {
+      const structure = this.varint();
+      const slot = this.varint();
+      const districtKind = this.varint();
+      return this.error === null ? { kind, seat, id, structure, slot, districtKind } : null;
+    }
+    if (kind === 'UpgradeDistrict' || kind === 'RemoveDistrict') {
+      const structure = this.varint();
+      const slot = this.varint();
+      return this.error === null ? { kind, seat, id, structure, slot } : null;
+    }
+    return this.error === null ? { kind, seat, id } : null;
+  }
+}
+
+function isBytes(x: unknown): x is Uint8Array {
+  return Object.prototype.toString.call(x) === '[object Uint8Array]';
+}
+
+function failure(r: Reader): DecodeResult<never> {
+  return { ok: false, error: r.error ?? 'truncated', offset: r.errorAt };
+}
+
+/** Decodes exactly one intent from the whole of `bytes`. */
+export function decodeIntent(bytes: Uint8Array): DecodeResult<Intent> {
+  if (!isBytes(bytes)) return { ok: false, error: 'input', offset: 0 };
+  const r = new Reader(bytes);
+  const i = r.intent();
+  if (i === null) return failure(r);
+  if (r.pos !== bytes.length) return { ok: false, error: 'trailing', offset: r.pos };
+  return { ok: true, value: i };
+}
+
+/** Decodes a turn from the whole of `bytes`. */
+export function decodeTurn(bytes: Uint8Array): DecodeResult<TurnIntents> {
+  if (!isBytes(bytes)) return { ok: false, error: 'input', offset: 0 };
+  const r = new Reader(bytes);
+  const turn = r.varint();
+  const count = r.varint();
+  if (r.error !== null) return failure(r);
+  if (count > MAX_INTENTS_PER_TURN || count * MIN_INTENT_BYTES > bytes.length - r.pos) {
+    r.errorAt = r.pos;
+    return { ok: false, error: count > MAX_INTENTS_PER_TURN ? 'count' : 'truncated', offset: r.pos };
+  }
+  const intents: Intent[] = [];
+  for (let n = 0; n < count; n++) {
+    const i = r.intent();
+    if (i === null) return failure(r);
+    intents.push(i);
+  }
+  if (r.pos !== bytes.length) return { ok: false, error: 'trailing', offset: r.pos };
+  return { ok: true, value: { turn, intents } };
+}

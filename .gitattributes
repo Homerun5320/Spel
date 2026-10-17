@@ -1,2 +1,6 @@
-# Auto detect text files and perform LF normalization
-* text=auto
+# Auto detect text files and perform LF normalization; text files are checked out with LF on every platform
+# (Windows included: checksums and golden hashes of text files must not change with the line ending).
+* text=auto eol=lf
+*.png binary
+*.gz binary
+*.bin binary
