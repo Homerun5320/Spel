@@ -29,14 +29,11 @@ export interface StructureModel {
   readonly seaward?: boolean;
   build(style?: CityStyle): ModelData;
   /**
-   * M18e-1 (provisional models until M18e-2): the type whose instanced mesh, far icon and geometry this type reuses. The layer makes NO mesh of its own for it (so no new draw
-   * call, and no new triangles in the budget beyond the instances), it writes the instance into the layer of `alias` with `scale` and `ownerMul` applied.
+   * M18e-2: the type whose mesh holds this model. The models with the same `shared` value are concatenated in ONE geometry (in ascending type order) and every vertex
+   * carries the model's kind (1, 2, ...); an instance carries the kind it shows and the vertex shader collapses the other models, so the types cost ONE draw call together.
+   * Absent = the type has a mesh of its own.
    */
-  readonly alias?: number;
-  /** Instance scale on top of the level scale (an aliased type only; default 1). */
-  readonly scale?: number;
-  /** Per-channel factor on the owner colour of the instance, so the provisional model reads as another building (an aliased type only; default 1). */
-  readonly ownerMul?: Rgb;
+  readonly shared?: number;
 }
 
 export type Rgb = readonly [number, number, number];
@@ -144,6 +141,12 @@ export class MeshBuilder {
       this.quad(ring(k, r0, y0), ring(k + 1, r0, y0), ring(k + 1, r1, y1), ring(k, r1, y1), side, sideTint);
       if (r1 > 0) this.tri(c, ring(k + 1, r1, y1), ring(k, r1, y1), top, topTint);
     }
+  }
+
+  /** An n-sided tube (walls only, no caps) around (cx, cz): radius r0 at y0, r1 at y1. A stack of them makes a curved body (a cooling tower) without hidden caps. */
+  tube(n: number, cx: number, cz: number, r0: number, r1: number, y0: number, y1: number, color: Rgb, tint: number): void {
+    const ring = (k: number, r: number, y: number): Rgb => [cx + Math.cos(((k + 0.5) / n) * Math.PI * 2) * r, y, cz + Math.sin(((k + 0.5) / n) * Math.PI * 2) * r];
+    for (let k = 0; k < n; k++) this.quad(ring(k, r0, y0), ring(k + 1, r0, y0), ring(k + 1, r1, y1), ring(k, r1, y1), color, tint);
   }
 
   /** A square-sectioned beam from point a to point b with half-width h (open ends capped). Used for tubes and rails at an angle. */
@@ -397,6 +400,117 @@ function buildPost(): ModelData {
   return m.done();
 }
 
+// --- M18e-2: Airfield, Lab and Plant ---------------------------------------------------------------------------------------------------
+// Three models in ONE shared mesh (see `shared` above). Each sits on the usual pale rim and owner-coloured disc, with a silhouette of its own: the Airfield is
+// FLAT (a runway across the plate with a control tower and a hangar: from above it reads like a landing pad), the Lab is a low building with a glass dome and
+// a tall antenna (research), the Plant is a cooling tower with a steam puff beside a tall banded chimney (the power station).
+const LIGHT_BULB: Rgb = [1, 0.88, 0.55];
+const ASPHALT: Rgb = [0.2, 0.21, 0.23];
+const MARK: Rgb = [0.95, 0.95, 0.92];
+const GLASS_DOME: Rgb = [0.55, 0.78, 0.86];
+const RED_BAND: Rgb = [0.78, 0.2, 0.18];
+const COOLING: Rgb = [0.8, 0.79, 0.76];
+const STEAM: Rgb = [0.96, 0.97, 0.98];
+/** Tint code of the always-lit-at-night bulb (light number 1: lit on the night side from level 1, see the vertex shader). */
+const NIGHT_BULB_TINT = 4;
+
+/** A small flattened octahedron of 8 triangles (a night lamp, `tint` 4 = lit at night, or a puff of steam with tint 0). */
+function bulb(m: MeshBuilder, cx: number, y: number, cz: number, r: number, h: number, color: Rgb, tint: number): void {
+  const top: Rgb = [cx, y + h, cz];
+  const bot: Rgb = [cx, y - h, cz];
+  const ring: Rgb[] = [[cx + r, y, cz], [cx, y, cz + r], [cx - r, y, cz], [cx, y, cz - r]];
+  for (let i = 0; i < 4; i++) {
+    m.tri(ring[i] as Rgb, ring[(i + 1) % 4] as Rgb, top, color, tint);
+    m.tri(ring[(i + 1) % 4] as Rgb, ring[i] as Rgb, bot, color, tint);
+  }
+}
+
+function plateAndDisc(m: MeshBuilder): void {
+  m.plate(8, 1.0, -0.22, 0.04, PLATE_RIM, 0, PLATE_SIDE);
+  m.disc(8, 0.8, 0.055, PLATE_TOP, 1);
+}
+
+/** The Airfield: a runway with dashes and owner-coloured thresholds across the plate, a control tower with a glass cab, a hangar with an owner-coloured roof and a parked plane. */
+function buildAirfield(): ModelData {
+  const m = new MeshBuilder();
+  plateAndDisc(m);
+  m.box(0, 0.02, 1.56, 0.3, 0.04, 0.075, 0, ASPHALT, ASPHALT, 0); // the runway along x
+  m.box(-0.3, -0.27, 0.16, 0.34, 0.04, 0.07, 0, ASPHALT, ASPHALT, 0); // the taxiway to the hangar
+  for (let i = 0; i < 5; i++) {
+    const x = -0.56 + i * 0.28;
+    m.quad([x - 0.07, 0.085, -0.01], [x + 0.07, 0.085, -0.01], [x + 0.07, 0.085, 0.05], [x - 0.07, 0.085, 0.05], MARK, 0); // centre dashes
+  }
+  for (const s of [-1, 1]) m.quad([s * 0.7, 0.085, -0.12], [s * 0.76, 0.085, -0.12], [s * 0.76, 0.085, 0.16], [s * 0.7, 0.085, 0.16], MARK, 1); // thresholds in the owner colour
+  // the tower: a slim shaft, a glass cab with an owner-coloured cap and a short mast
+  m.box(0.3, 0.42, 0.13, 0.13, 0.04, 0.46, 0, WALL_C, WALL_C, 0);
+  m.box(0.3, 0.42, 0.26, 0.26, 0.46, 0.57, 0, GLASS_B, CONCRETE_DARK, 0);
+  m.box(0.3, 0.42, 0.3, 0.3, 0.57, 0.6, 0, WALL_C, PLATE_TOP, 1);
+  m.beam([0.3, 0.6, 0.42], [0.3, 0.84, 0.42], 0.012, HATCH, 0);
+  // the hangar: a hall with a dark door and a gabled roof in the owner's colour
+  m.box(-0.32, -0.55, 0.62, 0.34, 0.04, 0.2, 0, HALL, FLAT_ROOF, 0);
+  m.gable(-0.32, -0.55, 0.62, 0.34, 0.2, 0.3, 0, FLAT_ROOF, 1, HALL);
+  m.quad([-0.52, 0.04, -0.375], [-0.12, 0.04, -0.375], [-0.12, 0.17, -0.375], [-0.52, 0.17, -0.375], HATCH, 0);
+  // a parked plane on the apron: fuselage, wings, tail
+  m.box(0.4, -0.5, 0.36, 0.07, 0.08, 0.15, 0.35, MARK, MARK, 0);
+  m.box(0.4, -0.5, 0.09, 0.4, 0.1, 0.12, 0.35, MARK, MARK, 0);
+  m.box(0.25, -0.44, 0.07, 0.16, 0.14, 0.22, 0.35, MARK, PLATE_TOP, 1);
+  return m.done();
+}
+
+/** The Lab: a low white building with an owner-coloured roof stripe, a wing, a glass dome on a drum (cap in the owner colour) and a tall antenna with cross-bars and a night beacon. */
+function buildLab(): ModelData {
+  const m = new MeshBuilder();
+  plateAndDisc(m);
+  m.box(-0.18, 0.08, 0.85, 0.5, 0.04, 0.26, 0, WALL_C, FLAT_ROOF, 0);
+  m.box(-0.18, 0.08, 0.86, 0.12, 0.26, 0.285, 0, WALL_C, PLATE_TOP, 1);
+  m.box(0.42, -0.32, 0.4, 0.36, 0.04, 0.2, 0, WALL_A, FLAT_ROOF, 0);
+  m.box(-0.18, 0.37, 0.3, 0.04, 0.04, 0.16, 0, HATCH, HATCH, 0); // an entrance
+  // the dome: a drum and three stacked rings of a ten-sided hemisphere
+  const dx = -0.4;
+  const dz = 0.05;
+  m.tube(10, dx, dz, 0.27, 0.27, 0.285, 0.34, WALL_C, 0);
+  m.tube(10, dx, dz, 0.27, 0.22, 0.34, 0.45, GLASS_DOME, 0);
+  m.tube(10, dx, dz, 0.22, 0.13, 0.45, 0.54, GLASS_DOME, 0);
+  m.taperedPrism(10, dx, dz, 0.13, 0, 0.54, 0.6, GLASS_DOME, PLATE_TOP, 1, 1);
+  // the antenna on the roof: a slim mast, two cross-bars, a lamp on top
+  m.taperedPrism(4, 0.15, 0.2, 0.035, 0.012, 0.285, 1.0, CONCRETE, CONCRETE, 0, 0, Math.PI / 4);
+  m.box(0.15, 0.2, 0.26, 0.02, 0.74, 0.76, 0, CONCRETE_DARK, CONCRETE_DARK, 0);
+  m.box(0.15, 0.2, 0.16, 0.02, 0.86, 0.88, 0, CONCRETE_DARK, CONCRETE_DARK, 0);
+  bulb(m, 0.15, 1.04, 0.2, 0.07, 0.08, LIGHT_BULB, NIGHT_BULB_TINT);
+  bulb(m, -0.18, 0.2, 0.4, 0.07, 0.07, LIGHT_BULB, NIGHT_BULB_TINT); // the entrance lamp
+  bulb(m, 0.42, 0.26, -0.32, 0.07, 0.07, LIGHT_BULB, NIGHT_BULB_TINT); // the wing lamp
+  return m.done();
+}
+
+/** The Plant: a ten-sided cooling tower (hourglass profile, owner-coloured rim, a puff of steam above it), a tall chimney in red and white bands with an owner-coloured band, and a boiler hall. */
+function buildPlant(): ModelData {
+  const m = new MeshBuilder();
+  plateAndDisc(m);
+  const cx = -0.3;
+  const cz = -0.15;
+  m.tube(10, cx, cz, 0.36, 0.28, 0.04, 0.3, COOLING, 0);
+  m.tube(10, cx, cz, 0.28, 0.25, 0.3, 0.52, COOLING, 0);
+  m.tube(10, cx, cz, 0.25, 0.29, 0.52, 0.72, COOLING, 0);
+  m.tube(10, cx, cz, 0.29, 0.3, 0.72, 0.77, PLATE_TOP, 1); // the owner-coloured rim
+  m.disc(10, 0.26, 0.7, CONCRETE_DARK, 0); // the dark inside seen from above
+  bulb(m, cx, 0.88, cz, 0.24, 0.1, STEAM, 0);
+  // the chimney: four bands, the top one in the owner colour, a lamp on the top
+  const hx = 0.45;
+  const hz = 0.2;
+  m.tube(6, hx, hz, 0.085, 0.075, 0.04, 0.45, WALL_B, 0);
+  m.tube(6, hx, hz, 0.075, 0.07, 0.45, 0.68, RED_BAND, 0);
+  m.tube(6, hx, hz, 0.07, 0.065, 0.68, 0.9, WALL_C, 0);
+  m.tube(6, hx, hz, 0.065, 0.06, 0.9, 1.12, PLATE_TOP, 1);
+  m.disc(6, 0.06, 1.12, CONCRETE_DARK, 0);
+  bulb(m, hx, 1.18, hz, 0.07, 0.07, LIGHT_BULB, NIGHT_BULB_TINT);
+  // the boiler hall and a turbine annex
+  m.box(0.1, -0.52, 0.7, 0.34, 0.04, 0.3, 0, HALL, PLATE_TOP, 1);
+  m.box(-0.45, 0.5, 0.4, 0.25, 0.04, 0.16, 0.1, WALL_A, FLAT_ROOF, 0);
+  bulb(m, 0.0, 0.17, -0.37, 0.07, 0.07, LIGHT_BULB, NIGHT_BULB_TINT);
+  bulb(m, 0.3, 0.17, -0.37, 0.07, 0.07, LIGHT_BULB, NIGHT_BULB_TINT);
+  return m.done();
+}
+
 /** The registry: structure type number -> model. A type without an entry is not drawn (yet). */
 export const STRUCTURE_MODELS: Readonly<Record<number, StructureModel>> = {
   [STRUCT_CITY]: { name: 'city', radiusM: 700, build: (style: CityStyle = 'old') => (style === 'new' ? buildCityModern() : buildCity()) },
@@ -407,11 +521,27 @@ export const STRUCTURE_MODELS: Readonly<Record<number, StructureModel>> = {
   [STRUCT_SILO]: { name: 'silo', radiusM: 560, build: buildSilo },
   [STRUCT_SAM]: { name: 'sam', radiusM: 520, build: buildSam },
   [STRUCT_POST]: { name: 'post', radiusM: 450, build: buildPost },
-  // M18e-1: provisional models, the geometry of an existing type with another size and colour (instance data only); the real models come with M18e-2.
-  [STRUCT_AIRFIELD]: { name: 'airfield', radiusM: 805, alias: STRUCT_FACTORY, scale: 1.15, ownerMul: [0.7, 0.85, 1], build: buildFactory },
-  [STRUCT_LAB]: { name: 'lab', radiusM: 504, alias: STRUCT_SILO, scale: 0.9, ownerMul: [1, 0.75, 0.55], build: buildSilo },
-  [STRUCT_PLANT]: { name: 'plant', radiusM: 490, alias: STRUCT_FACTORY, scale: 0.7, ownerMul: [1, 0.9, 0.45], build: buildFactory },
+  // M18e-2: three real models in ONE shared mesh (one draw call together; `shared` names the type that owns the mesh)
+  [STRUCT_AIRFIELD]: { name: 'airfield', radiusM: 780, shared: STRUCT_AIRFIELD, build: buildAirfield },
+  [STRUCT_LAB]: { name: 'lab', radiusM: 560, shared: STRUCT_AIRFIELD, build: buildLab },
+  [STRUCT_PLANT]: { name: 'plant', radiusM: 640, shared: STRUCT_AIRFIELD, build: buildPlant },
 };
+
+/** The types whose models share the mesh `owner` (ascending; the kind of a type is its 1-based position here). Empty for a type with a mesh of its own. */
+export function sharedGroup(owner: number): number[] {
+  return modelledTypes().filter((t) => STRUCTURE_MODELS[t]?.shared === owner);
+}
+
+/** The model kind an instance of `type` carries: 1.. in a shared mesh, 0 in a mesh of one model (the vertex shader draws only the vertices of that kind). */
+export function kindOf(type: number): number {
+  const owner = STRUCTURE_MODELS[type]?.shared;
+  return owner === undefined ? 0 : sharedGroup(owner).indexOf(type) + 1;
+}
+
+/** The far-icon shape index of a type (the icon fragment shader draws a shape of its own for each type 1..9). */
+export function iconShapeOf(type: number): number {
+  return type;
+}
 
 /** The type numbers that have a model, ascending. */
 export function modelledTypes(): number[] {
@@ -422,7 +552,6 @@ export function modelledTypes(): number[] {
 
 /** The tint code of city light `n` (1..3): 4 x n. The vertex shader lights it on the night side when the city's level reaches n (shaders/structures.ts). */
 export const CITY_LIGHT_COUNT = 3;
-const LIGHT_BULB: Rgb = [1, 0.88, 0.55];
 
 /**
  * The City's night lights (M10-4): up to CITY_LIGHT_COUNT small bulbs above the blocks, appended to the City's buffers by the layer (they are not

@@ -655,3 +655,8 @@ Events-1
 - `eventsDropped` counts only the ring's cap, not facts the 8192-slot outbox itself refused in a paint storm (`Outbox.dropped`); add it if a consumer needs to know.
 - The helicopter filter reads the viewer's mask at the end of each step. A facts consumer in a Worker host gets the same form (`ViewSnapshot` is copied or transferred whole); no Worker host exists to test it.
 - OUTBOX_SHIP_* (M13c-1) flow through as unknown kinds; if a ship event can reveal a hidden enemy ship, `ViewEventFilter.accept` needs a ship rule like the helicopter one.
+M18e-2
+- `__test.state().structures.byType` has no entries for the types 7 to 9 (it prints null); extend the hook where it is built (not in this slice: `src/app` is another track's).
+- Runway lights for the Airfield (night lamps along the runway) and a windsock; a rotating radar on the Lab; steam that moves on the Plant (one more spinning tint code).
+- If many Airfields, Labs and Plants stand in one match, split the shared mesh into one mesh per type (the vertex cost of the shared mesh is 590 triangles per instance, also for a type that needs only 154).
+- The 800 m camera of the original wish: a "model view" camera that frames one structure from the side at its true size.

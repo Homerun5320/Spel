@@ -129,12 +129,29 @@ GÖR
 ACCEPTANS
 - [x] Three types with levels, prices and effects in `src/sim/rules.ts` and `docs/BALANCE.md`; Build / Upgrade / Delete work for them with the new refusal codes (`tests/sim/m18e1.test.ts`).
 - [x] Fleet cap, production time, research time and gold tested with exact numbers; the 10x limit and the payback tests are green.
-- [x] Keys 7, 8, 9 in the registry and the overlay; texts sv + en; the registry has provisional models without new draw calls (`tests/render/structureModelsAlias.test.ts`).
+- [x] Keys 7, 8, 9 in the registry and the overlay; texts sv + en; the registry has provisional models without new draw calls (`tests/render/structureModelsShared.test.ts`).
 - [x] The AI builds Lab and Plant without an illegal intent; the solo band and `tests/sim/pace.test.ts` are unchanged.
 - [x] ENGINE 25 (FORMAT stays 16), both golden files recomputed once (only the version word moved), Node == worker, serialize round trip.
 - [x] `npm run verify:fast` green: typecheck, lint and 297 unit files (3228 tests) PASS, 1 min 55 s wall (the full `npm run verify` is the orchestrator's).
 
 Note for the user: the Airfield, Lab and Plant look like a bigger Factory, a smaller Silo and a small Factory in another colour until M18e-2 brings real models.
+
+### M18e-2: real models for the Airfield, Lab and Plant (render and pictures; no rule change, ENGINE and FORMAT unchanged, goldens untouched; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+
+GÖR
+- [x] 1. Three procedural models (Airfield 154, Lab 208, Plant 228 triangles, at most 300) in ONE shared geometry; a model kind per vertex (`aModel`) and per instance (`aBuild.z`) makes the vertex shader collapse the other two: one extra draw call for the three types.
+- [x] 2. Registry: the aliases are gone; `trianglesOf`, the ghost (kind), the ring radius per type, the far icons (plus, octagon, tall bar in the same icon draw call) and the night lamps of the Lab and the Plant (same buffers, no extra call).
+- [x] 3. Pictures (3 km and 1.5 km, day and night, two owners, beside the Factory and the Silo) looked at with the Read tool; written to test-results/shots (no new golden).
+- [x] 4. Unit test of the registry and the layer (`tests/render/structureModelsShared.test.ts`), e2e with `renderer.info` and the build-bar buttons 7, 8, 9 (`e2e/structuresAirLabPlant.test.ts`), mutants in the M18e-2 block of `docs/DECISIONS.md`.
+- [x] 5. The leak and heap tests (`e2e/heap.test.ts`, `e2e/deployLeak.serial.test.ts`) alone: green.
+
+ACCEPTANS
+- [x] Three models of their own, one shared geometry, one extra draw call (7 -> 8 in the e2e), triangles as `renderer.info` reports them (590 per instance of the shared mesh).
+- [x] Ghost, ring, far icon and night lamps for the three types; pictures looked at and acceptable.
+- [x] Register unit test and e2e green alone; heap and leak tests green.
+- [x] `npm run verify:fast` green (result in `docs/DECISIONS.md` "M18e-2").
+
+Note for the user: build an Airfield (key 7), a Lab (8) or a Plant (9) and zoom in: a runway with a tower and a hangar, a domed building with an antenna, a cooling tower with a chimney.
 
 ### M17-pre: navOf and per-viewer helicopter visibility (headless sim, host and view; no rule change, ENGINE and FORMAT unchanged, goldens untouched; one slice in its own worktree)
 
