@@ -29,6 +29,7 @@ import { WIN_REASON_LAND, WIN_REASON_LAST, WIN_REASON_NONE, WIN_REASON_SCORE } f
 import { clearDiplomacyOf } from './diplomacyClear';
 import { federationRoots, groupSumScratch } from './groups';
 import { scrapOwnerHelis } from './heliPhase';
+import { scrapOwnerShips } from './shipPhase';
 import { OUTBOX_CAPITAL_LOST, OUTBOX_ELIMINATED, OUTBOX_MATCH_END } from './outbox';
 import { ownerSlots, type GameState } from './state';
 import { STRUCT_CITY, STRUCT_FACTORY } from './structureRules';
@@ -176,6 +177,7 @@ export function winPhase(state: GameState): void {
       clearDiplomacyOf(state, o);
       if (heir !== 0) m.holdOwner = heir;
       scrapOwnerHelis(state, o); // Fix-4A1: no helicopter may land and revive an eliminated seat
+      scrapOwnerShips(state, o); // M13c-1: nor a ship
       state.outbox.push(OUTBOX_ELIMINATED, state.tick - 1, o - 1, 0);
     }
     if (cap !== 0) {

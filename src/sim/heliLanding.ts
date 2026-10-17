@@ -72,30 +72,37 @@ export function landingCostMilli(state: GameState, cell: number, targetOwner: nu
  * Sets the load of helicopter `id` down at its landing zone (`target - 1`). Returns nothing; afterwards the load is 0 unless the landing was not
  * made (own land or a blocked owner: the load stays aboard and flies home), and the events are in the outbox:
  * HELI_LANDED (a = helicopter, b = cells taken, -1 = a failed landing whose load is lost, 0 = no landing was made) and BEACHHEAD_FORMED (a = slot, b = seed).
- * The caller turns the helicopter for home afterwards.
+ * The caller turns the helicopter for home afterwards. The landing itself is `landTroops`, shared with the ships of M13c-1.
  */
 export function performLanding(state: GameState, id: number): void {
   const t = state.helis;
-  const ownerId = t.owner[id] as number;
   const lz = (t.target[id] as number) - 1;
+  t.target[id] = 0;
+  const kept = landTroops(state, t.owner[id] as number, lz, t.load[id] as number, OUTBOX_HELI_LANDED, id);
+  if (!kept) t.load[id] = 0;
+}
+
+/**
+ * THE landing (M12a-3, shared with the ships of M13c-1): `load` troops of `ownerId` set down at the landing zone `lz`: the cells, the price, the beachhead row, the rest of the
+ * load as an Attack. `landedKind` and `unit` name the OUTBOX_*_LANDED event (a = unit, b = cells taken, -1 = the zone could not be taken and the load is lost, 0 = nothing to land on).
+ * Returns true when NO landing was made and the load stays aboard (own land or a blocked owner), false when the load is spent or lost.
+ */
+export function landTroops(state: GameState, ownerId: number, lz: number, load: number, landedKind: number, unit: number): boolean {
   const tick = state.tick;
   const grid = state.grid;
   const w = grid.width;
   const h = grid.cells / w;
   const lzOwner = state.owner[lz] as number;
-  t.target[id] = 0;
   if (state.match.eliminated[ownerId] === 1) {
     // Fix-4A1: an eliminated seat never gets land back (winPhase scraps its helicopters; this is the guard for a state restored from before that rule).
-    t.load[id] = 0;
-    state.outbox.push(OUTBOX_HELI_LANDED, tick, id, -1);
-    return;
+    state.outbox.push(landedKind, tick, unit, -1);
+    return false;
   }
   if (lzOwner === ownerId || (lzOwner !== 0 && landingBlockedBy(state, ownerId, lzOwner))) {
-    state.outbox.push(OUTBOX_HELI_LANDED, tick, id, 0); // nothing to take here: the load flies home with the helicopter
-    return;
+    state.outbox.push(landedKind, tick, unit, 0); // nothing to take here: the load flies home with the carrier
+    return true;
   }
-  let rem = (t.load[id] as number) * QT_PER_TROOP;
-  t.load[id] = 0;
+  let rem = load * QT_PER_TROOP;
   let frac = 0;
   let taken = 0;
   let joined = false; // Fix-4A1: some landed cell touches land the owner already held (before this landing)
@@ -124,12 +131,12 @@ export function performLanding(state: GameState, id: number): void {
   if (taken > 0) joined = touchesOwnLand(state, ownerId, taken);
   if (taken === 0 || state.owner[lz] !== ownerId) {
     // The zone itself could not be taken: the load is lost.
-    state.outbox.push(OUTBOX_HELI_LANDED, tick, id, -1);
-    return;
+    state.outbox.push(landedKind, tick, unit, -1);
+    return false;
   }
   if (frac > 0 && rem > 0) rem -= 1; // the unpaid part of the last cell is paid, rounded up (as CancelAttack does)
   state.match.conquered[ownerId] = ((state.match.conquered[ownerId] as number) + taken) >>> 0;
-  state.outbox.push(OUTBOX_HELI_LANDED, tick, id, taken);
+  state.outbox.push(landedKind, tick, unit, taken);
   // A landing that joins land the owner already held is no beachhead: it is ordinary land at once (Fix-4A1; otherwise a small nation that lands
   // next to its own territory lost ALL of it 450 ticks later, the whole connected territory being the "cluster").
   const slot = joined ? -1 : state.beachheads.add(ownerId, lz, tick, BEACH_CUT_OFF);
@@ -139,6 +146,7 @@ export function performLanding(state: GameState, id: number): void {
     if (state.borders.contact(ownerId, lzOwner) > 0) launchAttack(state, ownerId, lzOwner, rem);
     else addTroops(state, ownerId, rem);
   }
+  return false;
 }
 
 /** The cells a landing took (in order), at most BEACHHEAD_LANDING_CELLS. */

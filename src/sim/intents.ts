@@ -4,13 +4,13 @@
 // Every intent has a seat (0-based) and an id (unsigned 32 bit, unique per seat, handed out by an IdAllocator).
 // Inside one turn intents run in the canonical order (seat, id, kind, payload); the id is the tie-break between the
 // intents of one seat, so the result never depends on the order in which they arrived.
-import { DISTRICT_MAX_SLOTS, HELI_CAPACITY, STRUCT_CAPACITY, STRUCT_TYPE_COUNT, TECH_COUNT } from './rules';
+import { DISTRICT_MAX_SLOTS, HELI_CAPACITY, SHIP_REASON_BASE, STRUCT_CAPACITY, STRUCT_TYPE_COUNT, TECH_COUNT } from './rules';
 import { MAX_SEATS } from './state';
 
-export type IntentKind = 'Noop' | 'DebugPaint' | 'Spawn' | 'Attack' | 'CancelAttack' | 'DebugGive' | 'Build' | 'Upgrade' | 'Delete' | 'BuildDistrict' | 'UpgradeDistrict' | 'RemoveDistrict' | 'ProduceHeli' | 'LaunchHeli' | 'RecallHeli' | 'ProposeTreaty' | 'AcceptTreaty' | 'DeclineTreaty' | 'BreakTreaty' | 'ImposeEmbargo' | 'LiftEmbargo' | 'Research' | 'CancelResearch';
+export type IntentKind = 'Noop' | 'DebugPaint' | 'Spawn' | 'Attack' | 'CancelAttack' | 'DebugGive' | 'Build' | 'Upgrade' | 'Delete' | 'BuildDistrict' | 'UpgradeDistrict' | 'RemoveDistrict' | 'ProduceHeli' | 'LaunchHeli' | 'RecallHeli' | 'ProposeTreaty' | 'AcceptTreaty' | 'DeclineTreaty' | 'BreakTreaty' | 'ImposeEmbargo' | 'LiftEmbargo' | 'Research' | 'CancelResearch' | 'LaunchShip';
 
 /** The intent kinds in wire order (the index is the kind byte of the codec). Append only: a published code never changes meaning. */
-export const INTENT_KINDS: readonly IntentKind[] = ['Noop', 'DebugPaint', 'Spawn', 'Attack', 'CancelAttack', 'DebugGive', 'Build', 'Upgrade', 'Delete', 'BuildDistrict', 'UpgradeDistrict', 'RemoveDistrict', 'ProduceHeli', 'LaunchHeli', 'RecallHeli', 'ProposeTreaty', 'AcceptTreaty', 'DeclineTreaty', 'BreakTreaty', 'ImposeEmbargo', 'LiftEmbargo', 'Research', 'CancelResearch'];
+export const INTENT_KINDS: readonly IntentKind[] = ['Noop', 'DebugPaint', 'Spawn', 'Attack', 'CancelAttack', 'DebugGive', 'Build', 'Upgrade', 'Delete', 'BuildDistrict', 'UpgradeDistrict', 'RemoveDistrict', 'ProduceHeli', 'LaunchHeli', 'RecallHeli', 'ProposeTreaty', 'AcceptTreaty', 'DeclineTreaty', 'BreakTreaty', 'ImposeEmbargo', 'LiftEmbargo', 'Research', 'CancelResearch', 'LaunchShip'];
 
 /** Does nothing; valid for any seat. Exists to prove the pipeline (and as the heartbeat of a lockstep client). */
 export interface NoopBody {
@@ -213,8 +213,21 @@ export interface CancelResearchBody {
   readonly seat: number;
 }
 
+/**
+ * M13c-1 (wire kind 23): a seat sends a transport ship from its finished Port `port` (a structure table id) with `troops` (SHIP_MIN_TROOPS..SHIP_MAX_TROOPS, taken from the
+ * seat's troops at once, and SHIP_LAUNCH_GOLD gold) over the sea to the coast cell `targetCell`, where the troops land by the rules of a helicopter landing. The refusals are
+ * REJECT_PHASE, the REJECT_SHIP_* block (SHIP_REASON_BASE + n), REJECT_HELI_BEACHHEAD_FULL and REJECT_DIPLO_TREATY_BOUND.
+ */
+export interface LaunchShipBody {
+  readonly kind: 'LaunchShip';
+  readonly seat: number;
+  readonly port: number;
+  readonly targetCell: number;
+  readonly troops: number;
+}
+
 /** An intent before it has an id (what the UI submits to a host). */
-export type IntentBody = NoopBody | DebugPaintBody | SpawnBody | AttackBody | CancelAttackBody | DebugGiveBody | BuildBody | UpgradeBody | DeleteBody | BuildDistrictBody | UpgradeDistrictBody | RemoveDistrictBody | ProduceHeliBody | LaunchHeliBody | RecallHeliBody | ProposeTreatyBody | AcceptTreatyBody | DeclineTreatyBody | BreakTreatyBody | ImposeEmbargoBody | LiftEmbargoBody | ResearchBody | CancelResearchBody;
+export type IntentBody = NoopBody | DebugPaintBody | SpawnBody | AttackBody | CancelAttackBody | DebugGiveBody | BuildBody | UpgradeBody | DeleteBody | BuildDistrictBody | UpgradeDistrictBody | RemoveDistrictBody | ProduceHeliBody | LaunchHeliBody | RecallHeliBody | ProposeTreatyBody | AcceptTreatyBody | DeclineTreatyBody | BreakTreatyBody | ImposeEmbargoBody | LiftEmbargoBody | ResearchBody | CancelResearchBody | LaunchShipBody;
 
 export type Intent = IntentBody & { readonly id: number };
 
@@ -256,6 +269,9 @@ export function launchHeliBody(seat: number, factory: number, lzCell: number, tr
 }
 export function recallHeliBody(seat: number, heli: number): RecallHeliBody {
   return { kind: 'RecallHeli', seat, heli };
+}
+export function launchShipBody(seat: number, port: number, targetCell: number, troops: number): LaunchShipBody {
+  return { kind: 'LaunchShip', seat, port, targetCell, troops };
 }
 
 export function proposeTreatyBody(seat: number, to: number, treaty: number): ProposeTreatyBody {
@@ -468,7 +484,7 @@ function isIntegerIn(v: unknown, lo: number, hi: number): boolean {
 /** Why an intent is not valid in this match (REJECT_*), or REJECT_NONE. Total: any value whatsoever may be passed in. */
 export function validateIntent(x: unknown, ctx: ValidateContext): number {
   if (typeof x !== 'object' || x === null) return REJECT_SHAPE;
-  const o = x as { kind?: unknown; seat?: unknown; id?: unknown; cell?: unknown; target?: unknown; pct?: unknown; gold?: unknown; troops?: unknown; type?: unknown; structure?: unknown; slot?: unknown; districtKind?: unknown; factory?: unknown; lzCell?: unknown; altMode?: unknown; heli?: unknown; to?: unknown; treaty?: unknown; from?: unknown; with?: unknown; tech?: unknown };
+  const o = x as { kind?: unknown; seat?: unknown; id?: unknown; cell?: unknown; target?: unknown; pct?: unknown; gold?: unknown; troops?: unknown; targetCell?: unknown; port?: unknown; type?: unknown; structure?: unknown; slot?: unknown; districtKind?: unknown; factory?: unknown; lzCell?: unknown; altMode?: unknown; heli?: unknown; to?: unknown; treaty?: unknown; from?: unknown; with?: unknown; tech?: unknown };
   const code = kindCode(o.kind);
   if (code < 0) return REJECT_KIND;
   if (!isIntegerIn(o.seat, 0, MAX_SEATS - 1) || (o.seat as number) >= ctx.seats) return REJECT_SEAT;
@@ -498,6 +514,10 @@ export function validateIntent(x: unknown, ctx: ValidateContext): number {
     if (!isIntegerIn(o.lzCell, 0, ctx.cells - 1)) return REJECT_CELL;
     if (!isIntegerIn(o.troops, 0, 4294967295)) return REJECT_AMOUNT;
     if (!isIntegerIn(o.altMode, 0, 1)) return REJECT_SHAPE;
+  } else if (o.kind === 'LaunchShip') {
+    if (!isIntegerIn(o.port, 0, STRUCT_CAPACITY - 1)) return REJECT_STRUCT_ID;
+    if (!isIntegerIn(o.targetCell, 0, ctx.cells - 1)) return REJECT_CELL;
+    if (!isIntegerIn(o.troops, 0, 4294967295)) return REJECT_AMOUNT;
   } else if (o.kind === 'RecallHeli') {
     if (!isIntegerIn(o.heli, 0, HELI_CAPACITY - 1)) return REJECT_ID;
   } else if (o.kind === 'ProposeTreaty') {
@@ -539,6 +559,10 @@ function comparePayload(a: Intent, b: Intent): number {
     return a.troops !== b.troops ? a.troops - b.troops : a.altMode - b.altMode;
   }
   if (a.kind === 'RecallHeli' && b.kind === 'RecallHeli') return a.heli - b.heli;
+  if (a.kind === 'LaunchShip' && b.kind === 'LaunchShip') {
+    if (a.port !== b.port) return a.port - b.port;
+    return a.targetCell !== b.targetCell ? a.targetCell - b.targetCell : a.troops - b.troops;
+  }
   if (a.kind === 'ProposeTreaty' && b.kind === 'ProposeTreaty') return a.to !== b.to ? a.to - b.to : a.treaty - b.treaty;
   if ((a.kind === 'AcceptTreaty' && b.kind === 'AcceptTreaty') || (a.kind === 'DeclineTreaty' && b.kind === 'DeclineTreaty')) return a.from - b.from;
   if (a.kind === 'BreakTreaty' && b.kind === 'BreakTreaty') return a.with - b.with;
@@ -570,7 +594,7 @@ export const INVALID_BODY: IntentBody = Object.freeze({ kind: 'Noop', seat: -1 }
  */
 export function copyBody(x: unknown): IntentBody {
   if (typeof x !== 'object' || x === null) return INVALID_BODY;
-  const o = x as { kind?: unknown; seat?: unknown; cell?: unknown; target?: unknown; pct?: unknown; gold?: unknown; troops?: unknown; type?: unknown; structure?: unknown; slot?: unknown; districtKind?: unknown; factory?: unknown; lzCell?: unknown; altMode?: unknown; heli?: unknown; to?: unknown; treaty?: unknown; from?: unknown; with?: unknown; tech?: unknown };
+  const o = x as { kind?: unknown; seat?: unknown; cell?: unknown; target?: unknown; pct?: unknown; gold?: unknown; troops?: unknown; targetCell?: unknown; port?: unknown; type?: unknown; structure?: unknown; slot?: unknown; districtKind?: unknown; factory?: unknown; lzCell?: unknown; altMode?: unknown; heli?: unknown; to?: unknown; treaty?: unknown; from?: unknown; with?: unknown; tech?: unknown };
   const seat = typeof o.seat === 'number' ? o.seat : -1;
   if (o.kind === 'Noop') return { kind: 'Noop', seat };
   if (o.kind === 'DebugPaint') return { kind: 'DebugPaint', seat, cell: typeof o.cell === 'number' ? o.cell : -1 };
@@ -588,6 +612,7 @@ export function copyBody(x: unknown): IntentBody {
   if (o.kind === 'ProduceHeli') return { kind: 'ProduceHeli', seat, factory: num(o.factory) };
   if (o.kind === 'LaunchHeli') return { kind: 'LaunchHeli', seat, factory: num(o.factory), lzCell: num(o.lzCell), troops: num(o.troops), altMode: num(o.altMode) };
   if (o.kind === 'RecallHeli') return { kind: 'RecallHeli', seat, heli: num(o.heli) };
+  if (o.kind === 'LaunchShip') return { kind: 'LaunchShip', seat, port: num(o.port), targetCell: num(o.targetCell), troops: num(o.troops) };
   if (o.kind === 'ProposeTreaty') return { kind: 'ProposeTreaty', seat, to: num(o.to), treaty: num(o.treaty) };
   if (o.kind === 'AcceptTreaty') return { kind: 'AcceptTreaty', seat, from: num(o.from) };
   if (o.kind === 'DeclineTreaty') return { kind: 'DeclineTreaty', seat, from: num(o.from) };
@@ -630,6 +655,8 @@ export function withId(body: IntentBody, id: number): Intent {
       return { kind: 'LaunchHeli', seat: body.seat, factory: body.factory, lzCell: body.lzCell, troops: body.troops, altMode: body.altMode, id };
     case 'RecallHeli':
       return { kind: 'RecallHeli', seat: body.seat, heli: body.heli, id };
+    case 'LaunchShip':
+      return { kind: 'LaunchShip', seat: body.seat, port: body.port, targetCell: body.targetCell, troops: body.troops, id };
     case 'ProposeTreaty':
       return { kind: 'ProposeTreaty', seat: body.seat, to: body.to, treaty: body.treaty, id };
     case 'AcceptTreaty':
@@ -678,3 +705,31 @@ export class IdAllocator {
 export const REJECT_BUILD_MAX_COUNT = 118;
 /** Build of a Plant farther than PLANT_NEAR_CELLS from every City and Port of the seat. */
 export const REJECT_BUILD_NO_NEIGHBOUR = 119;
+
+// M13c-1: the refusals of LaunchShip, a block of their own (SHIP_REASON_BASE + n, as the landing-zone reasons are LZ_REASON_BASE + n). A treaty with the owner of the landing cell is REJECT_DIPLO_TREATY_BOUND (90) and a full beachhead table is REJECT_HELI_BEACHHEAD_FULL (58), as for a helicopter.
+/** LaunchShip from a structure that is not a live Port (no such id, a free slot, or another type). */
+export const REJECT_SHIP_NO_PORT = SHIP_REASON_BASE + 1;
+/** LaunchShip from another seat's Port. */
+export const REJECT_SHIP_NOT_OWNER = SHIP_REASON_BASE + 2;
+/** LaunchShip from a Port that is still being built. */
+export const REJECT_SHIP_PORT_BUILDING = SHIP_REASON_BASE + 3;
+/** LaunchShip from a Port whose ship is out (sailing, landing or returning). */
+export const REJECT_SHIP_PORT_BUSY = SHIP_REASON_BASE + 4;
+/** LaunchShip from a Port whose ship has docked and the cooldown (SHIP_COOLDOWN_TICKS) is still running. */
+export const REJECT_SHIP_COOLDOWN = SHIP_REASON_BASE + 5;
+/** LaunchShip beyond the fleet cap of the owner (SHIP_FLEET_MAX, a cooling-down ship counts). */
+export const REJECT_SHIP_FLEET_CAP = SHIP_REASON_BASE + 6;
+/** LaunchShip with fewer than SHIP_MIN_TROOPS troops. */
+export const REJECT_SHIP_TROOPS_LOW = SHIP_REASON_BASE + 7;
+/** LaunchShip with more than SHIP_MAX_TROOPS troops. */
+export const REJECT_SHIP_TROOPS_HIGH = SHIP_REASON_BASE + 8;
+/** LaunchShip with more troops than the seat has. */
+export const REJECT_SHIP_NO_TROOPS = SHIP_REASON_BASE + 9;
+/** LaunchShip the purse cannot pay (SHIP_LAUNCH_GOLD). */
+export const REJECT_SHIP_NO_GOLD = SHIP_REASON_BASE + 10;
+/** LaunchShip to a cell that is not a land cell of someone else's or free land with water within SHIP_LAND_REACH_CELLS (own land, sea, peaks and inland cells are refused). */
+export const REJECT_SHIP_BAD_TARGET = SHIP_REASON_BASE + 11;
+/** LaunchShip with no sea route within SHIP_ROUTE_MAX_CELLS expansions and SHIP_ROUTE_CAPACITY waypoints (or no water next to the Port). */
+export const REJECT_SHIP_NO_ROUTE = SHIP_REASON_BASE + 12;
+/** LaunchShip while the global ship table (SHIP_CAPACITY slots, all seats) is full. */
+export const REJECT_SHIP_TABLE_FULL = SHIP_REASON_BASE + 13;

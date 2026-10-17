@@ -13,6 +13,8 @@ import type { DistrictView } from '../sim/districtRules';
 import { MirrorStructures } from './structureMirror';
 import { MirrorHelis } from './heliMirror';
 import { MirrorBeachheads } from './beachheadMirror';
+import { MirrorShips } from './shipMirror';
+import type { ShipView } from '../sim/shipTable';
 import { MirrorFronts } from './frontMirror';
 import { MirrorDiplomacy } from './diplomacyMirror';
 import type { DiplomacyView } from '../sim/diplomacyTable';
@@ -59,6 +61,7 @@ export class ViewMirror implements SimView {
   private readonly structureTable = new MirrorStructures();
   private readonly heliTable = new MirrorHelis();
   private readonly beachTable = new MirrorBeachheads();
+  private readonly shipTable = new MirrorShips();
   private readonly frontTable = new MirrorFronts();
   private readonly diploTable: MirrorDiplomacy;
 
@@ -88,6 +91,7 @@ export class ViewMirror implements SimView {
     if (v.structures !== null) this.structureTable.adopt(v.structures);
     if (v.helis !== null) this.heliTable.adopt(v.helis);
     if (v.beachheads !== null) this.beachTable.adopt(v.beachheads);
+    if (v.ships != null) this.shipTable.adopt(v.ships);
     if (v.fronts !== null) this.frontTable.adopt(v.fronts);
     if (v.diplomacy !== null) this.diploTable.adopt(v.diplomacy);
   }
@@ -139,6 +143,14 @@ export class ViewMirror implements SimView {
   }
   get beachheadsVersion(): number {
     return this.beachTable.version;
+  }
+
+  /** The ship table (M13c-1): the copy of the last table the host sent; `shipsVersion` moves when a new one arrived. */
+  get ships(): ShipView {
+    return this.shipTable;
+  }
+  get shipsVersion(): number {
+    return this.shipTable.version;
   }
 
   /** The attack fronts (M20a-2): the copy of the last description the host sent; `frontsVersion` moves when a new one arrived. */
@@ -248,6 +260,7 @@ export class ViewMirror implements SimView {
     if (d.view.structures !== null) this.structureTable.adopt(d.view.structures);
     if (d.view.helis !== null) this.heliTable.adopt(d.view.helis);
     if (d.view.beachheads !== null) this.beachTable.adopt(d.view.beachheads);
+    if (d.view.ships != null) this.shipTable.adopt(d.view.ships);
     if (d.view.fronts !== null) this.frontTable.adopt(d.view.fronts);
     if (d.view.diplomacy !== null) this.diploTable.adopt(d.view.diplomacy);
     this.frames++;

@@ -13,6 +13,7 @@ import { snapshotStructures, structureSignature } from './structureSnapshot';
 import { heliSignature, snapshotHelis } from './heliSnapshot';
 import { heliVisibilityOf, type HeliSight } from '../sim/heliVisibility';
 import { beachheadSignature, snapshotBeachheads } from './beachheadSnapshot';
+import { shipSignature, snapshotShips } from './shipSnapshot';
 import { frontSignature, snapshotFronts } from './frontSnapshot';
 import { snapshotDiplomacy } from './diplomacySnapshot';
 import { StateView, attackPairs, fillSeatStats, statsLength, type SimView } from '../sim/view';
@@ -32,6 +33,7 @@ import {
   type Unsubscribe,
   type AttackFrontSnapshot,
   type BeachheadSnapshot,
+  type ShipSnapshot,
   type HeliSnapshot,
   type DiplomacySnapshot,
   type StructureSnapshot,
@@ -88,6 +90,8 @@ export class MainThreadHost implements SimHost {
   private lastBeachSig = -1;
   /** The same for the attack fronts (M20a-2). */
   private lastFrontSig = -1;
+  /** The same for the ship table (M13c-1). */
+  private lastShipSig = -1;
   /** The version of the diplomacy table in the last diff that carried it (-1 = none yet). */
   private lastDiploVersion = -1;
   /** Reused for the statistics of every view (the snapshot gets a copy). */
@@ -247,7 +251,16 @@ export class MainThreadHost implements SimHost {
       diplomacy: full ? snapshotDiplomacy(s.diplo) : this.changedDiplomacy(),
       beachheads: full ? snapshotBeachheads(s) : this.changedBeachheads(),
       fronts: full ? snapshotFronts(s) : this.changedFronts(),
+      ships: full ? snapshotShips(s.ships) : this.changedShips(),
     };
+  }
+
+  /** The ship table when it differs from the one the last diff carried, else null (32 rows at most). */
+  private changedShips(): ShipSnapshot | null {
+    const sig = shipSignature(this.state.ships);
+    if (sig === this.lastShipSig) return null;
+    this.lastShipSig = sig;
+    return snapshotShips(this.state.ships);
   }
 
   /** The attack fronts when they differ from the ones the last diff carried, else null (the signature costs nothing without attacks). */
