@@ -56,9 +56,26 @@ function share(view: SimView, seat: number): number {
   return view.stats.landShareQ15[seat] as number;
 }
 
-/** Is the seat's share strictly above `pct` percent of the land? */
+/**
+ * Fix-5A2: the land share of the seat's GROUP in Q15 (the sim prices the leader, holds the land timer and scores by group, M18b-3): the sum over the members of
+ * a bound federation, just the seat's own share without one. O(players), no allocation.
+ */
+function groupShare(view: SimView, seat: number): number {
+  const g = view.match.group;
+  const root = g[seat] as number;
+  let sum = share(view, seat);
+  for (let o = 0; o < view.players; o++) if (o !== seat && g[o] === root) sum += share(view, o);
+  return sum;
+}
+
+/** Are the two seats the same group (the same seat, or members of one federation)? */
+function sameGroup(view: SimView, a: number, b: number): boolean {
+  return a === b || (a >= 0 && b >= 0 && view.match.group[a] === view.match.group[b]);
+}
+
+/** Is the seat's GROUP share strictly above `pct` percent of the land? */
 function above(view: SimView, seat: number, pct: number): boolean {
-  return share(view, seat) * 100 > pct * WEIGHT_ONE;
+  return groupShare(view, seat) * 100 > pct * WEIGHT_ONE;
 }
 
 function livingPlayer(view: SimView, seat: number): boolean {
@@ -76,12 +93,21 @@ function warCount(view: SimView, seat: number, skip = -1): number {
   return n;
 }
 
-/** The living player with the most land (the lower seat on a tie), skipping the seats `skipA` and `skipB`; -1 when there is none. */
+/**
+ * The living group with the most land (the lower seat on a tie), as its lowest living seat, skipping the groups of the seats `skipA` and `skipB`; -1 when there
+ * is none. Fix-5A2: a federation counts with its summed land; without one this is the player with the most land.
+ */
 function strongest(view: SimView, skipA: number, skipB: number): number {
   let best = -1;
+  let bestShare = 0;
   for (let o = 0; o < view.players; o++) {
-    if (o === skipA || o === skipB || !livingPlayer(view, o)) continue;
-    if (best < 0 || share(view, o) > share(view, best)) best = o;
+    if (!livingPlayer(view, o) || sameGroup(view, o, skipA) || sameGroup(view, o, skipB)) continue;
+    if (view.match.group[o] !== o) continue;
+    const sh = groupShare(view, o);
+    if (best < 0 || sh > bestShare) {
+      best = o;
+      bestShare = sh;
+    }
   }
   return best;
 }
@@ -118,7 +144,7 @@ function wants(view: SimView, memory: AiMemory, from: number, kind: number): boo
   if (kind === TREATY_TRUCE) {
     // M18c-2: at war with another party and the proposer is not the largest threat, or weaker than the median, or fighting on several fronts.
     if (warCount(view, seat) >= AI_TRUCE_ACCEPT_WARS) return true;
-    if (warCount(view, seat, from) >= AI_TRUCE_OTHER_WARS && share(view, from) < share(view, strongest(view, -1, -1))) return true;
+    if (warCount(view, seat, from) >= AI_TRUCE_OTHER_WARS && groupShare(view, from) < groupShare(view, strongest(view, -1, -1))) return true;
     return share(view, seat) * 100 < medianShare(view) * AI_TRUCE_MEDIAN_PCT;
   }
   if (kind !== TREATY_ALLIANCE || share(view, from) * 100 > AI_ALLY_PROPOSER_MAX_PCT * WEIGHT_ONE) return false;
@@ -193,9 +219,10 @@ function proposal(view: SimView, memory: AiMemory): IntentBody | null {
   }
   // Everybody asks the second strongest for an alliance against a leader.
   const leader = strongest(view, -1, -1);
-  if (leader >= 0 && leader !== seat && above(view, leader, AI_LEADER_PCT) && d.relation(seat, leader) === RELATION_WAR) {
+  if (leader >= 0 && !sameGroup(view, leader, seat) && above(view, leader, AI_LEADER_PCT) && d.relation(seat, leader) === RELATION_WAR) {
     const ally = strongest(view, leader, seat);
-    if (ally >= 0 && !holdsGrudge(memory, ally, tick) && validateProposeTreaty(view, seat, ally, TREATY_ALLIANCE) === REJECT_NONE) return proposeTreatyBody(seat, ally, TREATY_ALLIANCE);
+    // Fix-5A2: not to a seat that has an open proposal to this AI (the reply answers it; two crossing proposals left one answer to a gone proposal).
+    if (ally >= 0 && !holdsGrudge(memory, ally, tick) && d.proposalKind(ally, seat) === 0 && validateProposeTreaty(view, seat, ally, TREATY_ALLIANCE) === REJECT_NONE) return proposeTreatyBody(seat, ally, TREATY_ALLIANCE);
   }
   return null;
 }

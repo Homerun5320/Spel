@@ -589,3 +589,9 @@ Not done in the Fix-UI slice (the sim, host and AI findings belong to Fix-Sim):
 - Shared research between allies; showing what an AI nation has researched (the result column is the only place now).
 - District upgrade prices have no technology discount in the sim; if one is wanted it needs a rule first, then the panel follows `districtUpgradePriceGold`.
 - A tooltip on a research cell with the full effect sentence (the cell line is short).
+
+## Fix-5A2
+
+- The set-up screen (Fix-5B) must clamp the AI slider with `federationMinAiNations(world, config)` and show `setup.error.federationNeedsAi`; until then the screen shows the refusal after Start.
+- 2.14c page weight: the gzip caps in `tests/portable.test.ts` rise with every slice (measured + 3 to 5 %); decide a ceiling and a dynamic-import list before the next bump.
+- A federation seat that is eliminated keeps its research (finding 0.4 of audit 4, a minor rule question; not touched here because it needs a rule).

@@ -63,7 +63,8 @@ import {
   TREATY_BREAK_COOLDOWN_TICKS,
   TRUCE_TICKS,
 } from './rules';
-import { TECH_FX_CAP } from './rules';
+import { TECH_FX_CAP, TECH_TICKS } from './rules';
+import { federationRoots } from './groups';
 import { TECH_FX_FUEL, TECH_FX_LOAD, techMaskValid, techPrereqOf } from './techTable';
 import { STRUCT_CITY, STRUCT_FACTORY, STRUCT_SAM, STRUCT_TYPE_SLOTS, maxLevelOf } from './structureRules';
 import { districtSlotsOf, isDistrictKind } from './districtRules';
@@ -595,7 +596,7 @@ function normalConfigOf(config: MatchConfig, win: WinConfig | undefined): MatchC
  * Reads and checks the match block at `p` into `m`. Returns the win config (undefined = none) or 'bad'. Every value is range checked:
  * the result fields must agree (no winner before the end), the arrays have an empty slot 0 and flags are 0 or 1.
  */
-function readMatch(v: DataView, p: number, slots: number, seats: number, m: MatchState): WinConfig | undefined | 'bad' {
+function readMatch(v: DataView, p: number, slots: number, seats: number, players: number, tick: number, m: MatchState): WinConfig | undefined | 'bad' {
   const flags = v.getUint32(p, true);
   const limit = v.getUint32(p + 4, true);
   const pct = v.getUint32(p + 8, true);
@@ -614,7 +615,8 @@ function readMatch(v: DataView, p: number, slots: number, seats: number, m: Matc
   m.endTick = v.getUint32(p + 28, true);
   m.holdOwner = v.getUint32(p + 32, true);
   m.holdCount = v.getUint32(p + 36, true);
-  if (m.ended > 1 || m.winner > seats || m.reason > 3 || m.holdOwner > seats) return 'bad';
+  // Fix-5A2: a winner and a land holder are player seats (never a tribe).
+  if (m.ended > 1 || m.winner > players || m.reason > 3 || m.holdOwner > players) return 'bad';
   if (m.ended === 0 && (m.winner !== 0 || m.reason !== 0 || m.endTick !== 0)) return 'bad';
   if (m.ended === 1 && (m.winner === 0) !== (m.reason === 0)) return 'bad';
   if (m.holdOwner === 0 ? m.holdCount !== 0 : m.holdCount === 0 || (win === undefined ? true : m.holdCount > win.holdTicks)) return 'bad';
@@ -640,6 +642,9 @@ function readMatch(v: DataView, p: number, slots: number, seats: number, m: Matc
     const done = v.getUint32(q + (2 * slots + o) * 4, true);
     if (!techMaskValid(mask) || cur > TECH_COUNT || (cur === 0) !== (done === 0)) return 'bad';
     if (o === 0 && (mask !== 0 || cur !== 0)) return 'bad';
+    // Fix-5A2: a tribe researches nothing, and a running research ends within its own duration from now (not never, not already past).
+    if (o > players && (mask !== 0 || cur !== 0)) return 'bad';
+    if (cur !== 0 && (done < tick || done > tick + (TECH_TICKS[cur - 1] as number))) return 'bad';
     if (cur !== 0 && ((mask & (1 << (cur - 1))) !== 0 || (techPrereqOf(cur - 1) >= 0 && (mask & (1 << techPrereqOf(cur - 1))) === 0))) return 'bad';
     m.techMask[o] = mask;
     m.techCurrent[o] = cur;
@@ -1042,9 +1047,18 @@ export function deserialize(bytes: Uint8Array, options?: DeserializeOptions): De
     if (structures.owner[f] !== helis.owner[id] || structures.type[f] !== STRUCT_FACTORY) return fail('air-range');
   }
   const m = new MatchState(slots);
-  const win = readMatch(v, p, slots, seats, m);
+  const win = readMatch(v, p, slots, seats, players, v.getUint32(36, true), m);
   if (win === 'bad') return fail('match-range');
   p += matchBytes(seats);
+  // Fix-5A2: a helicopter carries and burns no more than its OWNER's researched techs allow (the air block is read before the match block).
+  for (let id = 0; id < helis.highWater; id++) {
+    const ho = helis.owner[id] as number;
+    if (ho === 0) continue;
+    const lp = m.fx(ho, TECH_FX_LOAD);
+    const fp = m.fx(ho, TECH_FX_FUEL);
+    if ((helis.load[id] as number) > HELI_MAX_TROOPS + Math.floor((HELI_MAX_TROOPS * lp) / 100)) return fail('air-range');
+    if ((helis.fuel[id] as number) > HELI_FUEL_MAX_Q8 + Math.floor((HELI_FUEL_MAX_Q8 * fp) / 100)) return fail('air-range');
+  }
   const diplo = new DiplomacyTable(slots);
   p = readDiplomacy(v, p, end, players, v.getUint32(36, true), diplo, m);
   if (p < 0) return fail('diplomacy-range');
@@ -1059,6 +1073,11 @@ export function deserialize(bytes: Uint8Array, options?: DeserializeOptions): De
     state = assembleState({ header, width, height, tick: v.getUint32(36, true), rejects: v.getUint32(40, true), rng, terrain, elevation, owner, stamp, exposure, rowCos, troops, troopFrac, gold, capital, attacks, enclaves, structures, helis, beachheads, match: m, diplo, home, env: new SimEnv(options?.maxElev === undefined ? null : Int16Array.from(options.maxElev)) });
   } catch {
     return fail('header');
+  }
+  // Fix-5A2: with federations in the state, the land timer is held by a group ROOT (win.ts), never a non-root member.
+  if (m.holdOwner !== 0) {
+    const roots = federationRoots(state);
+    if (roots !== null && roots[m.holdOwner] !== m.holdOwner) return fail('match-range');
   }
   if (v.getUint32(p, true) !== hashState(state)) return fail('checksum');
   return { ok: true, state };

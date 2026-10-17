@@ -233,6 +233,30 @@ describe('the AI driver in the host', () => {
     }
   });
 
+  it('Fix-5A2: seed 9 stays a documented LOW case (a nation is hemmed in with research): its own floor, no refusals', async () => {
+    // Moved out of the test above in M18d-1 (a nation sits at about 995 cells after 10 minutes, 1 911 without research). It is kept as an expected low case with a looser
+    // floor of 4 x K instead of 6 x K, so that a worse hemming-in (or a nation that stops growing) still fails here.
+    const world = await loadRealWorld();
+    const seed = 9;
+    const state = matchState(world, seed);
+    const driver = new AiDriver(seed);
+    const host = new MainThreadHost(state, { driver });
+    host.submitIntent({ kind: 'Spawn', seat: 0, cell: HUMAN_CELL });
+    host.runTicks(3000);
+    const view = new StateView(state);
+    for (let seat = 1; seat < PLAYERS; seat++) expect(view.stats.cells[seat] as number, `seed ${seed} nation ${seat} at 5 min`).toBeGreaterThan(START_DISC_CELLS * 2);
+    host.runTicks(3000);
+    expectNoRefusals(state.rejects, driver.sent, `seed ${seed}`);
+    view.refresh();
+    let weakest = Infinity;
+    for (let seat = 1; seat < PLAYERS; seat++) {
+      const cells = view.stats.cells[seat] as number;
+      weakest = Math.min(weakest, cells);
+      expect(cells, `seed ${seed} nation ${seat} at 10 min`).toBeGreaterThan(START_DISC_CELLS * 4);
+    }
+    console.log(`[Fix-5A2] seed 9 weakest nation after 10 minutes: ${weakest} cells`);
+  }, 120_000);
+
   it('lets nations and tribes fight over a long match, and still never sends a refused intent', async () => {
     const world = await loadRealWorld();
     const state = matchState(world, 7);

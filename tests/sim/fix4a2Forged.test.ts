@@ -68,6 +68,7 @@ function full(): GameState {
   df.cooldownUntil[2] = TICK + 100;
   df.addProposal(1, 3, TREATY_ALLIANCE, TICK + 500);
   df.addProposal(2, 1, TREATY_TRUCE, TICK + 400);
+  s.match.setTechMask(2, 0xf << 8); // Fix-5A2: owner 2 (the helicopter at index 2) has the four AIR techs, so its load and fuel may reach the researched maximum
   s.match.treatiesMade[1] = 2;
   s.match.treatiesBroken[2] = 1;
   return s;

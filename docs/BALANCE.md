@@ -171,6 +171,7 @@ The home-land and trait rules live in the sim and apply only to a match whose co
 | `SETUP_CAPITAL_MIN_DISTANCE_CELLS` | 17 | sim cells | plan | Capitals of two nations at the start are at least this far apart (Euclidean, x wrapping): two discs of radius 8 never touch. |
 | `SETUP_AI_NATIONS_DEFAULT` | 12 | nations | plan | AI nations of a new match. |
 | `SETUP_AI_NATIONS_MAX` | 24 | nations | eget val | The options allow at most this many (you + 24 + 20 tribes = 45 seats). |
+| `FEDERATION_MIN_AI_NATIONS` | 1 | nations | eget val | Fix-5A2: a split country ("Dela upp stormakter") needs at least this many AI nations, otherwise every player seat is one federation and `last alive` ends the match 20 s in. |
 | `HOME_COST_PCT` | 50 | % of the price | plan | A cell of the owner's OWN home country costs the owner half to conquer; nobody else gets it and no other cell does. |
 | `TRAIT_CAP_MILLI` | 100 | thousandths | plan | A trait multiplier stays within 1000 +- 100 (the +-10 % cap); the setter clamps and `deserialize` refuses anything outside. |
 | `TRAIT_NEUTRAL_MILLI` | 1000 | thousandths | plan | The neutral multiplier (x1). |
