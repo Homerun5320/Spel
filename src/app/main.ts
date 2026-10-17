@@ -1,11 +1,12 @@
 // Client entry. Builds the DOM from JS (index.html stays a bare fragment with no attributes on <html>/<body>), starts the
 // scene chosen by the address (query and hash through the one parser in params.ts), mounts the Dev panel and restarts the
 // scene when the hash changes (no page reload needed).
-import { createSpike, TEST_SUN_LAT_DEG, TEST_SUN_LON_DEG, type Spike, type SpikeInfo } from '../render/spike';
-import { mountDevPanel } from './devpanel';
+import type { Spike, SpikeInfo } from '../render/spike';
+import type { DevPanel } from './devpanel';
+import { createDevStandIn, devLoadError, loadDevPanelModules } from './debugLoad';
 import { bootGlobe, type GlobeTestHooks } from './globeApp';
 import { attachHotkeys, registerPageHotkeys } from './hotkeys';
-import { registerAppModes } from './modes';
+import { DEV_PANEL_REQUEST_EVENT } from '../ui/events';
 import { parseAppState, parseRaw } from './params';
 import { siteUrl } from './paths';
 import { t } from '../ui/i18n';
@@ -33,6 +34,14 @@ declare global {
 
 /** Stops the running scene and removes its DOM. */
 type Stop = () => void;
+
+function showSceneError(wrapper: HTMLElement, err: unknown): void {
+  console.error(err);
+  const msg = document.createElement('div');
+  msg.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#f99;font:14px system-ui,sans-serif;';
+  msg.textContent = t('app.error', { message: err instanceof Error ? err.message : String(err) });
+  wrapper.appendChild(msg);
+}
 
 function startScene(root: HTMLElement): Stop {
   const state = parseAppState(window.location.search, window.location.hash);
@@ -97,109 +106,147 @@ function startScene(root: HTMLElement): Stop {
         if (stopped) stopGlobe();
         else stops.push(stopGlobe);
       })
-      .catch((err: unknown) => {
-        console.error(err);
-        const msg = document.createElement('div');
-        msg.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#f99;font:14px system-ui,sans-serif;';
-        msg.textContent = t('app.error', { message: err instanceof Error ? err.message : String(err) });
-        wrapper.appendChild(msg);
-      });
+      .catch((err: unknown) => showSceneError(wrapper, err));
     return stop;
   }
 
-  const dpr = params.test ? 1 : Math.min(window.devicePixelRatio || 1, 2);
-  const width = params.test ? params.width : window.innerWidth;
-  const height = params.test ? params.height : window.innerHeight;
-  if (params.test) {
-    canvas.style.width = `${width}px`;
-    canvas.style.height = `${height}px`;
-  } else {
-    canvas.style.width = '100%';
-    canvas.style.height = '100%';
-  }
-
-  const spike: Spike = createSpike({
-    canvas,
-    width,
-    height,
-    dpr,
-    antialias: !params.test,
-    preserveDrawingBuffer: params.test,
-    seed: params.seed,
-    blank: params.blank,
-  });
-  stops.push(() => spike.dispose());
-
-  let firstFrameMs: number | null = null;
-  let frames = 0;
-  const renderFrame = (lon: number, lat: number): void => {
-    spike.render(lon, lat);
-    frames++;
-    if (firstFrameMs === null) firstFrameMs = performance.now();
-  };
-
-  let fps = 0;
-  const refreshOverlay = (): void => {
-    const i = spike.info();
-    overlay.textContent = [
-      `GL renderer: ${i.renderer}`,
-      `GL version:  ${i.glVersion}`,
-      `fps: ${fps.toFixed(1)}`,
-      `draw calls: ${i.drawCalls}  triangles: ${i.triangles}  textures: ${i.textures}`,
-      `${i.width}x${i.height} @${i.dpr}x`,
-    ].join('\n');
-  };
-
-  const onKey = (e: KeyboardEvent): void => {
-    if (e.key === 'F3') {
-      e.preventDefault();
-      overlay.hidden = !overlay.hidden;
-      if (!overlay.hidden) refreshOverlay();
-    }
-  };
-  window.addEventListener('keydown', onKey);
-  stops.push(() => window.removeEventListener('keydown', onKey));
-
-  if (params.test) {
-    window.__test = {
-      render(): void {
-        renderFrame(TEST_SUN_LON_DEG, TEST_SUN_LAT_DEG);
-        if (!overlay.hidden) refreshOverlay();
-      },
-      info(): TestInfo {
-        return { ...spike.info(), firstFrameMs, frames, testMode: true };
-      },
-    };
-    return stop; // deterministic mode: no requestAnimationFrame loop
-  }
-
-  const onResize = (): void => spike.resize(window.innerWidth, window.innerHeight, Math.min(window.devicePixelRatio || 1, 2));
-  window.addEventListener('resize', onResize);
-  stops.push(() => window.removeEventListener('resize', onResize));
-  let last = performance.now();
-  let raf = 0;
-  const loop = (now: number): void => {
-    if (stopped) return;
-    const dt = now - last;
-    last = now;
-    if (dt > 0) fps = fps * 0.9 + (1000 / dt) * 0.1;
-    // The sun drifts 12 degrees of longitude per second.
-    renderFrame(TEST_SUN_LON_DEG + (now / 1000) * 12, TEST_SUN_LAT_DEG);
-    if (!overlay.hidden) refreshOverlay();
-    raf = requestAnimationFrame(loop);
-  };
-  raf = requestAnimationFrame(loop);
-  stops.push(() => cancelAnimationFrame(raf));
+  // The M00 spike is a dev scene: its module (and three's spike scene) loads only for `?scene=spike`.
+  startSpike().catch((err: unknown) => showSceneError(wrapper, err));
   return stop;
+
+  async function startSpike(): Promise<void> {
+    const { createSpike, TEST_SUN_LAT_DEG, TEST_SUN_LON_DEG } = await import('../render/spike').catch((err: unknown) => {
+      throw devLoadError('spiken', err);
+    });
+    if (stopped) return;
+    const dpr = params.test ? 1 : Math.min(window.devicePixelRatio || 1, 2);
+    const width = params.test ? params.width : window.innerWidth;
+    const height = params.test ? params.height : window.innerHeight;
+    if (params.test) {
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
+    } else {
+      canvas.style.width = '100%';
+      canvas.style.height = '100%';
+    }
+
+    const spike: Spike = createSpike({
+      canvas,
+      width,
+      height,
+      dpr,
+      antialias: !params.test,
+      preserveDrawingBuffer: params.test,
+      seed: params.seed,
+      blank: params.blank,
+    });
+    stops.push(() => spike.dispose());
+
+    let firstFrameMs: number | null = null;
+    let frames = 0;
+    const renderFrame = (lon: number, lat: number): void => {
+      spike.render(lon, lat);
+      frames++;
+      if (firstFrameMs === null) firstFrameMs = performance.now();
+    };
+
+    let fps = 0;
+    const refreshOverlay = (): void => {
+      const i = spike.info();
+      overlay.textContent = [
+        `GL renderer: ${i.renderer}`,
+        `GL version:  ${i.glVersion}`,
+        `fps: ${fps.toFixed(1)}`,
+        `draw calls: ${i.drawCalls}  triangles: ${i.triangles}  textures: ${i.textures}`,
+        `${i.width}x${i.height} @${i.dpr}x`,
+      ].join('\n');
+    };
+
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'F3') {
+        e.preventDefault();
+        overlay.hidden = !overlay.hidden;
+        if (!overlay.hidden) refreshOverlay();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    stops.push(() => window.removeEventListener('keydown', onKey));
+
+    if (params.test) {
+      window.__test = {
+        render(): void {
+          renderFrame(TEST_SUN_LON_DEG, TEST_SUN_LAT_DEG);
+          if (!overlay.hidden) refreshOverlay();
+        },
+        info(): TestInfo {
+          return { ...spike.info(), firstFrameMs, frames, testMode: true };
+        },
+      };
+      return; // deterministic mode: no requestAnimationFrame loop
+    }
+
+    const onResize = (): void => spike.resize(window.innerWidth, window.innerHeight, Math.min(window.devicePixelRatio || 1, 2));
+    window.addEventListener('resize', onResize);
+    stops.push(() => window.removeEventListener('resize', onResize));
+    let last = performance.now();
+    let raf = 0;
+    const loop = (now: number): void => {
+      if (stopped) return;
+      const dt = now - last;
+      last = now;
+      if (dt > 0) fps = fps * 0.9 + (1000 / dt) * 0.1;
+      // The sun drifts 12 degrees of longitude per second.
+      renderFrame(TEST_SUN_LON_DEG + (now / 1000) * 12, TEST_SUN_LAT_DEG);
+      if (!overlay.hidden) refreshOverlay();
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    stops.push(() => cancelAnimationFrame(raf));
+  }
+}
+
+/** True when the address asks for a dev tool (`?perf`, `?scene`, `?dev`, in the query or the hash) or the match is the test mode: the panel is then loaded at once. */
+function wantsDevTools(): boolean {
+  const raw = parseRaw(window.location.search, window.location.hash);
+  return raw.test === '1' || raw.perf === '1' || raw.scene !== undefined || raw.dev !== undefined;
 }
 
 function boot(): void {
   const root = document.getElementById('root');
   if (!root) throw new Error('missing #root');
-  registerAppModes();
-  const panel = mountDevPanel({ parent: root, getRaw: () => parseRaw(window.location.search, window.location.hash) });
   registerPageHotkeys(); // F2 (all scenes); the match scene adds its own entries (M20a-lite)
   attachHotkeys(window);
+
+  // The Dev panel (and the mode list with its Swedish labels) is a separate chunk (Bundle-diet-1). Until it is loaded a plain stand-in button with the same
+  // attributes sits in the corner; F2 (DEV_PANEL_REQUEST_EVENT) and a click on it load the panel and open it. Test mode and the dev addresses load it at once.
+  let panel: DevPanel | null = null;
+  let loading: Promise<DevPanel> | null = null;
+  let buttonVisible = false;
+  const standIn = createDevStandIn();
+  root.appendChild(standIn);
+  const loadPanel = (): Promise<DevPanel> => {
+    loading ??= loadDevPanelModules().then(({ panel: mod, modes }) => {
+      modes.registerAppModes();
+      standIn.remove();
+      const p = mod.mountDevPanel({ parent: root, getRaw: () => parseRaw(window.location.search, window.location.hash) });
+      p.setButtonVisible(buttonVisible);
+      panel = p;
+      return p;
+    });
+    return loading;
+  };
+  const openLazily = (): void => {
+    if (panel !== null) return; // the mounted panel answers the request itself
+    loadPanel().then((p) => p.open(), (err: unknown) => {
+      loading = null;
+      console.error(err);
+      standIn.textContent = 'Dev: fel';
+      standIn.title = err instanceof Error ? err.message : String(err);
+      window.alert(standIn.title);
+    });
+  };
+  standIn.addEventListener('click', openLazily);
+  window.addEventListener(DEV_PANEL_REQUEST_EVENT, openLazily);
 
   let stop: Stop | null = null;
   const restart = (): void => {
@@ -207,12 +254,38 @@ function boot(): void {
     stop = startScene(root);
     const state = parseAppState(window.location.search, window.location.hash);
     // The corner button is visible everywhere (phones have no F2), except in test mode where screenshots must stay clean.
-    panel.setButtonVisible(!state.params.test || state.devButton);
-    panel.refresh();
+    buttonVisible = !state.params.test || state.devButton;
+    standIn.hidden = !buttonVisible;
+    panel?.setButtonVisible(buttonVisible);
+    panel?.refresh();
   };
-  restart();
-  // A changed hash starts the mode again without a page reload.
-  window.addEventListener('hashchange', restart);
+  const first = (): void => {
+    restart();
+    // A changed hash starts the mode again without a page reload.
+    window.addEventListener('hashchange', restart);
+  };
+  if (wantsDevTools()) {
+    // The test hooks and the dev scenes expect the panel (and its modes) from the first frame on; a failed import is shown, then the page starts without it.
+    loadPanel().then(first, (err: unknown) => {
+      console.error(err);
+      first();
+      const wrapper = root.querySelector('.app');
+      if (wrapper instanceof HTMLElement) showSceneError(wrapper, err);
+    });
+  } else {
+    first();
+    // Not part of the first load: the panel chunks (about 3.4 kB gz) are fetched once the page is idle, so that F2 and the Dev button answer at once afterwards.
+    // Until then the stand-in button and the request listener load them on demand. A failure here is silent: the click or F2 retries and shows the error.
+    const idle = (fn: () => void): void => {
+      if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(fn, { timeout: 2000 });
+      else window.setTimeout(fn, 500);
+    };
+    idle(() => {
+      loadPanel().catch(() => {
+        loading = null;
+      });
+    });
+  }
 }
 
 boot();

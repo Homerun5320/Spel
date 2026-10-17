@@ -635,3 +635,8 @@ One pass, three steps, in this order, before M15a and M24a (their sizes are in t
 - Visibility: Defense Post radii as a sensor of the mask (a Post wears hostile helicopters down but does not "see" them); a soft fade-out when a hostile helicopter leaves sight instead of vanishing at once (the layer would need to keep a ghost row for a few frames); a "last seen" marker for the minimap (M20b).
 - Visibility: M17 (AI helicopters) must read `view.visibleHelis(seat)` and `view.navOf()` only (null = no planning); an AI that reads `view.helis` for enemy rows breaks the rule. A lint or boundary test that flags `.helis` in `src/ai` is worth adding with M17.
 - A remote (worker) host will need the same `viewerSeat` option when it exists; `MainThreadHost` is the only host today.
+Bundle-diet-1
+- `frameStats`, `gpuTimer` and `detailProbe` stay in the first load: the live loop uses FrameStats, the adaptive resolution uses the GPU timer, and the `__test` probe hooks are synchronous. Splitting them needs async probe hooks (an e2e change); about 2.3 kB gz.
+- The total gzip cap (`JS_GZ_TOTAL_MAX`) cannot fall: lazy chunks add about 5 kB of per-chunk overhead to the sum, only the first load shrinks. Diet step 1 (language tables, about -8.8 kB) lowers it; then re-measure.
+- Prefetch hints for the host chunk (`modulepreload` after the start screen is shown) would hide the Play-press load on a slow managed network; not built.
+

@@ -143,6 +143,17 @@ Note for the user: the Airfield, Lab and Plant look like a bigger Factory, a sma
 - [x] 3. Host: `viewerSeat` option, `snapshotHelis` / `heliSignature` filter, `MatchSession.fromMatch` passes the human seat; the page's layer, effects, list, chase and `MissionWatcher` read the filtered mirror (no change needed, tests in `tests/render/heliVanish.test.ts`).
 - [x] 4. Tests with mutants (table in `docs/DECISIONS.md` "M17-pre"); perf test `tests/heliVisibility.perf.test.ts`.
 - [x] ACCEPTANS: navOf with test and pinned export; mask with ridge, ally, federation, truce and relation-change tests; hash equal with and without readers; perf inside `budgetMs`; no console errors on a vanishing helicopter (fake-layer test); `npm run verify:fast` (result in DECISIONS "M17-pre").
+### Bundle-diet-1: dev modules, host and AI load on demand (diet steps 2 and 3; no rule change, ENGINE and FORMAT unchanged, goldens untouched; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+
+Measured before (gzip level 9, `npm run build` only to measure): first load 368 566 B (main 314 964, techRules 38 063, mainThreadHost 12 659, data 2 146, paths 469, public 265), all chunks 381 002 B.
+
+- [x] Measure before and after per chunk (in `docs/DECISIONS.md` "Bundle-diet-1").
+- [x] Step 2: Dev panel, mode list, perf overlay, perf scene (and so report, perfSceneReport) and the spike scene load with `import()` (`src/app/debugLoad.ts`, Swedish error on failure).
+- [x] Step 3: `MainThreadHost`, `AiDriver` and the AI load with `import()` when a match starts; `hashBuiltMatch` moved to `src/app/matchHash.ts`.
+- [x] The shared sim chunk (techRules) exists once; the first-load test pins it.
+- [x] Caps in `tests/portable.test.ts` lowered (main 321 000 to 315 700; total stays 391 000, see DECISIONS) and a first-load cap plus a lazy-chunk test added.
+- [x] e2e green alone: artifact, hud, setup, perfScene, devpanel.
+- [x] `npm run verify:fast` (result in `docs/DECISIONS.md`).
 
 ## Next
 

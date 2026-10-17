@@ -40,7 +40,7 @@ describe('the forbidden-address scanner itself', () => {
 
 /** Size caps in bytes of gzipped JavaScript (Fix-3C): measured plus about 5 %. Raise them only with a line in docs/DECISIONS.md. */
 const JS_GZ_TOTAL_MAX = 391_000; // Round 19 merge: 370_000 before; measured 372_309 with the technology rules, the federation setup and the helicopter effects, + 5 %
-const JS_GZ_MAIN_MAX = 321_000; // M18d-2: 311_000 before; measured 311_035 with the research panel, + 3 %. M20a-2: 294_500 before, measured 296_501 with the nation labels, the front arrows and the attack-front snapshot, + 5 %. M13b: 277_000 before; measured 280_318 + 5 % (the page now carries Los, Nav, planRoute and scoreLz for the preview; before, they lived only in the sim worker)
+const JS_GZ_MAIN_MAX = 315_700; // Bundle-diet-1: 321_000 before; measured 306_484 after the dev modules left the main chunk (steps 2 and 3 of the diet), + 3 %. Older notes: // M18d-2: 311_000 before; measured 311_035 with the research panel, + 3 %. M20a-2: 294_500 before, measured 296_501 with the nation labels, the front arrows and the attack-front snapshot, + 5 %. M13b: 277_000 before; measured 280_318 + 5 % (the page now carries Los, Nav, planRoute and scoreLz for the preview; before, they lived only in the sim worker)
 
 describe('portable build (relative addresses only)', () => {
   let dist = '';
@@ -77,6 +77,42 @@ describe('portable build (relative addresses only)', () => {
     const main = Math.max(...sizes.map((f) => f.gz));
     expect(main).toBeLessThanOrEqual(JS_GZ_MAIN_MAX);
     expect(total).toBeLessThanOrEqual(JS_GZ_TOTAL_MAX);
+  });
+});
+
+/** Bundle-diet-1: the first load (the script and the modulepreload chunks of index.html), gzip level 9, measured 348_938 + 3 %. */
+const JS_GZ_START_MAX = 359_500;
+/** Chunks that must exist (the dynamic import() targets) and must NOT be in the first load. */
+const LAZY_CHUNKS = ['devpanel', 'modes', 'perfOverlay', 'perfScene', 'spike', 'mainThreadHost', 'aiDriver', 'matchHash'];
+
+describe('portable build: the first load stays small (Bundle-diet-1)', () => {
+  let dist = '';
+  beforeAll(async () => {
+    dist = await buildDistTo(makeTmp('spel-portable-start'));
+  }, 60_000);
+  afterAll(() => {
+    if (dist) fs.rmSync(dist, { recursive: true, force: true });
+  });
+
+  it('keeps the dev, diagnostic, host and AI chunks out of index.html and under the first-load cap', () => {
+    const html = fs.readFileSync(path.join(dist, 'index.html'), 'utf8');
+    const start = [...html.matchAll(/assets\/([^"]+\.js)/g)].map((m) => m[1] as string);
+    expect(start.length).toBeGreaterThanOrEqual(2); // the entry plus its shared chunks
+    const all = fs.readdirSync(path.join(dist, 'assets')).filter((f) => f.endsWith('.js'));
+    for (const lazy of LAZY_CHUNKS) {
+      expect(all.some((f) => f.startsWith(`${lazy}-`)), `${lazy} must be a chunk of its own (import())`).toBe(true);
+      expect(start.some((f) => f.startsWith(`${lazy}-`)), `${lazy} must not load with the page`).toBe(false);
+    }
+    const gz = start.reduce((sum, f) => sum + gzipSync(fs.readFileSync(path.join(dist, 'assets', f)), { level: 9 }).length, 0);
+    expect(gz).toBeLessThanOrEqual(JS_GZ_START_MAX);
+  });
+
+  it('keeps the shared sim chunk in one place (not copied into the lazy host chunk)', () => {
+    const files = fs.readdirSync(path.join(dist, 'assets')).filter((f) => f.endsWith('.js'));
+    expect(files.filter((f) => /^techRules-/.test(f)).length).toBe(1);
+    const host = files.find((f) => f.startsWith('mainThreadHost-')) as string;
+    const gz = gzipSync(fs.readFileSync(path.join(dist, 'assets', host)), { level: 9 }).length;
+    expect(gz).toBeLessThanOrEqual(13_000); // about 11.5 kB measured; a duplicated sim (about 38 kB) would blow it
   });
 });
 

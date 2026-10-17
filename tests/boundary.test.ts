@@ -40,7 +40,7 @@ describe('purity boundary (structural test, complements the ESLint rules)', () =
   // CHARTER invariant 6 (the structural twin of the ESLint entry for the front end, which tests/lint.test.ts proves fires): the UI, the
   // renderer and the app shell reach the sim only through these modules; the two files that run or build a sim are named.
   const FRONT_END_SIM_ALLOWED = new Set(['view', 'public', 'intents', 'flow', 'rules', 'terrain', 'time', 'state']);
-  const FRONT_END_SIM_FILES = new Set(['app/debugSim.ts', 'app/match.ts', 'app/matchWorld.ts', 'app/matchSetup.ts']);
+  const FRONT_END_SIM_FILES = new Set(['app/debugSim.ts', 'app/match.ts', 'app/matchWorld.ts', 'app/matchSetup.ts', 'app/matchHash.ts']);
   for (const dir of ['ui', 'render', 'app']) {
     it(`src/${dir} imports only the read-only sim modules (never step, serialize, conquest or another mutator)`, () => {
       for (const file of listTs(path.join(SRC, dir))) {

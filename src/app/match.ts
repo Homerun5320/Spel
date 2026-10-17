@@ -1,15 +1,12 @@
 // The match session: the simulation (a MainThreadHost behind the SimHost interface), the page's read-only mirror of it and the
 // small amount of game-flow state the UI needs (speed, pause, commitment). The UI talks to the sim ONLY through intents
 // (`submit`); it reads ONLY through `view` (a ViewMirror, which implements SimView). Nothing here touches three or the DOM.
-import { AiDriver } from '../host/aiDriver';
-import { MainThreadHost } from '../host/mainThreadHost';
+import type { MainThreadHost } from '../host/mainThreadHost';
 import type { Speed } from '../host/protocol';
 import { ViewMirror } from '../host/viewMirror';
 import type { IntentBody } from '../sim/intents';
 import { MATCH_AI_NATIONS, MATCH_TRIBES, TICK_MS } from '../sim/rules';
 import { seatToOwner } from '../sim/state';
-import { hex32 } from '../sim/hash';
-import { hashState } from '../sim/serialize';
 import { scheduledTurn } from '../sim/time';
 import { createSimWorld, createWorldState, type SimWorldInput } from '../sim/world';
 import type { SeatLabels } from '../ui/seatLabels';
@@ -45,6 +42,15 @@ export interface BuiltMatchOptions {
   readonly interpolate?: boolean;
   /** The AI nations and the tribes act (default true). */
   readonly ai?: boolean;
+}
+
+/**
+ * Bundle-diet-1 (step 3): the sim host, the AI driver and `src/ai` are separate chunks that load when a match is started (Play / Start), not with the
+ * page. Both factories below are async already, so no caller changes; the sim modules the page also uses stay in one shared chunk.
+ */
+async function loadHost(): Promise<{ MainThreadHost: typeof import('../host/mainThreadHost').MainThreadHost; AiDriver: typeof import('../host/aiDriver').AiDriver }> {
+  const [{ MainThreadHost }, { AiDriver }] = await Promise.all([import('../host/mainThreadHost'), import('../host/aiDriver')]);
+  return { MainThreadHost, AiDriver };
 }
 
 export class MatchSession {
@@ -101,6 +107,7 @@ export class MatchSession {
       players: MATCH_PLAYERS,
       config: { debugIntents: options.debugIntents === true, spawnPhase: true, ...(options.win === undefined ? {} : { win: options.win }) },
     });
+    const { MainThreadHost, AiDriver } = await loadHost();
     const driver = options.ai === false ? undefined : new AiDriver(options.seed);
     const host = new MainThreadHost(state, { speed: 1, driver });
     const { mirror, stop } = await ViewMirror.attach(host);
@@ -112,6 +119,7 @@ export class MatchSession {
    * whole start disc, so nothing is spawned here. The AI plays every seat but the human one, with its own stream per seat (the config's seed).
    */
   static async fromMatch(match: BuiltMatch, options: BuiltMatchOptions = {}): Promise<MatchSession> {
+    const { MainThreadHost, AiDriver } = await loadHost();
     const driver = options.ai === false ? undefined : new AiDriver(match.config.seed, { humanSeats: [match.humanSeat] });
     const host = new MainThreadHost(match.state, { speed: 1, driver, viewerSeat: match.humanSeat });
     const { mirror, stop } = await ViewMirror.attach(host);
@@ -220,17 +228,4 @@ export class MatchSession {
     this.stopMirror();
     this.host.dispose();
   }
-}
-
-/**
- * The state hash of a match the setup built, at tick 0 and after `ticks` ticks played with the AI (the test hook behind "the same config and
- * seed give the same hash in Node and in the browser"). Consumes the match: its state is stepped.
- */
-export function hashBuiltMatch(match: BuiltMatch, ticks: number): { initial: string; after: string } {
-  const initial = hashState(match.state);
-  const host = new MainThreadHost(match.state, { speed: 1, driver: new AiDriver(match.config.seed, { humanSeats: [match.humanSeat] }) });
-  host.runTicks(ticks);
-  const after = hashState(match.state);
-  host.dispose();
-  return { initial: hex32(initial), after: hex32(after) };
 }

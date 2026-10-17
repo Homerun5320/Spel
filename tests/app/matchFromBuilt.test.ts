@@ -1,7 +1,8 @@
 // A match from the setup screen: `MatchSession.fromMatch` starts a state that `createMatch` built (everyone placed at tick 0), with the
 // human seat of the config, the names and flags of the seats and the AI on every other seat.
 import { beforeAll, describe, expect, it } from 'vitest';
-import { MatchSession, hashBuiltMatch } from '../../src/app/match';
+import { MatchSession } from '../../src/app/match';
+import { hashBuiltMatch } from '../../src/app/matchHash';
 import { createMatch, matchSetupConfig, type BuiltMatch } from '../../src/app/matchSetup';
 import type { PreparedWorld } from '../../src/app/matchWorld';
 import { REJECT_PHASE } from '../../src/sim/intents';
