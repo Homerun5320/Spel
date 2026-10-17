@@ -109,10 +109,16 @@ describe('the helicopter is visible', () => {
       expect(await gauge.textContent()).toMatch(/^0\/\d+$/);
 
       // select the Factory: the build block appears with the price, no queue, the fleet line
+      // M18e-1: the build bar has nine buttons, three rows at 960x540, and its top edge reaches the lower third of the screen: the Factory is
+      // clicked from a little farther away, where it stands above the bar, and the close-up is restored for the pictures that follow.
+      await closeUp(page, at.lat, at.lon, 4.2, 1500, day);
+      await t.settle();
       const pf = await t.project(at.lat, at.lon);
       await page.mouse.click(pf.x, pf.y);
       await t.settle();
       expect((await t.props()).selection.panelVisible).toBe(true);
+      await closeUp(page, at.lat, at.lon, 2.6, 1500, day);
+      await t.settle();
       const btn = page.locator('[data-testid="sel-heli"]');
       expect(await btn.textContent()).toContain(formatGold(HELI_PRICE_GOLD));
       expect(await btn.getAttribute('aria-disabled')).toBeNull();

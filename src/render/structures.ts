@@ -522,7 +522,7 @@ export class StructureLayer {
       const layer = this.layerOf(type);
       if (layer === undefined) continue; // a type without a model is not drawn yet
       const cell = t.cell[id] as number;
-      const key = cell * 8 + type;
+      const key = cell * 16 + type; // (a type number is up to 9 since M18e-1, so the factor is 16, not 8)
       if (this.seenKey[id] !== key) {
         this.seenKey[id] = key;
         this.born[id] = this.primed ? this.fxTime : NEVER;

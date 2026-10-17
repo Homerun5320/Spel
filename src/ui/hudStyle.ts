@@ -1,7 +1,7 @@
 // The style sheet of the match HUD and the start screen, built from the tokens in uiConfig.ts. One <style> element per root; the
 // classes are prefixed `hud-` / `start-`. No transitions or animations (CSS time is not the fx clock; tests/fxClock.test.ts
 // forbids them): every visible change is a state change driven from JS.
-import { BOARD_RESERVE_BOTTOM_EM, CITY_VIEW, GPU_TIP, HELP_OVERLAY, MATCH_PANELS, NARROW_MAX_PX, TOPBAR, HUD_FONT_BIAS_PX, HUD_FONT_MAX_PX, HUD_FONT_MIN_PX, HUD_FONT_VW, SETUP_PANEL_EM, SETUP_SHEET_VH, TARGET_MIN_PX, DIPLO, FED_BOARD, TECH_UI, UI_COLORS as C, Z_HUD, Z_SETUP, Z_START_SCREEN } from './uiConfig';
+import { BOARD_RESERVE_BOTTOM_EM, BUILD_BAR_TWO_ROWS_MIN_PX, CITY_VIEW, GPU_TIP, HELP_OVERLAY, MATCH_PANELS, NARROW_MAX_PX, TOPBAR, HUD_FONT_BIAS_PX, HUD_FONT_MAX_PX, HUD_FONT_MIN_PX, HUD_FONT_VW, SETUP_PANEL_EM, SETUP_SHEET_VH, TARGET_MIN_PX, DIPLO, FED_BOARD, TECH_UI, UI_COLORS as C, Z_HUD, Z_SETUP, Z_START_SCREEN } from './uiConfig';
 
 export function hudCss(): string {
   const fontSize = `clamp(${HUD_FONT_MIN_PX}px, calc(${HUD_FONT_VW}vw + ${HUD_FONT_BIAS_PX}px), ${HUD_FONT_MAX_PX}px)`;
@@ -106,6 +106,7 @@ export function hudCss(): string {
 .build-price { color: ${C.gold}; font-variant-numeric: tabular-nums; }
 .build-btn[data-state="locked"] { opacity: 0.45; border-style: dashed; }
 @media (max-width: 1100px) { .build-btn { padding: 0.1em 0.5em; column-gap: 0.35em; } .build-name { font-size: 0.85em; } }
+@media (min-width: ${BUILD_BAR_TWO_ROWS_MIN_PX}px) and (min-aspect-ratio: 1/1) { .build-bar { grid-template-columns: repeat(5, max-content); } } /* nine buttons in two rows where the bar still fits beside the controls panel; below that three rows */
 .build-hint { width: max-content; max-width: min(20em, calc(100vw - 2em)); text-align: center; padding: 0.35em 0.9em; pointer-events: none; font-size: 0.9em; }
 .toast-stack { position: absolute; left: 50%; bottom: 17em; transform: translateX(-50%); display: flex; flex-direction: column; gap: 0.35em; align-items: center; z-index: ${Z_HUD + 1}; pointer-events: none; font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; font-size: ${fontSize}; }
 .toast { width: max-content; max-width: min(30em, calc(100vw - 2em)); text-align: center; padding: 0.45em 1em; border-radius: 0.6em; background: ${C.panel}; color: ${C.text}; border: 1px solid ${C.panelBorder}; box-shadow: 0 0.15em 0.7em rgba(0, 0, 0, 0.5); }
@@ -354,7 +355,7 @@ export function hudCss(): string {
 .help-overlay[hidden] { display: none !important; }
 .help-card { pointer-events: auto; width: ${HELP_OVERLAY.widthEm}em; max-width: 100%; max-height: 100%; overflow: auto; background: ${HELP_OVERLAY.cardBg}; border: 1px solid ${C.panelBorder}; border-radius: 0.8em; box-shadow: 0 0.3em 1.4em rgba(0, 0, 0, 0.6); padding: 0.6em 0.9em 0.7em; }
 .help-title { font-size: 1.15em; font-weight: 800; margin-bottom: 0.3em; }
-.help-row { display: grid; grid-template-columns: ${HELP_OVERLAY.keyColEm}em 1fr; column-gap: 0.7em; align-items: baseline; min-height: 1.6em; }
+.help-row { display: grid; grid-template-columns: ${HELP_OVERLAY.keyColEm}em 1fr; column-gap: 0.7em; align-items: baseline; min-height: 1.45em; } /* M18e-1 integration: one entry more (keys 7 to 9), so the rows are a little lower to keep the card inside 960x540 */
 .help-keys { font: inherit; font-weight: 700; font-variant-numeric: tabular-nums; color: ${C.accent}; white-space: nowrap; }
 .help-hint { margin-top: 0.4em; color: ${C.textDim}; font-size: 0.85em; }
 @media (max-width: ${NARROW_MAX_PX}px), (max-aspect-ratio: 1/1) {
