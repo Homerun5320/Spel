@@ -56,7 +56,8 @@ describe('Dela upp stormakter', () => {
       );
       // the leaderboard shows the top of 25 equal nations: an allied row there carries the badge, and only sub-nations are allied
       // M18b-3: the federation is ONE row ("United States of America (n/m kvar)") that stands for its allied sub-nations
-      for (const r of rows.filter((x) => x.ally && !x.group)) expect(r.name).toContain('(United States of America)');
+      // Fix-5C [3.6]: a sub-nation is named by its own province; the group row carries the country
+      for (const r of rows.filter((x) => x.ally && !x.group)) expect(r.name).not.toContain('(United States of America)');
       expect(rows.some((r) => r.group && /USA|United States of America/.test(r.name))).toBe(true);
       await shot(page, 'leaderboard');
       // the diplomacy panel: the alliance is there and the break button is the sim's verdict
@@ -66,7 +67,10 @@ describe('Dela upp stormakter', () => {
       const bound = await page.locator(`${tid('diplo-row')}[data-relation="alliance"]`).count();
       expect(bound).toBeGreaterThanOrEqual(8);
       const names = await page.locator(`${tid('diplo-row')}[data-relation="alliance"] .diplo-who`).allTextContents();
-      for (const n of names) expect(n).toContain('(United States of America)');
+      for (const n of names) {
+        expect(n.trim().length).toBeGreaterThan(0);
+        expect(n).not.toContain('United States of America'); // Fix-5C [3.6]: the province alone
+      }
       const brk = page.locator(`${tid('diplo-row')}[data-relation="alliance"] ${tid('diplo-break')}`).first();
       expect(await brk.getAttribute('aria-disabled')).toBe('true');
       expect(await brk.getAttribute('data-reason')).toBe(String(REJECT_DIPLO_FEDERATION));
