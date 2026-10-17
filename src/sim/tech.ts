@@ -1,11 +1,12 @@
 // The technology mutators (M18d-1): Research, CancelResearch and the phase that finishes a research. The rules are in src/sim/techRules.ts (the same checks the
 // public validators run); the numbers in rules.ts (TECH_*); the cached effects in MatchState.techFx, read by the economy, conquest, helicopter and air-defence code.
 import { REJECT_NONE } from './intents';
-import { checkCancelResearch, checkResearch, techPriceMilli, techTicksOf } from './techRules';
+import { checkCancelResearch, checkResearch, techPriceMilli, techTicksWithLab } from './techRules';
 import { seatToOwner, type GameState } from './state';
 import { spawnPhaseRefuses } from './structures';
+import { labResearchPctOf } from './structureRules';
 
-/** Applies a Research: the rules (checkResearch), then the price is taken NOW and the research runs for TECH_TICKS[tech] ticks. */
+/** Applies a Research: the rules (checkResearch), then the price is taken NOW and the research runs for TECH_TICKS[tech] ticks, shortened by the percent the finished Labs give at this moment (M18e-1: fixed when it starts). */
 export function applyResearch(state: GameState, seat: number, tech: number): number {
   const m = state.match;
   const o = seatToOwner(seat);
@@ -13,7 +14,7 @@ export function applyResearch(state: GameState, seat: number, tech: number): num
   if (why !== REJECT_NONE) return why;
   state.gold[o] = (state.gold[o] as number) - techPriceMilli(tech);
   m.techCurrent[o] = tech + 1;
-  m.techDone[o] = state.tick + techTicksOf(tech);
+  m.techDone[o] = state.tick + techTicksWithLab(tech, labResearchPctOf(state, o));
   return REJECT_NONE;
 }
 

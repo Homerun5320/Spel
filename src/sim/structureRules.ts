@@ -4,21 +4,31 @@
 import { TECH_FX_UPGRADE } from './techTable';
 import {
   BUILD_BASE_GOLD,
+  AIRFIELD_HELI_TIME_MAX_PCT,
+  AIRFIELD_HELI_TIME_PCT_PER_LEVEL,
   BUILD_TICKS,
+  HELI_FLEET_AIRFIELD_MAX,
+  HELI_FLEET_PER_AIRFIELD_LEVEL,
+  LAB_RESEARCH_MAX_PCT,
+  LAB_RESEARCH_PCT_PER_LEVEL,
+  MAX_PER_OWNER_BY_TYPE,
   MILLI_GOLD_PER_GOLD,
+  PLANT_NEAR_CELLS,
   PRICE_ESCALATION_MAX_HALVES,
   PRICE_ESCALATION_ONE_HALVES,
   SPACING_CELLS_BY_TYPE,
   SPACING_SCOPE,
   STRUCT_LEVEL_HARD_CAP,
 } from './rules';
-import { cityGoldMilliAt, cityTroopCapAt } from './levelCurves';
+import { cityGoldMilliAt, cityTroopCapAt, plantGoldMilliAt } from './levelCurves';
 import {
   REJECT_BUILD_FALLOUT,
   REJECT_BUILD_FOREST,
   REJECT_BUILD_FULL,
   REJECT_BUILD_GOLD,
   REJECT_BUILD_HILLS,
+  REJECT_BUILD_MAX_COUNT,
+  REJECT_BUILD_NO_NEIGHBOUR,
   REJECT_BUILD_MOUNTAIN,
   REJECT_BUILD_NO_COAST,
   REJECT_BUILD_NO_FACTORY,
@@ -47,8 +57,12 @@ export const STRUCT_PORT = 3;
 export const STRUCT_SILO = 4;
 export const STRUCT_SAM = 5;
 export const STRUCT_POST = 6;
+/** M18e-1: the Airfield (more helicopters, faster helicopter production), the Lab (faster research) and the Plant (a little gold). */
+export const STRUCT_AIRFIELD = 7;
+export const STRUCT_LAB = 8;
+export const STRUCT_PLANT = 9;
 /** Number of type numbers including 0 (the length of the per-type arrays of rules.ts). */
-export const STRUCT_TYPE_SLOTS = 7;
+export const STRUCT_TYPE_SLOTS = 10;
 
 /** An array you can index and measure but not write to. */
 interface Numbers {
@@ -98,7 +112,7 @@ export interface BuildSource {
 }
 
 export function isStructType(type: unknown): type is number {
-  return typeof type === 'number' && Number.isInteger(type) && type >= STRUCT_CITY && type <= STRUCT_POST;
+  return typeof type === 'number' && Number.isInteger(type) && type >= STRUCT_CITY && type <= STRUCT_PLANT;
 }
 
 /** Price in gold of the next structure of `type` for a seat that owns `owned` of it: base * min(12, 2 + n) / 2, in integers. */
@@ -188,10 +202,86 @@ export function hasFinishedFactory(src: BuildSource, ownerId: number): boolean {
   return false;
 }
 
+/** What the per-owner effect scans read (a SimView and a GameState both have it). */
+export interface TickedStructures {
+  readonly structures: StructureView;
+  readonly tick: number;
+}
+
+/** The levels of the owner's FINISHED structures of `type` added up (0 when it owns none: no scan). */
+export function finishedLevelSum(src: TickedStructures, ownerId: number, type: number): number {
+  const s = src.structures;
+  if (s.ownedCount(ownerId, type) === 0) return 0;
+  let sum = 0;
+  for (let i = 0; i < s.highWater; i++) {
+    if (s.owner[i] === ownerId && s.type[i] === type && src.tick >= (s.readyTick[i] as number)) sum += s.level[i] as number;
+  }
+  return sum;
+}
+
+/** M18e-1: helicopters Airfield levels add to the fleet cap: HELI_FLEET_PER_AIRFIELD_LEVEL per level, at most HELI_FLEET_AIRFIELD_MAX. `levels` = the finished levels added up. */
+export function airfieldFleetBonusOfLevels(levels: number): number {
+  const b = levels * HELI_FLEET_PER_AIRFIELD_LEVEL;
+  return b > HELI_FLEET_AIRFIELD_MAX ? HELI_FLEET_AIRFIELD_MAX : b;
+}
+
+/** M18e-1: percent Airfield levels shorten the production of a helicopter: AIRFIELD_HELI_TIME_PCT_PER_LEVEL per level, at most AIRFIELD_HELI_TIME_MAX_PCT. */
+export function airfieldTimePctOfLevels(levels: number): number {
+  const p = levels * AIRFIELD_HELI_TIME_PCT_PER_LEVEL;
+  return p > AIRFIELD_HELI_TIME_MAX_PCT ? AIRFIELD_HELI_TIME_MAX_PCT : p;
+}
+
+/** M18e-1: percent Lab levels shorten a research that starts now: LAB_RESEARCH_PCT_PER_LEVEL per level, at most LAB_RESEARCH_MAX_PCT. */
+export function labResearchPctOfLevels(levels: number): number {
+  const p = levels * LAB_RESEARCH_PCT_PER_LEVEL;
+  return p > LAB_RESEARCH_MAX_PCT ? LAB_RESEARCH_MAX_PCT : p;
+}
+
+/** M18e-1: the helicopters the owner's finished Airfields add to the fleet cap. */
+export function airfieldFleetBonusOf(src: TickedStructures, ownerId: number): number {
+  return airfieldFleetBonusOfLevels(finishedLevelSum(src, ownerId, STRUCT_AIRFIELD));
+}
+
+/** M18e-1: percent the owner's finished Airfields shorten the production of a helicopter. */
+export function airfieldTimePctOf(src: TickedStructures, ownerId: number): number {
+  return airfieldTimePctOfLevels(finishedLevelSum(src, ownerId, STRUCT_AIRFIELD));
+}
+
+/** M18e-1: percent the owner's finished Labs shorten a research that starts now. */
+export function labResearchPctOf(src: TickedStructures, ownerId: number): number {
+  return labResearchPctOfLevels(finishedLevelSum(src, ownerId, STRUCT_LAB));
+}
+
+/** M18e-1: gold per second (milli) of a FINISHED Plant of `level` (before techs): 0.8 at level 1, towards 1.6. */
+export function plantGoldMilli(level: number): number {
+  return plantGoldMilliAt(level);
+}
+
+/** M18e-1: does the owner have a City or Port (finished or not) within PLANT_NEAR_CELLS of `cell`? */
+export function hasPlantNeighbour(src: BuildSource, ownerId: number, cell: number): boolean {
+  const s = src.structures;
+  const w = src.width;
+  const x = cell % w;
+  const y = (cell - x) / w;
+  const limit = PLANT_NEAR_CELLS * PLANT_NEAR_CELLS;
+  for (let i = 0; i < s.highWater; i++) {
+    if (s.owner[i] !== ownerId) continue;
+    const t = s.type[i];
+    if (t !== STRUCT_CITY && t !== STRUCT_PORT) continue;
+    const c = s.cell[i] as number;
+    const sx = c % w;
+    let dx = sx > x ? sx - x : x - sx;
+    if (w - dx < dx) dx = w - dx;
+    const dy = (c - sx) / w - y;
+    if (dx * dx + dy * dy <= limit) return true;
+  }
+  return false;
+}
+
 /**
  * THE placement rules. Returns REJECT_NONE or the reason, checking in this order: type, cell, Peak, ownership, the terrain
  * rules (Mountain allows only SAM / Post / Silo; Hills no Port; Forest no Silo), Port on the coast, the cell is free, spacing,
- * fallout, Silo needs a finished Factory of the same owner, the table has room, the purse. `goldMilli` is the seat's gold.
+ * fallout, Silo needs a finished Factory of the same owner, the per-owner limit (M18e-1), a Plant needs a City or Port near (M18e-1), the table has room, the purse. `goldMilli` is the seat's gold.
  */
 export function checkBuild(src: BuildSource, goldMilli: number, seat: number, type: number, cell: number): number {
   if (!isStructType(type)) return REJECT_BUILD_TYPE;
@@ -208,6 +298,10 @@ export function checkBuild(src: BuildSource, goldMilli: number, seat: number, ty
   if (violatesSpacing(src, ownerId, type, cell)) return REJECT_BUILD_SPACING;
   if (src.falloutUntilAt(cell) > src.tick) return REJECT_BUILD_FALLOUT;
   if (type === STRUCT_SILO && !hasFinishedFactory(src, ownerId)) return REJECT_BUILD_NO_FACTORY;
+  // M18e-1: the per-owner limit (Airfield, Lab, Plant) and the Plant's neighbour rule, before the table and the purse.
+  const maxOwned = MAX_PER_OWNER_BY_TYPE[type] as number;
+  if (maxOwned !== 0 && src.structures.ownedCount(ownerId, type) >= maxOwned) return REJECT_BUILD_MAX_COUNT;
+  if (type === STRUCT_PLANT && !hasPlantNeighbour(src, ownerId, cell)) return REJECT_BUILD_NO_NEIGHBOUR;
   if (src.structures.liveCount >= src.structures.capacity) return REJECT_BUILD_FULL;
   if (goldMilli < buildPriceMilli(src.structures, ownerId, type)) return REJECT_BUILD_GOLD;
   return REJECT_NONE;

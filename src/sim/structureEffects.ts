@@ -44,7 +44,7 @@ import {
 import { DISTRICT_BARRACKS, DISTRICT_HOUSING, DISTRICT_MARKET, DISTRICT_WALLS } from './districtRules';
 import { TECH_FX_GOLD, TECH_FX_WALLS_POST } from './techTable';
 import type { GameState } from './state';
-import { STRUCT_CITY, STRUCT_FACTORY, STRUCT_PORT, STRUCT_POST, cityGoldMilli } from './structureRules';
+import { STRUCT_CITY, STRUCT_FACTORY, STRUCT_PLANT, STRUCT_PORT, STRUCT_POST, cityGoldMilli, plantGoldMilli } from './structureRules';
 import type { StructureTable } from './structures';
 
 const NEVER = 0xffffffff;
@@ -172,6 +172,10 @@ function recompute(state: GameState): void {
       if (t.districtCount > 0) next = districtEffects(t, id, o, tick, next, goldPct);
     } else if (type === STRUCT_FACTORY) {
       t.effFixedMilli[o] = (t.effFixedMilli[o] as number) + factoryGoldMilliAt(t.level[id] as number);
+    } else if (type === STRUCT_PLANT) {
+      // M18e-1: a Plant pays its own gold (plus the economy techs' percent, like a City), summed into the same cache entry.
+      const plant = plantGoldMilli(t.level[id] as number);
+      t.effFixedMilli[o] = (t.effFixedMilli[o] as number) + (goldPct === 0 ? plant : plant + Math.floor((plant * goldPct) / 100));
     } else if (type === STRUCT_PORT) {
       const portLevel = t.level[id] as number;
       let income = portGoldMilliAt(portLevel);

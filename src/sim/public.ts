@@ -17,6 +17,8 @@ export {
   REJECT_BUILD_FALLOUT,
   REJECT_BUILD_FOREST,
   REJECT_BUILD_FULL,
+  REJECT_BUILD_MAX_COUNT,
+  REJECT_BUILD_NO_NEIGHBOUR,
   REJECT_BUILD_GOLD,
   REJECT_BUILD_HILLS,
   REJECT_BUILD_MOUNTAIN,
@@ -33,12 +35,22 @@ export {
 // Structures (M09 part A): the read-only table type, the type numbers, the prices and the placement check (validateBuild first).
 export type { StructureView } from './structureRules';
 export {
+  STRUCT_AIRFIELD,
   STRUCT_CITY,
   STRUCT_FACTORY,
+  STRUCT_LAB,
+  STRUCT_PLANT,
   STRUCT_PORT,
   STRUCT_POST,
   STRUCT_SAM,
   STRUCT_SILO,
+  airfieldFleetBonusOf,
+  airfieldFleetBonusOfLevels,
+  airfieldTimePctOf,
+  airfieldTimePctOfLevels,
+  labResearchPctOf,
+  labResearchPctOfLevels,
+  plantGoldMilli,
   buildPriceGold,
   buildPriceMilli,
   hasFinishedFactory,
@@ -54,6 +66,9 @@ export {
   AI_ANCHOR_SEAT,
   AI_ATTACK_COOLDOWN_TICKS,
   AI_BUILD_CITIES_PER_FACTORY,
+  AI_BUILD_CITIES_PER_LAB,
+  AI_BUILD_EXTRA_START_TICKS,
+  AI_BUILD_CITIES_PER_PLANT,
   AI_BUILD_CITIES_PER_PORT,
   AI_BUILD_CITIES_PER_POST,
   AI_BUILD_CITY_TROOP_PCT,
@@ -207,7 +222,7 @@ export { satPermille } from './levelCurves';
 // count, the intent body, the refusal codes and the constants of rules.ts the UI and the AI read (each has a row in docs/BALANCE.md).
 export type { HeliView } from './heliTable';
 export { HELI_APPROACH, HELI_BUILDING, HELI_CRUISE, HELI_DOWNED, HELI_HOVER, HELI_LIFT, HELI_PAD, HELI_POS_ONE, HELI_RETURN, HELI_UNLOAD } from './heliTable';
-export { HELI_PRICE_MILLI, fleetCapOf, fleetCountOf, validateProduceHeli } from './heliRules';
+export { HELI_PRICE_MILLI, fleetCapOf, fleetCountOf, heliBuildTicksOf, validateProduceHeli } from './heliRules';
 export type { ProduceHeliBody } from './intents';
 export { produceHeliBody } from './intents';
 export { REJECT_HELI_FACTORY_BUILDING, REJECT_HELI_FLEET_CAP, REJECT_HELI_NO_FACTORY, REJECT_HELI_NO_GOLD, REJECT_HELI_NOT_OWNER, REJECT_HELI_QUEUE_BUSY } from './intents';
@@ -291,7 +306,7 @@ export {
   REJECT_TECH_NOT_ACTIVE,
   REJECT_TECH_PREREQ,
 } from './intents';
-export { techPriceMilli, techTicksOf, validateCancelResearch, validateResearch, type TechMaskSource } from './techRules';
+export { researchTicksNow, techPriceMilli, techTicksOf, techTicksWithLab, validateCancelResearch, validateResearch, type TechMaskSource } from './techRules';
 export {
   TECH_ALL_MASK,
   TECH_BRANCH_AIR,
@@ -321,3 +336,15 @@ export {
 export { AI_TECH_GOLD_RESERVE, AI_TECH_PERIOD_TICKS, AI_TECH_START_TICKS, TECH_BRANCHES, TECH_COUNT, TECH_FX, TECH_FX_CAP, TECH_FX_CHANNELS, TECH_PRICE_GOLD, TECH_STEPS, TECH_TICKS } from './rules';
 export { heliMaxTroopsOf } from './heliRules';
 export { upgradePriceMilliFor, upgradePriceNowMilli } from './structureRules';
+
+// M18e-1: the limits and effect numbers of the Airfield, Lab and Plant (each has a row in docs/BALANCE.md); the UI reads them, never a number of its own.
+export {
+  AIRFIELD_HELI_TIME_MAX_PCT,
+  AIRFIELD_HELI_TIME_PCT_PER_LEVEL,
+  HELI_FLEET_AIRFIELD_MAX,
+  HELI_FLEET_PER_AIRFIELD_LEVEL,
+  LAB_RESEARCH_MAX_PCT,
+  LAB_RESEARCH_PCT_PER_LEVEL,
+  MAX_PER_OWNER_BY_TYPE,
+  PLANT_NEAR_CELLS,
+} from './rules';
