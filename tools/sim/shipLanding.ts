@@ -18,7 +18,7 @@ import {
   OUTBOX_SHIP_SCRAPPED,
   type OutboxEvent,
 } from '../../src/sim/outbox';
-import { MILLI_GOLD_PER_GOLD, QT_PER_TROOP } from '../../src/sim/rules';
+import { BUILD_TICKS, MILLI_GOLD_PER_GOLD, QT_PER_TROOP } from '../../src/sim/rules';
 import { hashState } from '../../src/sim/serialize';
 import { createState, rebuildAggregates, type GameState, type MatchConfig } from '../../src/sim/state';
 import { step } from '../../src/sim/step';
@@ -67,7 +67,7 @@ export function shipFixture(seed: number, opts: ShipFixtureOptions = {}): ShipFi
   state.troops[2] = 500 * QT_PER_TROOP;
   const portY = 24 + (s0 % 16);
   const port = state.structures.add(STRUCT_PORT, 1, portY * W + (SEA_FROM - 1), 0);
-  state.structures.readyTick[port] = 0; // finished at once (no build time in the fixture)
+  state.tick = BUILD_TICKS[STRUCT_PORT] as number; // the match starts when the Port is finished (it was laid down at tick 0)
   const target = (28 + ((s0 * 7) % 16)) * W + SEA_TO;
   return { state, port, target, troops: 600 };
 }

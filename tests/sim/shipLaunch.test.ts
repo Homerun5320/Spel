@@ -128,10 +128,10 @@ describe('LaunchShip: a legal launch', () => {
     expect([t.liveCount, t.owner[0], t.state[0], t.port[0], t.load[0], t.target[0]]).toEqual([1, 1, SHIP_SAIL, c.port, TROOPS, c.target + 1]);
     expect(t.routeCell(0, 0)).toBe(at(96, 24)); // the water cell next to the Port
     expect(t.countOf(1)).toBe(1);
-    expect(c.s.outbox.drain().filter((e) => e.kind === OUTBOX_SHIP_LAUNCHED)).toEqual([{ kind: OUTBOX_SHIP_LAUNCHED, tick: 0, a: 0, b: c.target }]);
+    expect(c.s.outbox.drain().filter((e) => e.kind === OUTBOX_SHIP_LAUNCHED)).toEqual([{ kind: OUTBOX_SHIP_LAUNCHED, tick: c.s.tick, a: 0, b: c.target }]);
     // through step(): the second launch from the same Port is refused as busy, the refusal is reported in the outbox
     const d = base();
-    const r = step(d.s, { turn: 0, intents: [withId(launchShipBody(0, d.port, d.target, TROOPS), 0), withId(launchShipBody(0, d.port, d.target, TROOPS), 1)] });
+    const r = step(d.s, { turn: d.s.tick, intents: [withId(launchShipBody(0, d.port, d.target, TROOPS), 0), withId(launchShipBody(0, d.port, d.target, TROOPS), 1)] });
     expect(r.ok && r.applied).toBe(1);
     expect(d.s.outbox.drain().filter((e) => e.kind === OUTBOX_REJECT).map((e) => e.a)).toEqual([REJECT_SHIP_PORT_BUSY]);
   });
@@ -158,9 +158,10 @@ describe('LaunchShip: every refusal, one by one (page check == sim check)', () =
 
   it('REJECT_SHIP_PORT_BUILDING: the Port is not finished', () => {
     const c = base();
-    c.s.structures.readyTick[c.port] = 100;
+    const ready = c.s.structures.readyTick[c.port] as number;
+    c.s.tick = ready - 1;
     expect(both(c)).toBe(REJECT_SHIP_PORT_BUILDING);
-    c.s.tick = 100; // finished at its ready tick
+    c.s.tick = ready; // finished at its ready tick
     expect(both(c)).toBe(REJECT_NONE);
   });
 
