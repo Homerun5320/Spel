@@ -189,6 +189,15 @@ export class InputStack {
     return mode;
   }
 
+  /** Ctx-1: takes `mode` off the stack wherever it sits (a mode below the top: the context menu when a panel was pushed over it); true when it was there. It gets its `onPop`. */
+  remove(mode: InputMode): boolean {
+    const i = this.modes.lastIndexOf(mode);
+    if (i < 0) return false;
+    this.modes.splice(i, 1);
+    mode.onPop?.();
+    return true;
+  }
+
   /** Pops every mode, topmost first. */
   clear(): void {
     while (this.pop() !== null) {

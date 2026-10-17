@@ -82,6 +82,17 @@ Resume: Läs CLAUDE.md och docs/PROGRESS.md, kör git log -10 och npm run verify
 - [x] [2.3] Fifteen finished passes moved word for word from Now to Archive; Done rows added; Next rewritten.
 - [x] [2.8] and [2.9] BACKLOG: M14a items marked solved, block "Fix-6C" with the plan for M15a, M15b, M16, M17 and M20b; the ARCHITECTURE index has 3 269 bytes of air (section moved to `docs/arch/render.md`).
 - [x] `tests/docs.test.ts`, `tests/portable.test.ts` green; `npm run verify:fast` once at the end (result in `docs/DECISIONS.md` "Fix-6C" and the hand-off).
+### Ctx-1: the right-click menu (render / UI / app, no rule change: ENGINE and FORMAT unchanged; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+
+- [x] Pure model `contextActionsFor` (every state from the existing validators, parity tests per entry type, auto choice of Factory / Port, omitted entries, provider hook).
+- [x] DOM menu (`src/ui/contextMenu.ts`): at the pointer, clamped, unfolds in place, keyboard, dimmed entries with a visible reason, `TARGET_MIN_PX` rows.
+- [x] Wiring in `runContext` (lazy import(); pref `rightClick`, `?ctx=0`); the command table and its tests unchanged.
+- [x] Deploy and ship modes open with a pre-picked target (route, marker, verdict, Send button).
+- [x] Texts sv + en, the `?` card has the row "Right click"; the START cap is not raised (measured 348 493 of 351 500).
+- [x] Tests: unit (model, layout, preset modes), e2e `e2e/ctxMenu.test.ts` (a to h, three sizes, two languages), pictures looked at; mutants in DECISIONS "Ctx-1".
+- [x] `npm run verify:fast` (result in DECISIONS Ctx-1).
+
+### Fix-5B: audit 4, layout faults in the HUD, the result card and the distribution boxes, plus the budget table (UI and e2e guards; no rule change, ENGINE and FORMAT unchanged; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
 
 ### Fix-6A1: audit 5, rule faults in the ship route, the landing price, the interceptors and the missile arc (headless, no Chromium; ENGINE 29, FORMAT 19 unchanged; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
 

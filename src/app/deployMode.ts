@@ -34,16 +34,25 @@ export interface DeployState {
 
 export interface DeployMode extends InputMode {
   state(): DeployState;
+  /** Ctx-1: the pinned landing zone (-1 = none). A mode opened with a target pins it; a click on another cell moves the pin, a click on the pinned cell sends. */
+  pinned(): number;
+  /** Ctx-1: sends the pinned zone when its verdict is accepted (a refusal shows its reason); returns true when it was sent. */
+  confirm(): boolean;
 }
 
-export function createDeployMode(factory: number, target: DeployTarget): DeployMode {
+/**
+ * `preset` (Ctx-1, the context menu's "send a helicopter here") skips the second click: the zone is pinned at once, the page shows its route, marker and verdict like a hovered
+ * one, and the player confirms (the Send button, or a click on the pinned cell). The cursor no longer moves the marker while a zone is pinned; a click elsewhere moves the pin.
+ */
+export function createDeployMode(factory: number, target: DeployTarget, preset = -1): DeployMode {
+  let pin = preset;
   let px = -1;
   let py = -1;
   let known = false;
-  let cell = -1;
+  let cell = preset;
 
   const refresh = (): void => {
-    if (!known) return;
+    if (!known || pin >= 0) return;
     const c = target.pickCell(px, py);
     const next = c === null ? -1 : c;
     if (next === cell) return;
@@ -57,10 +66,22 @@ export function createDeployMode(factory: number, target: DeployTarget): DeployM
     known = true;
     const c = target.pickCell(x, y);
     if (c === null) return true; // a click beside the globe does nothing
+    if (pin >= 0 && c !== pin) {
+      pin = c; // the pin moves to the clicked zone: the preview shows it before anything is sent
+      cell = c;
+      target.hover(c);
+      return true;
+    }
+    send(c);
+    return true;
+  };
+
+  /** Asks the verdict, then sends (and leaves the mode) or shows the reason; true when the launch was sent. */
+  const send = (c: number): boolean => {
     const reason = target.decide(c);
     if (reason !== 0) {
       target.refused(reason);
-      return true;
+      return false;
     }
     target.send(c);
     target.exit();
@@ -70,7 +91,13 @@ export function createDeployMode(factory: number, target: DeployTarget): DeployM
   return {
     id: `deploy:${factory}`,
     state: () => ({ cell, factory }),
+    pinned: () => pin,
+    confirm: () => pin >= 0 && send(pin),
+    onPush(): void {
+      if (preset >= 0) target.hover(preset);
+    },
     onPop(): void {
+      pin = -1;
       cell = -1;
       target.hover(null);
       target.ended();
@@ -80,7 +107,7 @@ export function createDeployMode(factory: number, target: DeployTarget): DeployM
       px = e.x;
       py = e.y;
       known = true;
-      refresh();
+      refresh(); // (a pinned zone keeps the marker)
       return true; // no hover tooltip while choosing a zone
     },
     // the marker follows the camera too (a drag, a wheel notch, a flight moves the ground under a resting cursor)

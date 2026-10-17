@@ -67,6 +67,15 @@ export function createHelpOverlay(parent: HTMLElement, entries: () => readonly H
       row.append(keys, label);
       list.append(row);
     }
+    // Ctx-1: the mouse has one entry that is not a key (a right click opens the context menu); its row is not a registry entry, so it has its own testid
+    const mouse = div('help-row', 'help-row-ctx');
+    const mouseKeys = document.createElement('kbd');
+    mouseKeys.className = 'help-keys';
+    mouseKeys.textContent = t('help.ctx.keys');
+    const mouseLabel = document.createElement('span');
+    mouseLabel.textContent = t('help.ctx.label');
+    mouse.append(mouseKeys, mouseLabel);
+    list.append(mouse);
     builtFor = languageVersion();
   };
   return {

@@ -47,8 +47,8 @@ export interface ShipControllerInfo {
 }
 
 export interface ShipController {
-  /** Starts the mode for Port `port` (a refused start shows the reason as a toast). */
-  enter(port: number): void;
+  /** Starts the mode for Port `port` (a refused start shows the reason as a toast). Ctx-1: `target` pins that coast cell at once (the context menu's "send a ship here"): the route, the marker and the verdict show, the Send button confirms. */
+  enter(port: number, target?: number): void;
   exit(): void;
   /** The key / button: starts the mode for the selected Port, or leaves it when it is on. */
   toggle(port: number): void;
@@ -94,7 +94,7 @@ export function createShipController(host: ShipHost, getBox: () => ShipBox | nul
     else if (mode !== null) clear();
   };
 
-  const enter = (p: number): void => {
+  const enter = (p: number, target = -1): void => {
     const m = host.match();
     if (m === null) return;
     const s = m.view.structures;
@@ -108,13 +108,19 @@ export function createShipController(host: ShipHost, getBox: () => ShipBox | nul
       return;
     }
     if (mode !== null) {
-      if (port === p) return;
+      if (port === p) {
+        if (target >= 0) {
+          pinned = target;
+          preview = null;
+        }
+        return;
+      }
       exit();
     }
     host.exitOthers();
     port = p;
     hover = -1;
-    pinned = -1;
+    pinned = target;
     preview = null;
     const next = createShipMode(p, {
       pickCell: host.pickCell,

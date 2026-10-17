@@ -729,3 +729,12 @@ M14b
 - The three-column build bar overlaps the controls panel at 800x600 (audit 5 [3.1], last sentence): needs a layout decision for small landscape windows (e.g. the narrow layout up to 800 px).
 - The ship layer has no far icon of its own (the larger minimum size is the fix of [3.8]); an owner-coloured far icon like the helicopter's is a possible later step if ships still get lost on a 4K screen.
 - The first Play press fetches the sim chunk without a retry; a failed dynamic import stays failed in the browser until a reload (the notice says so). A reload-button inside the notice is possible (it needs a new key and a test).
+## Ctx-1
+
+- Step 2 of the menu: remove the build bar and the buttons of the selection panel (Upgrade, Delete, Send helicopter, Send ship) once the owner has tried the menu. The menu is a layer in front of the command table, so nothing was removed.
+- Missiles in the menu: M15b registers an entry through `registerContextProvider` (effect `extension`), no change to `contextActionsFor`.
+- Ship cards, a minimap, a touch radial menu (the menu already opens on a long press through the same context command).
+- A settings switch for the pref `rightClick` ('menu' | 'direct'); today only `?ctx=0` and the pref key itself (set by hand) choose the old plain right click.
+- With a Factory marked, a right click still opens the deploy mode (the rule of M13b is unchanged); the menu is reached after unmarking. A "Send helicopter" entry for a marked Factory could carry the target instead.
+- The diplomacy break confirmation in the menu is a second activation of the same row; the panel's countdown of the armed state is not repeated.
+

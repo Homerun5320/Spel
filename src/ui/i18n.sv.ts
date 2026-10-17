@@ -599,6 +599,31 @@ export const sv = {
   'hotkey.ship': 'Skicka fartyg från markerad hamn',
   // Fix-6B
   'app.matchLoadError': 'Matchen kunde inte laddas. Kontrollera nätverket och ladda om sidan.',
+  // Ctx-1: the right-click menu
+  'ctx.noFactory': 'Du har ingen färdig fabrik.',
+  'ctx.noPort': 'Du har ingen färdig hamn.',
+  'deploy.confirm': 'Skicka',
+  'ctx.title.land': 'Neutral mark',
+  'ctx.title.own': 'Ditt land',
+  'ctx.title.nation': 'Land: {name}',
+  'ctx.group.build': 'Bygg här',
+  'ctx.group.diplo': 'Diplomati: {name}',
+  'ctx.attack': 'Attackera ({pct} %, {troops} trupper)',
+  'ctx.deployHere': 'Skicka helikopter hit',
+  'ctx.shipHere': 'Skicka fartyg hit',
+  'ctx.upgrade': 'Uppgradera till nivå {level}',
+  'ctx.openCity': 'Öppna stad',
+  'ctx.produceHeli': 'Bygg helikopter',
+  'ctx.deploySend': 'Skicka helikopter…',
+  'ctx.shipSend': 'Skicka fartyg…',
+  'ctx.select': 'Markera',
+  'ctx.delete': 'Riv',
+  'ctx.confirm': 'Klicka igen: {label}',
+  'ctx.menu.aria': 'Meny för rutan',
+  'ctx.price': '{price} guld',
+  'ctx.toast.noMenu': 'Det går inte att göra något här.',
+  'help.ctx.keys': 'Högerklick',
+  'help.ctx.label': 'Meny: attackera, bygg, diplomati',
 } as const;
 
 export type TextKey = keyof typeof sv;
