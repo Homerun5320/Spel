@@ -38,6 +38,10 @@ import { BEACH_ESTABLISHED, BEACH_REVERTED, BeachheadWatcher, beachSecondsLeft, 
 import { HeliWatcher, MISSION_LANDED, MISSION_LOST, MissionWatcher, heliPanelInfo, ownHeliRows, padHeliOf, type HeliRow } from '../ui/heliInfo';
 import { createDeployBox, type DeployBox } from '../ui/deployBox';
 import { createDeployMode, type DeployMode } from './deployMode';
+import { createShipController, type ShipController, type ShipControllerInfo } from './shipController';
+import { createShipBox, type ShipBox } from '../ui/shipBox';
+import { newShipNews, ShipEventWatcher, shipNewsKey, SHIP_NEWS_LANDED, SHIP_NEWS_LAUNCHED } from '../ui/shipEvents';
+import type { DrawnShip } from '../render/shipLayer';
 import { LaunchPreviewer, previewLaunch, type PreviewRequest, type PreviewResult } from './launchPreview';
 import { rejectKey } from '../ui/hudLogic';
 import { mountToasts, showToast, tickToasts, visibleToastKeys } from '../ui/toast';
@@ -50,7 +54,7 @@ import { TechWatcher, techName } from '../ui/techModel';
 import { attachHotkeys, hotkeys, registerGameHotkeys } from './hotkeys';
 import { createPlacementMode, type PlacementMode, type PlacementState } from './placement';
 import { AIR_MODE_AGL_M, HELI_MAX_TROOPS, heliMaxTroopsOf, REJECT_HELI_NO_PAD, REJECT_HELI_NO_ROUTE, createLos, createLosTerrain, createNav, launchHeliBody, recallHeliBody, validateLaunchHeli, type Nav } from '../sim/public';
-import { HELI_LIFT, HELI_RETURN, STRUCT_CITY, STRUCT_FACTORY, produceHeliBody, buildBody, buildDistrictBody, deleteBody, removeDistrictBody, upgradeBody, upgradeDistrictBody, validateBuild } from '../sim/public';
+import { HELI_LIFT, HELI_RETURN, STRUCT_CITY, STRUCT_FACTORY, STRUCT_PORT, produceHeliBody, buildBody, buildDistrictBody, deleteBody, removeDistrictBody, upgradeBody, upgradeDistrictBody, validateBuild } from '../sim/public';
 import { createCityViewPanel, type CityViewPanel } from '../ui/cityViewPanel';
 import { BEACH_RING_MAX, CAMERA_FOV_DEG, EARTH_RADIUS_KM } from '../render/config';
 import type { DrawnFront } from '../render/frontLayer';
@@ -332,6 +336,11 @@ export interface GlobeTestHooks {
   /** M13a-1: forces the rotor angle (radians; null = the fx clock) and switches the helicopter layer on or off, so a test can tell the rotor's pixels and the layer's draw call. */
   heliSpin(angle: number | null): void;
   heliLayer(on: boolean): void;
+  /** M13c-2: the ships the layer drew (id, owner, state, position, heading), a switch for a draw-call count, the ship mode (active, Port, hovered and picked cell, verdict, route points, sailing time) and its confirm. */
+  ships(): readonly DrawnShip[];
+  shipLayer(on: boolean): void;
+  shipMode(): ShipControllerInfo;
+  shipConfirm(): boolean;
   /** M13a-2: the effects (counts, draw calls), a switch for them, and the chase camera (active, helicopter id, the camera's height above the ground in metres). */
   fx(): FxInfo;
   fxLayer(on: boolean): void;
@@ -524,6 +533,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   canvas.style.touchAction = 'none';
 
   const globe = new Globe({ canvas, width, height, dpr, quality, world, preserveDrawingBuffer: params.test, terrain: ctx.state.terrain.terrain, chunkDebug: ctx.state.terrain.chunkDebug, detail: ctx.state.raw.detail !== '0', fineDetail: ctx.state.raw.mottle !== '0' });
+  globe.ships.recordDrawn = params.test;
   globe.helis.recordDrawn = params.test; // the list of drawn helicopters is read only by the test hooks (Fix-4B: no garbage per table otherwise)
   globe.deploy.setStyle(DEPLOY.style); // M13b: the colours of the route and the landing-zone marker (src/ui/uiConfig.ts)
   globe.setView({ ...DEFAULT_START_VIEW, distKm: fitViewDistKm(DEFAULT_START_VIEW.distKm, width / height) }); // CamFix-2: a tall window starts farther out so that the disc fits
@@ -584,6 +594,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       globe.structures.setTable(session.view.structures, session.view.structuresVersion);
       globe.districts.setTable(session.view.structures, session.view.districts, session.view.structuresVersion); // Districts-2b
       globe.helis.setTable(session.view.helis, session.view.helisVersion); // M13a-1
+      globe.ships.setTable(session.view.ships, session.view.shipsVersion); // M13c-2
       if (session.view.beachheadsVersion !== beachRingVersion) {
         beachRingVersion = session.view.beachheadsVersion;
         globe.structures.setBeachRings(beachSeeds, ownBeachSeeds(session.view, session.localSeat, beachSeeds), session.localOwner);
@@ -649,6 +660,10 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   let deployFactory = -1;
   let deployBox = null as DeployBox | null;
   let deployHover = -1;
+  /** M13c-2: the ship box in the Port panel and the ship watcher (the first consumer of the mirror's events); the controller is made after the input stack. */
+  let shipBox = null as ShipBox | null;
+  const shipWatcher = new ShipEventWatcher();
+  const shipNews = newShipNews();
   const deployPreviewer = new LaunchPreviewer((req) => Promise.resolve(runPreview(req)), DEPLOY.previewIntervalS);
   /** Districts-2a: the city view (the City id while open, -1 = closed), its input mode and panel. */
   let cityId = -1;
@@ -852,6 +867,8 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       recall: (heli) => s.submit(recallHeliBody(s.localSeat, heli)),
       chase: (heli) => startChase(heli),
     });
+    // M13c-2: the ship block of the Port panel
+    shipBox = createShipBox(selectPanel.shipBlock, { open: () => shipCtl.toggle(selectedId), confirm: () => void shipCtl.confirm(), cancel: () => shipCtl.exit() });
     cityPanel = createCityViewPanel(buildRoot, {
       build: (id, slot, kind) => s.submit(buildDistrictBody(s.localSeat, id, slot, kind)),
       upgrade: (id, slot) => s.submit(upgradeDistrictBody(s.localSeat, id, slot)),
@@ -967,11 +984,14 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       } else {
         const onMountain = session.view.terrainClass[session.view.structures.cell[selectedId] as number] === CLASS_MOUNTAIN;
         globe.structures.setSelection(selectedId, rangeRingCells(info.type, info.level, onMountain));
-        selectPanel?.update(buildBarWanted && cityId < 0 ? info : null, onMountain, info.type === STRUCT_FACTORY ? heliInfoOf(session.view, L, selectedId) : null);
+        selectPanel?.update(buildBarWanted && cityId < 0 ? info : null, onMountain, info.type === STRUCT_FACTORY ? heliInfoOf(session.view, L, selectedId) : null, info.type === STRUCT_PORT);
+        if (info.type === STRUCT_PORT && buildBarWanted && cityId < 0) shipCtl.boxFrame(selectedId);
         if (info.type === STRUCT_FACTORY && buildBarWanted && cityId < 0) deployBoxFrame(session, selectedId);
       }
     }
     deployFrame(session);
+    shipCtl.frame();
+    shipToasts(session);
     if (cityId >= 0) {
       const ci = selectionInfo(session.view, L, cityId);
       if (ci === null || !ci.owned || ci.type !== STRUCT_CITY) closeCity(); // destroyed, deleted or conquered
@@ -1541,6 +1561,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     const L = sess.localSeat;
     if ((sess.view.stats.capital[L] as number) === 0) return; // nothing to build on before the spawn
     const same = placing === type;
+    shipCtl.exit();
     exitSelection();
     exitPlacement();
     if (same) return; // the key or the button again leaves the mode
@@ -1602,6 +1623,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       if (deployFactory === factory) return;
       exitDeploy();
     }
+    shipCtl.exit();
     exitPlacement();
     deployFactory = factory;
     deployHover = -1;
@@ -1638,6 +1660,37 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     });
     deployMode = mode;
     inputStack.push(mode);
+  };
+  // --- Ships (M13c-2): the ship mode of a Port (src/app/shipController.ts) and the news of the own ships (the first consumer of the mirror's events) ---
+  const shipPose = new Float64Array(7).fill(Number.NaN);
+  const shipCtl: ShipController = createShipController(
+    {
+      match: () => session,
+      stack: inputStack,
+      pickCell: cellAt,
+      cameraMoved: () => globe.rig.poseChanged(shipPose),
+      setRoute: (cells, liftM) => globe.deploy.setRoute(cells, null, liftM),
+      setMarker: (cell, state) => globe.deploy.setMarker(cell, state),
+      toast: (key, params, kind) => showToast(key, params, kind),
+      exitOthers: () => {
+        exitDeploy();
+        exitPlacement();
+      },
+    },
+    () => shipBox,
+  );
+  /** Reads the events the mirror holds, makes the toasts of the OWN ships and clears the list (one consumer per mirror: this frame loop). */
+  const shipToasts = (sess: MatchSession): void => {
+    const view = sess.view;
+    if (view.events.length > 0 || view.ships.liveCount > 0) {
+      const n = shipWatcher.update(view.events, view.ships, sess.localOwner, shipNews);
+      for (let i = 0; i < n; i++) {
+        const code = shipNews.codes[i] as number;
+        const kind = code === SHIP_NEWS_LANDED || code === SHIP_NEWS_LAUNCHED ? 'info' : 'warn';
+        showToast(shipNewsKey(code), code === SHIP_NEWS_LANDED ? { n: shipNews.args[i] as number } : {}, kind);
+      }
+    }
+    if (view.events.length > 0) view.clearEvents();
   };
   let deployReq = null as PreviewRequest | null;
   let deployRouteFor = null as PreviewResult | null;
@@ -1731,6 +1784,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       toggleDiplomacy: () => toggleDiplomacy(),
       toggleTech: () => toggleTech(),
       deploy: () => (deployMode !== null ? exitDeploy() : enterDeploy(selectedId)),
+      ship: () => shipCtl.toggle(selectedId),
       toggleLabels: () => {
         setLabelsWanted(!labelsWanted);
         showToast(labelsWanted ? 'toast.labels.on' : 'toast.labels.off', {}, 'info');
@@ -2108,6 +2162,10 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
         globe.helis.spinOverride = angle;
       },
       heliLayer: (on) => globe.helis.setEnabled(on),
+      ships: () => globe.ships.drawn().map((d) => ({ ...d })),
+      shipLayer: (on) => globe.ships.setEnabled(on),
+      shipMode: () => shipCtl.info(),
+      shipConfirm: () => shipCtl.confirm(),
       fx: () => globe.heliFx.info(fxNow()),
       fxLayer: (on) => globe.heliFx.setEnabled(on),
       chase: () => ({ active: chaseMode !== null, heli: chaseMode?.heli ?? -1, camAglM: globe.rig.aglM() }),

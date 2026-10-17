@@ -4,7 +4,7 @@
 import { fxNow } from '../render/clock';
 import { formatGold, languageVersion, t } from './i18n';
 import { deleteArmed, deleteClick, deleteWhyKey, effectLines, structureNameKey, upgradeWhyKey, type DeleteArm, type SelectionInfo } from './structureInfo';
-import { STRUCT_CITY, STRUCT_FACTORY, maxLevelOf } from '../sim/public';
+import { STRUCT_CITY, STRUCT_FACTORY, STRUCT_PORT, maxLevelOf } from '../sim/public';
 import { rejectKey } from './hudLogic';
 import type { HeliPanelInfo } from './heliInfo';
 
@@ -12,8 +12,10 @@ export interface SelectionPanel {
   readonly root: HTMLElement;
   /** The Factory's helicopter block (M13b: the deploy box and the helicopter list are put into it). */
   readonly heliBox: HTMLElement;
+  /** The Port's ship block (M13c-2: the ship box is put into it). */
+  readonly shipBlock: HTMLElement;
   /** Per frame: null hides the panel. `onMountain` selects the sim's SAM radius. */
-  update(info: SelectionInfo | null, onMountain: boolean, heli?: HeliPanelInfo | null): void;
+  update(info: SelectionInfo | null, onMountain: boolean, heli?: HeliPanelInfo | null, showShip?: boolean): void;
   dispose(): void;
 }
 
@@ -44,7 +46,11 @@ export function createSelectionPanel(parent: HTMLElement, actions: { upgrade(id:
   const heliWhy = el('div', 'sel-note', 'sel-heli-why');
   heliBox.append(heliBtn, heliQueue, heliFleet, heliWhy);
   heliBox.hidden = true;
-  root.append(name, level, state, fx, row, heliBox, note);
+  const shipBlock = document.createElement('div'); // M13c-2: the ship box of an own Port
+  shipBlock.className = 'sel-ship-block';
+  shipBlock.dataset.testid = 'sel-ship-block';
+  shipBlock.hidden = true;
+  root.append(name, level, state, fx, row, heliBox, shipBlock, note);
   parent.appendChild(root);
   let shown = '';
   let current = -1;
@@ -75,7 +81,8 @@ export function createSelectionPanel(parent: HTMLElement, actions: { upgrade(id:
   return {
     root,
     heliBox,
-    update(info, onMountain, heli = null): void {
+    shipBlock,
+    update(info, onMountain, heli = null, showShipBox = false): void {
       if (info === null) {
         if (!root.hidden) root.hidden = true;
         current = -1;
@@ -86,7 +93,7 @@ export function createSelectionPanel(parent: HTMLElement, actions: { upgrade(id:
       current = info.id;
       const armed = deleteArmed(arm, info.id, clock());
       if (!armed) arm = null;
-      const sig = [armed ? 1 : 0, info.id, info.type, info.level, info.owned ? 1 : 0, info.finished ? 1 : 0, info.upgrading ? 1 : 0, info.upgradePrice, info.upgradeReason, info.deleteReason, info.deleteSeconds, onMountain ? 1 : 0, languageVersion(), heli === null ? 'x' : [heli.reason, heli.fleet, heli.cap, heli.queueSeconds].join(',')].join('|');
+      const sig = [armed ? 1 : 0, info.id, info.type, info.level, info.owned ? 1 : 0, info.finished ? 1 : 0, info.upgrading ? 1 : 0, info.upgradePrice, info.upgradeReason, info.deleteReason, info.deleteSeconds, onMountain ? 1 : 0, languageVersion(), showShipBox ? 1 : 0, heli === null ? 'x' : [heli.reason, heli.fleet, heli.cap, heli.queueSeconds].join(',')].join('|');
       if (sig === shown && !root.hidden) return;
       shown = sig;
       root.hidden = false;
@@ -123,6 +130,8 @@ export function createSelectionPanel(parent: HTMLElement, actions: { upgrade(id:
       openCity.textContent = t('sel.city.open');
       openCity.title = t('sel.city.openTip');
       note.textContent = t('sel.hint');
+      shipBlock.hidden = !(showShipBox && info.type === STRUCT_PORT && info.owned);
+      if (shipBlock.hidden) root.dataset.shipping = '0'; // the ship mode's CSS hook is only on while the ship block is
       const showHeli = info.type === STRUCT_FACTORY && info.owned && heli !== null && actions.produceHeli !== undefined;
       heliBox.hidden = !showHeli;
       if (showHeli && heli !== null) {

@@ -131,6 +131,11 @@ export function hudCss(): string {
 /* M13b: while the deploy mode is on the panel shows only the deploy block (a short window cannot hold both) */
 .sel-panel[data-deploying="1"] .sel-fx, .sel-panel[data-deploying="1"] .sel-row, .sel-panel[data-deploying="1"] > .sel-note, .sel-panel[data-deploying="1"] .sel-heli > .sel-btn, .sel-panel[data-deploying="1"] .sel-heli > .sel-state, .sel-panel[data-deploying="1"] .sel-heli > .sel-note { display: none; }
 /* M13b: the deploy block and the helicopter list inside the Factory panel */
+.sel-ship-block[hidden] { display: none !important; }
+.ship-box { display: flex; flex-direction: column; gap: 0.3em; margin-top: 0.3em; }
+.ship-box [hidden] { display: none !important; }
+.sel-ship[data-active="1"] { box-shadow: inset 0 0 0 1px ${C.accent}; }
+.sel-panel[data-shipping="1"] .sel-fx, .sel-panel[data-shipping="1"] .sel-row, .sel-panel[data-shipping="1"] > .sel-note, .sel-panel[data-shipping="1"] .ship-box > .sel-note { display: none; }
 .deploy-box { display: flex; flex-direction: column; gap: 0.3em; margin-top: 0.3em; }
 .deploy-controls { display: flex; flex-direction: column; gap: 0.25em; }
 .deploy-controls[hidden], .heli-list[hidden], .deploy-status[hidden], .deploy-box [hidden] { display: none !important; }

@@ -1,4 +1,5 @@
 // The text key of a build refusal (a REJECT_BUILD_* code of the sim, the same codes `validateBuild` returns). Tests check this KEY, not the text.
+import { shipRefusalKey } from './shipReasons';
 import {
   REJECT_BUILD_FALLOUT,
   REJECT_BUILD_FOREST,
@@ -173,6 +174,6 @@ export function airRefusalKey(reason: number): TextKey {
     case LZ_NO_ROUTE:
       return 'toast.lz.noRoute';
     default:
-      return buildRejectKey(reason);
+      return shipRefusalKey(reason) ?? buildRejectKey(reason); // M13c-2: the thirteen ship refusals
   }
 }

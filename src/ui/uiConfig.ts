@@ -273,6 +273,14 @@ export const DEPLOY = {
   },
 } as const;
 
+/** M13c-2: the ship mode (send a ship from a Port). The troop slider starts at the cheapest launch and the route line sits a few metres above the sea. */
+export const SHIP = {
+  troopsDefault: 20,
+  troopsStep: 10,
+  /** The route preview line height above the sea-level sphere, metres. */
+  routeLiftM: 12,
+} as const;
+
 /** M18c-2: the diplomacy panel, the proposal cards and the relation badges. Sizes in em of the HUD font, colours from UI_COLORS where one fits. */
 export const DIPLO = {
   /** The panel sits above the HUD and below the help overlay (34) and the match panels (36). */
