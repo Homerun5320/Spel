@@ -134,3 +134,16 @@ describe('docs/ARCHITECTURE.md stays an index (Fix-4C)', () => {
     expect(text).toContain(`FORMAT_VERSION ${format} `);
   });
 });
+
+describe('docs/PREVIEW.md ids (Fix-5C)', () => {
+  const lines = read('docs/PREVIEW.md').split('\n');
+  it('every section id (### 5x) and every numbered item id (17xx.) occurs once', () => {
+    const dup = (ids: string[]): string[] => ids.filter((id, i) => ids.indexOf(id) !== i);
+    const sections = lines.map((l) => /^### (\d+[a-z]*)\./.exec(l)?.[1]).filter((x): x is string => x !== undefined);
+    const items = lines.map((l) => /^(\d+[a-z]+\d*)\. /.exec(l)?.[1]).filter((x): x is string => x !== undefined);
+    expect(dup(sections)).toEqual([]);
+    expect(dup(items)).toEqual([]);
+    expect(sections.length).toBeGreaterThan(5);
+    expect(items.length).toBeGreaterThan(50);
+  });
+});

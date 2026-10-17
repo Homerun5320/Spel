@@ -46,14 +46,15 @@ describe('federations in createMatch', () => {
     }
   });
 
-  it('names carry the country; the chosen sub-nation is the one the player plays', () => {
+  it('names are the province alone (Fix-5C: the country is in the group row); the chosen sub-nation is the one the player plays', () => {
     const f = world.data.federations;
     const members = f?.membersByCountry[id('USA') - 1] ?? [];
     const pick = members[3] as number;
     const m = build('USA', { federations: true, subNation: pick });
     expect(m.seats[m.humanSeat]?.subNation).toBe(pick);
     const name = m.seats[m.humanSeat]?.identity;
-    expect(name?.kind === 'country' && name.nameEn.endsWith('(' + (world.byId.get(id('USA'))?.nameEn ?? '') + ')')).toBe(true);
+    const sub = f?.subNations[pick - 1];
+    expect(name?.kind === 'country' && name.nameEn === sub?.name.replace(/ Region$/, '') && !name.nameEn.includes('(')).toBe(true);
   });
 
   it('members are allied at tick 0, the alliance cannot be broken and nobody attacks a member', () => {

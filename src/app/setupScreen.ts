@@ -17,6 +17,7 @@ import { countryName, searchCountries } from './countrySearch';
 import { countryViews, flyDistanceKm } from './countryGeo';
 import { countryEligibility, startCellEligibility } from './eligibility';
 import { membersOf } from './federationSetup';
+import { federationLineModel, startableSubNations } from './federationStarts';
 import { CUSTOM_COLORS, DIFFICULTIES, maxAiNations, type Difficulty, type MatchSetupConfig, type SetupError } from './matchSetup';
 import type { CountryInfo, PreparedWorld } from './matchWorld';
 import type { CityStyle } from '../render/cityTiers';
@@ -96,6 +97,7 @@ export function mountSetupScreen(parent: HTMLElement, world: PreparedWorld, init
   let message: { key: TextKey; params?: Record<string, string | number> } | null = null;
   let starting = false;
   let check: DraftCheck = checkDraft(world, draft, options.debugIntents === true);
+  const startableCache = new Map<string, number>(); // see startableOf
   const aiMaxCache = new Map<string, number>();
   let aiMax = SETUP_AI_NATIONS_MAX;
 
@@ -594,19 +596,29 @@ export function mountSetupScreen(parent: HTMLElement, world: PreparedWorld, init
       fedInfo.textContent = '';
       return;
     }
-    if (f === null || c === null || members.length < 2) {
+    // Only the sub-nations that can START count (createMatch keeps a country whole when fewer than two can, e.g. India).
+    const startable = f === null || c === null || members.length < 2 || !check.ok ? 0 : startableOf(c.id);
+    fedInfo.dataset.startable = String(startable);
+    const line = federationLineModel(startable, draft.aiNations, SETUP_AI_NATIONS_MAX);
+    if (line.key === 'setup.federation.none') {
       fedInfo.textContent = t('setup.federation.none');
       fedInfo.dataset.sub = '0';
       return;
     }
-    const partners = members.length - 1;
     fedInfo.dataset.sub = String(draft.subNation);
-    fedInfo.textContent = t('setup.federation.sub', {
-      country: countryName(c, getLanguage()),
-      members: members.length,
-      ai: partners + Math.min(draft.aiNations, SETUP_AI_NATIONS_MAX - partners),
-      max: SETUP_AI_NATIONS_MAX,
-    });
+    fedInfo.textContent = t('setup.federation.sub', { country: countryName(c as CountryInfo, getLanguage()), members: line.members, ai: line.ai, max: SETUP_AI_NATIONS_MAX });
+  }
+
+  /** The number of startable sub-nations of a country, asked of createMatch once per country, seed and area (a build is dearer than a line of text). */
+  function startableOf(countryId: number): number {
+    if (!check.ok) return 0;
+    const key = `${countryId}|${check.config.seed}|${check.config.region}`;
+    let n = startableCache.get(key);
+    if (n === undefined) {
+      n = startableSubNations(world, { ...check.config, player: { kind: 'real', countryId } });
+      startableCache.set(key, n);
+    }
+    return n;
   }
 
   const selectCountry = (c: CountryInfo, fly: boolean, subNation = 0): void => {
