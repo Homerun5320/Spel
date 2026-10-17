@@ -267,7 +267,7 @@ class BeachheadReader implements BeachheadView {
 }
 
 /** The most attacks an `AttackView` describes (the page draws one arrow each). */
-export const ATTACK_VIEW_CAP = 16;
+export const ATTACK_VIEW_CAP = 32;
 /** How many front cells of one attack are sampled to describe its front, and how many bag entries are looked at to find them. */
 const FRONT_SAMPLES = 24;
 const FRONT_SCAN = 96;
