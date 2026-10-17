@@ -18,7 +18,7 @@ import { countryViews, flyDistanceKm } from './countryGeo';
 import { countryEligibility, startCellEligibility } from './eligibility';
 import { membersOf } from './federationSetup';
 import { federationLineModel, startableSubNations } from './federationStarts';
-import { CUSTOM_COLORS, DIFFICULTIES, maxAiNations, type Difficulty, type MatchSetupConfig, type SetupError } from './matchSetup';
+import { CUSTOM_COLORS, DIFFICULTIES, federationMinAiNations, maxAiNations, type Difficulty, type MatchSetupConfig, type SetupError } from './matchSetup';
 import type { CountryInfo, PreparedWorld } from './matchWorld';
 import type { CityStyle } from '../render/cityTiers';
 import { otherCityStyle } from './cityStyle';
@@ -99,7 +99,9 @@ export function mountSetupScreen(parent: HTMLElement, world: PreparedWorld, init
   let check: DraftCheck = checkDraft(world, draft, options.debugIntents === true);
   const startableCache = new Map<string, number>(); // see startableOf
   const aiMaxCache = new Map<string, number>();
+  const aiMinCache = new Map<string, number>();
   let aiMax = SETUP_AI_NATIONS_MAX;
+  let aiMin = 0; // Fix-5: 1 while "Dela upp stormakter" is on for a country that really splits (a lone federation would win at once)
 
   // --- DOM ---
   const root = el('div', 'setup-root', 'setup-screen');
@@ -345,6 +347,16 @@ export function mountSetupScreen(parent: HTMLElement, world: PreparedWorld, init
     // The whole world has far more countries than the slider's end (and building a match to count them would freeze the page for a moment
     // at every choice); a cut-out can run short, so there the real number is counted (once per area and player). A world match that still
     // runs short is refused by `createMatch` with the number that exists, and the Start handler lowers the slider to it.
+    if (!check.ok) aiMin = 0;
+    else {
+      const minKey = `${aiKey()}|${check.config.seed}|${draft.federations ? 1 : 0}`;
+      let lo = aiMinCache.get(minKey);
+      if (lo === undefined) {
+        lo = federationMinAiNations(world, check.config);
+        aiMinCache.set(minKey, lo);
+      }
+      aiMin = lo;
+    }
     if (!check.ok || draft.region === 'world') {
       aiMax = SETUP_AI_NATIONS_MAX;
       return;
@@ -542,7 +554,10 @@ export function mountSetupScreen(parent: HTMLElement, world: PreparedWorld, init
     // options
     if (region.value !== draft.region) region.value = draft.region;
     ai.max = String(aiMax);
+    ai.min = String(Math.min(aiMin, aiMax));
+    ai.dataset.min = ai.min;
     if (draft.aiNations > aiMax) draft = { ...draft, aiNations: aiMax };
+    if (draft.aiNations < aiMin && aiMin <= aiMax) draft = { ...draft, aiNations: aiMin };
     if (ai.value !== String(draft.aiNations)) ai.value = String(draft.aiNations);
     aiValue.textContent = `${draft.aiNations}${check.ok && aiMax < SETUP_AI_NATIONS_MAX ? ` (${t('setup.aiMax', { n: aiMax })})` : ''}`;
     aiValue.dataset.value = String(draft.aiNations);

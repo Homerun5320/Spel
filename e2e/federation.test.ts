@@ -41,6 +41,11 @@ describe('Dela upp stormakter', () => {
       const info = (await page.locator(tid('setup-federation-info')).textContent()) ?? '';
       expect(Number(await page.locator(tid('setup-federation-info')).getAttribute('data-members'))).toBeGreaterThanOrEqual(9);
       expect(info).toContain('24');
+      // Fix-5 [0.0]: a split country needs an outsider, so the AI slider cannot go to 0 while the option is on
+      expect(await page.locator('#setup-ai').getAttribute('min')).toBe('1');
+      await page.locator(tid('setup-federation')).uncheck();
+      expect(await page.locator('#setup-ai').getAttribute('min')).toBe('0');
+      await page.locator(tid('setup-federation')).check();
       await shot(page, 'setup');
       await page.click(tid('setup-start'));
       await page.waitForSelector(tid('match-hud'), { timeout: 30_000 });
