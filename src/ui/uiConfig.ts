@@ -77,8 +77,11 @@ export const HUD_FONT_BIAS_PX = 6;
 export const TARGET_MIN_PX = 44;
 /** At or below this viewport width (or in portrait) the HUD uses the narrow layout (banner across the top, leaderboard below it). */
 export const NARROW_MAX_PX = 600;
-/** From this window width the nine build buttons sit in five columns (two rows): the bar is centred (about 790 px wide in five columns) and the controls panel (about 390 px) sits at the right edge, so below this width they would overlap (measured at 1366x640). */
-export const BUILD_BAR_TWO_ROWS_MIN_PX = 1600;
+/** From this window width the nine build buttons sit in five columns (two rows): the bar is centred and MEASURED 880 px (sv) / 886 px (en) wide, the controls panel about 430 px at the right edge and the selection panel about 400 px at the left, so they stop overlapping at about 1760 px (Fix-6B: 18 px overlap at 1728, 7 at 1750). */
+/** Fix-6B: the narrow layout's build bar is a 3 x 3 grid (rows of TARGET_MIN_PX); the em of the hint above it (up to four lines), for the offsets of the toasts and the selection panel. */
+export const NARROW_BAR_ROWS = 3;
+export const NARROW_HINT_EM = 6;
+export const BUILD_BAR_TWO_ROWS_MIN_PX = 1800;
 
 /**
  * Colours. The panels are dark and nearly opaque so that the text stays readable over snow and desert in daylight as well as

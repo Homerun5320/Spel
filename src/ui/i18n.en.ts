@@ -595,5 +595,7 @@ export const en: Record<TextKey, string> = {
   'toast.ship.scrapEliminated': 'The ship was scrapped.',
   'toast.ship.scrapNoPort': 'The ship was scrapped: the port is lost.',
   'hotkey.ship': 'Send a ship from the selected port',
+  // Fix-6B
+  'app.matchLoadError': 'The match could not be loaded. Check the network and reload the page.',
 };
 

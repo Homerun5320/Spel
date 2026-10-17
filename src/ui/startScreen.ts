@@ -5,7 +5,7 @@ import { DEV_PANEL_REQUEST_EVENT } from './events';
 import { createGpuTip } from './gpuTip';
 import { mountHudStyle } from './hudStyle';
 import { onLanguageChange, t, type TextKey } from './i18n';
-import { toggleLanguage } from './langSwitch';
+import { notifyMatchLoadError, toggleLanguage } from './langSwitch';
 
 export interface StartScreen {
   /** The Play button, for the caller that wants to focus or probe it. */
@@ -125,6 +125,7 @@ export function mountStartScreen(parent: HTMLElement, onPlay: () => void | Promi
       play.disabled = false;
       render();
       console.error(err);
+      notifyMatchLoadError(parent); // Fix-6B: a failed fetch of the sim / AI chunk is told to the player
     });
   });
   setup?.addEventListener('click', () => {
