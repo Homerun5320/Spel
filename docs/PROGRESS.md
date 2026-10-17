@@ -195,6 +195,17 @@ GÖR och ACCEPTANS:
 - [x] Tests: `tests/ui/techModel.test.ts`, `tests/ai/upgradeDiscount.test.ts`, `tests/app/techKey.test.ts`, `e2e/research.test.ts`.
 - [x] `npm run verify:fast` green; the affected e2e green (result in `docs/DECISIONS.md` "M18d-2").
 
+### Fix-5A3: audit 4, test holes in app, render and UI models, and the attack arrow cap (headless, no rule change, ENGINE and FORMAT unchanged, goldens untouched; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+
+- [x] [1.5] The own attack always has an arrow: `ATTACK_VIEW_CAP` 16 -> 32 (same single instanced mesh, no new draw call); test with 20 attacks, the own one the 19th, and 40 attacks fill exactly the cap.
+- [x] [2.7] `fillAttackFronts` and the per-tick reader: pure tests on hand-built grids (`tests/sim/attackFronts.test.ts`).
+- [x] [2.8] `NationCentroids` east half, date line, `anchorCell` order (`tests/app/nationCentroids.test.ts`).
+- [x] [2.9] Chase camera at courses 0 / 45 / 90 / 180 / 270, the pole clamp, the lean, heading easing and the frame-step clamp (`tests/app/chaseModeGeometry.test.ts`).
+- [x] [2.10] Helicopter glide (`tests/render/heliGlide.test.ts`) and fx edges (`tests/render/heliFxEdges.test.ts`).
+- [x] [2.11] `ownHeliRows` rewrites reused rows, diplomacy / tech watchers, result groups (`tests/ui/heliRows.test.ts`, `tests/ui/modelEdges.test.ts`).
+- [x] [2.12] Key N and `compactTroops` boundaries (`tests/app/labelsKey.test.ts`); the AI research / diplomacy survivors went to `docs/BACKLOG.md`.
+- [x] Mutant table in `docs/DECISIONS.md` "Fix-5A3". `npm run verify:fast` result in the block there.
+
 
 ## Next
 

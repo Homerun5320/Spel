@@ -589,3 +589,9 @@ Not done in the Fix-UI slice (the sim, host and AI findings belong to Fix-Sim):
 - Shared research between allies; showing what an AI nation has researched (the result column is the only place now).
 - District upgrade prices have no technology discount in the sim; if one is wanted it needs a rule first, then the panel follows `districtUpgradePriceGold`.
 - A tooltip on a research cell with the full effect sentence (the cell line is short).
+
+## Fix-5A3
+
+- AI test holes of audit 4 [2.12], for the `src/ai` owners: the peaceful research order after ECONOMY (R10), "waits, never drifts" when a later step is unaffordable but another branch's first step is affordable (R13: gold between price + reserve of ECONOMY step 1 and LAND step 0), `fleetCountOf` in the AIRBORNE test (R16), and the diplomacy "most frequent attacker" order with two attackers that both have `AI_TRUCE_MIN_HITS` hits but different counts (AI07).
+- A two-pass fill of the attack rows (the local owner first) if the cap of 32 ever proves too small; it would need the local owner in the host's front snapshot.
+- Test holes named by audit 4 but not closed here: `LabelLayout` ties by id and the gap against HUD panels (L02, L07 to L11), `TechWatcher` against the real sim for two techs finished in one tick.
