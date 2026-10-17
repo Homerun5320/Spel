@@ -63,6 +63,16 @@ Resume: Läs CLAUDE.md och docs/PROGRESS.md, kör git log -10 och npm run verify
 
 ## Now
 
+### Ctx-1: the right-click menu (render / UI / app, no rule change: ENGINE and FORMAT unchanged; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+
+- [x] Pure model `contextActionsFor` (every state from the existing validators, parity tests per entry type, auto choice of Factory / Port, omitted entries, provider hook).
+- [x] DOM menu (`src/ui/contextMenu.ts`): at the pointer, clamped, unfolds in place, keyboard, dimmed entries with a visible reason, `TARGET_MIN_PX` rows.
+- [x] Wiring in `runContext` (lazy import(); pref `rightClick`, `?ctx=0`); the command table and its tests unchanged.
+- [x] Deploy and ship modes open with a pre-picked target (route, marker, verdict, Send button).
+- [x] Texts sv + en, the `?` card has the row "Right click"; the START cap is not raised (measured 348 493 of 351 500).
+- [x] Tests: unit (model, layout, preset modes), e2e `e2e/ctxMenu.test.ts` (a to h, three sizes, two languages), pictures looked at; mutants in DECISIONS "Ctx-1".
+- [x] `npm run verify:fast` (result in DECISIONS Ctx-1).
+
 ### Fix-5B: audit 4, layout faults in the HUD, the result card and the distribution boxes, plus the budget table (UI and e2e guards; no rule change, ENGINE and FORMAT unchanged; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
 
 - [x] [3.0] The load slider, its clamps and the refusal text follow `heliMaxTroopsOf` (e2e: the max grows after Rotor Blades).

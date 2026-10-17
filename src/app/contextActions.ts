@@ -44,6 +44,7 @@ import {
   TREATY_TRUCE,
   buildPriceMilli,
   heliMaxTroopsOf,
+  ownerToSeat,
   seatToOwner,
   validateBuild,
   validateLaunchHeli,
@@ -251,6 +252,11 @@ function gate(id: string, group: ContextGroupId, labelKey: TextKey, params: Text
   return entry({ id, group, labelKey, params, state: reason === REJECT_NONE ? 'ok' : 'disabled', ...(reason === REJECT_NONE ? {} : { reasonKey: rejectKey(reason), reasonCode: reason, reasonParams: { code: reason, max: reasonMax } }), effect, ...extra });
 }
 
+/** "No Factory / Port at all" is not the sim's "the Factory is gone" text: the menu says what the player needs (the refusal CODE stays the validator's). */
+function withReasonKey(e: ContextEntry, key: TextKey | null): ContextEntry {
+  return key === null || e.state === 'ok' ? e : { ...e, reasonKey: key };
+}
+
 const BUILD_ORDER: readonly number[] = [STRUCT_CITY, STRUCT_FACTORY, STRUCT_PORT, STRUCT_SILO, STRUCT_SAM, STRUCT_POST, STRUCT_AIRFIELD, STRUCT_LAB, STRUCT_PLANT];
 
 /** The diplomacy refusals that mean "this can never apply to this relation" (the entry is left out); every other refusal shows the entry dimmed with its reason. */
@@ -314,7 +320,7 @@ export function contextActionsFor(view: SimView, localSeat: number, target: Cont
       }
     }
   } else {
-    const seat = owner - 1;
+    const seat = owner > 0 ? ownerToSeat(owner) : -1;
     const nation = owner > 0 && seat < view.players;
     kind = nation ? 'nation' : 'neutral';
     title = nation ? { key: 'ctx.title.nation', params: { name: opts.nameOf(seat) } } : { key: 'ctx.title.land', params: NO_PARAMS };
@@ -324,9 +330,9 @@ export function contextActionsFor(view: SimView, localSeat: number, target: Cont
     const attackReason = spawnPhaseBlocks(view) ? REJECT_PHASE : attackBlock(view, localSeat, owner);
     entries.push(gate('attack', 'act', 'ctx.attack', { pct: opts.commitPct, troops }, attackReason, { kind: 'attack', owner, cell }));
     const factory = pickFactory(view, localSeat, cell, opts.nav, opts.heliTroops, opts.heliMode);
-    entries.push(gate('deployHere', 'act', 'ctx.deployHere', NO_PARAMS, factory.reason, { kind: 'deploy', factory: factory.id, cell }));
+    entries.push(withReasonKey(gate('deployHere', 'act', 'ctx.deployHere', NO_PARAMS, factory.reason, { kind: 'deploy', factory: factory.id, cell }), factory.id < 0 ? 'ctx.noFactory' : null));
     const port = pickPort(view, localSeat, cell);
-    entries.push(gate('shipHere', 'act', 'ctx.shipHere', NO_PARAMS, port.reason, { kind: 'ship', port: port.id, cell }));
+    entries.push(withReasonKey(gate('shipHere', 'act', 'ctx.shipHere', NO_PARAMS, port.reason, { kind: 'ship', port: port.id, cell }), port.id < 0 ? 'ctx.noPort' : null));
     if (nation) {
       diploEntries(view, localSeat, seat, entries);
       if (entries.some((e) => e.group === 'diplo')) groups.push({ id: 'diplo', titleKey: 'ctx.group.diplo', params: { name: opts.nameOf(seat) }, keyHint: 'D', open: false });

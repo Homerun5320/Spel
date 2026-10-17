@@ -161,7 +161,8 @@ describe('the help overlay is the registry', () => {
 
 describe('the right click goes through the command resolver', () => {
   async function scenario(act: (page: Page, capital: number) => Promise<void>): Promise<{ troopsQt: number; rejects: number; selection: any; placing: number; structures: number }> {
-    const { page, capital } = await spawned('test=1&seed=7&ai=0&hud=1', { width: 960, height: 540 }, 6000, 210);
+    // Ctx-1: `ctx=0` keeps the plain right click (attack / deselect / leave the placement) this test pins; the menu has its own tests in e2e/ctxMenu.test.ts
+    const { page, capital } = await spawned('test=1&seed=7&ai=0&hud=1&ctx=0', { width: 960, height: 540 }, 6000, 210);
     try {
       const tt = T(page);
       await tt.submit({ kind: 'Build', seat: 0, type: STRUCT_CITY, cell: capital });

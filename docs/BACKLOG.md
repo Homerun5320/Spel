@@ -697,3 +697,12 @@ M14b
 
 - `e2e/terrainLeak.serial.test.ts` fails by chance (about 1 run in 10) on "GL Driver Message (OpenGL, Performance, ...): Running out of reserved outsideRenderPass queueSerial" even on the published v33; the leak measurement itself is fine. Options for the owner: (a) treat ANGLE performance hints as non-failing in the console collector of `scripts/shot.mjs` (loosens a check, but only for a driver hint), (b) rerun the file once in `scripts/verify.mjs` for this one message (a documented retry, like the perf project's), (c) leave it and rerun by hand as now.
 
+## Ctx-1
+
+- Step 2 of the menu: remove the build bar and the buttons of the selection panel (Upgrade, Delete, Send helicopter, Send ship) once the owner has tried the menu. The menu is a layer in front of the command table, so nothing was removed.
+- Missiles in the menu: M15b registers an entry through `registerContextProvider` (effect `extension`), no change to `contextActionsFor`.
+- Ship cards, a minimap, a touch radial menu (the menu already opens on a long press through the same context command).
+- A settings switch for the pref `rightClick` ('menu' | 'direct'); today only `?ctx=0` and the pref key itself (set by hand) choose the old plain right click.
+- With a Factory marked, a right click still opens the deploy mode (the rule of M13b is unchanged); the menu is reached after unmarking. A "Send helicopter" entry for a marked Factory could carry the target instead.
+- The diplomacy break confirmation in the menu is a second activation of the same row; the panel's countdown of the armed state is not repeated.
+

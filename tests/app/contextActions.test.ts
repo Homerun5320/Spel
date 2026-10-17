@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { contextActionsFor, pickFactory, pickPort, registerContextProvider, type ContextEntry, type ContextModel, type ContextOptions } from '../../src/app/contextActions';
 import { createLos, createLosTerrain, createNav, validateBuild, validateLaunchHeli, validateLaunchShip, validateUpgrade, validateProposeTreaty, validateBreakTreaty, validateImposeEmbargo, validateProduceHeli, type Nav } from '../../src/sim/public';
 import { produceHeliBody, withId, validateIntent, type IntentBody } from '../../src/sim/intents';
-import { REJECT_BUILD_GOLD, REJECT_DIPLO_TREATY_BOUND, REJECT_HELI_NO_FACTORY, REJECT_HELI_NO_PAD, REJECT_SHIP_NO_PORT, REJECT_SHIP_NO_ROUTE, REJECT_STRUCT_BUSY } from '../../src/sim/public';
+import { REJECT_BUILD_GOLD, REJECT_DIPLO_TREATY_BOUND, REJECT_HELI_NO_FACTORY, REJECT_HELI_NO_PAD, REJECT_SHIP_NO_PORT, REJECT_SHIP_NO_ROUTE, REJECT_SHIP_PORT_BUILDING, REJECT_STRUCT_BUSY } from '../../src/sim/public';
 import { AI_WAR_START_TICKS, BUILD_TICKS, HELI_BUILD_TICKS, MILLI_GOLD_PER_GOLD, QT_PER_TROOP } from '../../src/sim/rules';
 import { applyIntent, step } from '../../src/sim/step';
 import { createState, rebuildAggregates, type GameState } from '../../src/sim/state';
@@ -263,11 +263,23 @@ describe('the choice of the Port (send a ship here)', () => {
     expect(byId(contextActionsFor(vw, 0, { cell: w.target, structure: -1 }, OPTS), 'shipHere')).toMatchObject({ state: 'disabled', reasonCode: REJECT_SHIP_NO_ROUTE, reasonKey: 'reject.ship.noRoute' });
   });
 
+  it('of several Ports that cannot send, the one that got furthest speaks (a Port that only lacks a sea way beats one still under construction, whatever the ids)', () => {
+    const w = shipFixture(0, { island: false });
+    w.state.capital[1] = 1;
+    for (let y = 0; y < 64; y++) w.state.terrain[y * SHIP_W + 120] = CLASS_PLAINS; // a wall of land across the sea
+    w.state.structures.readyTick[w.port] = w.state.tick + 100_000; // the first Port (lower id) is still being built
+    const second = w.state.structures.add(STRUCT_PORT, 1, 40 * SHIP_W + 95, 0);
+    const v = mk(w.state);
+    expect(validateLaunchShip(v, 0, w.port, w.target, 20)).toBe(REJECT_SHIP_PORT_BUILDING);
+    expect(validateLaunchShip(v, 0, second, w.target, 20)).toBe(REJECT_SHIP_NO_ROUTE);
+    expect(pickPort(v, 0, w.target)).toEqual({ id: second, reason: REJECT_SHIP_NO_ROUTE });
+  });
+
   it('a seat with no Port: "no port", dimmed (it could apply once there is one)', () => {
     const s = arena();
     const m = contextActionsFor(mk(s), 0, { cell: cellAt(70), structure: -1 }, OPTS);
-    expect(byId(m, 'shipHere')).toMatchObject({ state: 'disabled', reasonCode: REJECT_SHIP_NO_PORT });
-    expect(byId(m, 'deployHere')).toMatchObject({ state: 'disabled', reasonCode: REJECT_HELI_NO_FACTORY });
+    expect(byId(m, 'shipHere')).toMatchObject({ state: 'disabled', reasonCode: REJECT_SHIP_NO_PORT, reasonKey: 'ctx.noPort' });
+    expect(byId(m, 'deployHere')).toMatchObject({ state: 'disabled', reasonCode: REJECT_HELI_NO_FACTORY, reasonKey: 'ctx.noFactory' });
   });
 });
 

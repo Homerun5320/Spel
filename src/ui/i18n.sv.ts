@@ -598,6 +598,8 @@ export const sv = {
   'toast.ship.scrapNoPort': 'Fartyget skrotades: hamnen är förlorad.',
   'hotkey.ship': 'Skicka fartyg från markerad hamn',
   // Ctx-1: the right-click menu
+  'ctx.noFactory': 'Du har ingen färdig fabrik.',
+  'ctx.noPort': 'Du har ingen färdig hamn.',
   'deploy.confirm': 'Skicka',
   'ctx.title.land': 'Neutral mark',
   'ctx.title.own': 'Ditt land',

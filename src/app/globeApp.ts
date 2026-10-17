@@ -289,6 +289,8 @@ export interface GlobeTestHooks {
   hotkeys(): Array<{ id: string; keys: string[]; scope: string; hidden: boolean }>;
   /** M20a-lite: the help overlay (`?`) is open. */
   helpOpen(): boolean;
+  /** Ctx-1: the right-click menu (open, number of entries); false / 0 until it was loaded. */
+  ctxMenu(): { open: boolean; entries: number };
   /** M18-2 (test only): the sim's match view as plain data (result and per-seat statistics), null before the match exists. */
   matchInfo(): { winFlags: number; leaderSeat: number; requiredPct: number; holdSeat: number; holdTicksLeft: number; ended: boolean; winnerSeat: number; reason: number; endTick: number; players: number; score: number[]; landStd: number[]; peakLand: number[]; built: number[]; conquered: number[]; eliminated: number[] } | null;
   /** M08: `groundHeightAt` (the very function `heightAt`, render metres, all octaves unless given) bound to the page's raster. */
@@ -662,6 +664,8 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   /** Ctx-1: the right-click menu, loaded with import() at the first right click on playable land (src/app/contextActionsRun.ts); null until then. */
   let ctxRunner = null as ContextRunner | null;
   let ctxLoading = false;
+  /** The structure the menu marked only to open a deploy / ship mode (-1 = none): it is unmarked when the mode ends, so the next right click opens the menu again. */
+  let ctxSelected = -1;
   let deployFactory = -1;
   let deployBox = null as DeployBox | null;
   let deployHover = -1;
@@ -998,6 +1002,10 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     }
     deployFrame(session);
     ctxRunner?.frame();
+    if (ctxSelected >= 0 && deployMode === null && !shipCtl.isActive()) {
+      if (selectedId === ctxSelected) exitSelection();
+      ctxSelected = -1;
+    }
     shipToasts(session);
     if (cityId >= 0) {
       const ci = selectionInfo(session.view, L, cityId);
@@ -1457,9 +1465,11 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     const target: CommandTarget = { cell, terrainClass: v.terrainClass[cell] as number, owner: v.owner[cell] as number, ownStructure: structureAtCell(cell) };
     const spawned = (v.stats.capital[sess.localSeat] as number) !== 0;
     const command = resolveCommand('context', sel, target, { localOwner: sess.localOwner, spawned, spawnPhase: v.phase === PHASE_SPAWN });
-    // Ctx-1: with nothing marked, a right click on playable land opens the menu in front of the rules (an attack, or your own land / the spawn phase, which the table leaves alone).
-    // The table itself is unchanged; the pref 'rightClick' = 'direct' or `?ctx=0` gives the old behaviour (a plain right click attacks).
-    if (sel.structure < 0 && placing === 0 && spawned && isPlayableClass(target.terrainClass) && (command.kind === 'attack' || command.kind === 'none') && ctxMenuWanted()) {
+    // Ctx-1: a right click on playable land opens the menu in front of the rules: where the table says attack, nothing (your own land, the spawn phase, the marked structure's own cell) or
+    // "unmark" (the marking ends and the menu opens too). "Send a helicopter" (Factory marked) and the placement mode keep their rules. The table itself is unchanged; the pref
+    // 'rightClick' = 'direct' or `?ctx=0` gives the old behaviour (a plain right click attacks).
+    if (placing === 0 && spawned && isPlayableClass(target.terrainClass) && (command.kind === 'attack' || command.kind === 'none' || command.kind === 'deselect') && ctxMenuWanted()) {
+      if (command.kind === 'deselect') exitSelection();
       void openContextMenu(cmd.x, cmd.y, cell, target.ownStructure, command);
       return;
     }
@@ -1481,12 +1491,22 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     select: (id: number) => selectStructure(id),
     openCity: (id: number) => openCity(id),
     deploy: (factory: number, cell: number) => {
+      const fresh = selectedId < 0; // the menu marks the Factory only for the mode's panel: the marking ends with the mode
       selectStructure(factory);
       enterDeploy(factory, cell);
+      if (fresh) {
+        if (deployMode === null) exitSelection(); // the mode did not start (a toast said why)
+        else ctxSelected = factory;
+      }
     },
     ship: (port: number, cell: number) => {
+      const fresh = selectedId < 0;
       selectStructure(port);
       shipCtl.enter(port, cell);
+      if (fresh) {
+        if (!shipCtl.isActive()) exitSelection();
+        else ctxSelected = port;
+      }
     },
     shouldClose: () => keysBlockedByModal(),
   };
@@ -2321,6 +2341,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
       pick: (x, y) => globe.pick(x, y),
       hotkeys: () => hotkeys.entries().map((d) => ({ id: d.id, keys: [...d.keys], scope: d.scope, hidden: d.hidden === true })),
       helpOpen: () => help?.isOpen() === true,
+      ctxMenu: () => ctxRunner?.info() ?? { open: false, entries: 0 },
       onContext: (fn) => setContextHandler(fn),
       onPause: (fn) => setPauseHandler(fn),
       forceEliminated: (seat) => {

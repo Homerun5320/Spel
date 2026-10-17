@@ -596,6 +596,8 @@ export const en: Record<TextKey, string> = {
   'toast.ship.scrapNoPort': 'The ship was scrapped: the port is lost.',
   'hotkey.ship': 'Send a ship from the selected port',
   // Ctx-1: the right-click menu
+  'ctx.noFactory': 'You have no finished factory.',
+  'ctx.noPort': 'You have no finished port.',
   'deploy.confirm': 'Send',
   'ctx.title.land': 'Neutral land',
   'ctx.title.own': 'Your land',

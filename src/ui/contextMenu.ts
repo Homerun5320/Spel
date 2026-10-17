@@ -34,13 +34,15 @@ function ctxCss(): string {
 .ctx-menu *, .ctx-menu *::before { box-sizing: border-box; }
 .ctx-menu[hidden] { display: none !important; }
 .ctx-title { color: ${C.textDim}; font-size: 0.82em; text-transform: uppercase; letter-spacing: 0.08em; padding: 0.3em 0.6em 0.35em; }
-.ctx-item, .ctx-group { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; column-gap: 0.6em; align-items: center; width: 100%; min-height: ${target}; padding: 0.2em 0.6em; margin: 0; border: 0; border-radius: 0.45em; background: transparent; color: ${C.text}; font: inherit; text-align: left; cursor: pointer; touch-action: manipulation; }
+.ctx-item { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; column-gap: 0.6em; align-items: center; }
+.ctx-item, .ctx-group { column-gap: 0.6em; align-items: center; width: 100%; min-height: ${target}; padding: 0.2em 0.6em; margin: 0; border: 0; border-radius: 0.45em; background: transparent; color: ${C.text}; font: inherit; text-align: left; cursor: pointer; touch-action: manipulation; }
 .ctx-item:hover, .ctx-group:hover, .ctx-item:focus-visible, .ctx-group:focus-visible { background: ${CTX_MENU.rowHover}; outline: none; }
 .ctx-item:focus-visible, .ctx-group:focus-visible { box-shadow: inset 0 0 0 2px ${C.accent}; }
 .ctx-group { font-weight: 800; color: ${C.accent}; border-top: 1px solid ${C.panelBorder}; border-radius: 0; }
-.ctx-group::before { content: "\\25B8"; margin-right: 0.4em; }
+.ctx-group { display: flex; align-items: center; gap: 0.5em; }
+.ctx-group::before { content: "\\25B8"; flex: none; }
 .ctx-group[aria-expanded="true"]::before { content: "\\25BE"; }
-.ctx-group-name { grid-column: 1 / 3; }
+.ctx-group-name { flex: 1 1 auto; min-width: 0; }
 .ctx-items[hidden] { display: none !important; }
 .ctx-items { padding-left: 0.3em; }
 .ctx-name { font-weight: 700; min-width: 0; overflow-wrap: anywhere; }

@@ -360,7 +360,7 @@ export function hudCss(): string {
 .help-overlay[hidden] { display: none !important; }
 .help-card { pointer-events: auto; width: ${HELP_OVERLAY.widthEm}em; max-width: 100%; max-height: 100%; overflow: auto; background: ${HELP_OVERLAY.cardBg}; border: 1px solid ${C.panelBorder}; border-radius: 0.8em; box-shadow: 0 0.3em 1.4em rgba(0, 0, 0, 0.6); padding: 0.6em 0.9em 0.7em; }
 .help-title { font-size: 1.15em; font-weight: 800; margin-bottom: 0.3em; }
-.help-row { display: grid; grid-template-columns: ${HELP_OVERLAY.keyColEm}em 1fr; column-gap: 0.7em; align-items: baseline; min-height: 1.3em; } /* M18e-1 integration: one entry more (keys 7 to 9), so the rows are a little lower to keep the card inside 960x540; M13c-2: one more (key B), lower again (was 1.45em) */
+.help-row { display: grid; grid-template-columns: ${HELP_OVERLAY.keyColEm}em 1fr; column-gap: 0.7em; align-items: baseline; min-height: 1.2em; line-height: 1.2; } /* M18e-1 integration: one entry more (keys 7 to 9), so the rows are a little lower to keep the card inside 960x540; M13c-2: one more (key B), lower again (was 1.45em); Ctx-1: one more (the right click), 1.2em and line height 1.2 (was 1.3em) */
 .help-keys { font: inherit; font-weight: 700; font-variant-numeric: tabular-nums; color: ${C.accent}; white-space: nowrap; }
 .help-hint { margin-top: 0.4em; color: ${C.textDim}; font-size: 0.85em; }
 @media (max-width: ${NARROW_MAX_PX}px), (max-aspect-ratio: 1/1) {
