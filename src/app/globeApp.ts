@@ -1679,18 +1679,19 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     },
     () => shipBox,
   );
-  /** Reads the events the mirror holds, makes the toasts of the OWN ships and clears the list (one consumer per mirror: this frame loop). */
+  /** Reads the events this consumer has not seen (its own cursor, Fix-6B), makes the toasts of the OWN ships and marks them read at the end of the frame. */
   const shipToasts = (sess: MatchSession): void => {
     const view = sess.view;
-    if (view.events.length > 0 || view.ships.liveCount > 0) {
-      const n = shipWatcher.update(view.events, view.ships, sess.localOwner, shipNews);
+    const events = sess.shipEvents.read();
+    if (events.length > 0 || view.ships.liveCount > 0) {
+      const n = shipWatcher.update(events, view.ships, sess.localOwner, shipNews);
       for (let i = 0; i < n; i++) {
         const code = shipNews.codes[i] as number;
         const kind = code === SHIP_NEWS_LANDED || code === SHIP_NEWS_LAUNCHED ? 'info' : 'warn';
         showToast(shipNewsKey(code), code === SHIP_NEWS_LANDED ? { n: shipNews.args[i] as number } : {}, kind);
       }
     }
-    if (view.events.length > 0) view.clearEvents();
+    sess.shipEvents.commit();
   };
   let deployReq = null as PreviewRequest | null;
   let deployRouteFor = null as PreviewResult | null;

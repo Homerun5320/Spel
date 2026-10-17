@@ -41,3 +41,26 @@ export function shipPanelInfo(view: SimView, seat: number, port: number): ShipPa
     maxTroops: shipSliderMax(view, seat),
   };
 }
+
+/**
+ * Fix-6B [2.5]: `shipPanelInfo` runs the sim's whole launch check (a probe, closures, a plan and its route buffer), which is garbage every call. The Port panel asks it every frame, so a
+ * resting panel goes through this cache: the answer of one tick for one (view, seat, port) is computed once and handed out again until the tick, the port, the seat or the view changes.
+ */
+export class ShipPanelInfoCache {
+  private view: SimView | null = null;
+  private tick = -1;
+  private seat = -1;
+  private port = -1;
+  private info: ShipPanelInfo | null = null;
+
+  get(view: SimView, seat: number, port: number): ShipPanelInfo {
+    if (this.info !== null && this.view === view && this.tick === view.tick && this.seat === seat && this.port === port) return this.info;
+    const info = shipPanelInfo(view, seat, port);
+    this.view = view;
+    this.tick = view.tick;
+    this.seat = seat;
+    this.port = port;
+    this.info = info;
+    return info;
+  }
+}

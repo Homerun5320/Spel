@@ -4,6 +4,7 @@
 import type { MainThreadHost } from '../host/mainThreadHost';
 import type { Speed } from '../host/protocol';
 import { ViewMirror } from '../host/viewMirror';
+import type { EventReader } from '../host/viewEventRing';
 import type { IntentBody } from '../sim/intents';
 import { MATCH_AI_NATIONS, MATCH_TRIBES, TICK_MS } from '../sim/rules';
 import { seatToOwner } from '../sim/state';
@@ -102,6 +103,7 @@ export class MatchSession {
     this.localOwner = seatToOwner(this.localSeat);
     this.labels = built === null ? null : built.labels;
     this.stopMirror = stop;
+    this.shipEvents = view.eventReader();
     this.stats = new StatInterpolator(view.seats);
     this.stats.push(view.packedStats);
     this.stopFrames = view.onFrame((m) => {
@@ -138,6 +140,8 @@ export class MatchSession {
     return new MatchSession(host, mirror, stop, options.interpolate !== false, match);
   }
 
+  /** The ship news' own cursor over the mirror's events (Fix-6B): another consumer makes its own reader with `view.eventReader()`; none empties the stream for another. */
+  readonly shipEvents: EventReader;
   /** The seat the host filters helicopters and events for: always the human seat (Fix-6B, both start paths). */
   get viewerSeat(): number | null {
     return this.host.viewer;
