@@ -1,7 +1,7 @@
 // The style sheet of the match HUD and the start screen, built from the tokens in uiConfig.ts. One <style> element per root; the
 // classes are prefixed `hud-` / `start-`. No transitions or animations (CSS time is not the fx clock; tests/fxClock.test.ts
 // forbids them): every visible change is a state change driven from JS.
-import { CITY_VIEW, GPU_TIP, HELP_OVERLAY, MATCH_PANELS, NARROW_MAX_PX, TOPBAR, HUD_FONT_BIAS_PX, HUD_FONT_MAX_PX, HUD_FONT_MIN_PX, HUD_FONT_VW, SETUP_PANEL_EM, SETUP_SHEET_VH, TARGET_MIN_PX, DIPLO, FED_BOARD, TECH_UI, UI_COLORS as C, Z_HUD, Z_SETUP, Z_START_SCREEN } from './uiConfig';
+import { BOARD_RESERVE_BOTTOM_EM, CITY_VIEW, GPU_TIP, HELP_OVERLAY, MATCH_PANELS, NARROW_MAX_PX, TOPBAR, HUD_FONT_BIAS_PX, HUD_FONT_MAX_PX, HUD_FONT_MIN_PX, HUD_FONT_VW, SETUP_PANEL_EM, SETUP_SHEET_VH, TARGET_MIN_PX, DIPLO, FED_BOARD, TECH_UI, UI_COLORS as C, Z_HUD, Z_SETUP, Z_START_SCREEN } from './uiConfig';
 
 export function hudCss(): string {
   const fontSize = `clamp(${HUD_FONT_MIN_PX}px, calc(${HUD_FONT_VW}vw + ${HUD_FONT_BIAS_PX}px), ${HUD_FONT_MAX_PX}px)`;
@@ -23,7 +23,7 @@ export function hudCss(): string {
 .hud-banner-seconds { font-variant-numeric: tabular-nums; font-weight: 800; font-size: 1.6em; line-height: 1.1; color: ${C.accent}; flex: none; }
 .hud-badge { position: absolute; left: 50%; top: ${TOPBAR.wideEm + 3.5}em; transform: translateX(-50%); padding: 0.2em 0.9em; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: ${C.barWarning}; pointer-events: none; }
 
-.hud-board { position: absolute; right: 0.6em; top: ${TOPBAR.wideEm + 0.4}em; width: 14.5em; padding: 0.45em 0.6em 0.5em; }
+.hud-board { position: absolute; right: 0.6em; top: ${TOPBAR.wideEm + 0.4}em; width: 14.5em; padding: 0.45em 0.6em 0.5em; max-height: calc(100% - ${TOPBAR.wideEm + 0.4 + BOARD_RESERVE_BOTTOM_EM}em); overflow-y: auto; overflow-x: hidden; }
 .hud-board[data-labels="1"] { width: 17.5em; }
 .hud-board-title { color: ${C.textDim}; font-size: 0.8em; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.2em; }
 .hud-row { display: grid; grid-template-columns: 1.6em 0.9em 1fr auto auto; align-items: center; column-gap: 0.4em; min-height: 1.7em; padding: 0 0.3em; border-radius: 0.3em; }
@@ -34,7 +34,6 @@ export function hudCss(): string {
 .mp-table tr[data-group="1"] td { border-top: 2px solid ${FED_BOARD.accent}; font-weight: 700; }
 .mp-table tr[data-sub="1"] td { font-size: 0.92em; opacity: 0.9; }
 .mp-table tr[data-sub="1"] td.mp-name { padding-left: ${FED_BOARD.subIndentEm}em; }
-.mp-groups-wrap { flex: 0 0 auto; max-height: 9.5em; }
 .hud-row[data-group="1"] .hud-rels { display: none; }
 .mp-subtitle { margin: 0.7em 0 0.3em; font-size: 0.95em; color: ${C.textDim}; }
 .mp-flag { flex: none; display: block; border-radius: 2px; border: 1px solid rgba(255, 255, 255, 0.55); }
@@ -55,7 +54,7 @@ export function hudCss(): string {
 .hud-nation { display: flex; align-items: center; gap: 0.5em; font-weight: 700; max-width: 12em; }
 .hud-nation[hidden] { display: none !important; }
 .hud-nation-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.hud-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hud-name { min-width: 4.4em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hud-share { font-variant-numeric: tabular-nums; }
 .hud-empty { color: ${C.textDim}; font-size: 0.9em; padding: 0.2em 0.3em; }
 
@@ -115,7 +114,7 @@ export function hudCss(): string {
 /* M10-4: the selection panel sits bottom left above the status panel and wraps on a narrow window. */
 .sel-panel { position: absolute; left: 0.6em; bottom: 0.6em; width: 17.5em; max-width: calc(100vw - 1.2em); padding: 0.45em 0.6em 0.5em; display: flex; flex-direction: column; gap: 0.25em; pointer-events: auto; }
 .sel-panel[hidden] { display: none !important; }
-.sel-panel { max-height: calc(100% - 1.2em); overflow-y: auto; } /* M13b: the deploy block makes the Factory panel tall; a short window scrolls it instead of cutting the top off */
+.sel-panel { max-height: calc(100% - 0.6em - var(--diplo-stack-em, 0.6em)); overflow-y: auto; } /* M13b: the deploy block makes the Factory panel tall; a short window scrolls it instead of cutting the top off */
 .sel-name { font-weight: 800; font-size: 1.05em; }
 .sel-level, .sel-note { color: ${C.textDim}; font-size: 0.85em; }
 .sel-state { color: ${C.barWarning}; font-size: 0.85em; }
@@ -153,9 +152,11 @@ export function hudCss(): string {
   .hud-banner-text { font-size: 1em; }
   .hud-banner-seconds { font-size: 1.6em; flex: none; }
   .hud-badge { left: auto; right: 8px; transform: none; top: ${TOPBAR.narrowBoardEm}em; }
-  .hud-board { top: ${TOPBAR.narrowBoardEm}em; left: 8px; right: auto; width: 13em; padding: 0.35em 0.5em 0.4em; }
+  .hud-board { top: ${TOPBAR.narrowBoardEm}em; left: 8px; right: auto; width: 13em; padding: 0.35em 0.5em 0.4em; max-height: calc(100% - ${TOPBAR.narrowBoardEm + BOARD_RESERVE_BOTTOM_EM}em); }
   .hud-board[data-labels="1"] { width: 15.5em; }
   .hud-row { min-height: 1.5em; }
+  .hud-row2 { flex-wrap: wrap; row-gap: 0.15em; } /* Fix-5B: win meter, fleet gauge and the buttons wrap instead of printing over each other */
+  .hud-win { flex: 1 1 100%; }
   .hud-toast { bottom: 17em; }
   /* M10-2 / M10-3: six buttons in two columns right of the gold panel, three rows growing upward; the hint and the toasts sit above them */
   .build-wrap { left: auto; right: 8px; bottom: 11.5em; transform: none; align-items: flex-end; }
@@ -319,7 +320,7 @@ export function hudCss(): string {
 .mp-root [hidden] { display: none !important; }
 .mp-scrim { position: absolute; inset: 0; pointer-events: auto; background: ${MATCH_PANELS.scrim}; display: flex; align-items: safe center; justify-content: center; padding: 0.6em; overflow: auto; }
 .mp-scrim:has(.mp-small) { align-items: flex-start; padding-top: ${MATCH_PANELS.pauseTopEm}em; }
-.mp-card { background: ${C.panel}; border: 1px solid ${C.panelBorder}; border-radius: 1em; box-shadow: 0 0.4em 2em rgba(0, 0, 0, 0.6); padding: 0.9em 1.1em; display: flex; flex-direction: column; gap: 0.6em; max-width: 100%; max-height: ${MATCH_PANELS.maxHeightVh}vh; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6); }
+.mp-card { overflow: auto; background: ${C.panel}; border: 1px solid ${C.panelBorder}; border-radius: 1em; box-shadow: 0 0.4em 2em rgba(0, 0, 0, 0.6); padding: 0.9em 1.1em; display: flex; flex-direction: column; gap: 0.6em; max-width: 100%; max-height: ${MATCH_PANELS.maxHeightVh}vh; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6); }
 .mp-small { width: ${MATCH_PANELS.cardWidthEm}em; }
 .mp-wide { width: ${MATCH_PANELS.resultWidthEm}em; }
 .mp-title { margin: 0; font-size: 1.5em; font-weight: 800; }
@@ -334,13 +335,13 @@ export function hudCss(): string {
 .mp-btn:focus-visible { outline: 2px solid ${C.accent}; outline-offset: 2px; }
 .mp-btn[aria-pressed="true"] { background: ${C.buttonActive}; border-color: ${C.accent}; box-shadow: inset 0 0 0 1px ${C.accent}; }
 .mp-primary { border-color: ${C.accent}; }
-.mp-table-wrap { overflow: auto; min-height: 0; border: 1px solid ${C.panelBorder}; border-radius: 0.5em; background: ${C.field}; }
+.mp-table-wrap { flex: none; overflow: visible; border: 1px solid ${C.panelBorder}; border-radius: 0.5em; background: ${C.field}; }
 .mp-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
 .mp-table th { color: ${C.textDim}; font-size: 0.78em; font-weight: 600; padding: 0.35em 0.4em; text-align: right; position: sticky; top: 0; background: ${C.field}; }
-.mp-table td { padding: 0.3em 0.4em; text-align: right; border-top: 1px solid rgba(60, 90, 143, 0.35); }
+.mp-table td { white-space: nowrap; padding: 0.3em 0.4em; text-align: right; border-top: 1px solid rgba(60, 90, 143, 0.35); }
 .mp-table .mp-left { text-align: left; }
 .mp-name { display: flex; align-items: center; gap: 0.45em; min-width: 6em; }
-.mp-name-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mp-name-text { max-width: ${MATCH_PANELS.nameMaxEm}em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mp-swatch { flex: none; width: 0.9em; height: 0.9em; border-radius: 0.2em; border: 1px solid rgba(255, 255, 255, 0.7); }
 .mp-table tr[data-you="1"] td { background: ${C.youRow}; font-weight: 700; }
 .mp-table tr[data-winner="1"] td { color: ${MATCH_PANELS.winnerBorder}; }
@@ -351,7 +352,7 @@ export function hudCss(): string {
 .help-overlay { position: absolute; inset: 0; z-index: ${HELP_OVERLAY.z}; pointer-events: none; display: flex; align-items: center; justify-content: center; font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; font-size: ${fontSize}; line-height: 1.3; color: ${C.text}; box-sizing: border-box; padding: 0.6em; }
 .help-overlay *, .help-overlay *::before { box-sizing: border-box; }
 .help-overlay[hidden] { display: none !important; }
-.help-card { pointer-events: auto; width: ${HELP_OVERLAY.widthEm}em; max-width: 100%; max-height: 100%; overflow: auto; background: ${C.card}; border: 1px solid ${C.panelBorder}; border-radius: 0.8em; box-shadow: 0 0.3em 1.4em rgba(0, 0, 0, 0.6); padding: 0.6em 0.9em 0.7em; }
+.help-card { pointer-events: auto; width: ${HELP_OVERLAY.widthEm}em; max-width: 100%; max-height: 100%; overflow: auto; background: ${HELP_OVERLAY.cardBg}; border: 1px solid ${C.panelBorder}; border-radius: 0.8em; box-shadow: 0 0.3em 1.4em rgba(0, 0, 0, 0.6); padding: 0.6em 0.9em 0.7em; }
 .help-title { font-size: 1.15em; font-weight: 800; margin-bottom: 0.3em; }
 .help-row { display: grid; grid-template-columns: ${HELP_OVERLAY.keyColEm}em 1fr; column-gap: 0.7em; align-items: baseline; min-height: 1.6em; }
 .help-keys { font: inherit; font-weight: 700; font-variant-numeric: tabular-nums; color: ${C.accent}; white-space: nowrap; }
@@ -387,6 +388,9 @@ export function hudCss(): string {
 .diplo-mark[hidden], .diplo-waiting[hidden], .diplo-note[hidden], .diplo-empty[hidden], .diplo-cooldown[hidden] { display: none !important; }
 .diplo-waiting { color: ${C.textDim}; font-size: 0.9em; }
 .diplo-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.3em; }
+.diplo-incoming { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 0.4em 0.6em; padding: 0.2em 0.4em; border: 1px solid ${DIPLO.badge.truce}; border-radius: 0.5em; }
+.diplo-incoming-text { flex: 1 1 10em; font-weight: 700; }
+.diplo-incoming[hidden] { display: none !important; }
 .diplo-note { grid-column: 1 / -1; color: ${C.barWarning}; font-size: 0.9em; }
 .diplo-empty { color: ${C.textDim}; padding: 0.5em 0; }
 .diplo-hint { margin-top: 0.4em; color: ${C.textDim}; font-size: 0.85em; }
@@ -396,6 +400,7 @@ export function hudCss(): string {
 .diplo-btn[data-armed="1"] { border-color: ${C.danger}; box-shadow: inset 0 0 0 1px ${C.danger}; }
 .diplo-btn:focus-visible { outline: 2px solid ${C.accent}; outline-offset: 2px; }
 .diplo-cards { position: absolute; left: 0.6em; top: ${TOPBAR.wideEm + 0.4}em; width: ${DIPLO.cardWidthEm}em; max-width: calc(100% - 1.2em); z-index: ${Z_HUD + 1}; display: flex; flex-direction: column; gap: 0.4em; pointer-events: none; font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; font-size: ${fontSize}; line-height: 1.3; color: ${C.text}; }
+.diplo-cards[hidden] { display: none !important; }
 .diplo-pcard { pointer-events: auto; background: ${C.panel}; border: 1px solid ${DIPLO.badge.truce}; border-radius: 0.6em; box-shadow: 0 0.15em 0.7em rgba(0, 0, 0, 0.5); padding: 0.4em 0.6em; display: flex; flex-direction: column; gap: 0.3em; }
 .diplo-pcard[data-treaty="2"] { border-color: ${DIPLO.badge.alliance}; }
 .diplo-pcard[hidden] { display: none !important; }
@@ -440,15 +445,26 @@ export function hudCss(): string {
 .tech-btn[data-armed="1"] { border-color: ${C.danger}; box-shadow: inset 0 0 0 1px ${C.danger}; }
 .tech-btn:focus-visible { outline: 2px solid ${C.accent}; outline-offset: 2px; }
 .hud-tech-running { flex: 0 1 auto; color: ${TECH_UI.status.active}; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: ${TECH_UI.runningMaxEm}em; min-width: 0; }
+@media (max-height: ${TECH_UI.lowHeightPx}px) and (min-aspect-ratio: 1/1) { /* Fix-5B: a short wide window (960x540, 1366x640) shows the whole panel without scrolling */
+  .tech-card { padding: 0.4em 0.6em 0.45em; }
+  .tech-head { margin-bottom: 0.2em; }
+  .tech-grid, .tech-branch { gap: 0.25em; }
+  .tech-cell { font-size: 0.74em; padding: 0.2em 0.35em; gap: 0.05em; }
+  .tech-btn { min-height: 1.7em; padding: 0.05em 0.5em; }
+  .tech-note, .tech-hint { margin-top: 0.2em; }
+}
 @media (pointer: coarse) { .tech-btn { min-height: ${target}; } }
 @media (max-width: ${NARROW_MAX_PX}px), (max-aspect-ratio: 1/1) {
   .tech-btn { min-height: ${target}; }
   .tech-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .hud-tech-running { max-width: 7em; }
+  .hud-tech-running { max-width: 9em; }
+  .hud-diplo { gap: 0.25em; }
+  .hud-diplo .hud-btn { padding: 0 0.4em; }
 }
 @media (pointer: coarse) { .diplo-btn { min-height: ${target}; } }
 @media (max-width: ${NARROW_MAX_PX}px), (max-aspect-ratio: 1/1) {
   .diplo-btn { min-height: ${target}; }
+  .sel-panel { max-height: calc(100% - 1.2em); }
   .diplo-row { grid-template-columns: minmax(0, 1fr); }
   .diplo-cards { left: auto; right: 8px; top: ${TOPBAR.narrowBoardEm + 2.6}em; }
 }

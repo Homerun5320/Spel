@@ -8,7 +8,7 @@
 // bar moves with a transform, the leaderboard is re-ranked once per tick into a preallocated array. `data-testid` ids are the
 // hooks of the e2e tests and `data-value` carries the raw number behind a formatted text.
 import type { SimView } from '../sim/view';
-import { BEACHHEAD_ESTABLISH_CELLS, fleetCapOf, fleetCountOf } from '../sim/public';
+import { BEACHHEAD_ESTABLISH_CELLS, HELI_MAX_TROOPS, fleetCapOf, fleetCountOf } from '../sim/public';
 import { ownBeachChip, type BeachChip } from './beachheadInfo';
 import { drawFlag, type FlagSpec } from './flag';
 import { sideName, type SeatLabels } from './seatLabels';
@@ -64,8 +64,8 @@ export interface MatchHud {
 }
 
 /** The text of a refusal reason (a REJECT_* code of the sim), in the current language. */
-export function rejectText(reason: number): string {
-  return t(rejectKey(reason), { code: reason });
+export function rejectText(reason: number, max: number = HELI_MAX_TROOPS): string {
+  return t(rejectKey(reason), { code: reason, max });
 }
 
 /** Shown when the player clicks land that nobody can own (sea, Peak, Ice). */

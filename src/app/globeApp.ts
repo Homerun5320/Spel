@@ -48,7 +48,7 @@ import { createTechPanel, type TechPanel } from '../ui/techPanel';
 import { TechWatcher, techName } from '../ui/techModel';
 import { attachHotkeys, hotkeys, registerGameHotkeys } from './hotkeys';
 import { createPlacementMode, type PlacementMode, type PlacementState } from './placement';
-import { AIR_MODE_AGL_M, REJECT_HELI_NO_PAD, REJECT_HELI_NO_ROUTE, createLos, createLosTerrain, createNav, launchHeliBody, recallHeliBody, validateLaunchHeli, type Nav } from '../sim/public';
+import { AIR_MODE_AGL_M, HELI_MAX_TROOPS, heliMaxTroopsOf, REJECT_HELI_NO_PAD, REJECT_HELI_NO_ROUTE, createLos, createLosTerrain, createNav, launchHeliBody, recallHeliBody, validateLaunchHeli, type Nav } from '../sim/public';
 import { HELI_LIFT, HELI_RETURN, STRUCT_CITY, STRUCT_FACTORY, produceHeliBody, buildBody, buildDistrictBody, deleteBody, removeDistrictBody, upgradeBody, upgradeDistrictBody, validateBuild } from '../sim/public';
 import { createCityViewPanel, type CityViewPanel } from '../ui/cityViewPanel';
 import { BEACH_RING_MAX, CAMERA_FOV_DEG, EARTH_RADIUS_KM } from '../render/config';
@@ -986,6 +986,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     if (buildBarWanted) {
       techPanel?.update(session.view, L, fxNow());
       diploCards?.update(session.view, L, session.view.diplomacyVersion);
+      diploCards?.setSuppressed(diploPanel !== null && diploPanel.isOpen());
       diploPanel?.update(session.view, L, session.view.diplomacyVersion, fxNow());
     }
     const refused = session.takeNewReject();
@@ -1612,7 +1613,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
         sess.submit(launchHeliBody(L, factory, cell, box.troops(), box.mode()));
         showToast('deploy.sent', {}, 'info');
       },
-      refused: (reason) => showToast(rejectKey(reason), { code: reason }, 'error'),
+      refused: (reason) => showToast(rejectKey(reason), { code: reason, max: heliMaxTroopsOf(sess.view, L) }, 'error'),
       exit: exitDeploy,
       ended: () => {
         deployMode = null;
@@ -1675,7 +1676,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
   let rowsVersion = -1;
   let rowsFactory = -2;
   /** The one model object of the deploy block, rewritten in place each frame (Fix-4B: no literal per frame). */
-  const boxModel = { canOpen: false, openReason: 0, active: false, status: 'idle' as 'idle' | 'pending' | 'valid' | 'invalid', reason: 0, etaSeconds: 0, fuelCells: 0, exposedCells: 0 };
+  const boxModel = { canOpen: false, openReason: 0, active: false, status: 'idle' as 'idle' | 'pending' | 'valid' | 'invalid', reason: 0, etaSeconds: 0, fuelCells: 0, exposedCells: 0, maxTroops: HELI_MAX_TROOPS };
   /** The deploy block and the helicopter list in the Factory panel (only while a Factory is selected). */
   const deployBoxFrame = (sess: MatchSession, factory: number): void => {
     const box = deployBox;
@@ -1693,6 +1694,7 @@ export async function bootGlobe(ctx: GlobeAppContext): Promise<() => void> {
     boxModel.etaSeconds = cur === null ? 0 : cur.etaSeconds;
     boxModel.fuelCells = cur === null ? 0 : cur.fuelCells;
     boxModel.exposedCells = cur === null ? 0 : cur.exposedCells;
+    boxModel.maxTroops = heliMaxTroopsOf(v, L);
     // the helicopter rows only change with the table or the tick (the Recall verdict is a function of both): ask again then, not every frame
     if (v.tick !== rowsTick || v.helisVersion !== rowsVersion || factory !== rowsFactory) {
       rowsTick = v.tick;

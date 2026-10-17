@@ -57,7 +57,16 @@ export const HUD_MIN_INTERVAL_S = 0.1;
 export const TOPBAR = { wideEm: 5.4, narrowEm: 8.6, narrowBoardEm: 8.6 + 4.3 } as const;
 
 /** M20a-lite: the help overlay (above the HUD, below the match panels, which are at MATCH_PANELS.z 36). */
-export const HELP_OVERLAY = { z: 34, widthEm: 24, keyColEm: 5.5 } as const;
+export const HELP_OVERLAY = {
+  z: 34,
+  widthEm: 24,
+  keyColEm: 5.5,
+  /** Fix-5B: an almost opaque card (the HUD behind it was readable through the 0.80 panel colour); the tech and diplomacy cards use 0.97 too. */
+  cardBg: 'rgba(8, 13, 24, 0.97)',
+} as const;
+
+/** Fix-5B: the leaderboard never runs under the speed / commit panel: it stops this far (em) above the bottom edge and scrolls inside (an expanded federation has 9 to 12 member rows). */
+export const BOARD_RESERVE_BOTTOM_EM = 11;
 
 /** Sizes. The HUD is built in `em`; the root font size follows the window width between these limits (960 px -> about 16 px, 1920 px -> 22 px). */
 export const HUD_FONT_MIN_PX = 14;
@@ -162,6 +171,8 @@ export const MATCH_PANELS = {
   z: 36,
   cardWidthEm: 30,
   resultWidthEm: 46,
+  /** Fix-5B: the widest a nation name grows in a result table (longer ones end in an ellipsis), so the ten columns fit the card. */
+  nameMaxEm: 11,
   /** The result card never grows past this share of the window height; the table scrolls inside it. */
   maxHeightVh: 92,
   scrim: 'rgba(3, 6, 14, 0.55)',
@@ -260,6 +271,10 @@ export const DIPLO = {
   /** At most this many incoming proposals are shown as cards (the rest wait; the top-bar signal counts all of them). */
   cardsMax: 3,
   cardWidthEm: 16.5,
+  /** Fix-5B: one proposal card with its gap, in em (measured 5.6 + 0.4); the selection panel stops this far per card below the top bar. */
+  cardHeightEm: 6,
+  /** Fix-5B: the panel shows Accept / Decline on the rows of at most this many waiting proposals (the sim holds fewer). */
+  panelIncomingMax: 64,
   /** A break asks for a second click within this many fx seconds. */
   confirmSeconds: 6,
   /** The panel is nearly opaque: the top bar and the toasts behind it must not shine through the rows. */
@@ -279,7 +294,9 @@ export const TECH_UI = {
   /** Branch colours (the column headers). */
   branch: ['#ffd666', '#8ee6b0', '#7fd1ff', '#ff8a80'],
   /** The running research in the top bar is cut at this width (em). */
-  runningMaxEm: 14,
+  runningMaxEm: 16,
+  /** Fix-5B: at or below this window height (wide windows) the panel is drawn compact so that it needs no scrolling. */
+  lowHeightPx: 720,
   /** The header keeps this many px free on the right so the Close button never sits under the round Dev-panel button (48 px, top right). */
   devClearPx: 56,
 } as const;

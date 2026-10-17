@@ -3,11 +3,13 @@
 // the model (`src/ui/diploModel.ts`), where every button state is the answer of a `validate*` function. The DOM is written only where a text, an attribute or a state
 // changed: the rows are rebuilt when the clock second, the diplomacy table, the language or the armed break changed, so a resting page makes no mutation at all.
 import { RELATION_ALLIANCE, RELATION_TRUCE, TICK_HZ, TREATY_ALLIANCE, TREATY_BREAK_COOLDOWN_TICKS, TREATY_TRUCE, type SimView } from '../sim/public';
-import { BreakConfirm, buildDiploRows, incomingProposals, secondsLeft, type DiploButton, type DiploRow } from './diploModel';
+import { BreakConfirm, buildDiploRows, incomingProposals, secondsLeft, type DiploButton, type DiploRow, type ProposalCard } from './diploModel';
 import { diplomacyRefusalKey } from './diploReasons';
 import { formatClock, formatFixed, languageVersion, t, type TextKey } from './i18n';
 import { showToast } from './toast';
-import { DIPLO } from './uiConfig';
+import { DIPLO, TOPBAR } from './uiConfig';
+
+const TOPBAR_CARDS_TOP_EM = TOPBAR.wideEm + 0.4;
 
 export interface DiploActions {
   propose(seat: number, treaty: number): void;
@@ -77,11 +79,17 @@ class RowView {
   private readonly waiting = span('diplo-waiting', 'diplo-waiting');
   private readonly note = div('diplo-note', 'diplo-note');
   readonly buttons = new Map<ActionId, HTMLButtonElement>();
+  /** Fix-5B: a proposal from this nation waits: its text and the Accept / Decline pair sit on the row (the cards hide while the panel is open). */
+  private readonly incoming = div('diplo-incoming', 'diplo-incoming');
+  private readonly incomingText = span('diplo-incoming-text', 'diplo-incoming-text');
+  private readonly incomingAccept = document.createElement('button');
+  private readonly incomingDecline = document.createElement('button');
 
   constructor(
     readonly seat: number,
     color: string,
     click: (id: ActionId, seat: number) => void,
+    respond: (accept: boolean, seat: number) => void,
   ) {
     this.root.dataset.seat = String(seat);
     this.swatch.style.background = color;
@@ -105,7 +113,25 @@ class RowView {
       actions.append(b);
     }
     this.note.hidden = true;
-    this.root.append(who, state, actions, this.note);
+    for (const [b, id, accept] of [[this.incomingAccept, 'diplo-row-accept', true], [this.incomingDecline, 'diplo-row-decline', false]] as const) {
+      b.type = 'button';
+      b.className = 'diplo-btn';
+      b.dataset.testid = id;
+      b.addEventListener('click', () => (respond(accept, seat), b.blur()));
+    }
+    this.incoming.hidden = true;
+    this.incoming.append(this.incomingText, this.incomingAccept, this.incomingDecline);
+    this.root.append(who, state, actions, this.incoming, this.note);
+  }
+
+  /** `p` is the waiting proposal from this nation (null when none). */
+  setIncoming(p: ProposalCard | null, nameText: string): void {
+    setHidden(this.incoming, p === null);
+    setData(this.root, 'incoming', p === null ? '0' : '1');
+    if (p === null) return;
+    setText(this.incomingText, `${t(p.treaty === TREATY_ALLIANCE ? 'diplo.card.alliance' : 'diplo.card.truce', { name: nameText })} (${t('phase.seconds', { s: secondsLeft(p.ticksLeft) })})`);
+    setText(this.incomingAccept, t('diplo.accept'));
+    setText(this.incomingDecline, t('diplo.decline'));
   }
 
   private button(id: ActionId, label: string, b: DiploButton, armed = false): void {
@@ -214,16 +240,21 @@ export function createDiploPanel(parent: HTMLElement, actions: DiploActions, opt
     setHidden(cooldown, cd === 0);
     if (cd !== 0) setText(cooldown, t('diplo.cooldown', { time: formatClock(secondsLeft(cd)) }));
     const armedSeat = confirm.armed();
+    const incoming = incomingProposals(v, L, DIPLO.panelIncomingMax);
     let at = 0;
     for (const row of rows) {
       let rv = views.get(row.seat);
       if (rv === undefined) {
-        rv = new RowView(row.seat, opts.colorOf(row.seat), click);
+        rv = new RowView(row.seat, opts.colorOf(row.seat), click, (accept, seat) => {
+          (accept ? actions.accept : actions.decline)(seat);
+          lastStamp = '';
+        });
         views.set(row.seat, rv);
       }
       if (list.children[at] !== rv.root) list.insertBefore(rv.root, list.children[at] ?? null);
       at++;
       rv.set(row, opts.nameOf(row.seat), armedSeat === row.seat && row.breakTreaty.enabled, TREATY_BREAK_COOLDOWN_TICKS);
+      rv.setIncoming(incoming.find((p) => p.from === row.seat) ?? null, opts.nameOf(row.seat));
     }
   };
 
@@ -263,6 +294,8 @@ export function createDiploPanel(parent: HTMLElement, actions: DiploActions, opt
 
 export interface DiploCards {
   readonly root: HTMLElement;
+  /** Fix-5B: hide the cards (the panel is open and shows Accept / Decline on its rows) without losing the state. */
+  setSuppressed(suppressed: boolean): void;
   update(view: SimView, localSeat: number, version: number): void;
   dispose(): void;
 }
@@ -304,8 +337,22 @@ export function createDiploCards(parent: HTMLElement, actions: DiploActions, opt
   for (const type of ['pointerdown', 'pointerup', 'wheel', 'contextmenu']) root.addEventListener(type, (e) => e.stopPropagation());
   parent.append(root);
   let lastStamp = '';
+  let suppressed = false;
+  let shown = -1;
+  // the sibling HUD reads the stack height from the page wrapper: the selection panel stops below the cards instead of running under them
+  const publish = (n: number): void => {
+    if (n === shown) return;
+    shown = n;
+    parent.style.setProperty('--diplo-stack-em', n === 0 ? '0.6em' : `${TOPBAR_CARDS_TOP_EM + n * DIPLO.cardHeightEm}em`);
+  };
   return {
     root,
+    setSuppressed(s: boolean): void {
+      if (s === suppressed) return;
+      suppressed = s;
+      root.hidden = s;
+      publish(s ? 0 : cards.filter((c) => !c.root.hidden).length);
+    },
     update(v: SimView, L: number, version: number): void {
       const stamp = `${Math.floor(v.tick / TICK_HZ)}|${version}|${languageVersion()}`;
       if (stamp === lastStamp) return;
@@ -329,6 +376,7 @@ export function createDiploCards(parent: HTMLElement, actions: DiploActions, opt
         setText(c.accept, t('diplo.accept'));
         setText(c.decline, t('diplo.decline'));
       }
+      publish(suppressed ? 0 : Math.min(list.length, cards.length));
     },
     dispose(): void {
       root.remove();

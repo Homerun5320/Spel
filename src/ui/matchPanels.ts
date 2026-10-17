@@ -19,6 +19,12 @@ export interface ResultView {
  * M18b-3: the group table of the result screen: a row per group (rank, flag, name, summed land and score; the winner first), a federation's living and fallen
  * members under it. Separate from the per-nation table below, which stays as it is.
  */
+/** Fix-5B: a federation member is called "Alaska (United States of America)"; the per-nation table shows the province only (the full name is the tooltip). */
+function memberShort(name: string): string {
+  const i = name.lastIndexOf(' (');
+  return i > 0 && name.endsWith(')') ? name.slice(0, i) : name;
+}
+
 function appendGroupTable(card: HTMLElement, v: ResultView): void {
   const groups = v.groups;
   if (groups === undefined || !groups.some((g) => g.fed >= 0)) return;
@@ -295,7 +301,8 @@ export function createMatchPanels(parent: HTMLElement, actions: PanelActions, da
           const sw = el('span', 'mp-swatch');
           sw.style.background = r.color;
           const name = el('span', 'mp-name-text');
-          name.textContent = r.name;
+          name.textContent = memberShort(r.name);
+          name.title = r.name;
           td.append(sw, name);
         } else td.textContent = text;
         tr.append(td);
