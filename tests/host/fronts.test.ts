@@ -54,12 +54,12 @@ describe('SimView.fronts', () => {
   });
 
   it('is capped at ATTACK_VIEW_CAP rows and a match without attacks sends no table after the first', async () => {
-    const seats = 20;
-    const state = world(480, 40, seats);
+    const seats = 36;
+    const state = world(960, 40, seats);
     const host = new MainThreadHost(state);
     const { mirror } = await ViewMirror.attach(host);
     expect(mirror.fronts.count).toBe(0);
-    for (let s = 0; s < seats; s++) host.submitIntent({ kind: 'Spawn', seat: s, cell: 20 * 480 + 6 + s * 22 });
+    for (let s = 0; s < seats; s++) host.submitIntent({ kind: 'Spawn', seat: s, cell: 20 * 960 + 6 + s * 22 });
     host.runTicks(200);
     const v = mirror.frontsVersion;
     host.runTicks(30);

@@ -1949,3 +1949,55 @@ Survivors, both equivalent: (a) removing `if (view.match.group[o] !== o) continu
 Not taken: the gzip caps (2.14c, a budget decision for the orchestrator, see BACKLOG).
 
 6. **Existing test changed because of the tight helicopter guard.** `tests/sim/fix4a2Forged.test.ts` builds its fixture with owner 2 holding no techs and checks that the legal edge values "load = max with every AIR tech" and "fuel = tank with every AIR tech" reach the checksum. That is exactly the blob the finding (2.14b) wants refused, so the fixture `full()` now gives owner 2 the four AIR techs (`setTechMask(2, ...)`, one line; no offset, no other test value moves). The edge values, the first illegal values and every expectation are unchanged; the case "a seat WITHOUT the techs cannot carry more than HELI_MAX_TROOPS" is now pinned in `tests/sim/fix5a2Forged.test.ts`.
+## Fix-5A3
+
+Audit 4 (test holes in the app, render and UI layers, and the attack arrow cap). No rule, no ENGINE or FORMAT change, goldens untouched. Findings are [review.index] of the audit.
+
+1. **[1.5] The own attack always has an arrow: the cap goes from 16 to 32 (not a two-pass fill).** The two-pass fill needs the local owner in `fillAttackFronts`, so the host (main-thread, worker and remote) and the snapshot signature would have to learn it; the cap is one constant and the arrow layer is ONE instanced mesh whose buffers are sized by it (32 x 6 triangles, still one draw call, the buffers are rewritten only when the table changes). The audit measured at most 27 attacks with 25 players, so 32 holds every case the setup allows. The cap is a view constant in `src/sim/view.ts`, not a rule (no balance row, nothing hashed). Consequence for an earlier test: `tests/host/fronts.test.ts` "is capped at ATTACK_VIEW_CAP rows" made 20 attacks and expected MORE than the cap; with a cap of 32 it must make more than 32, so the same test now builds 36 seats on a 960 wide world (the assertions are the same ones, it was the premise "20 > 16" that the change broke). The new test in `tests/sim/attackFronts.test.ts` has 20 attacks with the own one the 19th and 40 attacks filling exactly the cap.
+2. **Not done here:** the AI survivors of [2.12] (research order after ECONOMY, "waits, never drifts", `fleetCountOf` in the AIRBORNE test, the most frequent attacker with two eligible attackers) are in `docs/BACKLOG.md`; they belong to the `src/ai` owners. [2.11] `TechWatcher` is tested on a fake mask; the sim-backed tests already existed.
+
+Equivalent mutants (no test can tell them apart):
+
+| Mutant | Why equivalent |
+| --- | --- |
+| V14/V15 `fillAttackFronts`: drop `y > 0` / `y + 1 < h` | the owner arrays are typed arrays: a read before index 0 or after the last gives `undefined`, never equal to the attacker's number |
+| C03 `NationCentroids.compute`: drop `o >= slots` | the writes to `count[o]` etc. beyond the typed arrays' length are ignored |
+| G14 `resultGroups`: `members.includes(winnerSeat)` for `members[0] === winnerSeat` | a single nation's `members` is `[seat]` |
+
+Mutant table (one line of `src` changed, the named test file run, then restored; every mutant is killed except the three above; the first-round survivors V10, V12, CH11 (the first match was the init block), HI06, G18 and HK11 were closed with added assertions and killed on the second run):
+
+| Finding | Mutant | Killed by |
+| --- | --- | --- |
+| 2.7 | V01/V02 sign of `dx`; V03/V04 sign of `dy` | `tests/sim/attackFronts.test.ts` "points from the attacker into the target in all four compass directions" |
+| 2.7 | V05/V06 no x wrap of the left / right neighbour | same file, "wraps in x at the date line" |
+| 2.7 | V08 drop the touched filter; V09 drop the target-owner filter | "skips cells of another owner, cells that no longer touch the attacker" |
+| 2.7 | V10/V11 `round` -> `floor` of dirX / dirY | "rounds the direction to whole percent" (both orders) |
+| 2.7 | V12 no wrap of the mean; V13 no wrap in the nearest-cell search | "picks the sampled cell nearest to the mean, the mean taken round the date line" (two orders) |
+| 2.7 | V16 reader refreshes every read; V17 never refreshes | "SimView.fronts reader" |
+| 2.7 | V18 row cap back to 16 | "keeps the own attack among at most ATTACK_VIEW_CAP rows" |
+| 2.8 | C01 no `a += 2 pi` | `tests/app/nationCentroids.test.ts` "puts a nation of the eastern half ... at x 42.5" |
+| 2.8 | C02 `cy` without the half cell; C07 sine sign | same test |
+| 2.8 | C04 capital before the centre cell; C05 capital without the owner check; C06 no empty-owner -1 | "anchors a label on the centre cell ..." |
+| 2.9 | CH13 latitude sign; CH14 longitude sign | `tests/app/chaseModeGeometry.test.ts` "heading %d puts the camera behind the helicopter" (0, 90, 180, 270) and the diagonal |
+| 2.9 | CH15 no cos(lat) clamp; CH15b clamp 0.5; CH16 no cos(lat) at all | "keeps the longitude step finite near the pole" |
+| 2.9 | CH17 lean sign; CH18 camera below the helicopter | "puts the camera above the helicopter and looks down at it" |
+| 2.9 | CH07 smoothing factor; CH08 dt clamp; CH08b negative dt; CH09 no easing; CH10 the long way round | "eases the heading the short way round", "... 10 to 350", "clamps a long frame gap" |
+| 2.9 | CH11 place not followed; CH12 radius not followed; CH20 initial heading | "follows place and radius exactly", "starts on the helicopter own heading" |
+| 2.9 | CH01 uppercase H; CH02 key repeat | "H, h and a held (repeated) H" |
+| 2.10 | HL01 teleport radius 1e9; HL01b 0.0002 | `tests/render/heliGlide.test.ts` "blends a short hop but not a teleport" |
+| 2.10 | HL02 owner check; HL03 parked check; HL07 flying flag | "gives a new, a parked, a re-owned and a formerly parked helicopter no blend" |
+| 2.10 | HL04/HL04b delta sign; HL05 ground delta sign; HL06 ref copy short; HL11 stale delta kept | "a flying helicopter that moved a little gets delta = ..." and the teleport test |
+| 2.10 | HL08 reference taken on every rebuild | "a rebuild without a new table version keeps the reference" |
+| 2.10 | HL09 `aDelta` copy; HL10 `uTick`; HL12 `alpha` | "a flying helicopter ..." and "frame(.., alpha) hands the sim fraction to the shader" |
+| 2.10 | FX01 ring without modulo; FX03 dt clamp | `tests/render/heliFxEdges.test.ts` "the dust ring wraps", "a 60 second frame gap" |
+| 2.10 | FX05 crash on every table; FX06 lift puff without the pad; FX07 unload puff on every table | "crash, take-off puff and unload puff fire on a change of state only" |
+| 2.10 | FX09 icon for a downed one; FX11 flag reset; FX12 owner-change reset; FX13/FX14 particle mesh visibility; FX16 sync every frame | the matching tests of the same file |
+| 2.11 | HI02 `max`; HI03 `fuelPct`; HI04 `canRecall`; HI05 fuel clamp; HI06 troops; HI07 shrink | `tests/ui/heliRows.test.ts` |
+| 2.11 | D15 addressee filter (cards and count) | `tests/ui/modelEdges.test.ts` "only proposals addressed to the local seat" |
+| 2.11 | D23 first look; D24/D24b (sender, treaty) key; D25/D25b accepted rule; D26 expiry edge; D28 `ceil`; D10/D12 confirmation edges | DiploWatcher and "countdowns and the break confirmation edges" |
+| 2.11 | M12 second finished tech; M09 tech `ceil` | "TechWatcher", "whole seconds, rounded up" |
+| 2.11 | G10 summed land; G13 land order; G14b federation winner; G17/G17b player filter; G18 score order; G19 seat tie-break | "resultGroups" |
+| 2.12 | HK04 scope; HK05 `noRepeat`; HK08 key; HK10 result; HK11 label key | `tests/app/labelsKey.test.ts` "the nation-labels key N" |
+| 2.12 | N01..N04 the four thresholds with `<=`; N05 `round` for `floor` | "compactTroops boundaries" |
+
+`npm run verify:fast`: unit tests 3131 passed in 284 files, typecheck and lint pass (run before the docs block was appended; tests/docs.test.ts rerun after it).

@@ -595,3 +595,8 @@ Not done in the Fix-UI slice (the sim, host and AI findings belong to Fix-Sim):
 - The set-up screen (Fix-5B) must clamp the AI slider with `federationMinAiNations(world, config)` and show `setup.error.federationNeedsAi`; until then the screen shows the refusal after Start.
 - 2.14c page weight: the gzip caps in `tests/portable.test.ts` rise with every slice (measured + 3 to 5 %); decide a ceiling and a dynamic-import list before the next bump.
 - A federation seat that is eliminated keeps its research (finding 0.4 of audit 4, a minor rule question; not touched here because it needs a rule).
+## Fix-5A3
+
+- AI test holes of audit 4 [2.12], for the `src/ai` owners: the peaceful research order after ECONOMY (R10), "waits, never drifts" when a later step is unaffordable but another branch's first step is affordable (R13: gold between price + reserve of ECONOMY step 1 and LAND step 0), `fleetCountOf` in the AIRBORNE test (R16), and the diplomacy "most frequent attacker" order with two attackers that both have `AI_TRUCE_MIN_HITS` hits but different counts (AI07).
+- A two-pass fill of the attack rows (the local owner first) if the cap of 32 ever proves too small; it would need the local owner in the host's front snapshot.
+- Test holes named by audit 4 but not closed here: `LabelLayout` ties by id and the gap against HUD panels (L02, L07 to L11), `TechWatcher` against the real sim for two techs finished in one tick.
