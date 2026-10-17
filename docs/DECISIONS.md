@@ -1907,3 +1907,5 @@ Mutant table (each applied alone to `src`, `npx vitest run --project unit tests/
 | V13 `AttackFrontReader` refreshes only once | `[2.13]` `StateView.fronts` read before and after the end of an attack |
 
 Backlog: nothing new; AD16 stays an equivalent mutant.
+
+`npm run verify:fast` after the commit: typecheck, lint and unit green (277 files, 3093 tests, 2 min 12 s under load from the other builders).
