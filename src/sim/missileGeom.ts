@@ -182,9 +182,13 @@ export function missilePosition(startCell: number, targetCell: number, launchTic
   }
   const c = cosQ15(phi);
   const sn = sinQ15(phi);
-  out[0] = floorDiv(c * ax + floorDiv(sn * tx * 32768, norm), 32768);
-  out[1] = floorDiv(c * ay + floorDiv(sn * ty * 32768, norm), 32768);
-  out[2] = floorDiv(c * az + floorDiv(sn * tz * 32768, norm), 32768);
+  const px = floorDiv(c * ax + floorDiv(sn * tx * 32768, norm), 512); // Q21: its square still fits the isqrt range
+  const py = floorDiv(c * ay + floorDiv(sn * ty * 32768, norm), 512);
+  const pz = floorDiv(c * az + floorDiv(sn * tz * 32768, norm), 512);
+  const len = isqrt(px * px + py * py + pz * pz); // the table roundings leave it up to 0.15 percent off unit length: put it back
+  out[0] = floorDiv(px * 32768, len);
+  out[1] = floorDiv(py * 32768, len);
+  out[2] = floorDiv(pz * 32768, len);
 }
 
 /** A tangent shorter than this (Q15, 1/512 of a unit vector: an arc under 0.12 degrees or within 0.12 degrees of the antipode) is replaced by a fixed perpendicular. */
