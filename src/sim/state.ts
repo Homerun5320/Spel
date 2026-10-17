@@ -7,6 +7,7 @@ import { BorderIndex } from './borders';
 import { EnclaveQueues } from './enclaveQueue';
 import { SimEnv } from './env';
 import { BeachheadTable, HeliTable } from './heliTable';
+import { ShipTable } from './shipTable';
 import { Grid, rowCosFromLut } from './grid';
 import { foldBytes, foldU16, finishHash, FNV_OFFSET } from './hash';
 import { createHomeRules, type HomeRules } from './homeRules';
@@ -18,8 +19,8 @@ import { createRng } from './rng';
 import { WEIGHT_ONE } from './rules';
 import { WorkCounters } from './work';
 
-/** Bumped whenever a rule, a constant in rules.ts or the meaning of a state array changes. Part of the match header. 2: M04 (economy, Spawn, owner arrays). 3: M04 conquest (attacks, enclaves, calibrated constants). 4: M04 fix pass (the exposure array, the enclave candidate rule). 5: the M05 audit (terrain slows the capture, K 123). 6: the tempo pass, D142 (capture K 123 -> 420, troop regeneration 8 + 0.35 sqrt(T) -> 24 + 1.0 sqrt(T)). 7: M09 part A (the structure table is part of the state and the hash). 8: M09 part B (structure effects on troop cap and gold, Defense Post price, conquest of structures, embargo flags). 9: M09 part C (level effects of Factory and Port, the 3-City Factory cap, the Port income cap). 10: Districts-1 (the district table in the state and the hash, three district intents, their effects on gold, troop cap, regeneration and the attacker's cell price). 11: M18-1 (the match end: win block in the config, result, hold timer and statistics in the state and the hash; the anti-snowball discount in the cell price). 12: Sim-Growth (spacing per type, City levels 1 to 10 with small steps and their own price and time, five district slots, lower Market gold). 13: Sim-Levels2 (unlimited levels up to 999, one upgrade price rule base * L for every type and district, concave level curves with asymptotes, conquest keeps 75 percent of a level). 14: M12a-1 (the helicopter and beachhead tables in the state and the hash, the ProduceHeli intent with its price, time and fleet cap, Los / Nav reachable from step). 15: M12a-2 (LaunchHeli and RecallHeli, the helicopter flight with fuel, terrain following and return). 16: M12a-3 (the landing at the Attack cell price, the beachhead and its cut-off cluster that returns to neutral after 450 ticks, the cut-off land left out of the economy, the enclave exemption). 17: M18c-1 (diplomacy: relations, proposals, betrayal cooldowns and embargo owners in the state and the hash, six intents, the attack ban between treaty parties, alliance trade). 18: M18c-2 (the AI temperament: a more willing truce answer, a leader threshold of 25 percent, the truce proposal to the most frequent attacker; no state layout change). 19: Fix-4A1 (audit 3 helicopter, beachhead and treaty rules). 20: M12b (air defence: Defense Posts and SAM sites bring hostile helicopters down, the salvo clock in the structure table, a repaired helicopter on the pad). 21: M18d-1 (technology: 16 techs, the research state per seat in the match block and the hash, two intents, effects on gold, upgrade price, cell price, regeneration, troop cap, helicopter load / speed / fuel / fleet, SAM hit and salvo, Walls and Post). 22: M18b-2 (federations: a pair of sub-nations can be bound by an alliance with `until` 1 that BreakTreaty refuses; the match setup splits a country into allied sub-nations). 23: M18b-3 (federations count as ONE group in the win rules: land share and hold timer, last alive, score, the anti-snowball discount; M18d-2 changed no rule). 24: Fix-5A1. 25: M18e-1 (Airfield, Lab and Plant: three structure types, the fleet cap and the helicopter production time, the research time, the Plant income, two build refusals). */
-export const ENGINE_VERSION = 25;
+/** Bumped whenever a rule, a constant in rules.ts or the meaning of a state array changes. Part of the match header. 2: M04 (economy, Spawn, owner arrays). 3: M04 conquest (attacks, enclaves, calibrated constants). 4: M04 fix pass (the exposure array, the enclave candidate rule). 5: the M05 audit (terrain slows the capture, K 123). 6: the tempo pass, D142 (capture K 123 -> 420, troop regeneration 8 + 0.35 sqrt(T) -> 24 + 1.0 sqrt(T)). 7: M09 part A (the structure table is part of the state and the hash). 8: M09 part B (structure effects on troop cap and gold, Defense Post price, conquest of structures, embargo flags). 9: M09 part C (level effects of Factory and Port, the 3-City Factory cap, the Port income cap). 10: Districts-1 (the district table in the state and the hash, three district intents, their effects on gold, troop cap, regeneration and the attacker's cell price). 11: M18-1 (the match end: win block in the config, result, hold timer and statistics in the state and the hash; the anti-snowball discount in the cell price). 12: Sim-Growth (spacing per type, City levels 1 to 10 with small steps and their own price and time, five district slots, lower Market gold). 13: Sim-Levels2 (unlimited levels up to 999, one upgrade price rule base * L for every type and district, concave level curves with asymptotes, conquest keeps 75 percent of a level). 14: M12a-1 (the helicopter and beachhead tables in the state and the hash, the ProduceHeli intent with its price, time and fleet cap, Los / Nav reachable from step). 15: M12a-2 (LaunchHeli and RecallHeli, the helicopter flight with fuel, terrain following and return). 16: M12a-3 (the landing at the Attack cell price, the beachhead and its cut-off cluster that returns to neutral after 450 ticks, the cut-off land left out of the economy, the enclave exemption). 17: M18c-1 (diplomacy: relations, proposals, betrayal cooldowns and embargo owners in the state and the hash, six intents, the attack ban between treaty parties, alliance trade). 18: M18c-2 (the AI temperament: a more willing truce answer, a leader threshold of 25 percent, the truce proposal to the most frequent attacker; no state layout change). 19: Fix-4A1 (audit 3 helicopter, beachhead and treaty rules). 20: M12b (air defence: Defense Posts and SAM sites bring hostile helicopters down, the salvo clock in the structure table, a repaired helicopter on the pad). 21: M18d-1 (technology: 16 techs, the research state per seat in the match block and the hash, two intents, effects on gold, upgrade price, cell price, regeneration, troop cap, helicopter load / speed / fuel / fleet, SAM hit and salvo, Walls and Post). 22: M18b-2 (federations: a pair of sub-nations can be bound by an alliance with `until` 1 that BreakTreaty refuses; the match setup splits a country into allied sub-nations). 23: M18b-3 (federations count as ONE group in the win rules: land share and hold timer, last alive, score, the anti-snowball discount; M18d-2 changed no rule). 24: Fix-5A1. 25: M18e-1 (Airfield, Lab and Plant: three structure types, the fleet cap and the helicopter production time, the research time, the Plant income, two build refusals). 26: M13c-1 (sea transport: the ship table in the state and the hash, the LaunchShip intent, sea routes, the landing shared with the helicopter, four ship events). */
+export const ENGINE_VERSION = 26;
 
 // Structural limits (not tunables): a seat is one byte on the wire (intents), so 255 seats at most; ownerId is a Uint16
 // (room for tribes after the players), a cell index must stay below 2^22.
@@ -173,6 +174,8 @@ export interface GameState {
   readonly helis: HeliTable;
   /** The beachheads of landed troops (M12a-1: game state, serialised and hashed; part 3 fills it). See src/sim/heliTable.ts. */
   readonly beachheads: BeachheadTable;
+  /** The transport ships (M13c-1: game state, serialised and hashed; the per-owner counts are derived). See src/sim/shipTable.ts. */
+  readonly ships: ShipTable;
   /** The diplomacy (M18c-1): relations, open proposals, betrayal cooldowns, embargo owners. Game state: serialised and hashed. See src/sim/diplomacyTable.ts and diplomacy.ts. */
   readonly diplo: DiplomacyTable;
   /** The occluder layer and the lazy Los / Nav caches (M12a-1): NOT game state, never hashed or serialised, dropped by deserialize. See src/sim/env.ts and access.ts. */
@@ -296,6 +299,7 @@ export interface StateParts {
   readonly structures: StructureTable;
   readonly helis: HeliTable;
   readonly beachheads: BeachheadTable;
+  readonly ships: ShipTable;
   readonly match: MatchState;
   readonly diplo: DiplomacyTable;
   /** Present exactly when `header.config.homeRules` is on. */
@@ -330,6 +334,7 @@ export function assembleState(parts: StateParts): GameState {
   parts.structures.rebuildIndex();
   parts.helis.rebuildIndex();
   parts.beachheads.rebuildIndex();
+  parts.ships.rebuildIndex();
   parts.diplo.rebuildPairs();
   rebuildAggregates(state);
   return state;
@@ -402,6 +407,7 @@ export function createState(p: CreateStateParams): GameState {
     structures: new StructureTable(n, ownerSlots(p.seats)),
     helis: new HeliTable(ownerSlots(p.seats)),
     beachheads: new BeachheadTable(),
+    ships: new ShipTable(ownerSlots(p.seats)),
     env: new SimEnv(p.maxElev === undefined ? null : Int16Array.from(p.maxElev)),
     match: new MatchState(ownerSlots(p.seats)),
     diplo: new DiplomacyTable(ownerSlots(p.seats)),

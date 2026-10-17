@@ -6,8 +6,8 @@ const MATCH_FIXED = 40;
 const MATCH_PER_SLOT = 36; // M18d-1: + the three technology arrays
 const BYTES_PER_STRUCTURE = 36; // M12b: + salvoTick
 const BYTES_PER_DISTRICT = 24;
-/** The air block of a state without helicopters and beachheads. */
-const EMPTY_AIR = 16;
+/** The air block of a state without helicopters, beachheads and ships (M13c-1: + the ship count word). */
+const EMPTY_AIR = 20;
 
 export interface SaveLayout {
   readonly slots: number;
@@ -74,10 +74,10 @@ export function airLayout(s: { readonly helis: { readonly highWater: number; rea
     starts.push(size - recordsAt);
     size += BYTES_PER_HELI + 4 * (h.routeLen[id] as number);
   }
-  size += 4 + BYTES_PER_BEACHHEAD * s.beachheads.liveCount;
+  size += 4 + BYTES_PER_BEACHHEAD * s.beachheads.liveCount + 4; // M13c-1: the ship count word follows the beachheads (these layouts are for states without ships)
   const start = lay.structureBlockAt(s.structures.liveCount, s.structures.districtCount) - size;
   const heliAt = (k: number): number => start + recordsAt + (starts[k] as number);
-  const beachCountAt = start + size - 4 - BYTES_PER_BEACHHEAD * s.beachheads.liveCount;
+  const beachCountAt = start + size - 8 - BYTES_PER_BEACHHEAD * s.beachheads.liveCount;
   return {
     highWaterAt: start,
     recycledCountAt: start + 4,

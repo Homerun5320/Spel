@@ -350,3 +350,14 @@ export {
 } from './rules';
 // M17-pre (append-only): the per-viewer helicopter list (`SimView.visibleHelis`) and the air-navigation grid the state owns (`SimView.navOf`, null on the page).
 export type { HeliSight } from './heliVisibility';
+
+// M13c-1 (append-only): sea transport. The read-only ship table type and its state numbers, the LaunchShip check (the very function the sim runs: `validateLaunchShip`),
+// the intent body, the refusal block (SHIP_REASON_BASE + n; a treaty is REJECT_DIPLO_TREATY_BOUND and a full beachhead table REJECT_HELI_BEACHHEAD_FULL) and the constants of
+// rules.ts the UI reads (each has a row in docs/BALANCE.md). Every ship is visible in v1: there is no `visibleShips`.
+export type { ShipView } from './shipTable';
+export { SHIP_LAND, SHIP_OFF, SHIP_RETURN, SHIP_SAIL } from './shipTable';
+export { validateLaunchShip } from './shipRules';
+export type { LaunchShipBody } from './intents';
+export { launchShipBody } from './intents';
+export { REJECT_SHIP_BAD_TARGET, REJECT_SHIP_COOLDOWN, REJECT_SHIP_FLEET_CAP, REJECT_SHIP_NOT_OWNER, REJECT_SHIP_NO_GOLD, REJECT_SHIP_NO_PORT, REJECT_SHIP_NO_ROUTE, REJECT_SHIP_NO_TROOPS, REJECT_SHIP_PORT_BUILDING, REJECT_SHIP_PORT_BUSY, REJECT_SHIP_TABLE_FULL, REJECT_SHIP_TROOPS_HIGH, REJECT_SHIP_TROOPS_LOW } from './intents';
+export { SHIP_CAPACITY, SHIP_CELLS_PER_TICK_Q, SHIP_COOLDOWN_TICKS, SHIP_FLEET_MAX, SHIP_LAND_REACH_CELLS, SHIP_LAND_TICKS, SHIP_LAUNCH_GOLD, SHIP_MAX_TROOPS, SHIP_MIN_TROOPS, SHIP_REASON_BASE, SHIP_ROUTE_CAPACITY, SHIP_ROUTE_MAX_CELLS } from './rules';

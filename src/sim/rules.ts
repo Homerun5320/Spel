@@ -664,3 +664,30 @@ export const AI_TECH_GOLD_RESERVE = 300;
 export const AI_TECH_PERIOD_TICKS = 100;
 /** AI: no research before this tick (expansion first). */
 export const AI_TECH_START_TICKS = 1500;
+
+// ---------------------------------------------------------------------------------------------------------------
+// M13c-1: sea transport (src/sim/shipTable.ts, shipRules.ts, shipRoute.ts, shipPhase.ts). Every constant has a row in docs/BALANCE.md. Provisional: the M13c-1 block of docs/DECISIONS.md.
+
+/** Slots of the ship table (a structural limit, all seats together): ids 0..SHIP_CAPACITY - 1. */
+export const SHIP_CAPACITY = 32;
+/** The most waypoints one route may have (the string-pulled water route; a longer one is refused as NO_ROUTE). */
+export const SHIP_ROUTE_CAPACITY = 48;
+/** Ships one owner may have at a time (also a docked ship that is still cooling down). */
+export const SHIP_FLEET_MAX = 4;
+/** Ticks a Port stays blocked after its ship has docked again (30 s). */
+export const SHIP_COOLDOWN_TICKS = 300;
+/** The fewest and the most troops one ship carries (whole troops; the load is drawn from the seat at departure). */
+export const SHIP_MIN_TROOPS = 20;
+export const SHIP_MAX_TROOPS = 1200;
+/** Gold a departure costs (gold, taken at once). */
+export const SHIP_LAUNCH_GOLD = 100;
+/** The landing cell must have a water cell within this many cells (Chebyshev, x wrapping); the ship sails to such a cell. */
+export const SHIP_LAND_REACH_CELLS = 2;
+/** The route search may expand this many water cells; more and the launch is refused as NO_ROUTE. */
+export const SHIP_ROUTE_MAX_CELLS = 16384;
+/** Speed of a ship in Q8 cells per tick (256 = one cell): 32 = 0.125 cells per tick = 1.25 cells per second, slower than a helicopter (0.21 cells per tick at Low). */
+export const SHIP_CELLS_PER_TICK_Q = 32;
+/** Ticks a ship spends unloading before the cells are taken (2 s). */
+export const SHIP_LAND_TICKS = 20;
+/** Refusal codes of LaunchShip are SHIP_REASON_BASE + n (n = 1..), a block of their own above every other REJECT_* code (as LZ_REASON_BASE does for the landing zone). */
+export const SHIP_REASON_BASE = 120;

@@ -2,7 +2,7 @@
 // the same number is an error), so every accepted byte string has exactly one meaning and re-encodes to itself.
 //
 //   intent  = kind:u8  seat:u8  id:varint  [payload]
-//     payload: DebugPaint and Spawn: cell:varint;  Attack: target:varint pct:varint;  CancelAttack: target:varint;  DebugGive: gold:varint troops:varint;  Build: type:varint cell:varint;  Upgrade and Delete: structure:varint;  BuildDistrict: structure:varint slot:varint districtKind:varint;  UpgradeDistrict and RemoveDistrict: structure:varint slot:varint;  ProduceHeli: factory:varint;  LaunchHeli: factory:varint lzCell:varint troops:varint altMode:varint;  RecallHeli: heli:varint;  ProposeTreaty: to:varint treaty:varint;  AcceptTreaty and DeclineTreaty: from:varint;  BreakTreaty: with:varint;  ImposeEmbargo and LiftEmbargo: target:varint;  Research: tech:varint;  CancelResearch and Noop: none
+//     payload: DebugPaint and Spawn: cell:varint;  Attack: target:varint pct:varint;  CancelAttack: target:varint;  DebugGive: gold:varint troops:varint;  Build: type:varint cell:varint;  Upgrade and Delete: structure:varint;  BuildDistrict: structure:varint slot:varint districtKind:varint;  UpgradeDistrict and RemoveDistrict: structure:varint slot:varint;  ProduceHeli: factory:varint;  LaunchHeli: factory:varint lzCell:varint troops:varint altMode:varint;  RecallHeli: heli:varint;  LaunchShip: port:varint targetCell:varint troops:varint;  ProposeTreaty: to:varint treaty:varint;  AcceptTreaty and DeclineTreaty: from:varint;  BreakTreaty: with:varint;  ImposeEmbargo and LiftEmbargo: target:varint;  Research: tech:varint;  CancelResearch and Noop: none
 //   turn    = turn:varint  count:varint  intent*count
 //
 // Decoding is total: any bytes give either a value or an error result; nothing throws. The decoder checks only what the
@@ -66,6 +66,8 @@ function intentSize(i: Intent): number {
       return head + varintSize(i.factory) + varintSize(i.lzCell) + varintSize(i.troops) + varintSize(i.altMode);
     case 'RecallHeli':
       return head + varintSize(i.heli);
+    case 'LaunchShip':
+      return head + varintSize(i.port) + varintSize(i.targetCell) + varintSize(i.troops);
     case 'ProposeTreaty':
       return head + varintSize(i.to) + varintSize(i.treaty);
     case 'AcceptTreaty':
@@ -111,6 +113,11 @@ function putIntent(out: Uint8Array, at: number, i: Intent): number {
     p = putVarint(out, p, i.troops);
     p = putVarint(out, p, i.altMode);
   } else if (i.kind === 'RecallHeli') p = putVarint(out, p, i.heli);
+  else if (i.kind === 'LaunchShip') {
+    p = putVarint(out, p, i.port);
+    p = putVarint(out, p, i.targetCell);
+    p = putVarint(out, p, i.troops);
+  }
   else if (i.kind === 'ProposeTreaty') {
     p = putVarint(out, p, i.to);
     p = putVarint(out, p, i.treaty);
@@ -151,6 +158,8 @@ function payloadEncodable(i: Intent): boolean {
       return isU32(i.factory) && isU32(i.lzCell) && isU32(i.troops) && isU32(i.altMode);
     case 'RecallHeli':
       return isU32(i.heli);
+    case 'LaunchShip':
+      return isU32(i.port) && isU32(i.targetCell) && isU32(i.troops);
     case 'ProposeTreaty':
       return isU32(i.to) && isU32(i.treaty);
     case 'AcceptTreaty':
@@ -291,6 +300,12 @@ class Reader {
     if (kind === 'RecallHeli') {
       const heli = this.varint();
       return this.error === null ? { kind, seat, id, heli } : null;
+    }
+    if (kind === 'LaunchShip') {
+      const port = this.varint();
+      const targetCell = this.varint();
+      const troops = this.varint();
+      return this.error === null ? { kind, seat, id, port, targetCell, troops } : null;
     }
     if (kind === 'ProposeTreaty') {
       const to = this.varint();

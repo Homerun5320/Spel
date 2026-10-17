@@ -94,6 +94,25 @@ export interface ViewSnapshot {
   readonly beachheads: BeachheadSnapshot | null;
   /** The fronts of the attacks running (M20a-2): always present in the answer to `requestView`; in a frame's diff only when they changed (the attacks, or every FRONT_REFRESH_TICKS ticks while one runs), else null. */
   readonly fronts: AttackFrontSnapshot | null;
+  /** The ship table (M13c-1): always present in the answer to `requestView`; in a frame's diff only when it changed since the last frame that carried it, else null. Optional so that older producers and test literals stay valid (absent = null). */
+  readonly ships?: ShipSnapshot | null;
+}
+
+/** The live ship rows as the page sees them (M13c-1), in slot order: `count` rows, `slot[k]` the table slot of row k, `route` holds SHIP_ROUTE_CAPACITY cells per row (routeLen of them are waypoints). */
+export interface ShipSnapshot {
+  readonly count: number;
+  readonly slot: Uint8Array;
+  readonly owner: Uint16Array;
+  readonly state: Uint8Array;
+  readonly port: Uint16Array;
+  readonly stateTick: Uint32Array;
+  readonly x: Int32Array;
+  readonly y: Int32Array;
+  readonly load: Uint16Array;
+  readonly target: Uint32Array;
+  readonly routeLen: Uint8Array;
+  readonly routeIdx: Uint8Array;
+  readonly route: Int32Array;
 }
 
 /** The attack fronts as the page sees them (M20a-2): `count` rows, each array `count` long (see `AttackView` in src/sim/view.ts). */
@@ -210,7 +229,13 @@ export function cloneView(v: ViewSnapshot): ViewSnapshot {
     diplomacy: v.diplomacy === null ? null : cloneDiplomacy(v.diplomacy),
     beachheads: v.beachheads === null ? null : cloneBeachheads(v.beachheads),
     fronts: v.fronts === null ? null : cloneFronts(v.fronts),
+    ships: v.ships === undefined || v.ships === null ? null : cloneShips(v.ships),
   };
+}
+
+/** A deep copy of a ship snapshot. */
+export function cloneShips(s: ShipSnapshot): ShipSnapshot {
+  return { count: s.count, slot: s.slot.slice(), owner: s.owner.slice(), state: s.state.slice(), port: s.port.slice(), stateTick: s.stateTick.slice(), x: s.x.slice(), y: s.y.slice(), load: s.load.slice(), target: s.target.slice(), routeLen: s.routeLen.slice(), routeIdx: s.routeIdx.slice(), route: s.route.slice() };
 }
 
 /** A deep copy of an attack-front snapshot. */

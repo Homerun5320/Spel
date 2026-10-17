@@ -15,7 +15,8 @@
 //               defenceMilli u16 x (seats+1)   (D112: a match without the flag is byte-identical to M05, so FORMAT_VERSION stays 5)
 //      air block (M12a-1, always present, between the home block and the structure block): helicopters: highWater u32, recycledCount u32, recycled u32 x recycledCount, liveCount u32,
 //               then per live slot by ascending id: id owner state factory readyTick stateTick x y alt hp load fuel mode target routeLen routeIdx (u32 each, x y alt signed),
-//               each followed by routeLen x cell u32; beachheads: count u32, then per live slot by ascending index: index owner seed landTick status (u32 each)
+//               each followed by routeLen x cell u32; beachheads: count u32, then per live slot by ascending index: index owner seed landTick status (u32 each);
+//               ships (M13c-1): count u32, then per live slot by ascending id: id owner state port portCell stateTick x y load target routeLen routeIdx (u32 each, x y signed), each followed by routeLen x cell u32
 //      structures (M09 part A, always present): highWater u32, recycledCount u32, recycled u32 x recycledCount, deleteReady u32 x (seats+1), embargo u8 x (seats+1)^2 (M09 part B),
 //               liveCount u32, then per live slot by ascending id: id type owner cell level buildTick readyTick upgradeReadyTick salvoTick (u32 each),
 //               then (Districts-1) districtCount u32 and per district by ascending (id, slot): id slot kind level readyTick upgradeReadyTick (u32 each)
@@ -33,6 +34,9 @@ import { EnclaveQueues, enclaveBucket } from './enclaveQueue';
 import { TRAIT_MAX_MILLI, TRAIT_MIN_MILLI, type HomeRules } from './homeRules';
 import { foldStructures } from './structures';
 import { ALLIANCE_FEDERATION, DiplomacyTable, RELATION_ALLIANCE, RELATION_TRUCE, diplomacyCounts, foldDiplomacy } from './diplomacyTable';
+import { SHIP_CAPACITY, SHIP_FLEET_MAX, SHIP_MAX_TROOPS, SHIP_ROUTE_CAPACITY } from './rules';
+import { SHIP_OFF, SHIP_RETURN, SHIP_SAIL, SHIP_LAND, SHIP_STATE_MAX, ShipTable, foldShips } from './shipTable';
+import { isWaterClass } from './shipRoute';
 import { BEACH_STATUS_MAX, BeachheadTable, HELI_BUILDING, HELI_LIFT, HELI_PAD, HELI_RETURN, HELI_STATE_MAX, HeliTable, foldHelis } from './heliTable';
 import { SimEnv } from './env';
 import { MatchState, normalWin, winFlagsOf, type WinConfig, WIN_FLAG_LAND, WIN_FLAG_LAST, WIN_FLAG_SCORE } from './matchState';
@@ -86,7 +90,7 @@ import {
 } from './state';
 
 /** Bumped when the byte layout above changes. 2: owner u16 (D71). 3: players, rowCos and the per-owner economy arrays (M04). 4: attacks and the enclave queue (M04 conquest). 5: the exposure array (M04 fix pass). 6: the structure table (M09 part A). 7: the embargo flags (M09 part B). 8: the district table (Districts-1). 9: the match block (M18-1). 10: Sim-Growth (City levels up to 10, five district slots per row). 11: Sim-Levels2 (u16 levels up to 999 in the structure and district tables). 12: M12a-1 (the air block: the helicopter and beachhead tables). 13: M18c-1 (the diplomacy block after the match block; the M12a-3 landing track may raise the format on its own branch, the orchestrator sets the final value when the tracks are merged). 14: M12b (the salvo clock `salvoTick` of every structure row). 15: M18d-1 (the technology arrays at the end of the match block: researched mask, current tech + 1, finish tick). 16: M18b-2 (an alliance pair may carry `until` 1 = bound by a federation; the layout is unchanged, deserialize accepts the value). */
-export const FORMAT_VERSION = 16;
+export const FORMAT_VERSION = 17;
 /** 'SPEL' as a little-endian u32. */
 export const MAGIC = 0x4c455053;
 export const HEADER_BYTES = 64;
@@ -109,12 +113,14 @@ const BYTES_PER_STRUCTURE = 36;
 const BYTES_PER_ATTACK = 36;
 /** One frontier bag: depth and count, then its cells (4 bytes each). */
 const BYTES_PER_BAG = 8;
-/** The air block of a state without helicopters and beachheads: highWater, recycledCount, liveCount, beachhead count. */
-const EMPTY_AIR_BYTES = 16;
+/** The air block of a state without helicopters, beachheads and ships: highWater, recycledCount, liveCount, beachhead count, ship count. */
+const EMPTY_AIR_BYTES = 20;
 /** One live helicopter: id owner state factory readyTick stateTick x y alt hp load fuel mode target routeLen routeIdx (its route cells follow, 4 bytes each). */
 const BYTES_PER_HELI = 64;
 /** One live beachhead: index owner seed landTick status. */
 const BYTES_PER_BEACHHEAD = 20;
+/** One live ship: id owner state port portCell stateTick x y load target routeLen routeIdx (its route cells follow, 4 bytes each). */
+const BYTES_PER_SHIP = 48;
 /** The match block: ten u32 scalars and nine u32 arrays of (seats + 1) (the last three are the technology arrays of M18d-1: researched mask, current tech + 1, finish tick). */
 function matchBytes(seats: number): number {
   return 40 + 36 * ownerSlots(seats);
@@ -176,6 +182,9 @@ export function serializedLengthOf(state: GameState): number {
   const hl = state.helis;
   n += hl.liveCount * BYTES_PER_HELI + hl.recycledCount * 4 + state.beachheads.liveCount * BYTES_PER_BEACHHEAD;
   for (let id = 0; id < hl.highWater; id++) if (hl.owner[id] !== 0) n += (hl.routeLen[id] as number) * 4;
+  const sh = state.ships;
+  n += sh.liveCount * BYTES_PER_SHIP;
+  for (let id = 0; id < SHIP_CAPACITY; id++) if (sh.owner[id] !== 0) n += (sh.routeLen[id] as number) * 4;
   const dc = diplomacyCounts(state.diplo);
   n += dc.pairs * 16 + dc.embargoes * 8 + dc.proposals * 16;
   return n + state.enclaves.length * 4;
@@ -267,6 +276,7 @@ export function hashState(state: GameState): number {
   }
   x = foldStructures(x, state.structures);
   x = foldHelis(x, state.helis, state.beachheads);
+  x = foldShips(x, state.ships);
   x = foldMatch(x, state);
   x = foldDiplomacy(x, state.diplo, state.match.treatiesMade, state.match.treatiesBroken);
   return finishHash(x);
@@ -414,6 +424,30 @@ export function serialize(state: GameState): Uint8Array {
     v.setUint32(p + 12, bh.landTick[i] as number, true);
     v.setUint32(p + 16, bh.status[i] as number, true);
     p += BYTES_PER_BEACHHEAD;
+  }
+  const sh = state.ships;
+  v.setUint32(p, sh.liveCount, true);
+  p += 4;
+  for (let id = 0; id < SHIP_CAPACITY; id++) {
+    if (sh.owner[id] === 0) continue;
+    const len = sh.routeLen[id] as number;
+    v.setUint32(p, id, true);
+    v.setUint32(p + 4, sh.owner[id] as number, true);
+    v.setUint32(p + 8, sh.state[id] as number, true);
+    v.setUint32(p + 12, sh.port[id] as number, true);
+    v.setUint32(p + 16, sh.portCell[id] as number, true);
+    v.setUint32(p + 20, sh.stateTick[id] as number, true);
+    v.setInt32(p + 24, sh.x[id] as number, true);
+    v.setInt32(p + 28, sh.y[id] as number, true);
+    v.setUint32(p + 32, sh.load[id] as number, true);
+    v.setUint32(p + 36, sh.target[id] as number, true);
+    v.setUint32(p + 40, len, true);
+    v.setUint32(p + 44, sh.routeIdx[id] as number, true);
+    p += BYTES_PER_SHIP;
+    for (let k = 0; k < len; k++) {
+      v.setUint32(p, sh.route[id * SHIP_ROUTE_CAPACITY + k] as number, true);
+      p += 4;
+    }
   }
   const st = state.structures;
   v.setUint32(p, st.highWater, true);
@@ -667,7 +701,7 @@ function embargoAgrees(structures: StructureTable, d: DiplomacyTable): boolean {
 }
 
 /** Fix-4A2: an eliminated seat owns no land and no helicopter and is in no treaty, embargo or proposal (the elimination clears them); Fix-5A1: nor a running research. */
-function eliminatedAgrees(m: MatchState, d: DiplomacyTable, owner: Uint16Array, helis: HeliTable, seats: number): boolean {
+function eliminatedAgrees(m: MatchState, d: DiplomacyTable, owner: Uint16Array, helis: HeliTable, ships: ShipTable, seats: number): boolean {
   const s = d.slots;
   let any = false;
   for (let o = 1; o <= seats; o++) {
@@ -679,6 +713,7 @@ function eliminatedAgrees(m: MatchState, d: DiplomacyTable, owner: Uint16Array, 
     }
     for (let i = 0; i < d.propCount; i++) if (d.propFrom[i] === o || d.propTo[i] === o) return false;
     for (let id = 0; id < helis.highWater; id++) if (helis.owner[id] === o) return false;
+    for (let id = 0; id < SHIP_CAPACITY; id++) if (ships.owner[id] === o) return false; // M13c-1
   }
   if (!any) return true;
   for (let i = 0; i < owner.length; i++) {
@@ -952,6 +987,61 @@ export function deserialize(bytes: Uint8Array, options?: DeserializeOptions): De
     beachheads.landTick[i] = landTick;
     beachheads.status[i] = status;
   }
+  // The ships (M13c-1): the count is checked against the bytes that are left before it is trusted; every field is typed and tightly bounded.
+  const ships = new ShipTable(slots);
+  if (p + 4 > end) return fail('size');
+  const shipCount = v.getUint32(p, true);
+  p += 4;
+  if (shipCount > SHIP_CAPACITY || p + shipCount * BYTES_PER_SHIP > end) return fail('air-range');
+  let lastShip = -1;
+  for (let k = 0; k < shipCount; k++) {
+    if (p + BYTES_PER_SHIP > end) return fail('air-range');
+    const id = v.getUint32(p, true);
+    const ownerId = v.getUint32(p + 4, true);
+    const ss = v.getUint32(p + 8, true);
+    const port = v.getUint32(p + 12, true);
+    const portCell = v.getUint32(p + 16, true);
+    const stateTick = v.getUint32(p + 20, true);
+    const sx = v.getInt32(p + 24, true);
+    const sy = v.getInt32(p + 28, true);
+    const load = v.getUint32(p + 32, true);
+    const target = v.getUint32(p + 36, true);
+    const routeLen = v.getUint32(p + 40, true);
+    const routeIdx = v.getUint32(p + 44, true);
+    p += BYTES_PER_SHIP;
+    if (id <= lastShip || id >= SHIP_CAPACITY || ownerId < 1 || ownerId > seats || ss < SHIP_SAIL || ss > SHIP_STATE_MAX || port >= STRUCT_CAPACITY || portCell >= n) return fail('air-range');
+    if (sx < 0 || sx >= width * 256 || sy < 0 || sy >= height * 256 || load > SHIP_MAX_TROOPS || routeLen < 1 || routeLen > SHIP_ROUTE_CAPACITY || routeIdx > routeLen) return fail('air-range');
+    // A state cannot have been entered in the future; a ship that is out has a landing cell (the route's last waypoint is within reach of it, checked below by the water test only), a ship that is
+    // home or on its way home has none; a docked ship carries nothing and sits at the start of its route.
+    if (stateTick > nowTick) return fail('air-range');
+    const out = ss === SHIP_SAIL || ss === SHIP_LAND;
+    if (out ? target < 1 || target > worldCells : target !== 0) return fail('air-range');
+    if (ss === SHIP_OFF && (load !== 0 || routeIdx !== 0)) return fail('air-range');
+    if (ss === SHIP_RETURN && routeIdx > routeLen - 1) return fail('air-range');
+    if (ss === SHIP_LAND && routeIdx !== routeLen) return fail('air-range');
+    if (ss === SHIP_SAIL && routeIdx < 1) return fail('air-range');
+    if (p + routeLen * 4 > end) return fail('air-range');
+    lastShip = id;
+    ships.owner[id] = ownerId;
+    ships.state[id] = ss;
+    ships.port[id] = port;
+    ships.portCell[id] = portCell;
+    ships.stateTick[id] = stateTick;
+    ships.x[id] = sx;
+    ships.y[id] = sy;
+    ships.load[id] = load;
+    ships.target[id] = target;
+    ships.routeLen[id] = routeLen;
+    ships.routeIdx[id] = routeIdx;
+    for (let r = 0; r < routeLen; r++) {
+      const cell = v.getUint32(p, true);
+      p += 4;
+      if (cell >= n || !isWaterClass(terrain[cell] as number)) return fail('air-range');
+      ships.route[id * SHIP_ROUTE_CAPACITY + r] = cell;
+    }
+  }
+  ships.rebuildIndex();
+  for (let o = 1; o <= seats; o++) if (ships.countOf(o) > SHIP_FLEET_MAX) return fail('air-range');
   const structures = new StructureTable(n, slots);
   if (p + 8 > end) return fail('size');
   structures.highWater = v.getUint32(p, true);
@@ -1064,14 +1154,14 @@ export function deserialize(bytes: Uint8Array, options?: DeserializeOptions): De
   p = readDiplomacy(v, p, end, players, v.getUint32(36, true), diplo, m);
   if (p < 0) return fail('diplomacy-range');
   if (!embargoAgrees(structures, diplo)) return fail('diplomacy-range');
-  if (!eliminatedAgrees(m, diplo, owner, helis, seats)) return fail('match-range');
+  if (!eliminatedAgrees(m, diplo, owner, helis, ships, seats)) return fail('match-range');
   if (p !== end) return fail('size');
 
   const finalConfig = Object.freeze(normalConfigOf(config, win));
   const header: MatchHeader = Object.freeze({ engineVersion, mapHash, seed, config: finalConfig, seats, players });
   let state: GameState;
   try {
-    state = assembleState({ header, width, height, tick: v.getUint32(36, true), rejects: v.getUint32(40, true), rng, terrain, elevation, owner, stamp, exposure, rowCos, troops, troopFrac, gold, capital, attacks, enclaves, structures, helis, beachheads, match: m, diplo, home, env: new SimEnv(options?.maxElev === undefined ? null : Int16Array.from(options.maxElev)) });
+    state = assembleState({ header, width, height, tick: v.getUint32(36, true), rejects: v.getUint32(40, true), rng, terrain, elevation, owner, stamp, exposure, rowCos, troops, troopFrac, gold, capital, attacks, enclaves, structures, helis, beachheads, ships, match: m, diplo, home, env: new SimEnv(options?.maxElev === undefined ? null : Int16Array.from(options.maxElev)) });
   } catch {
     return fail('header');
   }

@@ -15,6 +15,7 @@ import { landShareQ15 } from './territory';
 import type { StructureView } from './structureRules';
 import type { DistrictView } from './districtRules';
 import type { BeachheadTable, HeliView } from './heliTable';
+import type { ShipView } from './shipTable';
 import { hasOccluders, navOf as stateNavOf } from './access';
 import { heliVisibilityOf, type HeliSight, type HeliVisibility } from './heliVisibility';
 import type { Nav } from './nav/grid';
@@ -115,6 +116,8 @@ export interface SimView {
   navOf(): Nav | null;
   /** The beachhead table (Fix-4B), read-only: who landed where and when, and how many cells the cluster holds now. A ViewMirror carries a copy of it (the host sends it when it changed). */
   readonly beachheads: BeachheadView;
+  /** The transport ships (M13c-1), read-only: owner, state, home Port, Q8 position (`cellOf`), load and landing cell by ship id. EVERY ship is visible in v1 (no `visibleShips`; fog for ships is BACKLOG). A ViewMirror carries a copy of it (the host sends it when it changed). */
+  readonly ships: ShipView;
   /** The fronts of the attacks running (M20a-2), read-only, at most `ATTACK_VIEW_CAP`: enough for an arrow per attack. A ViewMirror carries a copy of it (the host sends it when it changed). */
   readonly fronts: AttackView;
   /** The tick until which a cell is fallout, 0 = not (the FALLOUT_UNTIL layer: zero until M14). */
@@ -540,6 +543,9 @@ export class StateView implements SimView {
   }
   get helis(): HeliView {
     return this.state.helis;
+  }
+  get ships(): ShipView {
+    return this.state.ships;
   }
   falloutUntilAt(): number {
     return 0;

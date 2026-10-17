@@ -36,6 +36,18 @@ export const OUTBOX_HELI_RTB = 14;
 /** (part 2) A helicopter set down on a Factory pad again: a = helicopter id, b = Factory structure id. */
 export const OUTBOX_HELI_HOME = 15;
 
+// M13c-1: ship events (a = ship id).
+/** A ship left its Port: a = ship id, b = landing cell. */
+export const OUTBOX_SHIP_LAUNCHED = 16;
+/** A ship set its troops down (`landTroops` in src/sim/heliLanding.ts): a = ship id, b = cells taken (1 to 9), -1 = the zone could not be taken and the load is lost, 0 = nothing to land on (own or blocked land: the load sails home). */
+export const OUTBOX_SHIP_LANDED = 17;
+/** A ship docked in its home Port again (it cools down there): a = ship id, b = Port structure id. */
+export const OUTBOX_SHIP_RETURNED = 18;
+/** A ship was scrapped: a = ship id, b = cause (1 = its owner was eliminated, 2 = its Port was lost and it could not dock; the load is lost). */
+export const OUTBOX_SHIP_SCRAPPED = 19;
+/** A ship turned for home: a = ship id, b = 1 when a truce or an alliance now binds its owner to the owner of the landing cell, 0 when its mission is over. */
+export const OUTBOX_SHIP_RTB = 20;
+
 export interface OutboxEvent {
   readonly kind: number;
   /** The tick of the step that produced the event (the tick before it was incremented). */

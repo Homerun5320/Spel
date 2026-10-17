@@ -2,6 +2,7 @@
 //
 //   npm run sim:scenario -- --seed N --minutes 10 --players 12 --tribes 20      (the match: territory curves per minute)
 //   npm run sim:scenario -- --solo [--minutes 10] [--country RUS]               (the calibration scenario: one expander)
+//   ship-landing --seed N   (M13c-1: a ship crosses a synthetic sea and lands, tools/sim/shipLanding.ts)
 //   heli-raid --fixture <alps|plains-sam|ridge-sam> --seed N [--mode low|high] [--trials T]   (M12b: a helicopter raid replay or its statistics, tools/sim/heliRaid.ts)
 //   --ai [--no-build]: the players are driven by AI v0 (src/host/aiDriver.ts) instead of the scripted bots; --no-build keeps them from building
 //   flags: --json (machine readable), --no-fighters (the players only expand into unowned land; by default they also attack the
@@ -285,6 +286,12 @@ async function main(): Promise<void> {
       // M12b: `npm run sim:scenario -- heli-raid --fixture <alps|plains-sam|ridge-sam> --seed N [--mode low|high] [--trials T]` (tools/sim/heliRaid.ts)
       const { heliRaid, parseHeliRaidArgs } = await import('./heliRaid');
       console.log(await heliRaid(parseHeliRaidArgs(process.argv.slice(3))));
+      return;
+    }
+    if (process.argv[2] === 'ship-landing') {
+      // M13c-1: `npm run sim:scenario -- ship-landing --seed N` (tools/sim/shipLanding.ts)
+      const { shipLanding, parseShipLandingArgs } = await import('./shipLanding');
+      console.log(shipLanding(parseShipLandingArgs(process.argv.slice(3))));
       return;
     }
     const args = parseArgs(process.argv.slice(2));

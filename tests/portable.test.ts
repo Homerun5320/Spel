@@ -39,7 +39,7 @@ describe('the forbidden-address scanner itself', () => {
 });
 
 /** Size caps in bytes of gzipped JavaScript (Fix-3C): measured plus about 5 %. Raise them only with a line in docs/DECISIONS.md. */
-const JS_GZ_TOTAL_MAX = 391_000; // Round 19 merge: 370_000 before; measured 372_309 with the technology rules, the federation setup and the helicopter effects, + 5 %
+const JS_GZ_TOTAL_MAX = 393_000; // M13c-1: 391_000 before; measured 392_934 with the ship table, the sea route, LaunchShip and the ship snapshot (rule of DECISIONS "Bundle diet" 3: paid back by diet step 1, the language tables, about 8.8 kB, in the pass "Bundle diet 1-3"). Older: 391_000 // Round 19 merge: 370_000 before; measured 372_309 with the technology rules, the federation setup and the helicopter effects, + 5 %
 const JS_GZ_MAIN_MAX = 315_700; // Bundle-diet-1: 321_000 before; measured 306_484 after the dev modules left the main chunk (steps 2 and 3 of the diet), + 3 %. Older notes: // M18d-2: 311_000 before; measured 311_035 with the research panel, + 3 %. M20a-2: 294_500 before, measured 296_501 with the nation labels, the front arrows and the attack-front snapshot, + 5 %. M13b: 277_000 before; measured 280_318 + 5 % (the page now carries Los, Nav, planRoute and scoreLz for the preview; before, they lived only in the sim worker)
 
 describe('portable build (relative addresses only)', () => {

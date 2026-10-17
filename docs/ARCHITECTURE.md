@@ -20,7 +20,7 @@ One short row per module; the last column links to the full row (milestone story
 | `src/data/world.ts` | Typed views and the world loader. | `createWorldLoader(opts)` (`loadSim`, `loadRender`, `loadMeta`... | [data](arch/data.md) |
 | `src/data/index.ts` | Barrel of the data layer. | everything above  | [data](arch/data.md) |
 | `src/data/federations.ts`, `tools/bake/federations.ts`, `tools/bake/federationsReport.ts` (M18b-1) | Federations pack: Natural Earth provinces and sub-nations of the seven big countries; pure parser, writer and helpers, not wired into the game yet (not in the barrel). | `loadFederations`, `parseFederations`, `federationOfCell`, `membersOfCountry`, `isFederationCandidate` | [data](arch/data.md) |
-| `src/app/federationSetup.ts`, `bindFederation` in `src/sim/diplomacy.ts` (M18b-2) | Option "Dela upp stormakter": `createMatch` splits a candidate country into sub-nation seats (fair start inside each), allied from tick 0 by a bound alliance that BreakTreaty refuses (`REJECT_DIPLO_FEDERATION`). | `membersOf`, `subNationName`, `subNationLabel`, `startableSubNations`, `bindFederation` | [app](arch/app.md) |
+| `src/app/federationSetup.ts`, `bindFederation` in `src/sim/diplomacy.ts` (M18b-2) | Option "Dela upp stormakter": `createMatch` splits a country into allied sub-nation seats (bound alliance, `REJECT_DIPLO_FEDERATION`). | `membersOf`, `subNationName`, `subNationLabel`, `startableSubNations`, `bindFederation` | [app](arch/app.md) |
 | `tools/bake/` | `npm run bake` / `npm run bake:check`: `tools/bake/fetch.ts` (cached downloads, allowed hosts), `tools/bake/terrarium.ts` (tiles, spike clean... | `buildWorld`, `fillPolygon`, `paintPolygon`, `cleanHeights`... | [data](arch/data.md) |
 | `public/data/` | Committed baked data (about 4.5 MB): `public/data/render.bin.gz`, `public/data/sim.bin.gz`, `public/data/manifest.json`... |  | [data](arch/data.md) |
 | `debug/data.html`, `src/app/debugData.ts`, `src/app/debugPalette.ts` | Data map page (class / height / country) on a 1024x512 canvas; mode from `?map=` or `#map-...` and three buttons. | `parseMapMode`, `CLASS_COLORS`, `heightColor`... | [data](arch/data.md) |
@@ -139,23 +139,24 @@ One short row per module; the last column links to the full row (milestone story
 | `.claude/session-start.sh` | SessionStart hook (one health line, exit 0). |  | [tests](arch/tests.md) |
 | `eslint.config.js` | Flat config: boundary + determinism rules; `src/ai` may import only `src/sim/public.ts`; `src/ui`... |  | [tests](arch/tests.md) |
 | `vitest.config.ts` | Projects `unit`, `perf`, `e2e`. |  | [tests](arch/tests.md) |
-| `src/sim/heliLanding.ts`, `src/sim/heliPhase.ts`, `src/sim/heliRules.ts`, `src/sim/win.ts`, `src/sim/structureEffects.ts` (Fix-4A1, ENGINE 19) | Audit 3 rule fixes: scrapped helicopters of eliminated seats, no beachhead row on own land, full-table refusals, allied Port trade 125 %. | `scrapOwnerHelis`, `REJECT_HELI_TABLE_FULL`, `REJECT_HELI_BEACHHEAD_FULL`, `TRADE_ALLIANCE_PCT` | [sim](arch/sim.md) |
+| `src/sim/heliLanding.ts`, `src/sim/heliPhase.ts`, `src/sim/heliRules.ts`, `src/sim/win.ts`, `src/sim/structureEffects.ts` (Fix-4A1, ENGINE 19) | Audit 3 fixes: eliminated seats' helicopters scrapped, no beachhead row on own land, full-table refusals. | `scrapOwnerHelis`, `REJECT_HELI_TABLE_FULL`, `REJECT_HELI_BEACHHEAD_FULL`, `TRADE_ALLIANCE_PCT` | [sim](arch/sim.md) |
 | `deserialize` guards (Fix-4A2), `tests/helpers/saveLayout.ts` | `deserialize` refuses future stateTick/landTick/readyTick, unmatched embargo flags, eliminated seats with land/helicopters/treaties and airborne helicopters without `maxElev`; one save-layout test helper. | errors `air-range`, `no-occluders`, ... | [sim](arch/sim.md) |
 | `BeachheadView` in `src/sim/view.ts`, `src/host/beachheadSnapshot.ts`, `src/host/beachheadMirror.ts`, `src/ui/beachheadInfo.ts` (Fix-4B) | The beachhead is shown and explained: read-only view, host snapshot and mirror, pulsing ring, count-down chip, revert and established toasts. | `SimView.beachheads` | [sim](arch/sim.md) |
-| `src/sim/airDefense.ts`, `src/sim/hostile.ts`, `tools/sim/heliRaid.ts` (M12b, ENGINE 20) | Air defence: Defense Posts wear hostile helicopters down, SAM sites fire salvos at what their layer and own mask see; `hostile(a, b)` (a relation) is used by route, LZ, preview and guns; the `heli-raid` replay and raid statistics. | `airDefensePhase`, `hostileSeats`, `hostileOwners`, `heliRaid` | [sim](arch/sim.md) |
+| `src/sim/airDefense.ts`, `src/sim/hostile.ts`, `tools/sim/heliRaid.ts` (M12b, ENGINE 20) | Air defence: Posts wear hostile helicopters down, SAM sites fire salvos; `hostile(a, b)` is a relation; the `heli-raid` replay. | `airDefensePhase`, `hostileSeats`, `hostileOwners`, `heliRaid` | [sim](arch/sim.md) |
 | `src/sim/techTable.ts`, `src/sim/techRules.ts`, `src/sim/tech.ts`, `src/ai/research.ts` (M18d-1, ENGINE 21, FORMAT 15) | Technology: 16 techs in four branches (`TECH_*` in rules.ts), research state per seat in the match block, intents Research and CancelResearch, one shared check, capped effects, AI research. | `validateResearch`, `researchBody`, `techFxOfMask`, `researchMove` | [sim](arch/sim.md) |
 | `AttackView` in `src/sim/view.ts`, `src/host/frontSnapshot.ts`, `src/host/frontMirror.ts` (M20a-2) | The attacks running as a read-only view: id, owners, one front cell and a direction each (sampled from the frontier bags, at most 32 (ATTACK_VIEW_CAP, Fix-5A3)); sent in a diff once a second while an attack runs. | `SimView.fronts`, `ATTACK_VIEW_CAP`, `ViewMirror.fronts` | [host](arch/host.md) |
-| `src/sim/heliVisibility.ts` (M17-pre) | Helicopter sight per viewer (own and non-hostile always, hostile only under `Los.detected`); the host sends the page only those rows. `SimView.visibleHelis`, `navOf()`. | `HeliVisibility`, `HeliSight`, `viewerSeat` | [sim](arch/sim.md) |
+| `src/sim/shipTable.ts`, `src/sim/shipRules.ts`, `src/sim/shipRoute.ts`, `src/sim/shipPhase.ts` (M13c-1, ENGINE 26, FORMAT 17) | Sea transport: ship table (32 slots), LaunchShip (kind 23, codes 121..133), A* sea route, landing shared with helicopters, `SimView.ships` and host mirror, `ship-landing` replay. | `validateLaunchShip`, `ShipView`, `landTroops`, `SHIP_*` | [sim](arch/sim.md) |
+| `src/sim/heliVisibility.ts` (M17-pre) | Helicopter sight per viewer (own and non-hostile always, hostile only when detected); the host sends only those rows. `SimView.visibleHelis`, `navOf()`. | `HeliVisibility`, `HeliSight`, `viewerSeat` | [sim](arch/sim.md) |
 | `src/render/frontLayer.ts`, `src/render/shaders/fronts.ts` (M20a-2) | The front arrows: ONE instanced draw call, at most 32 (ATTACK_VIEW_CAP) arrows, pulsing with the fx clock, faded with the camera altitude, own attacks strongest. | `FrontLayer`, `frontFade`, `DrawnFront`, `Globe.fronts` | [render](arch/render.md) |
 | `src/ui/nationLabels.ts`, `src/ui/labelLayout.ts`, `src/app/nationCentroids.ts` (M20a-2) | The nation labels: a pool of at most 32 DOM boxes (name, troops, V/A/E badges, colour) at each nation's centre of gravity, zoom fade, no overlap, off the HUD panels; key N switches labels and arrows (pref `nationlabels`). | `NationLabels`, `LabelLayout`, `NationCentroids`, `LABELS` | [ui](arch/ui.md) |
 
-Empty folders reserved with `.gitkeep`: `src/audio` (`src/sim` and `src/host` are populated since M03, `src/ui` since M02, `src/ai` since M05 part C).
+Empty folder reserved with `.gitkeep`: `src/audio`.
 
 ## Detail sections moved to docs/arch
 
 - Sim flow (M03), snapshot growth (M05), the AI call (M05 part C): [sim](arch/sim.md).
-- Test hooks (`?test=1`) and test layout: [tests](arch/tests.md).
-- Chunk terrain against the fixed mesh (M07a, `renderer.info`): [render](arch/render.md).
+- Test hooks and test layout: [tests](arch/tests.md).
+- Chunk terrain (M07a): [render](arch/render.md).
 - Fix-UI additions (audit 1): [ui](arch/ui.md).
 
 ## Rules for layers that sit on the terrain (M07a audit; read before M08, M10, M12/M13a, M15a)
@@ -190,4 +191,4 @@ See `docs/CHARTER.md` section 8. Planned: `server/` (later).
 
 ## Aktuella versioner
 
-ENGINE_VERSION 25 (`src/sim/state.ts`), FORMAT_VERSION 16 (`src/sim/serialize.ts`). A change bumps them and re-pins both golden files once (`UPDATE_GOLDENS=1`).
+ENGINE_VERSION 26 (`src/sim/state.ts`), FORMAT_VERSION 17 (`src/sim/serialize.ts`). A change bumps them and re-pins both golden files once (`UPDATE_GOLDENS=1`).

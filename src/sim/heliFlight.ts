@@ -16,6 +16,7 @@ import { hasOccluders, losOf, planRouteOf, scoreLzOf } from './access';
 import { checkLaunchHeli, checkRecallHeli, emptyLaunchPlan, type LaunchProbe } from './heliRules';
 import { HELI_APPROACH, HELI_CRUISE, HELI_DOWNED, HELI_DOWN_FUEL, HELI_HOVER, HELI_LIFT, HELI_PAD, HELI_POS_ONE, HELI_RETURN, HELI_STATE_MAX, HELI_UNLOAD, cellCentreQ8 } from './heliTable';
 import { performLanding } from './heliLanding';
+import { shipLandingsPending } from './shipRules';
 import { isqrt } from './detmath';
 import { REJECT_NONE } from './intents';
 import {
@@ -73,6 +74,7 @@ function probeOf(state: GameState, seat: number): LaunchProbe {
       const t = state.helis;
       let pending = 0;
       for (let id = 0; id < t.highWater; id++) if (t.owner[id] !== 0 && t.target[id] !== 0) pending++;
+      pending += shipLandingsPending(state.ships); // M13c-1: a ship on its way to a landing will want a row too
       return state.beachheads.liveCount + pending >= state.beachheads.capacity;
     },
     zoneBound: (cell) => {
