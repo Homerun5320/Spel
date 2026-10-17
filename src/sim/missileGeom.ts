@@ -1,5 +1,5 @@
 // The flight of a missile (M14a): pure integer geometry on the unit sphere. No trig, no asin: a cell becomes a unit vector through the Q15 sine table, the range is a CHORD compared
-// with a table, the flight time comes from the arc length found by a search in a chord table, and the position is the normalised lerp of the two end vectors (isqrt).
+// with a table, the flight time comes from the arc length found by a search in a chord table, and the position walks the great circle at a constant angular speed (cos / sin of the angle flown).
 //
 // Units: a vector component is Q15 (32768 = 1). An angle is in angle units (65536 = a full turn, so the arc between two cells is at most 32768). `chord` is the Q15 length of the straight
 // line between two unit vectors (0..65536). The reference cell of the plan (a 1024-cell equator) is MISSILE_REF_CELL_ANGLE = 64 units.
@@ -127,8 +127,11 @@ export function inRange(chord: number, cls: number): boolean {
 }
 
 /**
- * The position of a missile at `tick` as a Q15 unit vector in out[0..2]: the normalised lerp of the end vectors at e / F, e = ticks since launch, F = the flight time. Before the
- * launch it is the start, after the blast the target. The arc of a flight is not walked at a constant rate (the lerp is slowest near the ends), which a renderer may smooth.
+ * The position of a missile at `tick` as a Q15 unit vector in out[0..2], on the great circle at a CONSTANT angular speed (Fix-6A1, audit 5 [2.4]): with theta the arc between the cells
+ * (`angleOfChord`), e = ticks since launch and F = the flight time, the warhead is at the angle phi = floor(theta x e / F) from the start: pos = cos(phi) a + sin(phi) t, where t is the unit
+ * tangent at the start toward the target (the target's part perpendicular to a). It is the same point as the arc interpolation (sin((1-u) theta) a + sin(u theta) b) / sin(theta), but has no
+ * division by sin(theta), so an arc of 180 degrees stays well defined: when the target is (nearly) antipodal t is a fixed perpendicular of a (north pole x a, else x axis x a), so the
+ * route is a pure function of the two cells. Before the launch it is the start, after the blast the target.
  */
 export function missilePosition(startCell: number, targetCell: number, launchTick: number, impactTick: number, tick: number, width: number, height: number, out: Int32Array): void {
   cellVector(startCell, width, height, VEC, 0);
@@ -137,24 +140,56 @@ export function missilePosition(startCell: number, targetCell: number, launchTic
   let e = tick - launchTick;
   if (e < 0) e = 0;
   if (e > f) e = f;
-  if (e === 0 || e === f) {
-    const o = e === 0 ? 0 : 3; // exactly the start or exactly the target, not a normalised copy of it
+  if (e === 0 || e === f || f <= 0) {
+    const o = e === 0 || f <= 0 ? 0 : 3; // exactly the start or exactly the target, not a computed copy of it
     out[0] = VEC[o] as number;
     out[1] = VEC[o + 1] as number;
     out[2] = VEC[o + 2] as number;
     return;
   }
-  const vx = (VEC[0] as number) * (f - e) + (VEC[3] as number) * e;
-  const vy = (VEC[1] as number) * (f - e) + (VEC[4] as number) * e;
-  const vz = (VEC[2] as number) * (f - e) + (VEC[5] as number) * e;
-  const norm = f > 0 ? isqrt(vx * vx + vy * vy + vz * vz) : 0;
-  if (norm === 0) {
-    out[0] = VEC[0] as number;
-    out[1] = VEC[1] as number;
-    out[2] = VEC[2] as number;
-    return;
+  const ax = VEC[0] as number;
+  const ay = VEC[1] as number;
+  const az = VEC[2] as number;
+  const bx = VEC[3] as number;
+  const by = VEC[4] as number;
+  const bz = VEC[5] as number;
+  const theta = angleOfChord(chordQ15(VEC, 0, VEC, 3));
+  const phi = Math.floor((theta * e) / f);
+  // The tangent at a toward b: b minus its part along a (Q15), made a unit vector.
+  const dot = floorDiv(ax * bx + ay * by + az * bz, 32768);
+  let tx = floorDiv(bx * 32768 - dot * ax, 32768);
+  let ty = floorDiv(by * 32768 - dot * ay, 32768);
+  let tz = floorDiv(bz * 32768 - dot * az, 32768);
+  let norm = isqrt(tx * tx + ty * ty + tz * tz);
+  if (norm < PERP_MIN_NORM) {
+    // (Nearly) the same cell or the antipode: no usable direction toward b. Take z x a, or x x a at a pole.
+    tx = -ay;
+    ty = ax;
+    tz = 0;
+    norm = isqrt(tx * tx + ty * ty);
+    if (norm < PERP_MIN_NORM) {
+      tx = 0;
+      ty = -az;
+      tz = ay;
+      norm = isqrt(ty * ty + tz * tz);
+    }
+    if (norm === 0) {
+      out[0] = ax;
+      out[1] = ay;
+      out[2] = az;
+      return;
+    }
   }
-  out[0] = floorDiv(vx * 32768, norm);
-  out[1] = floorDiv(vy * 32768, norm);
-  out[2] = floorDiv(vz * 32768, norm);
+  const c = cosQ15(phi);
+  const sn = sinQ15(phi);
+  const px = floorDiv(c * ax + floorDiv(sn * tx * 32768, norm), 512); // Q21: its square still fits the isqrt range
+  const py = floorDiv(c * ay + floorDiv(sn * ty * 32768, norm), 512);
+  const pz = floorDiv(c * az + floorDiv(sn * tz * 32768, norm), 512);
+  const len = isqrt(px * px + py * py + pz * pz); // the table roundings leave it up to 0.15 percent off unit length: put it back
+  out[0] = floorDiv(px * 32768, len);
+  out[1] = floorDiv(py * 32768, len);
+  out[2] = floorDiv(pz * 32768, len);
 }
+
+/** A tangent shorter than this (Q15, 1/512 of a unit vector: an arc under 0.12 degrees or within 0.12 degrees of the antipode) is replaced by a fixed perpendicular. */
+const PERP_MIN_NORM = 64;

@@ -5,7 +5,8 @@
 //  - the hit is a stateless roll (splitmix32 mixer on match seed, tick, SAM id and missile id): MISSILE_SAM_HIT_PCT of the class plus the owner's SAM techs; several sites are
 //    independent rolls, so their kill chances stack as 1 - prod(1 - p);
 //  - at the meeting tick a hit takes the warhead out of the table before the blast phase runs (it never blows up), if the site still stands and its owner is STILL at war with the
-//    missile's owner (a truce signed in flight lets the interceptor miss).
+//    missile's owner (a truce signed in flight lets the interceptor miss). Fix-6A1: a destroyed site's rows are dropped at once (structures.ts), so a recycled id never inherits them, and the
+//    site must be FINISHED (readyTick) at the meeting tick.
 // Who can fire: the site must be finished, hostile to the missile's OWNER (`atWar`, as the helicopter rule: an ally or a treaty partner does not shoot), off its salvo clock
 // (`salvoTick`, the same word and the same period SAM_SALVO_PERIOD_TICKS (techs: TECH_FX_SAM_SALVO) as the helicopter salvo: a salvo spent on a helicopter is not available for a missile) and the warhead
 // must be within the radius of the site (cell distance, as the helicopter rule). A Tactical cruise missile flies low and terrain-following: it must be DETECTED by the SAM owner's coverage and
@@ -90,7 +91,7 @@ function resolveDue(state: GameState): void {
     const sam = m.iSam[i] as number;
     const so = st.owner[sam] as number;
     const mo = m.owner[id] as number;
-    if (so === 0 || st.type[sam] !== STRUCT_SAM || mo === 0 || so === mo || !atWar(state, so, mo)) {
+    if (so === 0 || st.type[sam] !== STRUCT_SAM || tick < (st.readyTick[sam] as number) || mo === 0 || so === mo || !atWar(state, so, mo)) {
       i++;
       continue;
     }

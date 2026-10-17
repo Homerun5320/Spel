@@ -13,7 +13,7 @@ import { MISSILE_FUSION, MISSILE_TACTICAL } from '../../src/sim/missileTable';
 import { missiles, parseMissilesArgs, runMissiles, type MissileFixtureName } from '../../tools/sim/missiles';
 
 // The final hashes of seed 1 (rewrite them only together with an ENGINE or FORMAT bump, DECISIONS M14a).
-const PINNED: Record<MissileFixtureName, string> = { 'plain-cruise': '120ec259', 'fusion-silo': 'bed34779', 'ridge-cruise': 'dc297545', 'sam-stack': '6cb6a529' };
+const PINNED: Record<MissileFixtureName, string> = { 'plain-cruise': '0b915a5e', 'fusion-silo': '9805566c', 'ridge-cruise': '4051de41', 'sam-stack': '467f8695' }; // ENGINE 29 (Fix-6A1): the engine word moves the first three; sam-stack also moves because the interceptor meets the warhead on the constant-rate arc (was 120ec259 bed34779 dc297545 6cb6a529 on ENGINE 28)
 
 describe('missiles', () => {
   it('prints the same bytes for the same arguments and different bytes for another seed or fixture', () => {

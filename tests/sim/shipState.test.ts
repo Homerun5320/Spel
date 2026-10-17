@@ -45,8 +45,8 @@ function patched(bytes: Uint8Array, edits: Array<[number, number, 'u32' | 'i32']
 }
 
 describe('the ship table in the state', () => {
-  it('ENGINE 28 and FORMAT 19 (M14b; 27 and 18 on M14a; the ship table is the same as in ENGINE 26 / FORMAT 17)', () => {
-    expect(ENGINE_VERSION).toBe(28);
+  it('ENGINE 29 and FORMAT 19 (Fix-6A1; 28 on M14b; 27 and 18 on M14a; the ship table is the same as in ENGINE 26 / FORMAT 17)', () => {
+    expect(ENGINE_VERSION).toBe(29);
     expect(FORMAT_VERSION).toBe(19);
   });
 

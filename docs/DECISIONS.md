@@ -2454,3 +2454,46 @@ Size state to act on: the START cap (351 500) now has only 4 380 bytes of headro
 
 Round 24 verification note: the full `npm run verify` passed typecheck, lint, unit, perf and e2e; `e2e/terrainLeak.serial.test.ts` stopped on the same ANGLE/SwiftShader driver hint as in round 22 ("Running out of reserved outsideRenderPass queueSerial", heap delta 0.1 MB). Root-cause measurement this time: the page makes the same GL work on HEAD and on the v33 commit (one `bufferSubData` of 14 400 bytes and 3 draw calls per render, `__test.render()` already ends in `finish()`), and an interleaved A/B of 6 runs each gave warnings on v33 once, v35 once, v34 never and HEAD never (the earlier 6 + 6 runs on v33 and HEAD: none). So the hint is a roughly 5 to 10 percent random event of the driver that is independent of the game code (the published v33 shows it too); the test was not changed. The other nine serial files passed, and `terrainLeak` itself passed 6 of 6 on HEAD afterwards. BACKLOG has the options for making the harness robust (that choice is the owner's: filtering a driver performance hint in the console collector would loosen a check).
 
+
+## Fix-6A1 (audit 5: rule faults in the ship route, the landing price, the interceptors and the missile arc; ENGINE 29, FORMAT 19 unchanged)
+
+All five rule findings were still open on 11ac641 (checked before the change). What changed and why:
+
+1. [0.0] `findPortRoute` (src/sim/shipRoute.ts) starts the A* from every water 4-neighbour of the Port at once (g = 0, lowest cell index on a tie), instead of the first one in the order N, W, E, S. `checkLaunchShip` (so the sim's LaunchShip AND the page-side `validateLaunchShip`) and `previewShip` use it, so the line drawn is the line sailed. `portWaterCell` stays (it still answers "does the Port touch water", and the e2e files use it); `findShipRoute` still takes one start. `findPortRoute` is a new export of `src/sim/public.ts` and is added to the pinned list in `tests/ai/boundary.test.ts` (the only change to an existing test body besides version and hash pins). The route's waypoint 0 is the neighbour the best route starts from.
+2. [0.1] The heap orders by (f, h, cell index): on an f tie the entry with the smaller h (larger g) goes first, so the search runs on toward the goal instead of filling the whole f-plateau. Still a pure function of the map. An all-sea voyage of dx 270 / dy 135, which used to hit SHIP_ROUTE_MAX_CELLS, now needs a few hundred expansions. No existing route test changed: they all pass with the new tie-break (their pins were not tie-dependent).
+3. [0.2] `landingCostMilli` applies `FALLOUT_COST_PCT` after the defence multipliers, exactly where `advanceAttack` applies it (the fallout layer, `fallout[cell] > tick`). Helicopter and ship landings share `landTroops`, so both pay it.
+4. [0.3] The cheapest fix of the finding, no format change: `MissileTable.dropInterceptorsOfSam(id)` is called when a SAM is deleted (`applyDelete`) or destroyed by conquest (`structureCellChanged`), so a recycled structure id never inherits a pending row (and `hasInterceptor` no longer blocks the new site). In addition `resolveDue` requires `tick >= readyTick` of the site at the meeting tick, which also covers a caller that removes through the bare table. SAMs are never transferred (only destroyed) so an owner change needs no hook.
+5. [2.4] `missilePosition` is an arc position with uniform angular speed. DEVIATION from the prompt's formula: instead of `(sin((1-u)theta) a + sin(u theta) b) / sin(theta)` it computes `cos(phi) a + sin(phi) t` with `phi = floor(theta e / F)`, `theta = angleOfChord(chord)` and `t` the unit tangent at the start toward the target (the part of b perpendicular to a). It is the same point on the same great circle, but has no division by sin(theta), so 180 degrees needs no special case beyond a fixed perpendicular: when the tangent is shorter than 1/512 of a unit vector (target within 0.12 degrees of the start or of the antipode) t is z x a (x x a at a pole), a pure function of the two cells. The result is normalised once (isqrt) so it stays a unit vector within a Q15 unit (the table roundings alone left it 0.15 percent off). The flight time (`trackOf`: arc over speed) is unchanged. A warhead now covers the same arc per tick everywhere: the Fusion flight over 170 degrees has flown 40 percent of the arc after 40 percent of the time (it was about 4 percent).
+
+What moves the hashes (checked by running the old rules with only the engine word bumped to 29):
+- `e2e/goldens/sim-hashes.json`, `e2e/goldens/match-hashes.json`, `PLAINS_SAM_SEED3_HASH` (2145448194), the CLI hashes of `plain-cruise`, `fusion-silo`, `ridge-cruise` and `ship-landing` ('0b915a5e', '9805566c', '4051de41', '16f6f948'): ONLY the engine version word of the header moves them (identical hashes with the old rules and ENGINE 29). The generic sim goldens contain no ships or missiles.
+- `sam-stack` seed 1 ('cd201d58' with only the engine word, '467f8695' now): the rules move it. The interceptor's meeting tick is found on the new arc, so the interception tick (and with it the event timing and the state after the run) changes. Nothing else about the fixture changed.
+- The four match-golden hashes moved by the engine word; I did not separate whether the AI sent a ship in the 600 ticks.
+- Version pins updated: the ENGINE_VERSION asserts in `tests/sim/districtsState.test.ts`, `tests/sim/shipState.test.ts`, `tests/sim/missileState.test.ts`, `tests/sim/fixSim.test.ts` (28 to 29, test titles extended).
+
+Mutant table (`tests/sim/fix6a1.test.ts`; every mutant was applied by hand to src, the file run, the failing test noted, the line restored):
+
+| Mutant | Killed by |
+|---|---|
+| shipRules routes from `portWaterCell` only (the old rule) | "LaunchShip: the page-side validateLaunchShip and the sim agree ... pocket" |
+| `findPortRoute` drops the east start | the pocket route test and the LaunchShip parity test |
+| heap tie-break back to cell index only | "open sea (300,150) to (550,250): routed with far fewer expansions" |
+| `landingCostMilli` ignores fallout | the `landingCostMilli` test and both landing tests (heli, ship) |
+| Delete keeps the interceptor rows | "a site destroyed in flight (a real Delete) and rebuilt FINISHED ..." |
+| no `readyTick` guard at the meeting | "a hit whose site is not finished at the meeting tick does not count" |
+| missile arc not uniform (phi from e squared) | the three 25/50/75 percent tests, the Fusion 170 degree test |
+| `resolveDue` advances after `m.remove` (audit I25) | "two interceptors that meet their warheads in the SAME tick both hit" |
+| any AaIndex site fires, not only SAMs (I24) | "a Defense Post is in the AaIndex but never fires" |
+| no `fireControl` term in the Tactical check (I18) | "a SAM whose OWN mask is blocked ..." (30 seeds of ridge-cruise plus an open second site) |
+| salvo cut ignored after a missile shot (I21) | "TECH_FX_SAM_SALVO shortens the reload" |
+| INTERCEPTED event cell taken one tick early (I28) | "the INTERCEPTED event carries the cell ... AT the meeting tick" |
+| ship x not wrapped below 0 (SP13) / ship `dx` not wrapped (SP14) | "a voyage over the date line" |
+| `portWaterCell` west of x = 0 (R12) | "portWaterCell: the west neighbour, also across x = 0" |
+| A* east wrap removed (R18) | "a one-row channel over the date line is sailed both ways" |
+| `lineClear` wrap removed (R21) | the date line voyage (more than 2 waypoints) and the one-row channel |
+| Shallows not water (R17) | "a voyage through a channel of Shallows only", "Shallows are water" |
+| diagonal needs only ONE water corner (R01, `||` to `&&`) | "a diagonal needs both orthogonal cells ... staircase channel" (47 cells) |
+
+Equivalent mutant (audit I17, dropping `detected` from the Tactical check): not killable, the owner's composite coverage always contains the site's own mask. Not tested.
+
+Not done: the audit's property test (random water maps, route cost equals a reference Dijkstra) is in docs/BACKLOG.md (it needs the path cost exposed from `findShipRoute`).

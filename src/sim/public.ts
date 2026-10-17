@@ -363,7 +363,7 @@ export { launchShipBody } from './intents';
 export { REJECT_SHIP_BAD_TARGET, REJECT_SHIP_COOLDOWN, REJECT_SHIP_FLEET_CAP, REJECT_SHIP_NOT_OWNER, REJECT_SHIP_NO_GOLD, REJECT_SHIP_NO_PORT, REJECT_SHIP_NO_ROUTE, REJECT_SHIP_NO_TROOPS, REJECT_SHIP_PORT_BUILDING, REJECT_SHIP_PORT_BUSY, REJECT_SHIP_TABLE_FULL, REJECT_SHIP_TROOPS_HIGH, REJECT_SHIP_TROOPS_LOW } from './intents';
 export { SHIP_CAPACITY, SHIP_CELLS_PER_TICK_Q, SHIP_COOLDOWN_TICKS, SHIP_FLEET_MAX, SHIP_LAND_REACH_CELLS, SHIP_LAND_TICKS, SHIP_LAUNCH_GOLD, SHIP_MAX_TROOPS, SHIP_MIN_TROOPS, SHIP_REASON_BASE, SHIP_ROUTE_CAPACITY, SHIP_ROUTE_MAX_CELLS } from './rules';
 // M13c-2 (append-only): what the ship preview and the ship toasts read: the sim's own sea route search (the line the page draws is the line the ship sails) and the ship event kinds of `ViewSnapshot.events`.
-export { findShipRoute, portWaterCell, ShipRoute, SHIP_ROUTE_OK } from './shipRoute';
+export { findShipRoute, findPortRoute, portWaterCell, ShipRoute, SHIP_ROUTE_OK } from './shipRoute';
 export { OUTBOX_SHIP_LANDED, OUTBOX_SHIP_LAUNCHED, OUTBOX_SHIP_RTB, OUTBOX_SHIP_SCRAPPED } from './outbox';
 
 // M14a (append-only): missiles and nukes. The read-only missile table type and its class numbers, the LaunchMissile check (the very function the sim runs: `validateMissileLaunch`), the

@@ -51,8 +51,8 @@ function patched(bytes: Uint8Array, edits: Array<[number, number]>): Uint8Array 
 }
 
 describe('the missile table in the state', () => {
-  it('ENGINE 28 and FORMAT 19 (M14b: the interceptor rows end the missile block)', () => {
-    expect(ENGINE_VERSION).toBe(28);
+  it('ENGINE 29 and FORMAT 19 (Fix-6A1; 28 on M14b: the interceptor rows end the missile block)', () => {
+    expect(ENGINE_VERSION).toBe(29);
     expect(FORMAT_VERSION).toBe(19);
   });
 
