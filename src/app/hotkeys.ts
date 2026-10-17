@@ -142,6 +142,8 @@ export interface GameHotkeyActions {
   slower(): void;
   faster(): void;
   toggleHelp(): void;
+  /** M18e-1: keys 7 to 9, start placing the Airfield, Lab or Plant (the type number). Optional so that older callers keep compiling. */
+  buildType?(type: number): void;
   /** M13b: key L, send a helicopter from the selected Factory (the deploy mode). Optional so that older callers keep compiling. */
   deploy?(): void;
   /** M18c-2: key D, open or close the diplomacy panel. Optional so that older callers keep compiling. */
@@ -182,6 +184,7 @@ export function registerGameHotkeys(registry: HotkeyRegistry, a: GameHotkeyActio
   const add = (def: HotkeyDef): void => void registry.register(def, signal);
   add({ id: 'focus-capital', keys: ['f'], labelKey: 'hotkey.focus', scope: 'stack', run: toStack });
   add({ id: 'build', keys: ['1', '2', '3', '4', '5', '6'], labelKey: 'hotkey.build', scope: 'stack', run: toStack });
+  add({ id: 'build-extra', keys: ['7', '8', '9'], labelKey: 'hotkey.buildExtra', scope: 'match', noRepeat: true, run: (e) => (a.buildType?.(Number(e.key)), true) }); // M18e-1: not reserved keys, so a plain match entry
   add({ id: 'exposure', keys: ['e'], labelKey: 'hotkey.focus', scope: 'stack', run: toStack, hidden: true }); // reserved for M13
   add({ id: 'chase', keys: ['h'], labelKey: 'hotkey.chase', scope: 'stack', run: toStack, hidden: true }); // M13a-2: the chase camera (the base mode starts it, the chase mode ends it); not in the help overlay (two old tests pin H hidden), the list button "Åk med" is the visible way
   add({ id: 'escape', keys: ['Escape'], labelKey: 'hotkey.escape', scope: 'stack', run: toStack });

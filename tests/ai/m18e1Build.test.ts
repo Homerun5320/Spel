@@ -44,11 +44,14 @@ function typeOf(b: IntentBody | null): number {
 describe('the AI Plant and Lab', () => {
   it('a rich seat with 4 Cities, 2 Factories, a Port and a Post wants a Plant after AI_BUILD_EXTRA_START_TICKS and not before', () => {
     expect(AI_BUILD_CITIES_PER_PLANT).toBe(4);
-    for (const [tick, expected] of [[AI_BUILD_EXTRA_START_TICKS - 1, 0], [AI_BUILD_EXTRA_START_TICKS, STRUCT_PLANT]] as const) {
+    const probe = plain(7, 1000000);
+    let think = AI_BUILD_EXTRA_START_TICKS; // the first think tick of the nation from the threshold on
+    while ((think + probe.memory.phase) % 100 !== 0) think++;
+    expect(think - 100).toBeLessThan(AI_BUILD_EXTRA_START_TICKS);
+    for (const [tick, expected] of [[think - 100, 0], [think, STRUCT_PLANT]] as const) {
       const p = plain(7, 1000000);
       give(p.state, [[STRUCT_CITY, 4], [STRUCT_FACTORY, 2], [STRUCT_PORT, 1], [STRUCT_POST, 1]], tick - 1);
       p.state.tick = tick;
-      p.memory.phase = (100 - (tick % 100)) % 100; // makes `tick` a think tick
       p.view.refresh();
       const t = typeOf(buildMove(p.view, p.memory, p.rng));
       if (expected === 0) expect(t, `tick ${tick}`).not.toBe(STRUCT_PLANT);
@@ -59,8 +62,9 @@ describe('the AI Plant and Lab', () => {
   it('the Plant is placed within PLANT_NEAR_CELLS of a City or Port (the intent is legal), and the Lab wanted at 6 Cities comes when the Plants of the ratio are there', () => {
     const p = plain(11, 1000000);
     give(p.state, [[STRUCT_CITY, 6], [STRUCT_FACTORY, 3], [STRUCT_PORT, 2], [STRUCT_POST, 1], [STRUCT_PLANT, 1]], 2999);
-    p.state.tick = 3000;
-    p.memory.phase = 0;
+    let think = 3000;
+    while ((think + p.memory.phase) % 100 !== 0) think++;
+    p.state.tick = think;
     p.view.refresh();
     expect(AI_BUILD_CITIES_PER_LAB).toBe(6);
     // 6 Cities, one Plant (the ratio wants 1 per 4): the Lab is next

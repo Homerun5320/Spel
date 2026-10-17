@@ -1,7 +1,11 @@
 // What the selection panel says about a structure (M10-4): pure functions over the snapshot and the sim's numbers. Every number comes from
 // `src/sim/public.ts` (the constants of rules.ts, the validators, the price functions); nothing here is a balance value.
 import {
+  AIRFIELD_HELI_TIME_MAX_PCT,
   DELETE_COOLDOWN_TICKS,
+  HELI_FLEET_AIRFIELD_MAX,
+  LAB_RESEARCH_MAX_PCT,
+  PLANT_NEAR_CELLS,
   FACTORY_CITY_BONUS_PCT_BY_LEVEL,
   FACTORY_GOLD_MILLI_BY_LEVEL,
   FACTORY_RADIUS_CELLS_BY_LEVEL,
@@ -17,16 +21,23 @@ import {
   REJECT_STRUCT_ID,
   REJECT_STRUCT_MAX_LEVEL,
   REJECT_STRUCT_NOT_OWNER,
+  STRUCT_AIRFIELD,
   STRUCT_CITY,
   STRUCT_FACTORY,
+  STRUCT_LAB,
+  STRUCT_PLANT,
   STRUCT_PORT,
   STRUCT_POST,
   STRUCT_SAM,
   STRUCT_SILO,
   TICK_HZ,
+  airfieldFleetBonusOfLevels,
+  airfieldTimePctOfLevels,
   cityGoldMilli,
   cityTroopCap,
+  labResearchPctOfLevels,
   maxLevelOf,
+  plantGoldMilli,
   samRadiusCells,
   seatToOwner,
   upgradePriceNowMilli,
@@ -79,6 +90,18 @@ export function effectLines(type: number, level: number, onMountain = false): Ef
       return [{ key: 'sel.fx.sam', params: { radius: samRadiusCells(level, onMountain), pct: SAM_MOUNTAIN_PCT - 100 } }];
     case STRUCT_POST:
       return [{ key: 'sel.fx.post', params: { mult: formatFixed(POST_COST_NUM / POST_COST_DEN, 1), radius: POST_RADIUS_CELLS } }];
+    // M18e-1: what ONE structure of this level gives; the sim adds the levels of all of the owner's finished ones and applies the caps named in the line.
+    case STRUCT_AIRFIELD:
+      return [
+        {
+          key: 'sel.fx.airfield',
+          params: { fleet: airfieldFleetBonusOfLevels(level), pct: airfieldTimePctOfLevels(level), fleetMax: HELI_FLEET_AIRFIELD_MAX, pctMax: AIRFIELD_HELI_TIME_MAX_PCT },
+        },
+      ];
+    case STRUCT_LAB:
+      return [{ key: 'sel.fx.lab', params: { pct: labResearchPctOfLevels(level), pctMax: LAB_RESEARCH_MAX_PCT } }];
+    case STRUCT_PLANT:
+      return [{ key: 'sel.fx.plant', params: { gold: gold(plantGoldMilli(level)), radius: PLANT_NEAR_CELLS } }];
     default:
       return [];
   }
@@ -97,6 +120,12 @@ export function structureNameKey(type: number): TextKey {
       return 'hud.build.silo';
     case STRUCT_SAM:
       return 'hud.build.sam';
+    case STRUCT_AIRFIELD:
+      return 'hud.build.airfield';
+    case STRUCT_LAB:
+      return 'hud.build.lab';
+    case STRUCT_PLANT:
+      return 'hud.build.plant';
     default:
       return 'hud.build.post';
   }

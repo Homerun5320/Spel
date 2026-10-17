@@ -2,7 +2,7 @@
 // entry to BUILD_ITEMS with their model and nothing else changes. The price on a button is the ESCALATING price from the sim function
 // (`buildPriceMilli` on the snapshot's table), never a number of the UI. A button the player cannot afford is dimmed and its tooltip says why;
 // it still starts the placement mode (the ghost then shows the same reason in red). The bar only reports a choice: placing is `src/app/placement.ts`.
-import { STRUCT_CITY, STRUCT_FACTORY, STRUCT_PORT, STRUCT_POST, STRUCT_SAM, STRUCT_SILO, buildPriceMilli, hasFinishedFactory, seatToOwner, type SimView } from '../sim/public';
+import { STRUCT_AIRFIELD, STRUCT_CITY, STRUCT_FACTORY, STRUCT_LAB, STRUCT_PLANT, STRUCT_PORT, STRUCT_POST, STRUCT_SAM, STRUCT_SILO, buildPriceMilli, hasFinishedFactory, seatToOwner, type SimView } from '../sim/public';
 import { spawnPhaseBlocks } from './buildReasons';
 import { formatGold, languageVersion, t, type TextKey } from './i18n';
 
@@ -27,6 +27,10 @@ const BUILD_ITEMS: readonly BuildItem[] = [
   { type: STRUCT_SILO, testid: 'build-silo', key: '4', nameKey: 'hud.build.silo', tipKey: 'hud.build.siloTip', poorKey: 'hud.build.tooPoorOf', needsFactory: true },
   { type: STRUCT_SAM, testid: 'build-sam', key: '5', nameKey: 'hud.build.sam', tipKey: 'hud.build.samTip', poorKey: 'hud.build.tooPoorOf' },
   { type: STRUCT_POST, testid: 'build-post', key: '6', nameKey: 'hud.build.post', tipKey: 'hud.build.postTip', poorKey: 'hud.build.tooPoorOf' },
+  // M18e-1: Airfield, Lab and Plant (keys 7 to 9 are plain match hotkeys of the registry, not reserved stack keys).
+  { type: STRUCT_AIRFIELD, testid: 'build-airfield', key: '7', nameKey: 'hud.build.airfield', tipKey: 'hud.build.airfieldTip', poorKey: 'hud.build.tooPoorOf' },
+  { type: STRUCT_LAB, testid: 'build-lab', key: '8', nameKey: 'hud.build.lab', tipKey: 'hud.build.labTip', poorKey: 'hud.build.tooPoorOf' },
+  { type: STRUCT_PLANT, testid: 'build-plant', key: '9', nameKey: 'hud.build.plant', tipKey: 'hud.build.plantTip', poorKey: 'hud.build.tooPoorOf' },
 ];
 
 export interface BuildBar {

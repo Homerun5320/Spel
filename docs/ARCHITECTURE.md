@@ -188,4 +188,4 @@ See `docs/CHARTER.md` section 8. Planned modules (later): `src/ai` (M05 part C),
 
 ## Aktuella versioner
 
-ENGINE_VERSION 24 (`src/sim/state.ts`), FORMAT_VERSION 16 (`src/sim/serialize.ts`). A change bumps them and re-pins both golden hash files once (`UPDATE_GOLDENS=1`). Check the constants in the code before trusting this line.
+ENGINE_VERSION 25 (`src/sim/state.ts`), FORMAT_VERSION 16 (`src/sim/serialize.ts`). A change bumps them and re-pins both golden hash files once (`UPDATE_GOLDENS=1`). Check the constants in the code before trusting this line.

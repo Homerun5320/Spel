@@ -16,7 +16,7 @@
 // and refuses the repeat, so the adversarial run of a correct step differs from the plain run only by the rejects the
 // repeats add; a step without the sort or without the duplicate check lands on another hash.
 import { IdAllocator, withId, type Intent, type IntentBody } from './intents';
-import { INTENT_DELAY_TURNS } from './rules';
+import { INTENT_DELAY_TURNS, STRUCT_TYPE_COUNT } from './rules';
 import { hash2, buildFixtureWorld } from './fixture';
 import { step, type StepFn } from './step';
 import { createState, ownerSlots, type GameState, type MatchConfig } from './state';
@@ -99,7 +99,9 @@ export function scenarioBodies(seed: number, turn: number, seats: number, cells:
   // type or id out of range.
   if (cells > 0 && hash2(seed, turn, 600) % 3 === 0) {
     const seat = hash2(seed, turn, 601) % seats;
-    const type = hash2(seed, turn, 602) % 8;
+    // The old draw 0..7 had 0 and 7 out of range (7 was the first number past Post). M18e-1 made 7 a real type (the Airfield): the draw keeps its old meaning, 7 is now STRUCT_TYPE_COUNT + 1, so the pinned scenario (goldens, helicopter coverage) is the same run as before.
+    const drawn = hash2(seed, turn, 602) % 8;
+    const type = drawn === 7 ? STRUCT_TYPE_COUNT + 1 : drawn;
     out.push({ kind: 'Build', seat, type, cell: hash2(seed, turn, 603) % cells });
   }
   if (hash2(seed, turn, 610) % 31 === 0) out.push({ kind: 'Upgrade', seat: hash2(seed, turn, 611) % seats, structure: hash2(seed, turn, 612) % 12 });

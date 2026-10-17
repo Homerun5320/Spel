@@ -304,7 +304,7 @@ describe('the intents', () => {
     const ok = bodies.map((b, n) => withId(b, n));
     for (const i of ok) expect(validateIntent(i, ctx)).toBe(REJECT_NONE);
     expect(validateIntent({ ...ok[0], type: 0 }, ctx)).toBe(REJECT_BUILD_TYPE);
-    expect(validateIntent({ ...ok[0], type: 7 }, ctx)).toBe(REJECT_BUILD_TYPE);
+    expect(validateIntent({ ...ok[0], type: 10 }, ctx)).toBe(REJECT_BUILD_TYPE); // M18e-1: types 7 to 9 are valid now
     expect(validateIntent({ ...ok[0], type: 1.5 }, ctx)).toBe(REJECT_BUILD_TYPE);
     expect(validateIntent({ ...ok[0], cell: W * H }, ctx)).not.toBe(REJECT_NONE);
     expect(validateIntent({ ...ok[1], structure: STRUCT_CAPACITY }, ctx)).toBe(REJECT_STRUCT_ID);

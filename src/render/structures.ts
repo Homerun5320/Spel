@@ -212,7 +212,7 @@ export class StructureLayer {
     this.triangleBudget = budget;
     for (const type of modelledTypes()) {
       const spec = STRUCTURE_MODELS[type];
-      if (spec === undefined) continue;
+      if (spec === undefined || spec.alias !== undefined) continue; // an aliased type (M18e-1) shares the layer of its alias: no mesh, no draw call of its own
       const model = spec.build(type === STRUCT_CITY ? this.cityStyle : undefined);
       // the City's night lights ride in the same buffers (a tint code per light, lit in the vertex shader): no extra draw call
       const extra = type === STRUCT_CITY ? cityLights() : null;
@@ -487,6 +487,11 @@ export class StructureLayer {
     }
   }
 
+  /** The layer a type is drawn in: its own, or the layer of its alias (M18e-1); undefined for a type without a model. */
+  private layerOf(type: number): TypeLayer | undefined {
+    return this.layers.get(STRUCTURE_MODELS[type]?.alias ?? type);
+  }
+
   private rebuild(): void {
     this.dirty = false;
     const t = this.table;
@@ -514,7 +519,7 @@ export class StructureLayer {
         continue;
       }
       const type = t.type[id] as number;
-      const layer = this.layers.get(type);
+      const layer = this.layerOf(type);
       if (layer === undefined) continue; // a type without a model is not drawn yet
       const cell = t.cell[id] as number;
       const key = cell * 8 + type;
@@ -556,7 +561,9 @@ export class StructureLayer {
       const id = order[k] as number;
       const owner = t.owner[id] as number;
       const type = t.type[id] as number;
-      const layer = this.layers.get(type) as TypeLayer;
+      const layer = this.layerOf(type) as TypeLayer;
+      const spec = STRUCTURE_MODELS[type];
+      const mul = spec?.ownerMul;
       const cell = t.cell[id] as number;
       const hasModel = !(layer.count >= layer.cap || this.trianglesDrawn + layer.tris > this.triangleBudget);
       const level = this.levelOverride.get(id) ?? (t.level[id] as number);
@@ -564,9 +571,9 @@ export class StructureLayer {
       const hx = Math.fround(p.x);
       const hy = Math.fround(p.y);
       const hz = Math.fround(p.z);
-      const r = (palette[owner * 4] as number) / 255;
-      const g = (palette[owner * 4 + 1] as number) / 255;
-      const bl = (palette[owner * 4 + 2] as number) / 255;
+      const r = ((palette[owner * 4] as number) / 255) * (mul === undefined ? 1 : mul[0]);
+      const g = ((palette[owner * 4 + 1] as number) / 255) * (mul === undefined ? 1 : mul[1]);
+      const bl = ((palette[owner * 4 + 2] as number) / 255) * (mul === undefined ? 1 : mul[2]);
       if (hasModel) {
         this.trianglesDrawn += layer.tris;
         const i = layer.count++;
@@ -576,7 +583,7 @@ export class StructureLayer {
         layer.lo[i * 3] = p.x - hx;
         layer.lo[i * 3 + 1] = p.y - hy;
         layer.lo[i * 3 + 2] = p.z - hz;
-        layer.params[i * 4] = levelScale(level);
+        layer.params[i * 4] = levelScale(level) * (spec?.scale ?? 1);
         let yaw = NaN;
         if (STRUCTURE_MODELS[type]?.seaward === true) yaw = seawardYaw(p.lat, p.lon, this.gridWidth, this.gridHeight, cell);
         if (Number.isNaN(yaw)) yaw = yawOf(id);
@@ -604,8 +611,8 @@ export class StructureLayer {
         ic.rgb[j * 3] = r;
         ic.rgb[j * 3 + 1] = g;
         ic.rgb[j * 3 + 2] = bl;
-        ic.info[j * 4] = type;
-        ic.info[j * 4 + 1] = STRUCTURE_MODELS[type]?.radiusM ?? 700;
+        ic.info[j * 4] = spec?.alias ?? type; // an aliased type wears the far icon of its alias
+        ic.info[j * 4 + 1] = spec?.radiusM ?? 700; // an aliased type's radius already includes its scale
         ic.info[j * 4 + 2] = levelScale(level);
         ic.info[j * 4 + 3] = type === STRUCT_CITY ? levelArcShare(level) : 1;
       }
@@ -663,7 +670,7 @@ export class StructureLayer {
     const t = this.table;
     const r = this.ring;
     const id = this.selId;
-    if (t === null || id < 0 || id >= t.highWater || t.owner[id] === 0 || !this.layers.has(t.type[id] as number)) {
+    if (t === null || id < 0 || id >= t.highWater || t.owner[id] === 0 || this.layerOf(t.type[id] as number) === undefined) {
       this.selVisible = false;
       this.applyRingDraw();
       return;
@@ -805,11 +812,11 @@ export class StructureLayer {
   /** The placement preview: a see-through model of `type` on `cell`, green when `ok`, red when not. */
   setGhost(type: number, cell: number, ok: boolean): void {
     const g = this.ghost;
-    if (g === null || !this.layers.has(type)) return;
+    if (g === null || this.layerOf(type) === undefined) return;
     if (g.type === type && g.cell === cell && g.ok === ok && g.mesh.visible) return;
     if (g.type !== type) {
       // the ghost wears the model of the type being placed (the attributes are shared, not copied; the draw count follows the position attribute)
-      const src = this.layers.get(type);
+      const src = this.layerOf(type);
       if (src !== undefined) {
         g.geometry.setAttribute('position', src.geometry.getAttribute('position'));
         g.geometry.setAttribute('aColor', src.geometry.getAttribute('aColor'));
@@ -908,7 +915,7 @@ export class StructureLayer {
 
   /** The triangles of one instance of a type (0 when it has no model). */
   trianglesOf(type: number): number {
-    return this.layers.get(type)?.model.triangles ?? 0;
+    return this.layerOf(type)?.model.triangles ?? 0;
   }
 
   dispose(): void {
