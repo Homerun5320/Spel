@@ -97,9 +97,9 @@ describe('Fix-UI', () => {
             const c = document.querySelector('.hud-controls') as HTMLElement | null;
             if (c === null) return null;
             const b = c.getBoundingClientRect();
-            return a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+            return { clash: a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom, bar: [a.left, a.top, a.right, a.bottom].map(Math.round), controls: [b.left, b.top, b.right, b.bottom].map(Math.round) };
           });
-          expect(clash, 'build bar versus controls panel').toBe(false);
+          expect(clash?.clash, `build bar versus controls panel ${JSON.stringify(clash)}`).toBe(false);
           await page.screenshot({ path: path.join(SHOT_DIR, `fixui-bar-${size.width}x${size.height}-${lang}.png`) });
         } finally {
           await page.close();
