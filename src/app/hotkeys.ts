@@ -146,6 +146,8 @@ export interface GameHotkeyActions {
   buildType?(type: number): void;
   /** M13b: key L, send a helicopter from the selected Factory (the deploy mode). Optional so that older callers keep compiling. */
   deploy?(): void;
+  /** M13c-2: key B, send a ship from the selected Port (the ship mode). Optional so that older callers keep compiling. */
+  ship?(): void;
   /** M18c-2: key D, open or close the diplomacy panel. Optional so that older callers keep compiling. */
   toggleDiplomacy?(): void;
   /** M18d-2: key T, open or close the research panel. Optional so that older callers keep compiling. */
@@ -194,6 +196,7 @@ export function registerGameHotkeys(registry: HotkeyRegistry, a: GameHotkeyActio
   add({ id: 'commit-down', keys: ['[', '-'], labelKey: 'hotkey.commitDown', scope: 'match', run: () => (a.commit(-1), true) });
   add({ id: 'commit-up', keys: [']', '+'], labelKey: 'hotkey.commitUp', scope: 'match', run: () => (a.commit(1), true) });
   add({ id: 'deploy', keys: ['l'], labelKey: 'hotkey.deploy', scope: 'match', noRepeat: true, run: () => (a.deploy?.(), true) });
+  add({ id: 'ship', keys: ['b'], labelKey: 'hotkey.ship', scope: 'match', noRepeat: true, run: () => (a.ship?.(), true) });
   add({ id: 'diplomacy', keys: ['d'], labelKey: 'hotkey.diplo', scope: 'match', noRepeat: true, run: () => (a.toggleDiplomacy?.(), true) });
   add({ id: 'tech', keys: ['t'], labelKey: 'hotkey.tech', scope: 'match', noRepeat: true, run: () => (a.toggleTech?.(), true) });
   add({ id: 'labels', keys: ['n'], labelKey: 'hotkey.labels', scope: 'match', noRepeat: true, run: () => (a.toggleLabels?.(), true) });

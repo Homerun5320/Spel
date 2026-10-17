@@ -2394,3 +2394,61 @@ Mutants (each: change one line of `src`, run `tests/sim/interceptor.test.ts`, se
 Perf (`tests/missile.perf.test.ts`, perf project): a whole `step` with 20 missiles in the air and 12 hostile SAM sites near them 0.14 ms (budget 4 x the perfguard factor, median of 50); the M14a cases are unchanged in kind (0.026 ms and 0.0023 ms against budgets 4 and 0.05). Chromium and the full `npm run verify` were not run (the orchestrator's).
 
 Size caps (M14b): the gzip TOTAL of `tests/portable.test.ts` was 402 000 and is 403 700 (measured 403 008: +1 584 B for the interceptor phase, `cellOfVector`, `previewThreat` and the table rows; all of it in the lazy sim and host chunks). The rule of "Round 23 integration" for the total is kept (the cap follows the measurement); the START cap (351 500) and the MAIN cap (303 500) are NOT raised, their test passes, and the START headroom of 10 269 bytes of that block is the figure the next module has to live within.
+## M13c-2
+
+Ships at sea and their control (render, UI and app; no rule change, ENGINE 27 and FORMAT 18 unchanged, goldens untouched, no new number in `src/sim/rules.ts`, so no BALANCE row: the constants are render and UI constants in `src/render/config.ts` and `src/ui/uiConfig.ts`).
+
+Decisions.
+1. One instanced mesh, 32 instances, 76 triangles per ship (limit 150), ONE draw call and none without ships; measured by `e2e/ships.test.ts` with `renderer.info` (on against off: 1 call, 76 triangles). The row "Fartyg (M13c-2)" of the Budgetar table is 3 000 triangles and 1 call, NOT the 5 000 of the prompt: the layer rows must add up inside the globe row (150 000) and the existing rows left only 4 300; 3 000 holds 32 x 76 = 2 432. No existing limit was raised.
+2. The layer stands on the SEA SURFACE (radius 1 plus 4 m, `SHIP_RADIUS`), asks no ground height (its unit test runs without a bound height source, so a ground query would throw), takes its heading from the route (`shipHeading`, a pure function of the table), and sinks half a hull while the ship unloads. The vertex shader gives a ship at least `SHIP_MIN_FRAC` (0.006) of the camera distance as its radius and no upper cap: a few pixels from the earth view, 360 m (`SHIP_UNIT_M` 180 per model unit, deliberately larger than a real transport) close up. The heli icon layer was NOT reused: it needs its own instance feed and a draw call of its own, and the shader policy costs none. Positions hop from table to table (interpolation is BACKLOG).
+3. The route preview draws on the DEPLOY layer (`setRoute(cells, null, 12 m)`, `setMarker`): no new draw call. The line is the sim's own `findShipRoute` from `portWaterCell` and the verdict is `validateLaunchShip`, so preview and launch agree by construction (proved against `applyLaunchShip`). A left click PINS a cell (the box's Send button sends), a right click and Escape leave; the mode asks the rules once per pinned cell or slider step, never per hover (a hover only moves a yellow marker), because the A* of a wide sea is a few ms and the school laptop has an integrated GPU and a weak CPU.
+4. The Port button asks `validateLaunchShip` with NO target (-1) and the least troops: every refusal checked before the target decides, `REJECT_SHIP_BAD_TARGET` means "live". The reasons that need a target (no route, treaty, bad cell) show in the mode's verdict line.
+5. First consumer of `ViewSnapshot.events`: `ShipEventWatcher` (`src/ui/shipEvents.ts`), called once per frame in `src/app/globeApp.ts` before `view.clearEvents()`. Ships are visible to every viewer in v1 (`SimView.ships` is the whole table, no `visibleShips`), but a TOAST is the owner's news only: a fact about another seat's ship gives nothing, and a scrapped row (gone from the table) is attributed through the owner remembered from the table before, else not at all. A mission that is over (RTB with b = 0) and the docking give no toast (the landing toast says it). Texts: set sail, landed (cells), failed (the zone could not be taken), nothing to land on, treaty turn-back, scrapped (eliminated, port lost).
+6. The thirteen refusal texts have no placeholders (a text with `{max}` would throw in test mode when a generic caller such as the session's refusal toast passes only the code). They are chained into `airRefusalKey` through `shipRefusalKey` (null for other codes, so there is no import cycle).
+7. One shortcut: B (`ship`, scope match, `noRepeat`), not reserved, registered in `src/app/hotkeys.ts`, with `hotkey.ship` in both tables. The help card did NOT fit 960x540 with the 16th row (`e2e/m20aLite.test.ts` "the box is small" failed in sv and en): the rows are 1.3 em instead of 1.45 em, no row was cut; the four fit tests pass.
+8. `src/sim/public.ts` got one appended block (`findShipRoute`, `portWaterCell`, `ShipRoute`, `SHIP_ROUTE_OK`, the four `OUTBOX_SHIP_*` kinds) because the lint rule lets `src/app` and `src/ui` import only `src/sim/public.ts` and a few others; the pinned list of `tests/ai/boundary.test.ts` got one line "M13c-2" for them.
+9. Text keys: the tests' dead-string scan knows only the prefixes it lists, so the ship texts use `reject.ship.*`, `sel.ship.*`, `toast.ship.*`, `hotkey.ship` (no new prefix, `tests/i18n.test.ts` untouched).
+10. The existing tests whose numbers a new layer provably changes: `tests/budgets.test.ts` counted the per-layer draw calls as 23 in three places (at most 23, at most 23, exactly 23); they now say 24 (+1 for the ships). Nothing else in an existing test was changed. `docs/ARCHITECTURE.md` was 45 936 bytes of 46 000: rule 4 of "Rules for layers" was moved to `docs/arch/render.md` ("Rule 4 in full") and left as a four-line summary, to make room for the three index rows.
+11. Leak: `e2e/shipsLeak.serial.test.ts` (60 renders at 320x180, median of 3, 5 MB): 0.07 MB, geometries 7 -> 7, textures 9 -> 9. The landing (beachhead, effects) happens in the warm-up, so the measured frames are the ship's way home with a new table every call. The existing leak tests of the helicopter effects and the spike render stayed green (run alone).
+
+Mutants (each one line changed in `src`, the named file run, the failure seen, the line restored):
+
+| Mutant | Killed by |
+|--------|-----------|
+| M1 the ship stands at 4 000 m (a ground height) instead of the sea surface | `tests/render/shipLayer.test.ts` "draws one instance per live row on the sea surface radius" |
+| M2 the unloading ship is not sunk (the sailing one is) | the same test (`sunk` per row) |
+| M3 heading sign flipped (north points south) | "shipHeading: sailing out" and "returning" |
+| M4 a returning ship points at the wrong waypoint | "returning it points back at the waypoint before" |
+| M5 free slots are drawn | "draws one instance per live row" and "an empty table draws nothing" |
+| M6 an empty layer stays visible | "an empty table draws nothing at all" |
+| M7 the heading ignores the date line (one direction) | "sailing out it points" (both directions) |
+| M8 the minimum screen size is dropped from the shader | "the vertex shader never lets a ship fall under its minimum share" |
+| M9 the watcher shows an enemy's facts | `tests/ui/shipPanel.test.ts` "gives NO news about another seat's ship" and "a scrapped row" |
+| M10 a finished mission also gives the treaty toast | "says nothing about the ends of a mission" |
+| M11 a scrapped row's owner is not remembered | "a scrapped row is gone from the table" |
+| M12 the button is dimmed by the missing target | "is live for a finished own Port" and "leaves the refusals that need a target to the mode" |
+| M13 the slider top ignores the owner's troops | "the troop slider" |
+| M14 a refusal code has the text of another | "the thirteen refusals have a text each" |
+| M15 the refusal chain forgets the ship codes | the same test (`rejectKey`) |
+| M16 a left click leaves the mode | `tests/app/ship.test.ts` "a left click only PINS the cell" and the controller test |
+| M17 a right click does not cancel | "a left click only PINS the cell" |
+| M18 confirm sends a refused preview | "a refused cell is red and cannot be confirmed" |
+| M19 confirm ignores the slider's troops | "start, hover (yellow marker), click (green marker ...)" |
+| M20 the sailing time is rounded down | "the sailing time is the real one" and the date-line length test |
+| M21 the Port lost does not end the mode | "a dimmed Port does not start the mode ... losing the Port leaves" |
+| M22 the key of the shortcut is not B | "B is a match entry" |
+| M23 the line stops at the last waypoint, not the landing cell | the controller test (the line runs on to the landing cell) |
+| M24 the preview drops its route | "the verdict is the real launch's and the waypoints are the route the real ship gets" |
+
+M7 survived the first run (only one direction of the date-line wrap was tested); the west-bound case was added and the mutant then died.
+
+Pictures (looked at, `test-results/shots/ships-*.png`): the panel with the button, the preview (route and green marker at the landing cell), the ship at 3 km for two owners (red and pink hulls with the owner deck), at 20 km (about 20 px, owner colour readable), at 700 km with both owners, and from the earth view (a few pixels, still visible). Things seen and left: the route line is one pixel wide (deploy layer style), the wake is a flat wedge.
+
+Gzip caps (`tests/portable.test.ts`): the TOTAL cap was raised from 402 000 to 407 000 (measured 406 263: the ship layer, mode, box, watcher and the code around them; the texts sit in the lazy language chunks). The START cap (351 500) is NOT raised: the start load measured 347 120 (was 341 231), so the START headroom went from 10 269 to 4 380 bytes; the ship UI and app modules were not made lazy in this hour (BACKLOG: loading `shipController`, `shipBox`, `shipPreview`, `shipEvents` and `shipMode` through `import()` on the first own Port or the first ship would give back most of the 5.9 kB).\n\nChecks run: `npx vitest run` of the new unit files, `tests/budgets.test.ts`, `tests/docs.test.ts`, `tests/i18n.test.ts`, `tests/ai/boundary.test.ts`; e2e alone: `e2e/ships.test.ts`, `e2e/m20aLite.test.ts` (the help card fit), `e2e/deploy.test.ts`, `e2e/helis.test.ts`, `e2e/fix5bBudgets.test.ts`, `e2e/fixLayout.test.ts`, `e2e/structuresSelect.test.ts`, `e2e/fix5b.test.ts`, `e2e/beachhead.test.ts`; serial: `e2e/shipsLeak.serial.test.ts`, `e2e/heliFx.serial.test.ts`, `e2e/heap.test.ts`. `npm run verify:fast`: green (typecheck 29 s, lint 27 s, unit 317 files and 3 441 tests in 1 min 48 s); the first run failed on two things this slice caused and fixed (bare file names in the docs, the gzip TOTAL cap above), so it was run twice.
+
+## Round 24 integration (orchestrator)
+
+Merge order M14b (ENGINE 28, FORMAT 19), M13c-2; conflicts only in the shared docs (both kept) and in the gzip TOTAL line of `tests/portable.test.ts` (measured on the merged build: 407 965, cap 408 500). `src/sim/public.ts` and `tests/ai/boundary.test.ts` merged without conflict.
+
+Size state to act on: the START cap (351 500) now has only 4 380 bytes of headroom because the ship UI and app modules (about 5.9 kB gzip, M13c-2) are in the start chunk; MAIN cap 303 500. Rule from "Round 23 integration" applies: the START or MAIN cap may not be raised without a diet step that pays it back, so the NEXT dietary pass is the lazy loading of the ship UI/app modules (import() when a Port is selected or key B is pressed), the missile/ship snapshot code that only matters with a match, and a preload of the active language chunk (BACKLOG "M13c-2" and "Bundle-diet-2").
+

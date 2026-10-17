@@ -510,6 +510,20 @@ export const HELI_TAIL_ROTOR_MUL = 1.7;
 /** Triangle ceiling of the merged model (the prompt asks for under 150). */
 export const HELI_MODEL_MAX_TRIANGLES = 150;
 
+// ---- M13c-2: the ship layer (src/render/shipLayer.ts) ----
+/** Capacity of the ship instance buffer: the sim table's SHIP_CAPACITY (a test pins the equality). */
+export const SHIP_INSTANCE_CAP = 32;
+/** Triangle ceiling of the merged ship model (hull, deckhouse, hatches, wake strip). */
+export const SHIP_MODEL_MAX_TRIANGLES = 150;
+/** Metres per model unit (half the hull length) at true size: a 360 m transport, drawn larger than a real one so that it reads at 20 km. */
+export const SHIP_UNIT_M = 180;
+/** The smallest radius of a ship as a share of the camera distance (a few pixels at the globe view of 960x540): the scale policy never draws it smaller, and has no upper cap. */
+export const SHIP_MIN_FRAC = 0.006;
+/** Metres the hull stands above the sea-level sphere (the sea surface radius is 1: the ground height under a sea cell is 0 and the ship ignores it). */
+export const SHIP_LIFT_M = 4;
+/** How far a ship that unloads (SHIP_LAND) sinks, in model units (the hull sits half under the water). */
+export const SHIP_SINK_UNITS = 0.1;
+
 // ---- M20a-2: the front arrows (src/render/frontLayer.ts) ----
 /** The arrows are fully drawn when the camera is lower than FRONT_FADE_FULL_ALT_R Earth radii above the sea-level sphere and gone from FRONT_FADE_GONE_ALT_R (the globe distance). */
 export const FRONT_FADE_FULL_ALT_R = 0.35;

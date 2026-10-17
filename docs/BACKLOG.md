@@ -682,3 +682,13 @@ M14b
 - Missed rows stay until the missile ends (they hold the "one per pair" memory): 64 missiles x many SAMs can fill `INTERCEPTOR_CAPACITY` (256); a SAM that finds the table full does not fire. Raise it with a FORMAT bump if a match ever gets there.
 - The radius gate uses the cell distance (as the helicopter rule) and the meeting gate the equatorial angle of the radius; at high latitudes the first is the tighter one. One of the two could become a true spherical distance for both rules in a rebalance pass (M19).
 - The Silo is not a SAM: a Silo has no radius rule of its own in this slice (the old comment "SAM and Silo radius" in `src/sim/rules.ts` is about the shared curve).
+## M13c-2 (ships at sea and their control)
+
+- Ship card: a click on a ship shows owner, load, target and the time left (out of scope of M13c-2; the layer has no picking). The ship rows already carry everything (`ViewMirror.ships`).
+- Ship interpolation: positions hop from table to table (one tick of 0.125 cells is a fraction of a pixel at 3 km and invisible beyond, but the helicopter layer's `aDelta` blend would make it exact).
+- Fog for ships: every ship is visible to every viewer in v1 (`SimView.ships` has no `visibleShips`), so the toasts are the owner's news only; a masked table would need the M17-pre visibility rule for ships and the same filter in `src/host/viewEventFilter.ts`.
+- The route preview asks the sim's A* once per pinned cell and per slider step (a few ms on a wide sea, `SHIP_ROUTE_MAX_CELLS` caps it); a hover preview or a throttled previewer like `LaunchPreviewer` would show the route before the click.
+- The route line is the deploy layer's one-pixel line; a wide ribbon would read better on a 4K screen.
+- Docked ships (the Port's cool-down) are drawn at the water cell beside the Port: a berth beside the Port model would look better.
+- AI use of ships, air defence against ships and the minimap stay out (`docs/BACKLOG.md` M13c-1).
+- Bundle: the ship UI and app modules (`src/app/shipController.ts`, `src/app/shipMode.ts`, `src/app/shipPreview.ts`, `src/ui/shipBox.ts`, `src/ui/shipInfo.ts`, `src/ui/shipEvents.ts`) add about 5.9 kB gzip to the START load (START headroom is now 4 380 bytes); loading them with `import()` on the first own Port selection or the first ship in the table would give most of it back.

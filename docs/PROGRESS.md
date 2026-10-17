@@ -251,6 +251,24 @@ ACCEPTANS
 - [x] A save with interceptors in the air equals a straight run; a step with 20 missiles and 12 SAM sites inside `budgetMs(4)`; ENGINE 28.
 - [x] `npm run verify:fast`: typecheck, lint and 3433 unit tests green after three fixes of the first run (a type guard in the new test, the BALANCE value format, one backticked path); the raised total gzip cap re-run alone (see `docs/DECISIONS.md` "M14b").
 
+### M13c-2: ships at sea and their control (render, UI and app; Chromium used one command at a time; no rule change, ENGINE and FORMAT unchanged, goldens untouched; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+
+GÖR
+- [x] 1. The ship layer (`src/render/shipLayer.ts`, `src/render/shipModel.ts`, `src/render/shaders/ships.ts`): one instanced mesh, 32 instances, 76 triangles each, one draw call (none without ships), on the sea surface, heading from the route, sunk while unloading, a minimum screen size, budget row "Fartyg (M13c-2)".
+- [x] 2. Control: "Skicka fartyg" (`sel-ship`) in the Port panel with the fee and the reason; the ship mode (pick a coast, route preview on the deploy layer, landing marker, troop slider capped by the owner's troops, confirm sends `LaunchShip`); key B in the registry and the help card.
+- [x] 3. Texts: all 13 `REJECT_SHIP_*` codes (sv and en), toasts for set sail, landed (failed, nothing), treaty turn-back and scrapped from `view.events` (`ShipEventWatcher`, the first consumer of the event list).
+- [x] 4. The ship card is out of scope (BACKLOG).
+- [x] 5. Tests with mutants (`docs/DECISIONS.md` "M13c-2"), e2e (`e2e/ships.test.ts`) and pictures looked at.
+- [x] 6. Leak test (`e2e/shipsLeak.serial.test.ts`).
+
+ACCEPTANS
+- [x] Ships in ONE instanced mesh (1 draw call, 76 triangles per ship), on the sea, with heading, visible from the earth view.
+- [x] "Skicka fartyg": route preview, marker, slider, confirm sends `LaunchShip`; text for all 13 refusals.
+- [x] Toasts through `ViewSnapshot.events` with a unit test.
+- [x] One shortcut (B) in the registry and the help card, which still fits 960x540 (the rows are 1.3 em).
+- [x] e2e and pictures; the touched existing e2e green when run alone.
+- [x] `npm run verify:fast` (result in `docs/DECISIONS.md` "M13c-2").
+
 ## Next
 
 - Fix-5 (the audit 4 fixes) is merged on the branch and published as version 32; audit 5 follows after five more published versions (v33 to v37).
