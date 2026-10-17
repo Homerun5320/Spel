@@ -239,6 +239,8 @@ export const SETUP_CAPITAL_MIN_DISTANCE_CELLS = 17;
 export const SETUP_AI_NATIONS_DEFAULT = 12;
 /** The most AI nations the options allow (seats: you + this + the tribes stay far below the 255 seats of the wire format). */
 export const SETUP_AI_NATIONS_MAX = 24;
+/** Fix-5A2: AI nations a match needs when "Dela upp stormakter" splits your country (all player seats would be one federation: an instant "last alive" win). createMatch refuses fewer. */
+export const FEDERATION_MIN_AI_NATIONS = 1;
 /** Conquering a cell of its OWN home country costs the owner of that home land this percent of the normal price (50 = half). Nobody else gets it. */
 export const HOME_COST_PCT = 50;
 /** A trait multiplier (port income, defence) stays within 1000 +- this many thousandths: the +-10 % cap. */

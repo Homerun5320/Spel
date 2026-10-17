@@ -25,6 +25,7 @@ import { createRng, nextBelow } from '../sim/public';
 import {
   AI_TRIBE_CLEARANCE_CELLS,
   AI_TRIBE_REACH_CELLS,
+  FEDERATION_MIN_AI_NATIONS,
   MATCH_TRIBES,
   SETUP_AI_NATIONS_DEFAULT,
   SETUP_AI_NATIONS_MAX,
@@ -53,6 +54,8 @@ import { countryEligibility, startCellEligibility } from './eligibility';
 import { membersOf, subNationName } from './federationSetup';
 import { inventName } from './inventedNames';
 import type { CountryInfo, PreparedWorld, RegionAnalysis } from './matchWorld';
+
+export { FEDERATION_MIN_AI_NATIONS };
 
 export type Difficulty = 'easy' | 'normal' | 'hard';
 export const DIFFICULTIES: readonly Difficulty[] = ['easy', 'normal', 'hard'];
@@ -288,9 +291,6 @@ function subNationStart(state: GameState, f: Federations, sub: SubNation, prefer
   }
   return -1;
 }
-
-/** Fix-5A2: AI nations a match needs when the player's country is split into a federation (all seats would be one group: an instant "last alive" win). */
-export const FEDERATION_MIN_AI_NATIONS = 1;
 
 /**
  * M18b-2: how the player's federation candidate splits: the sub-nation you play, its capital cell and the partner sub-nations (cell each), or null when

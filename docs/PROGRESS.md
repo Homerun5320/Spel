@@ -195,6 +195,15 @@ GÖR och ACCEPTANS:
 - [x] Tests: `tests/ui/techModel.test.ts`, `tests/ai/upgradeDiscount.test.ts`, `tests/app/techKey.test.ts`, `e2e/research.test.ts`.
 - [x] `npm run verify:fast` green; the affected e2e green (result in `docs/DECISIONS.md` "M18d-2").
 
+### Fix-5A2: audit 4, the set-up barrier, deserialize guards, AI groups, the tech-tree guard and test holes (headless, no rule change, ENGINE_VERSION and FORMAT_VERSION unchanged, e2e/goldens untouched; one builder in its own worktree; the orchestrator owns merging, pushing and the Artifact)
+
+- [x] 0.0 `createMatch` refuses a split country with 0 AI nations (`setup.error.federationNeedsAi`); `federationMinAiNations(world, config)` for the set-up screen; test for all 7 candidates.
+- [x] 0.5 / 2.14b tight guards in `readMatch` (techDone window, tribe techs, winner / holdOwner players, holdOwner a group root) and helicopter load / fuel against the owner's own mask; one forged-blob test per guard with a control run.
+- [x] 0.6 AI diplomacy decides the leader per group (`groupShare`); `tests/ai` and `tests/sim/pace.test.ts` green.
+- [x] 1.2 tech key lists derived from `TECH_COUNT` / `TECH_BRANCHES` / `TECH_FX_CHANNELS`, one guard test (`tests/ui/techKeys.test.ts`).
+- [x] 2.1, 2.5, 2.6, 2.14a test holes closed (mutant table in DECISIONS, block Fix-5A2).
+- [x] `npm run verify:fast`: typecheck and lint green; unit run 3104 passed, the 2 failures (docs wording, the fixture of fix4a2Forged) fixed and re-run as single files green.
+
 
 ## Next
 

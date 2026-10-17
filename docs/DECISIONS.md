@@ -1875,3 +1875,44 @@ The first full `npm run verify` of the merged tree found four things; none neede
 2. **Result screen golden.** `e2e/goldens/result-screen.png` differs by 5 % because of the new Teknik column (M18d-2); the picture was looked at (table fits, columns readable, group rows absent in this match) and re-pinned once.
 3. **Two e2e expectations that count columns from the end.** `e2e/diplomacy.test.ts` read the last two result columns as the treaty columns; the Teknik column is now last, so it reads `slice(-3, -1)`. No assertion was weakened.
 4. **Heavy helicopter picture test moved to the serial project.** the heliFx pictures test (effects and chase camera pictures, formerly in the parallel e2e project) exceeded the 90 s screenshot timeout twice when three Chromium workers shared the four cores; alone it passes in about two minutes. It is now `e2e/heliFxPictures.serial.test.ts` (same content, one file at a time after the parallel stage, like the leak tests); docs references follow.
+
+## Fix-5A2 (audit 4: set-up barrier, deserialize guards, AI groups, tech-tree guard, test holes)
+
+No rule, ENGINE_VERSION or FORMAT_VERSION change; `e2e/goldens` untouched. All findings checked against HEAD 01c0de9 first: none was already fixed.
+
+1. **0.0 a split country with 0 AI nations.** `createMatch` now answers `federationNeedsAi` (key `setup.error.federationNeedsAi`, param `min`) when "Dela upp stormakter" really splits the chosen country and `aiNations` is below `FEDERATION_MIN_AI_NATIONS` (1, `src/sim/rules.ts`, row in `docs/BALANCE.md`). The decision is the same function that builds the match (`planHumanSplit`: the sub-nations that can start, at least two), so a candidate that does not split stays allowed: of the 7 candidates RUS, CAN, USA, CHN, BRA and AUS are refused at 0 and India (its sub-nations cannot start two whole discs) builds a one-player match that nobody wins by "last alive" (checked 3 000 ticks). Alternative from the finding (last alive needs two groups) rejected: it would change `src/sim/win.ts` and the rules. The exported `federationMinAiNations(world, config)` takes the world as well (the finding's `(config)` cannot know which countries split); Fix-5B clamps the slider with it.
+2. **0.5 / 2.14b deserialize.** `readMatch` knows `players` and `tick`: a running research needs `tick <= techDone <= tick + TECH_TICKS[cur - 1]` (a started research ends exactly `TECH_TICKS` after the tick of the step, and a finished one is cleared, so every real state is inside); tribes (owner > players) hold no techs and no research; `winner` and `holdOwner` are player seats; after the state is assembled `holdOwner` must be a group root when federation pairs exist (win.ts only ever stores a root; an eliminated root is its own root, so that case is allowed). The helicopter load and fuel are checked against the OWNER's `match.fx` after the match block is read (the old loose bound, the maximum of every researched tech, stays as a first filter). Existing fixtures, the golden saves and `tests/sim/fix4a2Forged.test.ts` load and refuse as before.
+3. **0.6 AI leader per group.** `src/ai/diplomacy.ts`: `groupShare` sums the land of a seat's group (`view.match.group`), `above()` and `strongest()` use it, `strongest()` returns a group's root and skips whole groups, the proposal step skips the AI's own group. Without a federation `group[o] === o` and every number is the old one. A second change was needed: with groups the existing test `tests/ai/federation.test.ts` ("20 seeds with two federations") saw 7 refusals against its tolerance of 5, all `REJECT_DIPLO_NO_PROPOSAL`: two AI seats proposed an alliance to each other on the same tick and then accepted the crossed proposal that the first accept had already removed. The AI now does not propose to a seat that has an open proposal to it (`d.proposalKind(ally, seat) === 0`); the test is untouched and passes with 0 refusals; `tests/ai` (190 tests) and `tests/sim/pace.test.ts` pass. The nation-growth test of seed 9 (new test below) moved from 995 to 947 cells because AI diplomacy decisions changed; seeds 1, 3 and 7 still pass their thresholds.
+4. **1.2 tech tree.** `TECH_NAME_KEYS`, `TECH_BRANCH_KEYS` and `TECH_FX_KEYS` are derived (`tech.name.` + n and so on), the module refuses `TECH_COUNT > 31`. Consequence for an existing test: `tests/i18n.test.ts` finds keys by quoted literals and would call the three families dead, so it now adds the three derived families (with their counts) to the used set; the stronger check that no key beyond the counts exists is in `tests/ui/techKeys.test.ts`. `src/ai/research.ts` exports `RESEARCH_ORDERS` (the three order arrays) for the guard test. The layout of the tables in `src/sim/rules.ts` is untouched.
+5. **Test holes** (new files `tests/sim/fix5a2Holes.test.ts`, `tests/app/fix5a2Setup.test.ts`, `tests/sim/fix5a2Forged.test.ts`, `tests/ai/diplomacyGroup.test.ts`, `tests/ui/techKeys.test.ts`, one test in `tests/ai/driver.test.ts`). 2.14a: seed 9 is a documented low case with its own floor (4 x K at 10 minutes, 2 x K at 5), a new test, the old one unchanged.
+
+Mutants (each: one line changed, the named file run, the test fails, the line restored):
+
+| Mutant | Killed by |
+|---|---|
+| createMatch without the outsider guard | `fix5a2Setup` "for each of the 7 candidates" |
+| sub-nation seat gets `homeLand: c.homeId` (F33) | `fix5a2Setup` "NO home land" |
+| `partners = starts` (own start included, F40) | `fix5a2Setup` "partner list" |
+| `aiOthers = config.aiNations` (cap, F41/F42) | `fix5a2Setup` "the cap 1 + SETUP_AI_NATIONS_MAX" |
+| `federationRoots` without the `ALLIANCE_FEDERATION` condition (F02) | `fix5a2Holes` "an ordinary alliance beside a federation" |
+| techDone upper bound removed / lower bound removed | `fix5a2Forged` "beyond tick + the research time" / "in the past" |
+| tribe-tech guard removed | `fix5a2Forged` "a tribe has no techs" |
+| `winner > seats` / `holdOwner > seats` | `fix5a2Forged` "the winner is a player" / "the land holder is a player" |
+| holdOwner root check removed | `fix5a2Forged` "group ROOT" |
+| helicopter load / fuel own-mask check removed | `fix5a2Forged` "helicopter load and fuel" (two tests) |
+| AI `above()` / `strongest()` back to single seats | `diplomacyGroup` (both) |
+| `scrapOwnerHelis` filter `owner === 0` (E, 2.1) | `fix5a2Holes` "three owners" |
+| regen `techRegen / 2` (E02) | `fix5a2Holes` "LAND: regeneration is exactly" |
+| Market line without goldPct (E07) | `fix5a2Holes` "a Market district earns +20 %" |
+| Port `tradeMilli` line removed (E08) | `fix5a2Holes` "Port trade" |
+| `wallPcts[n] = wallPct` (E11) | `fix5a2Holes` "a Walls district" |
+| `validateUpgrade` without the discount (E14) | `fix5a2Holes` "validateUpgrade knows the discount" |
+| fleet bonus dropped at `HELI_FLEET_MAX` (E17) | `fix5a2Holes` "+2 fleet bonus" |
+| research `<=` price (T14), `isTech(TECH_COUNT)` (T05), fractional tech (T06), `techCountOfMask` bit 15 (T08) | `fix5a2Holes` "boundaries" |
+| AI order array without a branch / `TECH_UI.branch` with a colour missing | `techKeys` |
+
+Survivors, both equivalent: (a) removing `if (view.match.group[o] !== o) continue;` in `strongest()` (the group's members then tie on the summed share and the lowest seat, the root, wins anyway; the line only states the intent), (b) the module guard `TECH_COUNT > 31` (cannot fire at 16; the same bound is asserted in `techKeys`).
+
+Not taken: the gzip caps (2.14c, a budget decision for the orchestrator, see BACKLOG).
+
+6. **Existing test changed because of the tight helicopter guard.** `tests/sim/fix4a2Forged.test.ts` builds its fixture with owner 2 holding no techs and checks that the legal edge values "load = max with every AIR tech" and "fuel = tank with every AIR tech" reach the checksum. That is exactly the blob the finding (2.14b) wants refused, so the fixture `full()` now gives owner 2 the four AIR techs (`setTechMask(2, ...)`, one line; no offset, no other test value moves). The edge values, the first illegal values and every expectation are unchanged; the case "a seat WITHOUT the techs cannot carry more than HELI_MAX_TROOPS" is now pinned in `tests/sim/fix5a2Forged.test.ts`.
