@@ -13,11 +13,14 @@ def hämta_generator():
     return _gen
 
 
-def kör(prompt, negativ, antal, steg, styrka, bredd, höjd, seed):
+def kör(prompt, negativ, antal, steg, styrka, bredd, höjd, seed, startbild, förändring):
     try:
         res = hämta_generator().generera(
             prompt, negativ, int(antal), int(steg), float(styrka),
-            int(bredd), int(höjd), int(seed) if seed >= 0 else None,
+            int(bredd) if startbild is None else None,
+            int(höjd) if startbild is None else None,
+            int(seed) if seed >= 0 else None,
+            startbild, float(förändring),
         )
     except ValueError as e:
         raise gr.Error(str(e))
@@ -25,7 +28,7 @@ def kör(prompt, negativ, antal, steg, styrka, bredd, höjd, seed):
 
 
 with gr.Blocks(title="Bildgenerator") as demo:
-    gr.Markdown("# Bildgenerator\nBeskriv en bild så skapar AI:n den. Engelska prompts ger oftast bäst resultat.")
+    gr.Markdown("# Bildgenerator\nBeskriv en bild så skapar AI:n den, eller ladda upp en startbild och beskriv hur den ska ändras. Engelska prompts ger oftast bäst resultat.")
     prompt = gr.Textbox(label="Prompt", placeholder="a red dragon flying over a snowy mountain, digital art", lines=2)
     negativ = gr.Textbox(label="Negativ prompt (valfritt)", placeholder="blurry, low quality")
     with gr.Row():
@@ -36,9 +39,13 @@ with gr.Blocks(title="Bildgenerator") as demo:
         bredd = gr.Slider(256, 768, value=512, step=64, label="Bredd")
         höjd = gr.Slider(256, 768, value=512, step=64, label="Höjd")
         seed = gr.Number(value=-1, precision=0, label="Seed (-1 = slumpmässig)")
+    with gr.Row():
+        startbild = gr.Image(type="pil", label="Startbild (valfritt, för bild-till-bild)")
+        förändring = gr.Slider(0.1, 1.0, value=0.75, step=0.05,
+                               label="Förändring (lågt = nära startbilden, högt = mer fri)")
     knapp = gr.Button("Generera", variant="primary")
     galleri = gr.Gallery(label="Resultat")
-    knapp.click(kör, [prompt, negativ, antal, steg, styrka, bredd, höjd, seed], galleri)
+    knapp.click(kör, [prompt, negativ, antal, steg, styrka, bredd, höjd, seed, startbild, förändring], galleri)
 
 if __name__ == "__main__":
     demo.launch()
