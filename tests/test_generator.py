@@ -11,12 +11,24 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from bildgenerator import kärna
 
 
+class FakeOOM(Exception):
+    pass
+
+
 class FakePipe:
+    saknade_repon: set = set()  # repon som "inte finns"
+    oom_tills_avlastad = False  # kasta minnesfel så länge avlastning är av
+    oom_alltid = False
+
     def __init__(self):
         self.anrop, self.flyttad, self.avlastad, self.slicing, self.repo = [], None, False, False, None
+        self.vae = types.SimpleNamespace(tiling=False)
+        self.vae.enable_tiling = lambda: setattr(self.vae, "tiling", True)
 
     @classmethod
     def from_pretrained(cls, repo, dtype=None):
+        if repo in cls.saknade_repon:
+            raise OSError(f"{repo} finns inte")
         p = cls()
         p.repo, p.dtype = repo, dtype
         return p
@@ -41,15 +53,30 @@ class FakePipe:
         self.slicing = True
 
     def __call__(self, **kw):
+        if FakePipe.oom_alltid or (FakePipe.oom_tills_avlastad and not self.avlastad):
+            raise FakeOOM()
         self.anrop.append(kw)
-        b, h = kw.get("width", 64), kw.get("height", 64)
+        if "image" in kw:
+            b, h = kw["image"].size
+        else:
+            b, h = kw["width"], kw["height"]
+        cb = kw.get("callback_on_step_end")
+        if cb:
+            steg = max(1, int(kw["num_inference_steps"] * kw.get("strength", 1)))
+            for i in range(steg):
+                assert cb(self, i, 0, {}) == {}
         return types.SimpleNamespace(images=[Image.new("RGB", (b, h))])
 
 
 @pytest.fixture
 def fakes(monkeypatch):
+    monkeypatch.setattr(FakePipe, "saknade_repon", set())
+    monkeypatch.setattr(FakePipe, "oom_tills_avlastad", False)
+    monkeypatch.setattr(FakePipe, "oom_alltid", False)
+
     def installera(cuda=False, vram=0):
         torch = types.ModuleType("torch")
+        torch.OutOfMemoryError = FakeOOM
         torch.float16, torch.bfloat16, torch.float32 = "f16", "bf16", "f32"
         torch.cuda = types.SimpleNamespace(
             is_available=lambda: cuda, empty_cache=lambda: None,
@@ -121,6 +148,8 @@ def test_sd15_standardvärden_och_negativ_används(fakes):
     k = g._pipor["text"].anrop[0]
     assert (k["num_inference_steps"], k["guidance_scale"]) == (30, 7.5)
     assert (k["width"], k["height"], k["negative_prompt"]) == (512, 512, "blurry")
+    g.generera("a cat")  # utan egen negativ prompt används modellens standard
+    assert "low quality" in g._pipor["text"].anrop[1]["negative_prompt"]
 
 
 def test_flux_skickar_max_sequence_length(fakes):
@@ -164,7 +193,8 @@ def test_bild_till_bild_använder_img_pipeline_och_skalar(fakes):
     k = g._pipor["img"].anrop[0]
     assert type(g._pipor["img"]).__name__ == "ZImageImg2ImgPipeline"
     assert k["image"].size == (1024, 688) and k["strength"] == 0.5
-    assert "width" not in k and "height" not in k and not g._pipor["text"].anrop
+    # måtten skickas med, annars faller FLUX tillbaka på 1024x1024 och tappar proportionerna
+    assert (k["width"], k["height"]) == (1024, 688) and not g._pipor["text"].anrop
 
 
 def test_avlastning_byter_hooks_mellan_text_och_bild(fakes):
@@ -210,3 +240,95 @@ def test_frigör(fakes):
     g = kärna.Bildgenerator("sd15")
     g.frigör()
     assert g._pipor == {}
+
+
+def test_sd_bild_till_bild_skickar_inte_mått(fakes):
+    fakes()
+    g = kärna.Bildgenerator("sd15")
+    g.generera("a", startbild=Image.new("RGB", (640, 480)))
+    k = g._pipor["img"].anrop[0]
+    assert "width" not in k and "height" not in k and k["image"].size == (640, 480)
+
+
+def test_stil_läggs_till_prompten(fakes):
+    fakes()
+    g = kärna.Bildgenerator("sd15")
+    g.generera(" a cat ", stil="akvarell")
+    assert g._pipor["text"].anrop[0]["prompt"] == "a cat, " + kärna.STILAR["akvarell"]
+    assert g.senaste_inställningar["prompt"] == " a cat " and g.senaste_inställningar["stil"] == "akvarell"
+    assert kärna.bygg_prompt("a cat") == "a cat"
+    with pytest.raises(ValueError, match="Okänd stil"):
+        g.generera("a cat", stil="kubism")
+
+
+def test_uppskalning_kör_andra_pass_med_samma_seed(fakes):
+    fakes(cuda=True, vram=24)
+    g = kärna.Bildgenerator("z-image-turbo")
+    res = g.generera("a cat", antal=2, seed=3, uppskala=1.5, format="16:9")
+    text, img = g._pipor["text"].anrop, g._pipor["img"].anrop
+    assert len(text) == 2 and len(img) == 2
+    assert [b.size for b, _ in res] == [(2048, 1152)] * 2  # 1360x768 * 1.5 = 2040x1152, avrundat till 16
+    k = img[0]
+    assert k["strength"] == kärna.UPPSKALA_FÖRÄNDRING and k["image"].size == (2048, 1152)
+    assert (k["width"], k["height"]) == (2048, 1152)
+    assert int(k["num_inference_steps"] * k["strength"]) >= 4  # snabbmodellen får ändå riktiga steg
+    assert [a["generator"].seed for a in img] == [3, 4] and g._pipor["img"].vae.tiling
+    assert g.senaste_inställningar["storlek"] == "2048x1152" and g.senaste_inställningar["uppskala"] == 1.5
+    with pytest.raises(ValueError):
+        g.generera("a cat", uppskala=3)
+
+
+def test_framsteg_går_från_0_till_1(fakes):
+    fakes()
+    g = kärna.Bildgenerator("sd15")
+    steg = []
+    g.generera("a cat", antal=2, steg=4, uppskala=2, framsteg=lambda a, t: steg.append((a, t)))
+    andelar = [a for a, _ in steg]
+    assert andelar == sorted(andelar) and andelar[0] == 0 and andelar[-1] == 1.0
+    assert all(0 <= a <= 1 for a in andelar)
+    assert any("Skalar upp bild 2 av 2" in t for _, t in steg)
+
+
+def test_reservrepo_används_när_första_saknas(fakes):
+    fakes(cuda=True, vram=24)
+    FakePipe.saknade_repon = {"Tongyi-MAI/Z-Image-Turbo"}
+    g = kärna.Bildgenerator("z-image-turbo")
+    assert g.repo == "Z-a-o/Z-Image-Turbo" and g._pipor["text"].repo == "Z-a-o/Z-Image-Turbo"
+    g.generera("a")
+    assert g.senaste_inställningar["repo"] == "Z-a-o/Z-Image-Turbo"
+    FakePipe.saknade_repon = {"Tongyi-MAI/Z-Image-Turbo", "Z-a-o/Z-Image-Turbo"}
+    with pytest.raises(RuntimeError, match="Kunde inte ladda"):
+        kärna.Bildgenerator("z-image-turbo")
+
+
+def test_minnesbrist_slår_på_avlastning_och_försöker_igen(fakes):
+    fakes(cuda=True, vram=24)
+    g = kärna.Bildgenerator("z-image-turbo")
+    assert not g.avlasta
+    FakePipe.oom_tills_avlastad = True
+    res = g.generera("a cat", seed=9)
+    assert g.avlasta and g._pipor["text"].avlastad and [s for _, s in res] == [9]
+
+
+def test_minnesbrist_ger_begripligt_fel(fakes):
+    fakes(cuda=True, vram=24)
+    g = kärna.Bildgenerator("z-image-turbo")
+    FakePipe.oom_alltid = True
+    with pytest.raises(kärna.MinnesFel, match="mindre format"):
+        g.generera("a cat")
+
+
+def test_spara_skriver_inte_över_och_listar_nyast_först(fakes, tmp_path):
+    import os
+
+    fakes()
+    g = kärna.Bildgenerator("sd15")
+    a = g.generera_och_spara("a cat", str(tmp_path), seed=1)[0]
+    b = g.generera_och_spara("a cat", str(tmp_path), seed=1, steg=5)[0]
+    c = g.generera_och_spara("a cat", str(tmp_path), seed=1, steg=6)[0]
+    assert [f.name for f in (a, b, c)] == ["a-cat_1.png", "a-cat_1__2.png", "a-cat_1__3.png"]
+    for i, f in enumerate((a, b, c)):
+        os.utime(f, (1000 + i, 1000 + i))
+    assert kärna.lista_bilder(str(tmp_path)) == [c, b, a]
+    assert kärna.lista_bilder(str(tmp_path), max_antal=1) == [c]
+    assert kärna.lista_bilder(str(tmp_path / "saknas")) == []

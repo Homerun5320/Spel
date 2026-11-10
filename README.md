@@ -28,8 +28,6 @@ pip install -r requirements.txt
 
 Modellen laddas ner automatiskt första gången (sd15 ca 4 GB, Z-Image-Turbo och FLUX 20 GB eller mer).
 En NVIDIA-GPU rekommenderas. På CPU fungerar sd15 men det tar minuter per bild.
-Om `--modell z-image-turbo` inte hittar modellen på Hugging Face, prova id:t `Z-a-o/Z-Image-Turbo`
-som används i diffusers exempel.
 
 ## Använd
 
@@ -49,6 +47,15 @@ Välj format med `--format` (1:1, 4:3, 3:2, 16:9, 3:4, 2:3, 9:16) eller exakta m
 Standard för steg och promptstyrka är det som är bäst för vald modell, så du behöver sällan ändra dem.
 Negativ prompt (`-n`) används bara av `sd15`. De andra modellerna ignorerar den, så beskriv i stället vad du vill ha.
 
+Stil och uppskalning:
+
+```bash
+python -m bildgenerator "a red fox in snow" --stil akvarell --format 16:9 --uppskala 1.5
+```
+
+`--stil` lägger till en färdig stilbeskrivning efter prompten (foto, film, porträtt, oljemålning, akvarell, anime, 3d, konceptkonst, teckning).
+`--uppskala` (1–2) förstorar bilden och ritar om den lätt i ett andra pass, vilket ger fler detaljer men tar längre tid och mer minne.
+
 Bild till bild: ge en startbild och en prompt som beskriver hur den ska ändras.
 
 ```bash
@@ -57,8 +64,14 @@ python -m bildgenerator "the same scene at sunset, oil painting" --bild foto.jpg
 
 `--förändring` (0–1) styr hur mycket startbilden får ändras: lågt håller sig nära originalet, högt följer prompten mer. Storleken tas från startbilden. I webbgränssnittet laddar du upp startbilden i fältet "Startbild".
 
-Bilderna sparas i `bilder/` som PNG, och prompt, seed, modell och inställningar sparas i filen
-(läs dem med `bildgenerator.kärna.läs_metadata`). Samma `--seed` ger samma bild.
+Bilderna sparas i `bilder/` som PNG, och prompt, seed, modell och inställningar sparas i filen.
+Visa dem med `python -m bildgenerator --visa-info bilder/filen.png`. Samma `--seed` ger samma bild.
+
+I webbgränssnittet sparas bilderna också automatiskt. Fliken Historik visar tidigare bilder: klicka på en
+för att se inställningarna, återanvända prompt och seed, eller använda den som startbild.
+
+Räcker inte grafikkortets minne försöker programmet en gång till med avlastning till processorminnet
+innan det ger upp. Om `Tongyi-MAI/Z-Image-Turbo` inte går att ladda provas `Z-a-o/Z-Image-Turbo` automatiskt.
 
 ## Tips för bra bilder
 
@@ -74,4 +87,4 @@ pip install pytest
 python -m pytest tests
 ```
 
-Testerna kör logiken mot en låtsas-torch och låtsas-diffusers. Själva bildgenereringen med riktiga modeller är inte provkörd.
+Testerna kör logiken mot en låtsas-torch och låtsas-diffusers. Webbgränssnittet är provkört i en webbläsare med en låtsasmodell. Själva bildgenereringen med riktiga modeller är inte provkörd.
