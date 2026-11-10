@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bildgenerator – text blir bild</title>
+<meta name="description" content="Skriv en mening, få en bild. Bildgenerator med Stable Diffusion, text-till-bild och bild-till-bild.">
+<meta name="color-scheme" content="light dark">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Azeret+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#efe6cf; --ink:#1d1230; --mute:#5b4d6e; --acc:#b8380a; --code:#e2d6b6;
+  --mono:"Azeret Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#17101f; --ink:#efe6cf; --mute:#a99bbd; --acc:#ffb23e; --code:#261b34}
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.65 var(--mono);overflow-x:hidden}
+@media (min-width:760px){body{font-size:16px}}
+
+/* fältet: ett enda bildfält som skärps när man scrollar */
+.field{position:fixed;inset:0;overflow:hidden;z-index:0;background:var(--bg)}
+.field canvas{display:block;width:100%;height:100%;object-fit:cover;transform:scale(1.12);will-change:filter}
+.grain{position:absolute;inset:0;background-size:200px 200px;opacity:.92;pointer-events:none}
+
+main{position:relative;z-index:1}
+.gap{height:26vh}
+.gap.tall{height:40vh}
+
+.blk{background:var(--bg);padding:clamp(22px,4vw,56px)}
+.l{width:min(100%,640px);border-radius:0 44px 0 0;padding-right:clamp(26px,5vw,64px)}
+.r{width:min(100%,700px);margin-left:auto;border-radius:44px 0 0 0;padding-left:clamp(26px,5vw,64px)}
+@media (max-width:760px){
+  .l{width:94%;border-radius:0 30px 0 0}
+  .r{width:94%;border-radius:30px 0 0 0}
+}
+.hero{min-height:100svh;display:flex;align-items:flex-end}
+.hero .blk{padding-bottom:max(clamp(22px,4vw,56px),env(safe-area-inset-bottom))}
+
+h1,h2{margin:0 0 .6em;font-weight:600;letter-spacing:-.01em;line-height:1.2}
+h1{font-size:clamp(1.15rem,2.4vw,1.5rem)}
+h2{font-size:clamp(1.05rem,2.2vw,1.3rem)}
+p{margin:0 0 1em;overflow-wrap:anywhere}
+.mute{color:var(--mute)}
+a{color:var(--acc);text-underline-offset:.2em}
+
+.prompt{margin:1.4em 0 0;padding:.8em 1em;background:var(--code);border-radius:18px 4px 18px 4px;overflow-wrap:anywhere}
+.prompt b{color:var(--acc);font-weight:600}
+.caret{display:inline-block;width:.6ch;height:1.1em;margin-left:2px;vertical-align:-.2em;background:var(--acc);animation:blink 1.1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+
+ol.steg{list-style:none;counter-reset:s;margin:0 0 1.2em;padding:0}
+ol.steg li{counter-increment:s;position:relative;padding-left:2.6ch;margin-bottom:.8em;overflow-wrap:anywhere}
+ol.steg li::before{content:counter(s);position:absolute;left:0;color:var(--acc);font-weight:600}
+ol.steg b{font-weight:600}
+
+.btn{font:600 .9rem/1 var(--mono);color:var(--bg);background:var(--acc);border:0;cursor:pointer;
+  padding:.85em 1.3em;border-radius:20px 4px 20px 4px;transition:border-radius .35s ease,transform .2s ease}
+.btn:hover{border-radius:4px 20px 4px 20px}
+.btn:active{transform:scale(.97)}
+.btn:focus-visible,input[type=range]:focus-visible{outline:2px solid var(--acc);outline-offset:3px}
+.btn.small{font-size:.78rem;padding:.6em 1em;background:var(--ink)}
+.seedrow{display:flex;flex-wrap:wrap;align-items:center;gap:.8em 1.2em}
+output{color:var(--mute)}
+
+.code{position:relative;margin:0 0 1em;background:var(--code);border-radius:18px 4px 18px 4px;padding:1em 1em 1em 1.1em}
+.code pre{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;font-size:.88em}
+.code code{font:inherit}
+.code .btn{margin-top:.8em}
+
+.mix{display:block;width:100%;aspect-ratio:16/10;border-radius:4px 28px 4px 28px;background:var(--code)}
+.cap{display:flex;justify-content:space-between;gap:1em;margin:.6em 0 0;font-size:.82em;color:var(--mute)}
+input[type=range]{width:100%;margin:1.1em 0 .4em;accent-color:var(--acc);height:28px}
+.read{margin:0 0 1em}
+.small{font-size:.82em}
+
+ul.plain{margin:0;padding:0;list-style:none}
+ul.plain li{padding-left:2.2ch;position:relative;margin-bottom:.7em;overflow-wrap:anywhere}
+ul.plain li::before{content:"→";position:absolute;left:0;color:var(--acc)}
+
+footer{background:var(--ink);color:var(--bg);padding:clamp(22px,4vw,48px);display:flex;flex-wrap:wrap;gap:.6em 2em;justify-content:space-between;font-size:.85em}
+footer a{color:var(--bg)}
+@media (prefers-reduced-motion:reduce){.caret{animation:none}.btn{transition:none}}
+</style>
+</head>
+<body>
+<div class="field" aria-hidden="true"><canvas id="scene"></canvas><div class="grain" id="grain"></div></div>
+
+<main>
+  <section class="hero">
+    <div class="blk l">
+      <h1>Bildgenerator</h1>
+      <p>Skriv en mening, få en bild. Eller ge den en bild och be den ändra den.</p>
+      <div class="prompt" aria-label="Exempel på prompt"><b>&gt;</b> <span id="typed"></span><span class="caret"></span></div>
+      <p class="mute" style="margin:1.4em 0 0">Scrolla ner. Bilden bakom texten skärps.</p>
+    </div>
+  </section>
+
+  <div class="gap"></div>
+
+  <section class="blk r">
+    <h2>Från brus till bild</h2>
+    <ol class="steg">
+      <li><b>Slumpbrus.</b> Modellen startar från ren slump. Samma seed ger samma brus och därför samma bild.</li>
+      <li><b>Avbrusning.</b> I runt 30 små steg tar den bort lite brus i taget, styrd av din prompt.</li>
+      <li><b>Bild.</b> När bruset är borta är bilden klar.</li>
+    </ol>
+    <p>Bakgrunden gör samma sak medan du scrollar. Tryck för att slumpa fram en ny.</p>
+    <div class="seedrow">
+      <button class="btn" id="reroll" type="button">Ny seed</button>
+      <output id="seedout" for="reroll"></output>
+    </div>
+  </section>
+
+  <div class="gap tall"></div>
+
+  <section class="blk l">
+    <h2>Kom igång</h2>
+    <p>Programmet körs på din egen dator. Du behöver Python 3.10 eller nyare.</p>
+    <div class="code"><pre><code>git clone https://github.com/Homerun5320/Spel.git
+cd Spel
+pip install -r requirements.txt
+python app.py</code></pre><button class="btn small" data-copy type="button">Kopiera</button></div>
+    <p>Öppna sedan <b>http://127.0.0.1:7860</b>, skriv en prompt och tryck på Generera. Vill du slippa webbläsaren går det från kommandoraden:</p>
+    <div class="code"><pre><code>python -m bildgenerator "a red dragon over a snowy mountain"</code></pre><button class="btn small" data-copy type="button">Kopiera</button></div>
+    <p class="mute">Första starten laddar ner modellen, cirka 4 GB. Med ett NVIDIA-kort tar en bild några sekunder, på CPU flera minuter.</p>
+  </section>
+
+  <div class="gap"></div>
+
+  <section class="blk r">
+    <h2>Bild till bild</h2>
+    <p>Ge en startbild och beskriv hur den ska ändras. <b>Förändring</b> bestämmer hur långt tillbaka i brus bilden skickas innan den byggs upp igen.</p>
+    <canvas class="mix" id="mix" width="800" height="500" role="img" aria-label="Illustration: övertoning mellan startbild och resultat"></canvas>
+    <div class="cap"><span>startbild</span><span>resultat</span></div>
+    <input type="range" id="str" min="5" max="100" value="60" aria-label="Förändring">
+    <p class="read" id="strread"></p>
+    <div class="code"><pre><code>python -m bildgenerator "the same scene at sunset, oil painting" --bild foto.jpg --förändring 0.6</code></pre><button class="btn small" data-copy type="button">Kopiera</button></div>
+    <p class="mute small">Illustrationen visar principen, den är inte utdata från modellen.</p>
+  </section>
+
+  <div class="gap tall"></div>
+
+  <section class="blk l">
+    <h2>Gott att veta</h2>
+    <ul class="plain">
+      <li>Den här sidan beskriver bara verktyget. Bilderna skapas på din dator, inte i webbläsaren.</li>
+      <li>Engelska prompts ger oftast bäst resultat.</li>
+      <li>Samma seed och samma inställningar ger samma bild.</li>
+      <li>Bygger på Stable Diffusion 1.5 via biblioteket diffusers. Byt modell med <b>--modell</b>.</li>
+    </ul>
+  </section>
+
+  <div class="gap"></div>
+
+  <footer>
+    <span>Bildgenerator</span>
+    <a href="https://github.com/Homerun5320/Spel">github.com/Homerun5320/Spel</a>
+  </footer>
+</main>
+
+<script>
+(function(){
+  var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var $ = function(s){ return document.querySelector(s); };
+
+  function rng(seed){var a=seed>>>0;return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+
+  var PAL=[
+    {sky:['#2b1a4a','#a8456b','#ffb36b'],land:['#1a1230','#3a2352','#6e3d6a','#a85d73'],water:['#c9667a','#2a1c40']},
+    {sky:['#0f2b3d','#2f7a86','#f3d9a0'],land:['#0c2230','#18465a','#2f7385','#74b3b3'],water:['#8fc9c0','#12303f']},
+    {sky:['#3b1d1a','#c4602f','#ffd88a'],land:['#24120f','#4e2418','#8a4527','#c9794a'],water:['#e39a5d','#3b1d1a']},
+    {sky:['#14213d','#5b6fb5','#f4c9d4'],land:['#101a33','#27386b','#5469a3','#97a6d1'],water:['#b4bfe3','#1a2750']}
+  ];
+
+  function drawScene(ctx,w,h,seed){
+    var r=rng(seed), P=PAL[Math.floor(r()*PAL.length)], g;
+    var hor=h*(0.58+r()*0.08);
+    g=ctx.createLinearGradient(0,0,0,hor);
+    g.addColorStop(0,P.sky[0]); g.addColorStop(.6,P.sky[1]); g.addColorStop(1,P.sky[2]);
+    ctx.fillStyle=g; ctx.fillRect(0,0,w,h);
+    var sx=w*(0.2+r()*0.6), sy=hor*(0.45+r()*0.3), sr=Math.min(w,h)*(0.07+r()*0.05);
+    g=ctx.createRadialGradient(sx,sy,0,sx,sy,sr*5);
+    g.addColorStop(0,'rgba(255,240,210,.55)'); g.addColorStop(1,'rgba(255,240,210,0)');
+    ctx.fillStyle=g; ctx.fillRect(0,0,w,h);
+    ctx.fillStyle='#fff6df'; ctx.beginPath(); ctx.arc(sx,sy,sr,0,7); ctx.fill();
+    for(var k=0;k<4;k++){
+      var f=[0,1,2].map(function(){return {fr:(1.2+r()*4.5)/w*6.283*(1+k*.35), ph:r()*6.283};});
+      var amp=h*(0.20-k*0.035), lift=(3-k)*h*0.02;
+      ctx.fillStyle=P.land[3-k]; ctx.beginPath(); ctx.moveTo(0,hor);
+      for(var x=0;x<=w;x+=4){
+        var v=.5*Math.sin(x*f[0].fr+f[0].ph)+.3*Math.sin(x*f[1].fr*2.1+f[1].ph)+.2*Math.sin(x*f[2].fr*4.3+f[2].ph);
+        ctx.lineTo(x, hor-lift-amp*(v+1)/2);
+      }
+      ctx.lineTo(w,hor); ctx.closePath(); ctx.fill();
+      if(k<3){
+        g=ctx.createLinearGradient(0,hor-amp-lift,0,hor);
+        g.addColorStop(0,'rgba(255,230,190,0)'); g.addColorStop(1,'rgba(255,230,190,.22)');
+        ctx.fillStyle=g; ctx.fillRect(0,hor-amp-lift,w,amp+lift);
+      }
+    }
+    g=ctx.createLinearGradient(0,hor,0,h);
+    g.addColorStop(0,P.water[0]); g.addColorStop(1,P.water[1]);
+    ctx.fillStyle=g; ctx.fillRect(0,hor,w,h-hor);
+    for(var i=0;i<26;i++){
+      var y=hor+(h-hor)*Math.pow(i/26,1.4), ww=sr*(0.6+r()*1.6)*(1+i/14);
+      ctx.fillStyle='rgba(255,240,210,'+(0.32*(1-i/26)).toFixed(3)+')';
+      ctx.fillRect(sx-ww/2+(r()-.5)*sr*.5,y,ww,Math.max(1.5,(h-hor)/70));
+    }
+  }
+
+  /* huvudfältet */
+  var canvas=$('#scene'), grain=$('#grain'), seedOut=$('#seedout');
+  var seed=Math.floor(Math.random()*90000)+1000, lastW=0;
+
+  function paintField(){
+    var dpr=Math.min(window.devicePixelRatio||1,1.5);
+    var w=Math.round(Math.min(innerWidth*dpr,1800)), h=Math.round(w*Math.max(innerHeight/innerWidth,.6));
+    canvas.width=w; canvas.height=h; lastW=innerWidth;
+    drawScene(canvas.getContext('2d'),w,h,seed);
+  }
+
+  var tile=document.createElement('canvas'); tile.width=tile.height=200;
+  (function(){
+    var c=tile.getContext('2d'), d=c.createImageData(200,200);
+    for(var i=0;i<d.data.length;i+=4){var v=Math.random()*255; d.data[i]=d.data[i+1]=d.data[i+2]=v; d.data[i+3]=255;}
+    c.putImageData(d,0,0); grain.style.backgroundImage='url('+tile.toDataURL()+')';
+  })();
+  if(!reduce) setInterval(function(){
+    grain.style.backgroundPosition=Math.floor(Math.random()*200)+'px '+Math.floor(Math.random()*200)+'px';
+  },110);
+
+  function apply(n){
+    canvas.style.filter='blur('+(n*n*30).toFixed(1)+'px) saturate('+(1-.7*n).toFixed(2)+')';
+    grain.style.opacity=(n*.92).toFixed(3);
+  }
+  function target(){
+    var max=document.documentElement.scrollHeight-innerHeight;
+    var s=Math.min(1,(max>0?scrollY/max:1)/0.8);
+    return 1-s*s*(3-2*s);
+  }
+  var cur=1, surge=0, surgeT=0, pending=false, raf=0;
+  function frame(){
+    var tg=target();
+    cur+=(tg-cur)*(reduce?1:0.09);
+    surge+=(surgeT-surge)*(reduce?1:0.1);
+    if(pending&&surge>0.96){pending=false; surgeT=0; swap();}
+    apply(Math.max(cur,surge));
+    raf=(Math.abs(tg-cur)>0.002||Math.abs(surgeT-surge)>0.002||pending)?requestAnimationFrame(frame):0;
+  }
+  function kick(){ if(!raf) raf=requestAnimationFrame(frame); }
+  addEventListener('scroll',kick,{passive:true});
+  addEventListener('resize',function(){ if(innerWidth!==lastW){paintField(); kick();} });
+
+  /* bild till bild-illustrationen */
+  var mix=$('#mix'), mctx=mix.getContext('2d'), str=$('#str'), strread=$('#strread');
+  var A=document.createElement('canvas'), B=document.createElement('canvas');
+  A.width=B.width=800; A.height=B.height=500;
+  function paintMix(){ drawScene(A.getContext('2d'),800,500,seed); drawScene(B.getContext('2d'),800,500,seed+7); drawMixed(); }
+  function drawMixed(){
+    var s=str.value/100, w=Math.pow(s,1.5);
+    mctx.globalAlpha=1; mctx.drawImage(A,0,0); mctx.globalAlpha=w; mctx.drawImage(B,0,0); mctx.globalAlpha=1;
+    strread.textContent='Förändring '+s.toFixed(2)+' · '+Math.floor(30*s+1e-9)+' av 30 steg körs';
+  }
+  str.addEventListener('input',drawMixed);
+
+  function swap(){
+    seed=Math.floor(Math.random()*90000)+1000;
+    paintField(); paintMix(); seedOut.textContent='seed '+seed;
+  }
+  $('#reroll').addEventListener('click',function(){ if(pending) return; pending=true; surgeT=1; kick(); });
+
+  /* kopiera-knappar */
+  document.querySelectorAll('[data-copy]').forEach(function(b){
+    b.addEventListener('click',function(){
+      var code=b.parentNode.querySelector('code'), txt=code.innerText;
+      function ok(){ b.textContent='Kopierat'; setTimeout(function(){b.textContent='Kopiera';},1400); }
+      if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(ok,function(){}); }
+      else { var r=document.createRange(); r.selectNodeContents(code); var s=getSelection(); s.removeAllRanges(); s.addRange(r); try{document.execCommand('copy'); ok();}catch(e){} }
+    });
+  });
+
+  /* skrivmaskin */
+  var typed=$('#typed'), full='a quiet lake at dusk, oil painting, soft light';
+  if(reduce){ typed.textContent=full; }
+  else { var i=0; setTimeout(function t(){ typed.textContent=full.slice(0,++i); if(i<full.length) setTimeout(t,32+Math.random()*60); },700); }
+
+  seedOut.textContent='seed '+seed;
+  paintField(); paintMix(); apply(1); kick();
+})();
+</script>
+</body>
+</html>

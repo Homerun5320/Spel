@@ -2,6 +2,8 @@
 
 Genererar bilder från text med Stable Diffusion (förtränad modell via 🤗 diffusers).
 
+Webbsida: https://homerun5320.github.io/Spel/ (källa i `docs/`, publiceras av `.github/workflows/pages.yml`).
+
 ## Installera
 
 ```bash
