@@ -106,7 +106,7 @@ footer a{color:var(--bg)}
     <h2>Från brus till bild</h2>
     <ol class="steg">
       <li><b>Slumpbrus.</b> Modellen startar från ren slump. Samma seed ger samma brus och därför samma bild.</li>
-      <li><b>Avbrusning.</b> I runt 30 små steg tar den bort lite brus i taget, styrd av din prompt.</li>
+      <li><b>Avbrusning.</b> I några få till runt 30 små steg (beroende på modell) tar den bort lite brus i taget, styrd av din prompt.</li>
       <li><b>Bild.</b> När bruset är borta är bilden klar.</li>
     </ol>
     <p>Bakgrunden gör samma sak medan du scrollar. Tryck för att slumpa fram en ny.</p>
@@ -127,7 +127,7 @@ pip install -r requirements.txt
 python app.py</code></pre><button class="btn small" data-copy type="button">Kopiera</button></div>
     <p>Öppna sedan <b>http://127.0.0.1:7860</b>, skriv en prompt och tryck på Generera. Vill du slippa webbläsaren går det från kommandoraden:</p>
     <div class="code"><pre><code>python -m bildgenerator "a red dragon over a snowy mountain"</code></pre><button class="btn small" data-copy type="button">Kopiera</button></div>
-    <p class="mute">Första starten laddar ner modellen, cirka 4 GB. Med ett NVIDIA-kort tar en bild några sekunder, på CPU flera minuter.</p>
+    <p class="mute">Första starten laddar ner modellen: cirka 4 GB för den lilla (sd15), 20 GB eller mer för Z-Image-Turbo och FLUX. Med ett NVIDIA-kort tar en bild några sekunder, på CPU flera minuter. Programmet väljer själv modell efter ditt grafikkort.</p>
   </section>
 
   <div class="gap"></div>
@@ -151,7 +151,7 @@ python app.py</code></pre><button class="btn small" data-copy type="button">Kopi
       <li>Den här sidan beskriver bara verktyget. Bilderna skapas på din dator, inte i webbläsaren.</li>
       <li>Engelska prompts ger oftast bäst resultat.</li>
       <li>Samma seed och samma inställningar ger samma bild.</li>
-      <li>Bygger på Stable Diffusion 1.5 via biblioteket diffusers. Byt modell med <b>--modell</b>.</li>
+      <li>Öppna modeller via biblioteket diffusers: Z-Image-Turbo (standard med kraftigt kort), FLUX.1 schnell och Stable Diffusion 1.5. Byt med <b>--modell</b> eller i rullisten.</li>
     </ul>
   </section>
 
@@ -264,7 +264,7 @@ python app.py</code></pre><button class="btn small" data-copy type="button">Kopi
   function drawMixed(){
     var s=str.value/100, w=Math.pow(s,1.5);
     mctx.globalAlpha=1; mctx.drawImage(A,0,0); mctx.globalAlpha=w; mctx.drawImage(B,0,0); mctx.globalAlpha=1;
-    strread.textContent='Förändring '+s.toFixed(2)+' · '+Math.floor(30*s+1e-9)+' av 30 steg körs';
+    strread.textContent='Förändring '+s.toFixed(2)+' · '+Math.floor(8*s+1e-9)+' av 8 steg körs';
   }
   str.addEventListener('input',drawMixed);
 
